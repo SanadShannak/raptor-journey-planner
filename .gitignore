@@ -142,7 +142,7 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
 
-# data used by parses and algorithms
+# data used by parsers and algorithms
 raw-data/*-gtfs-data/
 processed-data/*-processed-data/
 
