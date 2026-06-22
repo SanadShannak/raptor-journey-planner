@@ -43,3 +43,13 @@ To toggle between local datasets (e.g., Helsinki vs. Amman):
 1. Place your target GTFS (unzipped) folder inside the "raw_data" folder with exactly the following name format: "amman-gtfs-data". Make sure it contains all the data required (as stated in the "pipeline.config")
 2. Open `pipelineConfig.js` in the project root.
 3. Update `ACTIVE_NETWORK` attribute to `'amman'`.
+
+### Component 2: Route Builder (`parseRoutes.js`)
+
+#### Objective
+Aggregates individual scheduled journeys by extracting their physical stop sequences from `stop_times.txt`. This script groups commercial transit variants into mathematically strict, sequence-locked RAPTOR routes traveling in a single direction.
+
+#### Ingestion Rules
+1. **File Dependencies:** Requires a valid `routes.txt`, `stop_times.txt`, and dynamic trip source files matching the pattern `trips*.txt`. It also directly reads the pre-compiled translation manifest `stop-mapping.json`.
+2. **BOM Header Remediation:** The reader includes an active global stream interceptor (`mapHeaders`) to strip invisible UTF-8 Byte Order Mark characters (`\uFEFF`) natively present in the dataset headers.
+3. **Route Signatures:** Stop sequences are serialized into string keys (`stop1-stop2-stop3`). Trips sharing identical signatures are coalesced into a single structural route block containing arrays of valid trip references.

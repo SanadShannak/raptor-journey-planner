@@ -4,8 +4,10 @@ module.exports = {
 
   // Structural rules & requirements for ingesting data
   rules: {
-    requiredFiles: ["stops.txt", "routes.txt"],
+    requiredFiles: ["stops.txt", "routes.txt", "stop_times.txt", "trips*.txt"],
     requiredStopHeaders: ["stop_id", "stop_name", "stop_lat", "stop_lon"],
     requiredRouteHeaders: ["route_id", "route_short_name"],
+    requiredTripHeaders: ["route_id", "trip_id"],
+    requiredStopTimesHeaders: ["trip_id", "stop_id"],
   },
 };
