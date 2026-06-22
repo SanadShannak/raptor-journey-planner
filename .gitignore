@@ -141,3 +141,10 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# data used by parses and algorithms
+raw-data/
+processed-data/
+
+#  mac folder viewing purposes
+.DS_Store
