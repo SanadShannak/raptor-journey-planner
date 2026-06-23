@@ -23,13 +23,19 @@ const stopsArray = [];
 const stringToIntegerMap = {};
 let internalStopIdCounter = 0;
 
+console.log("Stop Parsing Started.\n");
 console.log(
   `Opening '${path.basename(inputPath)}' for ${activeNetwork.toUpperCase()} network and compiling memory layouts...`,
 );
 
 // Reading raw data from GTFS file and pipelining into csv reader
 fs.createReadStream(inputPath)
-  .pipe(csv())
+  .pipe(
+    csv({
+      // Sanitizes headers by stripping hidden BOM characters or non-alphanumeric objects from the start of the column name
+      mapHeaders: ({ header }) => header.replace(/^\W+/, "").trim(),
+    }),
+  )
   .on("data", (row) => {
     // Pipeline rule validation: Ensure required properties exits in raw data
     if (!row.stop_id || !row.stop_name || !row.stop_lat || !row.stop_lon) {
@@ -72,6 +78,7 @@ fs.createReadStream(inputPath)
     console.log(
       `Successfully compiled ${internalStopIdCounter} stops into optimized indexes.`,
     );
+    console.log("\nStop Parsing Finished.\n");
   })
 
   // Catch any error while extracting data

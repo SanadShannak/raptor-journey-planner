@@ -48,7 +48,12 @@ function loadRouteNames() {
 
     // Reading raw data from GTFS file and pipelining into csv reader
     fs.createReadStream(routesInputPath)
-      .pipe(csv())
+      .pipe(
+        csv({
+          // Sanitizes headers by stripping hidden BOM characters or non-alphanumeric objects from the start of the column name
+          mapHeaders: ({ header }) => header.replace(/^\W+/, "").trim(),
+        }),
+      )
       .on("data", (row) => {
         // Pipeline rule validation: Ensure required properties exits in raw data
         if (!row.route_id || !row.route_short_name) {
@@ -91,7 +96,12 @@ function parseTripsAndStopTimes() {
       const fullTripPath = path.join(rawDataDir, tripFilePath);
       // Reading raw data from GTFS file and pipelining into csv reader
       fs.createReadStream(fullTripPath)
-        .pipe(csv())
+        .pipe(
+          csv({
+            // Sanitizes headers by stripping hidden BOM characters or non-alphanumeric objects from the start of the column name
+            mapHeaders: ({ header }) => header.replace(/^\W+/, "").trim(),
+          }),
+        )
         .on("data", (row) => {
           // Pipeline rule validation: Ensure required properties exits in raw data
           if (!row.trip_id || !row.route_id) {
@@ -135,8 +145,8 @@ function loadStopTime() {
     fs.createReadStream(stopTimesInputPath)
       .pipe(
         csv({
-          // This runs once per header column when the file opens, cleaning it globally, especially for the first column to deal with BOM (Byte Order Mark) encoding issue
-          mapHeaders: ({ header }) => header.replace(/^\uFEFF/, "").trim(),
+          // Sanitizes headers by stripping hidden BOM characters or non-alphanumeric objects from the start of the column name
+          mapHeaders: ({ header }) => header.replace(/^\W+/, "").trim(),
         }),
       )
       .on("data", (row) => {
@@ -218,10 +228,12 @@ function compileAndWriteRoutes() {
 
 async function runRouteParsingPipeline() {
   try {
+    console.log("Route Parsing Started.\n");
     await loadRouteNames();
     await parseTripsAndStopTimes();
     await loadStopTime();
     await compileAndWriteRoutes();
+    console.log("\nRoute Parsing Finished.\n");
   } catch (e) {
     console.error("Route Parsing Pipeline failed: ", e);
   }

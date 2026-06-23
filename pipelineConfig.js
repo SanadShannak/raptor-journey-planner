@@ -8,6 +8,11 @@ module.exports = {
     requiredStopHeaders: ["stop_id", "stop_name", "stop_lat", "stop_lon"],
     requiredRouteHeaders: ["route_id", "route_short_name"],
     requiredTripHeaders: ["route_id", "trip_id"],
-    requiredStopTimesHeaders: ["trip_id", "stop_id"],
+    requiredStopTimesHeaders: [
+      "trip_id",
+      "stop_id",
+      "arrival_time",
+      "departure_time",
+    ],
   },
 };
