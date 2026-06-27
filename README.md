@@ -95,11 +95,13 @@ Provides a dedicated, zero-dependency mathematical helper that calculates the ex
 
 $$\text{Distance} = R \cdot c$$
 
-Where:
-$$a = \sin^2\left(\frac{\Delta \phi}{2}\right) + \cos(\phi_1) \cdot \cos(\phi_2) \cdot \sin^2\left(\frac{\Delta \lambda}{2}\right)$$
-
-$$c = 2 \cdot \text{atan2}(\sqrt{a}, \sqrt{1-a})$$
-
+Where the mathematical components are defined as:
+* $$a = \sin^2\left(\frac{\Delta \phi}{2}\right) + \cos(\phi_1) \cdot \cos(\phi_2) \cdot \sin^2\left(\frac{\Delta \lambda}{2}\right)$$
+* $$c = 2 \cdot \text{atan2}(\sqrt{a}, \sqrt{1-a})$$
+* $$\Delta \phi = \phi_2 - \phi_1 \quad \text{(Difference in latitude radians)}$$
+* $$\Delta \lambda = \lambda_2 - \lambda_1 \quad \text{(Difference in longitude radians)}$$
+* $$R = 6,371,000\text{ m} \quad \text{(Mean radius of the Earth)}$$
+  
 ## 🗺️ Operational Workflows
 
 ### Swapping Transit Networks
