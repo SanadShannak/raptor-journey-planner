@@ -93,11 +93,12 @@ Provides a dedicated, zero-dependency mathematical helper that calculates the ex
 2. **Memory Allocation Defenses:** Eliminates inner function definitions and arrow structures (`degree => radian`). By converting degrees to radians inline using direct CPU register primitives, it completely prevents heap-allocation churn and blocks the Node.js Garbage Collector from triggering performance stutters during massive $O(n^2)$ loop sweeps.
 3. **Formula Mapping:** Evaluates the square of half the chord length ($a$) and the angular distance in radians ($c$) to yield precise physical measurements in meters:
 
+$$\text{Distance} = R \cdot c$$
+
+Where:
 $$a = \sin^2\left(\frac{\Delta \phi}{2}\right) + \cos(\phi_1) \cdot \cos(\phi_2) \cdot \sin^2\left(\frac{\Delta \lambda}{2}\right)$$
 
-$$c = 2 \cdot \operatorname{atan2}(\sqrt{a}, \sqrt{1-a})$$
-
-$$\text{Distance} = R \cdot c$$
+$$c = 2 \cdot \text{atan2}(\sqrt{a}, \sqrt{1-a})$$
 
 ## 🗺️ Operational Workflows
 
