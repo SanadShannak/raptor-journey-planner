@@ -66,6 +66,38 @@ Ingests and transforms raw calendar schedules from `stop_times.txt` into a high-
 5. **Memory Layout and Optimization:** To bypass JavaScript string-allocation length constraints (`RangeError: Invalid string length`), data is grouped into a direct Key-Value Hash Map (`{ trip_id: [{ arrival, departure }] }`) and written to disk as minified JSON. This architecture ensures $O(1)$ lookup complexity for the live routing server.
 
 ---
+### Component 4: Footpath Generator (`generateFootpaths.js`)
+
+#### Objective
+Compiles a complete pedestrian transfer matrix (`footpaths.processed.json`) that bridges nearby transit stops and platforms. Without this matrix, individual lines exist as isolated "islands," and the RAPTOR engine cannot compute journeys that require walking between connections.
+
+#### Ingestion Rules
+1. **File Dependencies:** Reads the pre-compiled `stops.processed.json` file directly into memory from the active network directory.
+2. **Computational Space Complexity:** Implements a deterministic $O(n^2)$ double nested loop. Because the source stop objects are highly stripped of text metadata, it crunches millions of coordinate combinations in sub-second runtimes without memory bloating.
+3. **Internal Key Binding:** Utilizes loop index variables (`i` and `j`) to dynamically map relationships. This ensures that generated footpath keys sync natively with the zero-indexed integer IDs established in Component 1, allowing the online engine to perform ultra-fast $O(1)$ spatial array jumps in RAM.
+4. **Transfer Logic Metrics:**
+   * **The Spatial Filter:** Restricts the search space by dropping any destination stop pair with a physical distance greater than a strict **1,000-meter** radius cutoff.
+   * **The Detour Factor:** Multiplies straight-line spherical distance by a **1.3** scalar multiplier to mathematically compensate for winding city sidewalks without requiring heavy street-graph dependencies.
+   * **Temporal Alignment:** Converts the calculated distance into integer units of **Seconds From Midnight** using a standard human walking velocity baseline of **1.4 m/s**.
+   * **Self-Transfer Rule:** Explicitly injects a reflexive transfer edge from every stop index to itself with a duration of `0` seconds, enabling instantaneous, same-platform vehicle transfers.
+
+---
+
+### Shared Utility Core: Haversine Spatial Calculator (`utils/calculateHaversine.js`)
+
+#### Objective
+Provides a dedicated, zero-dependency mathematical helper that calculates the exact great-circle distance between two geographic coordinate points on a sphere.
+
+#### Design Optimization Laws
+1. **Geometric Integrity:** Uses pure spherical trigonometry ($\sin, \cos, \text{atan2}$) to natively compensate for longitudinal grid compression. This ensures mathematical precision whether compiling high-latitude networks like Helsinki (`hsl`) or equatorial grids like Amman (`amman`).
+2. **Memory Allocation Defenses:** Eliminates inner function definitions and arrow structures (`degree => radian`). By converting degrees to radians inline using direct CPU register primitives, it completely prevents heap-allocation churn and blocks the Node.js Garbage Collector from triggering performance stutters during massive $O(n^2)$ loop sweeps.
+3. **Formula Mapping:** Evaluates the square of half the chord length ($a$) and the angular distance in radians ($c$) to yield precise physical measurements in meters:
+
+$$a = \sin^2\left(\frac{\Delta \phi}{2}\right) + \cos(\phi_1) \cdot \cos(\phi_2) \cdot \sin^2\left(\frac{\Delta \lambda}{2}\right)$$
+
+$$c = 2 \cdot \operatorname{atan2}(\sqrt{a}, \sqrt{1-a})$$
+
+$$\text{Distance} = R \cdot c$$
 
 ## 🗺️ Operational Workflows
 

@@ -219,7 +219,7 @@ function compileAndWriteRoutes() {
     console.log(
       `Saving ${finalRoutesArray.length} compiled RAPTOR routes to disk...`,
     );
-
+    // Create routes output file (if non existing), stringify the 'finalRoutesArray' & write to its output file (using arg '2' for indentation)
     fs.writeFileSync(outputPath, JSON.stringify(finalRoutesArray, null, 2));
     console.log(`Successfully compiled ${finalRoutesArray.length} routes.`);
     resolve();
