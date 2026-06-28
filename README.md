@@ -1,6 +1,6 @@
 # RAPTOR Journey Planner Engine
 
-## 🏗️ Core System Architecture Overview
+## Core System Architecture Overview
 
 Public transit engines process massive datasets containing millions of weekly scheduled trips. Running a routing engine directly against raw schedule files or a standard database produces unacceptably high latency. 
 
@@ -11,7 +11,7 @@ To overcome this, this project is divided into two decoupled, distinct architect
 
 ---
 
-## ⚙️ The Pipeline Configuration Registry (`pipelineConfig.js`)
+## The Pipeline Configuration Registry (`pipelineConfig.js`)
 
 To prevent hardcoding folder names inside individual parser scripts, we use a central configuration file. This allows us to scale the project easily and switch between different city networks with a single string swap.
 
@@ -21,7 +21,7 @@ To prevent hardcoding folder names inside individual parser scripts, we use a ce
 
 ---
 
-## 📦 Component Documentation
+## Component Documentation
 
 ### Component 1: Stop Parser (`parseStops.js`)
 
@@ -102,7 +102,7 @@ Where the mathematical components are defined as:
 * $$\Delta \lambda = \lambda_2 - \lambda_1 \quad \text{(Difference in longitude radians)}$$
 * $$R = 6,371,000\text{ m} \quad \text{(Mean radius of the Earth)}$$
   
-## 🎛️ Pipeline Orchestration & Execution (`runPipeline.js`)
+## Pipeline Orchestration & Execution (`runPipeline.js`)
 
 #### Objective
 Automates the execution of the entire offline ingestion chain, enforcing step-by-step sequential integrity.
@@ -117,7 +117,7 @@ To run the full compilation chain from end to end:
 node runPipeline.js
 ```
   
-## 🗺️ Operational Workflows
+## Operational Workflows
 
 ### Swapping Transit Networks
 To toggle between local datasets (e.g., Helsinki vs. Amman):
