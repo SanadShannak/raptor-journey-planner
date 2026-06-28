@@ -21,7 +21,9 @@ function timeStringToTimeOfDayInSeconds(timestamp) {
     .split(":")
     .reduce((acc, time) => acc * 60 + parseInt(time), 0);
 }
-console.log("Timetable Parsing Started.\n");
+
+console.log("\x1b[34m%s\x1b[0m", "\nTimetable Parsing Started.\n");
+
 const tripToTimesMap = {};
 console.log("Streaming stop_times.txt to parse trip timetables");
 fs.createReadStream(inputPath)
@@ -62,7 +64,8 @@ fs.createReadStream(inputPath)
     console.log(
       `Successfully parsed ${Object.keys(tripToTimesMap).length} trips.`,
     );
-    console.log("\nTimetable Parsing Finished.\n");
+
+    console.log("\x1b[34m%s\x1b[0m", "\nTimetable Parsing Finished.\n");
   })
   .on("error", (err) => {
     // Catch any error while extracting data

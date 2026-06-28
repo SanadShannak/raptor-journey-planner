@@ -17,7 +17,7 @@ const outputPath = path.join(
   `../processed-data/${activeNetwork}-processed-data/footpaths.processed.json`,
 );
 
-console.log("Footpath Generation Started.\n");
+console.log("\x1b[34m%s\x1b[0m", "\nFootpath Generation Started.\n");
 
 // 1. Read and parse the file directly into memory
 if (!fs.existsSync(inputPath)) {
@@ -79,4 +79,4 @@ console.log(
 
 fs.writeFileSync(outputPath, JSON.stringify(footpathMatrix, null, 2));
 
-console.log("\nFootpath Generation Finished.\n");
+console.log("\x1b[34m%s\x1b[0m", "\nFootpath Generation Finished.\n");

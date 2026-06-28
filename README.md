@@ -102,6 +102,21 @@ Where the mathematical components are defined as:
 * $$\Delta \lambda = \lambda_2 - \lambda_1 \quad \text{(Difference in longitude radians)}$$
 * $$R = 6,371,000\text{ m} \quad \text{(Mean radius of the Earth)}$$
   
+## 🎛️ Pipeline Orchestration & Execution (`runPipeline.js`)
+
+#### Objective
+Automates the execution of the entire offline ingestion chain, enforcing step-by-step sequential integrity.
+
+#### Execution Mechanics
+1. **Synchronous Control Flow:** Utilizing Node.js's native `child_process.execSync`, the orchestrator completely freezes parent execution until the current child parser yields a successful exit code `0`. This guarantees that relational dependencies (e.g., Component 2 reading the mapping output of Component 1) are strictly preserved.
+2. **Stream Inheritance:** Configured with `{ stdio: "inherit" }` to directly bind the standard input, output, and error streams of the sub-processes to the master terminal, keeping all detailed parser metrics visible in real time.
+
+### Running the Pipeline
+To run the full compilation chain from end to end:
+```bash
+node runPipeline.js
+```
+  
 ## 🗺️ Operational Workflows
 
 ### Swapping Transit Networks

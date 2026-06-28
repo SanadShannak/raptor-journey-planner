@@ -107,7 +107,7 @@ function parseTripsAndStopTimes() {
           if (!row.trip_id || !row.route_id) {
             return reject(
               new Error(
-                `Data Ingestion Error: GTFS ${path.basename(fullTripPath)}.txt is missing a required base property`,
+                `Data Ingestion Error: GTFS ${path.basename(fullTripPath)} is missing a required base property`,
               ),
             );
           }
@@ -121,7 +121,7 @@ function parseTripsAndStopTimes() {
         // If all trip files have been read, resolve
         .on("end", () => {
           completedFiles++;
-          console.log(`Processed ${path.basename(fullTripPath)}.txt file.`);
+          console.log(`Processed ${path.basename(fullTripPath)} file.`);
           if (completedFiles === tripFiles.length) {
             console.log(
               `Mapping initialized with ${Object.keys(tripToSequenceMap).length} trips.`,
@@ -228,12 +228,14 @@ function compileAndWriteRoutes() {
 
 async function runRouteParsingPipeline() {
   try {
-    console.log("Route Parsing Started.\n");
+    console.log("\x1b[34m%s\x1b[0m", "\nRoute Parsing Started.\n");
+
     await loadRouteNames();
     await parseTripsAndStopTimes();
     await loadStopTime();
     await compileAndWriteRoutes();
-    console.log("\nRoute Parsing Finished.\n");
+
+    console.log("\x1b[34m%s\x1b[0m", "\nRoute Parsing Finished.\n");
   } catch (e) {
     console.error("Route Parsing Pipeline failed: ", e);
   }

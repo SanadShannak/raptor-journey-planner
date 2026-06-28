@@ -23,7 +23,8 @@ const stopsArray = [];
 const stringToIntegerMap = {};
 let internalStopIdCounter = 0;
 
-console.log("Stop Parsing Started.\n");
+console.log("\x1b[34m%s\x1b[0m", "\nStop Parsing Started.\n", "\x1b[0m");
+
 console.log(
   `Opening '${path.basename(inputPath)}' for ${activeNetwork.toUpperCase()} network and compiling memory layouts...`,
 );
@@ -78,7 +79,7 @@ fs.createReadStream(inputPath)
     console.log(
       `Successfully compiled ${internalStopIdCounter} stops into optimized indexes.`,
     );
-    console.log("\nStop Parsing Finished.\n");
+    console.log("\x1b[34m%s\x1b[0m", "\nStop Parsing Finished.\n");
   })
 
   // Catch any error while extracting data
