@@ -47,7 +47,7 @@ Aggregates individual scheduled journeys by extracting their physical stop seque
 
 #### Ingestion Rules
 1. **File Dependencies:** Requires a valid `routes.txt`, `stop_times.txt`, and dynamic trip source files matching the pattern `trips*.txt`. It also directly reads the pre-compiled translation manifest `stop-mapping.json`.
-2. **Field Requirements:** The parsing parser validates rows against the configuration's strict `requiredRouteHeaders` (`route_id`, `route_short_name`) and `requiredTripHeaders` (`route_id`, `trip_id`).
+2. **Field Requirements:** The parser validates rows against the configuration's strict `requiredRouteHeaders` (`route_id`, `route_short_name`) and `requiredTripHeaders` (`route_id`, `trip_id`).
 3. **Header Sanitization Layer:** Intercepts incoming data streams with a global `mapHeaders` filter to strip hidden Byte Order Marks (BOM) or leading non-alphanumeric artifacts before keys map to internal memory loops.
 4. **Route Signatures:** Stop sequences are serialized into string keys (`stop1-stop2-stop3`). Trips sharing identical signatures are coalesced into a single structural route block containing arrays of valid trip references.
 
@@ -117,7 +117,7 @@ To run the full compilation chain from end to end:
 node runPipeline.js
 ```
   
-## Operational Workflows
+## Operational Workflows 
 
 ### Swapping Transit Networks
 To toggle between local datasets (e.g., Helsinki vs. Amman):
