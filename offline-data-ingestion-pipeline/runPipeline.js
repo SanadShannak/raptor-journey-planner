@@ -24,6 +24,10 @@ const parsingComponents = [
     name: "Component 4: Generate Footpaths",
     scriptPath: path.join(allParsersFolderPath, "generateFootpaths.js"),
   },
+  {
+    name: "Component 5: Map Stop-To-Routes",
+    scriptPath: path.join(allParsersFolderPath, "parseStopToRoutes.js"),
+  },
 ];
 
 console.log("\x1b[32m%s\x1b[0m", "Offline Pipeline Execution Starting...\n");

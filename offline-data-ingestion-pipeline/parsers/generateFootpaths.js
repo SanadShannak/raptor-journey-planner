@@ -19,7 +19,7 @@ const outputPath = path.join(
 
 console.log("\x1b[34m%s\x1b[0m", "\nFootpath Generation Started.\n");
 
-// 1. Read and parse the file directly into memory
+// Read and parse the file directly into memory
 if (!fs.existsSync(inputPath)) {
   console.error(
     `Error: Could not find processed stops at ${path.basename(inputPath)}. Make sure to run previous parsing steps first!`,

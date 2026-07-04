@@ -34,6 +34,10 @@ const processedDataFiles = [
       "timetables.processed.json",
     ),
   },
+  {
+    name: "stopToRoutes",
+    filePath: path.join(allProcessedDataFolderPath, "stop-to-routes.json"),
+  },
 ];
 
 // Object containing final cached data to be exported
@@ -43,6 +47,7 @@ const cachedData = {
   stopMapping: null,
   stops: null,
   timetables: null,
+  stopToRoutes: null,
 };
 
 console.log("Reading file contents into local RAM cache...");

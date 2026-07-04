@@ -83,6 +83,20 @@ Compiles a complete pedestrian transfer matrix (`footpaths.processed.json`) that
 
 ---
 
+### Component 5: Stop-to-Route Indexer (`parseStopToRoutes.js`)
+
+#### Objective
+Compiles an inverted relational index matrix (`stop-to-routes.json`) that maps every individual stop to the exact transit routes that service it. This acts as the primary performance engine for the RAPTOR algorithm, ensuring it can dynamically filter and discover routes in $O(1)$ constant time during execution sweeps instead of scanning the entire city network.
+
+#### Ingestion Rules
+1. **File Dependencies:** Reads both the pre-compiled `stops.processed.json` and `routes.processed.json` files directly into memory from the active network directory.
+2. **Computational Space Complexity:** Implements a clean, sequential $O(S + (R \times P))$ execution path (where $S$ is stops, $R$ is routes, and $P$ is platforms per route). This builds the relational dictionary in memory in milliseconds on boot without complex search overhead.
+3. **Internal Key Binding:** Binds dictionary lookup keys directly to the sequential zero-indexed integer array positions of the stops. This guarantees that when the online RAPTOR engine pulls a marked stop index from its active queue, it can instantly resolve the associated array of Route IDs without string comparisons or index shifting.
+4. **Indexing Logic Metrics:**
+   * **Array Initializer:** Loops through the complete stop collection first to instantiate an empty tracking array (`[]`) for every available system index, ensuring no undefined lookups occur at runtime.
+   * **Sequence Traversal:** Iterates through every route profile, sliding across its internal `stop_ids` collection, and pushes the parent `route_id` integer into the respective stop index bucket.
+   * **Deduplication Filter:** Validates that a route index is not already present within a stop's array prior to insertion, ensuring clean, unique arrays even if a transit line circles back near the same station complex.
+
 ### Shared Utility Core: Haversine Spatial Calculator (`utils/calculateHaversine.js`)
 
 #### Objective
