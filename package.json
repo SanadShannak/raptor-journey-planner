@@ -19,6 +19,8 @@
   },
   "homepage": "https://github.com/SanadShannak/raptor-journey-planner#readme",
   "dependencies": {
-    "csv-parser": "^3.2.1"
+    "cors": "^2.8.6",
+    "csv-parser": "^3.2.1",
+    "express": "^5.2.1"
   }
 }

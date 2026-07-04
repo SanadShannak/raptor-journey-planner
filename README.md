@@ -116,7 +116,21 @@ To run the full compilation chain from end to end:
 ```bash
 node runPipeline.js
 ```
-  
+# RAPTOR Online Routing Server Shell
+
+This directory contains the live, online API routing server layer of the multi-modal journey planner. Unlike the offline ingestion pipeline, this application remains continuously running to receive user queries and execute travel path searches.
+
+## Component Architecture
+
+* **`index.js`**: The master entry point and brain stem of the backend application. It bootstraps the environment, applies cross-origin policies (`CORS`), and binds the server process to local network port 3000.
+* **`memoryCache.js`**: The cold-start hydration manager. It intercepts the boot phase to synchronously stream pre-compiled JSON transit arrays from the disk straight into the runtime's memory registers, completely eliminating disk I/O latency during active routing requests.
+
+## Lifecycle of a Server Boot
+
+1. **Evaluation Phase**: `index.js` initializes and requires the memory cache module.
+2. **Hydration Phase**: `memoryCache.js` detects the active system network context, validates that compiled files exist, maps out lengths, and loads data frames into memory buffers.
+3. **Gateway Phase**: Express applies middleware security filters, activates a baseline health check endpoint (`/api/health`), and opens the local network port gateway.  
+
 ## Operational Workflows 
 
 ### Swapping Transit Networks
