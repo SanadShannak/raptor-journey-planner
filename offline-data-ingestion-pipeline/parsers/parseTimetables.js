@@ -1,32 +1,31 @@
 const fs = require("fs");
 const path = require("path");
 const csv = require("csv-parser");
+const calculateTimeOfDayInSeconds = require("../utils/calculateTimeOfDayInSeconds");
 // Custom dynamic configuration
 const config = require("../pipelineConfig");
 
 // Dynamic directory paths based on whatever network is active (hsl, amman, etc..)
 const activeNetwork = config.ACTIVE_NETWORK;
-const inputPath = path.join(
+
+const stopTimesInputPath = path.join(
   __dirname,
   `../../raw-data/${activeNetwork}-gtfs-data/stop_times.txt`,
+);
+const tripMap = require(
+  `../../processed-data/${activeNetwork}-processed-data/trip-mapping.json`,
 );
 const outputPath = path.join(
   __dirname,
   `../../processed-data/${activeNetwork}-processed-data/timetables.processed.json`,
 );
 
-function timeStringToTimeOfDayInSeconds(timestamp) {
-  // Converts a 24-hour time string into total seconds of the day.
-  return timestamp
-    .split(":")
-    .reduce((acc, time) => acc * 60 + parseInt(time), 0);
-}
-
 console.log("\x1b[34m%s\x1b[0m", "\nTimetable Parsing Started.\n");
 
-const tripToTimesMap = {};
+// Pre-allocate our target output container as a clean flat array list
+const finalTimetableArray = [];
 console.log("Streaming stop_times.txt to parse trip timetables");
-fs.createReadStream(inputPath)
+fs.createReadStream(stopTimesInputPath)
   .pipe(
     csv({
       // Sanitizes headers by stripping hidden BOM characters or non-alphanumeric objects from the start of the column name
@@ -42,27 +41,35 @@ fs.createReadStream(inputPath)
       process.exit(1);
     }
     // Extracting specific information from raw data
-    const tripId = row.trip_id;
+
+    const stringTripId = row.trip_id;
+    // Convert string trip ID to its designated integer index location
+    const tripIntId = tripMap[stringTripId];
+    // Safety guard if trip files did not match up cleanly across GTFS sets
+    if (tripIntId === undefined) return;
     const rawArrivalTime = row.arrival_time;
     const rawDepartureTime = row.departure_time;
     // Converting arrival and departure times into RAPTOR-suitable format
-    const arrivalTime = timeStringToTimeOfDayInSeconds(rawArrivalTime);
-    const departureTime = timeStringToTimeOfDayInSeconds(rawDepartureTime);
-    if (!tripToTimesMap[tripId]) {
-      tripToTimesMap[tripId] = [];
+    const arrivalTime = calculateTimeOfDayInSeconds(rawArrivalTime);
+    const departureTime = calculateTimeOfDayInSeconds(rawDepartureTime);
+    if (!finalTimetableArray[tripIntId]) {
+      finalTimetableArray[tripIntId] = [];
     }
-    tripToTimesMap[tripId].push({
+    finalTimetableArray[tripIntId].push({
       arrival: arrivalTime,
       departure: departureTime,
     });
   })
   // Data read from original file is finished
   .on("end", () => {
-    // Create timetable output file (if non existing), stringify the 'tripToTimesMap' & write to its output file (NOT using arg '2' for indentation because of memory limits)
-    fs.writeFileSync(outputPath, JSON.stringify(tripToTimesMap));
+    console.log(
+      "Writing flat, high-density integer-indexed timetables to disk...",
+    );
+    // Create timetable output file (if non existing), stringify the 'finalTimetableArray' & write to its output file
+    fs.writeFileSync(outputPath, JSON.stringify(finalTimetableArray));
 
     console.log(
-      `Successfully parsed ${Object.keys(tripToTimesMap).length} trips.`,
+      `Successfully parsed ${Object.keys(finalTimetableArray).length} tokenized trip arrays.`,
     );
 
     console.log("\x1b[34m%s\x1b[0m", "\nTimetable Parsing Finished.\n");

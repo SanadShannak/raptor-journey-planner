@@ -38,6 +38,13 @@ const processedDataFiles = [
     name: "stopToRoutes",
     filePath: path.join(allProcessedDataFolderPath, "stop-to-routes.json"),
   },
+  {
+    name: "activeServices",
+    filePath: path.join(
+      allProcessedDataFolderPath,
+      "active-services.processed.json",
+    ),
+  },
 ];
 
 // Object containing final cached data to be exported
@@ -48,6 +55,7 @@ const cachedData = {
   stops: null,
   timetables: null,
   stopToRoutes: null,
+  activeServices: null,
 };
 
 console.log("Reading file contents into local RAM cache...");

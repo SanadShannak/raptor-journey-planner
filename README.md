@@ -2,12 +2,12 @@
 
 ## Core System Architecture Overview
 
-Public transit engines process massive datasets containing millions of weekly scheduled trips. Running a routing engine directly against raw schedule files or a standard database produces unacceptably high latency. 
+Public transit engines process massive datasets containing millions of weekly scheduled trips. Running a routing engine directly against raw schedule files or a standard database produces unacceptably high latency.
 
 To overcome this, this project is divided into two decoupled, distinct architectures:
 
-1. **The Offline Data Pipeline (Current Phase):** A sequence of ingestion compilers that read heavy, relational, text-based GTFS data and compact them into zero-indexed, contiguous memory buffers saved as highly readable `.json` files.
-2. **The Online Routing Server (Future Phase):** An ultra-fast, multi-modal routing environment that loads pre-compiled JSON memory blocks into RAM cache to execute RAPTOR range queries in sub-50ms runtimes.
+1. **The Offline Data Pipeline:** A sequence of ingestion compilers that read heavy, relational, text-based GTFS data and compact them into zero-indexed, contiguous memory buffers saved as highly readable `.json` files.
+2. **The Online Routing Server:** An ultra-fast, multi-modal routing environment that loads pre-compiled JSON memory blocks into RAM cache to execute RAPTOR range queries in sub-50ms runtimes.
 
 ---
 
@@ -17,7 +17,7 @@ To prevent hardcoding folder names inside individual parser scripts, we use a ce
 
 ### Structural Manifest Rules
 1. **Network Independence:** To switch the target data from Helsinki (`hsl`) to Amman (`amman`), change the `ACTIVE_NETWORK` property. All parsers automatically adjust their input and output paths based on this single token.
-2. **Pipeline Integrity Controls:** The configuration features a strict `rules` schema validator containing arrays of `requiredFiles` and column headers (`requiredStopHeaders`, `requiredRouteHeaders`, etc.) ensuring incomplete or structurally corrupt datasets are rejected at the stream boundary.
+2. **Pipeline Integrity Controls:** The configuration features a strict `rules` schema validator containing arrays of `requiredFiles` and column headers ensuring incomplete or structurally corrupt datasets are rejected at the stream boundary.
 
 ---
 
@@ -30,125 +30,149 @@ Converts sparse, text-heavy GTFS `stops.txt` datasets into highly compacted, zer
 
 #### Ingestion Rules
 1. **File Dependencies:** The input directory matching the active network must contain a valid `stops.txt` dataset.
-2. **Field Requirements:** The dataset schema *must* feature at minimum the configuration's `requiredStopHeaders`:
-   * `stop_id`: Relational system identifier.
-   * `stop_name`: Verbal text descriptive label.
-   * `stop_lat`: Coordinate dimension.
-   * `stop_lon`: Coordinate dimension.
-3. **Memory Layout Transformation:** * **`stops.processed.json`**: An array where a stop's index position (`0, 1, 2...`) serves as its brand-new internal ID. Heavy metadata fields are stripped entirely to save RAM cache space.
-   * **`stop-mapping.json`**: A temporary translator file that maps the original GTFS string ID to our new internal integer ID. This is used by subsequent parsers to convert relational records downstream.
+2. **Memory Layout Transformation:**
+   - **`stops.processed.json`**: An array where a stop's index position serves as its internal ID. Metadata is stripped to save RAM.
+   - **`stop-mapping.json`**: A translator file mapping the original GTFS string ID to the internal integer ID.
 
 ---
 
-### Component 2: Route Builder (`parseRoutes.js`)
+### Component 2: Active Services Compiler (`parseActiveServices.js`)
+
+#### Objective
+Ingests `calendar.txt` and `calendar_dates.txt` to compile a chronological manifest of service availability. This creates an $O(1)$ lookup capability to determine which transit services are running on any specific query date.
+
+#### Ingestion Rules
+1. **Date Serialization**: Converts arbitrary date ranges into standardized integer IDs for high-performance indexing.
+2. **Exception Handling**: Processes `calendar_dates.txt` to apply "ADD" or "REMOVE" exceptions to the base schedule.
+3. **Service Mapping**: Generates `service-mapping.processed.json`, mapping GTFS `service_id` strings to internal integer tokens.
+
+---
+
+### Component 3: Route Builder (`parseRoutes.js`)
 
 #### Objective
 Aggregates individual scheduled journeys by extracting their physical stop sequences from `stop_times.txt`. This script groups commercial transit variants into mathematically strict, sequence-locked RAPTOR routes traveling in a single direction.
 
 #### Ingestion Rules
-1. **File Dependencies:** Requires a valid `routes.txt`, `stop_times.txt`, and dynamic trip source files matching the pattern `trips*.txt`. It also directly reads the pre-compiled translation manifest `stop-mapping.json`.
-2. **Field Requirements:** The parser validates rows against the configuration's strict `requiredRouteHeaders` (`route_id`, `route_short_name`) and `requiredTripHeaders` (`route_id`, `trip_id`).
-3. **Header Sanitization Layer:** Intercepts incoming data streams with a global `mapHeaders` filter to strip hidden Byte Order Marks (BOM) or leading non-alphanumeric artifacts before keys map to internal memory loops.
-4. **Route Signatures:** Stop sequences are serialized into string keys (`stop1-stop2-stop3`). Trips sharing identical signatures are coalesced into a single structural route block containing arrays of valid trip references.
+1. **Sequence Serialization**: Converts raw stop sequences into signature strings. Trips sharing identical sequences are collapsed into the same `service_bucket`.
+2. **Trip Mapping**: Generates the `trip-mapping.json` manifest, bridging raw GTFS string IDs to compressed integer indices.
 
 ---
 
-### Component 3: Timetable Compiler (`parseTimetables.js`)
+### Component 4: Timetable Compiler (`parseTimetables.js`)
 
 #### Objective
-Ingests and transforms raw calendar schedules from `stop_times.txt` into a high-performance, memory-optimized temporal lookup matrix for the live RAPTOR engine.
+Ingests and transforms raw calendar schedules from `stop_times.txt` into a high-performance, memory-optimized temporal lookup matrix.
 
 #### Ingestion Rules
-1. **File Dependencies:** Streams the network's `stop_times.txt` file and handles ingestion routing dynamically via the pipeline configuration context.
-2. **Field Requirements:** Enforces the structural validation of incoming data rows against the registry's strict `requiredStopTimesHeaders` array (`trip_id`, `stop_id`, `arrival_time`, `departure_time`).
-3. **Header Sanitization Layer:** Employs a regular-expression-driven global stream interceptor (`mapHeaders: ({ header }) => header.replace(/^\W+/, "").trim()`) to strip out structural byte order marks (BOM) and non-alphanumeric artifacts that cause key mismatch regressions at the source.
-4. **Temporal Serialization:** Converts standard human-readable `HH:MM:SS` text timestamps into highly compressed base-10 integers representing **Seconds From Midnight**.
-5. **Memory Layout and Optimization:** To bypass JavaScript string-allocation length constraints (`RangeError: Invalid string length`), data is grouped into a direct Key-Value Hash Map (`{ trip_id: [{ arrival, departure }] }`) and written to disk as minified JSON. This architecture ensures $O(1)$ lookup complexity for the live routing server.
-
----
-### Component 4: Footpath Generator (`generateFootpaths.js`)
-
-#### Objective
-Compiles a complete pedestrian transfer matrix (`footpaths.processed.json`) that bridges nearby transit stops and platforms. Without this matrix, individual lines exist as isolated "islands," and the RAPTOR engine cannot compute journeys that require walking between connections.
-
-#### Ingestion Rules
-1. **File Dependencies:** Reads the pre-compiled `stops.processed.json` file directly into memory from the active network directory.
-2. **Computational Space Complexity:** Implements a deterministic $O(n^2)$ double nested loop. Because the source stop objects are highly stripped of text metadata, it crunches millions of coordinate combinations in sub-second runtimes without memory bloating.
-3. **Internal Key Binding:** Utilizes loop index variables (`i` and `j`) to dynamically map relationships. This ensures that generated footpath keys sync natively with the zero-indexed integer IDs established in Component 1, allowing the online engine to perform ultra-fast $O(1)$ spatial array jumps in RAM.
-4. **Transfer Logic Metrics:**
-   * **The Spatial Filter:** Restricts the search space by dropping any destination stop pair with a physical distance greater than a strict **1,000-meter** radius cutoff.
-   * **The Detour Factor:** Multiplies straight-line spherical distance by a **1.3** scalar multiplier to mathematically compensate for winding city sidewalks without requiring heavy street-graph dependencies.
-   * **Temporal Alignment:** Converts the calculated distance into integer units of **Seconds From Midnight** using a standard human walking velocity baseline of **1.4 m/s**.
-   * **Self-Transfer Rule:** Explicitly injects a reflexive transfer edge from every stop index to itself with a duration of `0` seconds, enabling instantaneous, same-platform vehicle transfers.
+1. **Temporal Serialization**: Converts `HH:MM:SS` text timestamps into highly compressed base-10 integers representing **Seconds From Midnight**.
+2. **Memory Layout**: Groups data into a direct Key-Value Hash Map `{ trip_id: [{ arrival, departure }] }` to ensure $O(1)$ lookup complexity.
 
 ---
 
-### Component 5: Stop-to-Route Indexer (`parseStopToRoutes.js`)
+### Component 5: Footpath Generator (`generateFootpaths.js`)
 
 #### Objective
-Compiles an inverted relational index matrix (`stop-to-routes.json`) that maps every individual stop to the exact transit routes that service it. This acts as the primary performance engine for the RAPTOR algorithm, ensuring it can dynamically filter and discover routes in $O(1)$ constant time during execution sweeps instead of scanning the entire city network.
+Compiles a complete pedestrian transfer matrix (`footpaths.processed.json`) that bridges nearby transit stops.
 
-#### Ingestion Rules
-1. **File Dependencies:** Reads both the pre-compiled `stops.processed.json` and `routes.processed.json` files directly into memory from the active network directory.
-2. **Computational Space Complexity:** Implements a clean, sequential $O(S + (R \times P))$ execution path (where $S$ is stops, $R$ is routes, and $P$ is platforms per route). This builds the relational dictionary in memory in milliseconds on boot without complex search overhead.
-3. **Internal Key Binding:** Binds dictionary lookup keys directly to the sequential zero-indexed integer array positions of the stops. This guarantees that when the online RAPTOR engine pulls a marked stop index from its active queue, it can instantly resolve the associated array of Route IDs without string comparisons or index shifting.
-4. **Indexing Logic Metrics:**
-   * **Array Initializer:** Loops through the complete stop collection first to instantiate an empty tracking array (`[]`) for every available system index, ensuring no undefined lookups occur at runtime.
-   * **Sequence Traversal:** Iterates through every route profile, sliding across its internal `stop_ids` collection, and pushes the parent `route_id` integer into the respective stop index bucket.
-   * **Deduplication Filter:** Validates that a route index is not already present within a stop's array prior to insertion, ensuring clean, unique arrays even if a transit line circles back near the same station complex.
+#### Logic Metrics
+1. **Spatial Filter**: Drops any destination pair with a physical distance greater than a **1,000-meter** radius.
+2. **Self-Transfer Rule**: Injects a reflexive transfer edge from every stop to itself with a duration of `0` seconds.
 
-### Shared Utility Core: Haversine Spatial Calculator (`utils/calculateHaversine.js`)
+---
+
+### Component 6: Stop-to-Route Indexer (`parseStopToRoutes.js`)
 
 #### Objective
-Provides a dedicated, zero-dependency mathematical helper that calculates the exact great-circle distance between two geographic coordinate points on a sphere.
+Compiles an inverted relational index matrix that maps every stop to the routes servicing it.
 
-#### Design Optimization Laws
-1. **Geometric Integrity:** Uses pure spherical trigonometry ($\sin, \cos, \text{atan2}$) to natively compensate for longitudinal grid compression. This ensures mathematical precision whether compiling high-latitude networks like Helsinki (`hsl`) or equatorial grids like Amman (`amman`).
-2. **Memory Allocation Defenses:** Eliminates inner function definitions and arrow structures (`degree => radian`). By converting degrees to radians inline using direct CPU register primitives, it completely prevents heap-allocation churn and blocks the Node.js Garbage Collector from triggering performance stutters during massive $O(n^2)$ loop sweeps.
-3. **Formula Mapping:** Evaluates the square of half the chord length ($a$) and the angular distance in radians ($c$) to yield precise physical measurements in meters:
+#### Design
+Binds dictionary lookup keys directly to sequential zero-indexed integer array positions, ensuring that the engine can instantly resolve associated routes without string comparisons.
 
-$$\text{Distance} = R \cdot c$$
+---
 
-Where the mathematical components are defined as:
-* $$a = \sin^2\left(\frac{\Delta \phi}{2}\right) + \cos(\phi_1) \cdot \cos(\phi_2) \cdot \sin^2\left(\frac{\Delta \lambda}{2}\right)$$
-* $$c = 2 \cdot \text{atan2}(\sqrt{a}, \sqrt{1-a})$$
-* $$\Delta \phi = \phi_2 - \phi_1 \quad \text{(Difference in latitude radians)}$$
-* $$\Delta \lambda = \lambda_2 - \lambda_1 \quad \text{(Difference in longitude radians)}$$
-* $$R = 6,371,000\text{ m} \quad \text{(Mean radius of the Earth)}$$
-  
-## Pipeline Orchestration & Execution (`runPipeline.js`)
+### Component 7: RAPTOR Routing Engine (`raptorEngine.js`)
 
 #### Objective
-Automates the execution of the entire offline ingestion chain, enforcing step-by-step sequential integrity.
+The core online algorithm that consumes pre-compiled transit arrays to answer travel queries.
 
-#### Execution Mechanics
-1. **Synchronous Control Flow:** Utilizing Node.js's native `child_process.execSync`, the orchestrator completely freezes parent execution until the current child parser yields a successful exit code `0`. This guarantees that relational dependencies (e.g., Component 2 reading the mapping output of Component 1) are strictly preserved.
-2. **Stream Inheritance:** Configured with `{ stdio: "inherit" }` to directly bind the standard input, output, and error streams of the sub-processes to the master terminal, keeping all detailed parser metrics visible in real time.
+#### Operational Logic
+1. **Initialization**: Pre-allocates native 2D arrays to hold arrival times across `MAX_ROUNDS`, utilizing `Infinity` to signify unvisited nodes.
+2. **Stage 1 (Route Accumulation)**: Identifies all active routes that pass through reachable stops in $O(1)$ time.
+3. **Stage 2 (Route Scanning)**: Executes an $O(\log N)$ binary search to retrieve the earliest possible transit trip, scanning stop-by-stop while pruning dominated paths.
+4. **Stage 3 (Footpath Processing)**: Processes pedestrian transfers between stops, enforcing strict pruning to ensure only time-optimal paths are tracked.
 
-### Running the Pipeline
-To run the full compilation chain from end to end:
+---
+
+## Shared Utility Core: Haversine Spatial Calculator (`utils/calculateHaversine.js`)
+
+#### Objective
+Provides a zero-dependency mathematical helper to calculate the exact great-circle distance between two geographic coordinates.
+
+#### Design Optimization
+1. **Memory Allocation Defenses**: Eliminates heap-allocation churn by performing calculations using direct primitives, blocking the Garbage Collector from triggering stutters.
+2. **Geometric Integrity**: Uses pure spherical trigonometry, ensuring precision for both high-latitude and equatorial networks.
+
+---
+
+## Pipeline Orchestration (`runPipeline.js`)
+
+Automates the ingestion chain using `child_process.execSync`, ensuring relational dependencies are strictly preserved by freezing parent execution until each sub-parser yields a successful exit code.
+
+## Running the Project
+
+### 1. Configure the Target Transit Network
+
+The project supports multiple GTFS datasets through the centralized configuration registry.
+
+1. Place the unzipped GTFS dataset inside the `raw-data/` directory.
+2. Name the folder using the convention `<network>-gtfs-data` (for example, `amman-gtfs-data` or `hsl-gtfs-data`).
+3. Open `pipelineConfig.js`.
+4. Set the `ACTIVE_NETWORK` property to the desired network (e.g., `"amman"` or `"hsl"`).
+
+---
+
+### 2. Build the Optimized Data Structures
+
+Run the offline preprocessing pipeline:
+
 ```bash
 node runPipeline.js
 ```
-# RAPTOR Online Routing Server Shell
 
-This directory contains the live, online API routing server layer of the multi-modal journey planner. Unlike the offline ingestion pipeline, this application remains continuously running to receive user queries and execute travel path searches.
+This executes the complete ingestion pipeline, validates the GTFS feed, and generates all optimized JSON structures required by the routing engine.
 
-## Component Architecture
+---
 
-* **`index.js`**: The master entry point and brain stem of the backend application. It bootstraps the environment, applies cross-origin policies (`CORS`), and binds the server process to local network port 3000.
-* **`memoryCache.js`**: The cold-start hydration manager. It intercepts the boot phase to synchronously stream pre-compiled JSON transit arrays from the disk straight into the runtime's memory registers, completely eliminating disk I/O latency during active routing requests.
+### 3. Execute the RAPTOR Engine
 
-## Lifecycle of a Server Boot
+Invoke the `raptorEngine` function with the following parameters:
 
-1. **Evaluation Phase**: `index.js` initializes and requires the memory cache module.
-2. **Hydration Phase**: `memoryCache.js` detects the active system network context, validates that compiled files exist, maps out lengths, and loads data frames into memory buffers.
-3. **Gateway Phase**: Express applies middleware security filters, activates a baseline health check endpoint (`/api/health`), and opens the local network port gateway.  
+```javascript
+raptorEngine(
+    sourceStop,      // Original GTFS stop_id
+    targetStop,      // Original GTFS stop_id
+    queryDate,       // "YYYY-MM-DD"
+    departureTime    // "HH:MM:SS"
+);
+```
 
-## Operational Workflows 
+#### Parameters
 
-### Swapping Transit Networks
-To toggle between local datasets (e.g., Helsinki vs. Amman):
-1. Place your target GTFS (unzipped) folder inside the `raw-data/` folder matching exactly the following name format: `amman-gtfs-data`. Ensure it contains all necessary text files specified in your pipeline configuration.
-2. Open `pipelineConfig.js` in the project root.
-3. Update the `ACTIVE_NETWORK` attribute to `'amman'`.
+| Parameter | Description |
+|-----------|-------------|
+| `sourceStop` | Original GTFS `stop_id` of the departure stop |
+| `targetStop` | Original GTFS `stop_id` of the destination stop |
+| `queryDate` | Date of travel in `YYYY-MM-DD` format |
+| `departureTime` | Desired departure time in `HH:MM:SS` format |
+
+---
+
+### Output
+
+The engine executes the RAPTOR routing algorithm over the preprocessed transit network and returns the earliest reachable arrival time at the specified destination. During execution, the engine automatically:
+
+- Resolves the transit services active on the query date.
+- Selects the earliest valid trip for each scanned route using binary search.
+- Processes pedestrian transfers between nearby stops.
+- Applies RAPTOR pruning rules to eliminate dominated journeys while preserving correctness.

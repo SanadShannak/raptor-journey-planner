@@ -13,19 +13,23 @@ const parsingComponents = [
     scriptPath: path.join(allParsersFolderPath, "parseStops.js"),
   },
   {
-    name: "Component 2: Parse Routes",
+    name: "Component 2: Parse Active Services",
+    scriptPath: path.join(allParsersFolderPath, "parseActiveServices.js"),
+  },
+  {
+    name: "Component 3: Parse Routes",
     scriptPath: path.join(allParsersFolderPath, "parseRoutes.js"),
   },
   {
-    name: "Component 3: Parse Timetables",
+    name: "Component 4: Parse Timetables",
     scriptPath: path.join(allParsersFolderPath, "parseTimetables.js"),
   },
   {
-    name: "Component 4: Generate Footpaths",
+    name: "Component 5: Generate Footpaths",
     scriptPath: path.join(allParsersFolderPath, "generateFootpaths.js"),
   },
   {
-    name: "Component 5: Map Stop-To-Routes",
+    name: "Component 6: Map Stop-To-Routes",
     scriptPath: path.join(allParsersFolderPath, "parseStopToRoutes.js"),
   },
 ];
