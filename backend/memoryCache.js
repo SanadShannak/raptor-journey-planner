@@ -47,6 +47,12 @@ const processedDataFiles = [
   },
 ];
 
+// Trip Mapping file path - separately to implement reverse mapping
+const tripMappingFilePath = path.join(
+  allProcessedDataFolderPath,
+  "trip-mapping.json",
+);
+
 // Object containing final cached data to be exported
 const cachedData = {
   footpaths: null,
@@ -56,6 +62,7 @@ const cachedData = {
   timetables: null,
   stopToRoutes: null,
   activeServices: null,
+  reverseTripMapping: null,
 };
 
 console.log("Reading file contents into local RAM cache...");
@@ -77,6 +84,19 @@ processedDataFiles.forEach((fileDetails) => {
   }
 });
 
+// Reverse trip mapping
+if (!fs.existsSync(tripMappingFilePath)) {
+  console.error(`File trip-mapping.json does not exist`);
+  process.exit(1);
+}
+const tripMapping = JSON.parse(fs.readFileSync(tripMappingFilePath));
+const reverseTripMapping = [];
+for (const [realId, flatId] of Object.entries(tripMapping)) {
+  reverseTripMapping[flatId] = realId;
+}
+cachedData["reverseTripMapping"] = reverseTripMapping;
+
+console.log(`trip-mapping: Read ${reverseTripMapping.length} entries`);
 console.log("Successfully read processed data into proper data structures.");
 
 // Export the full cachedData object using a getter function

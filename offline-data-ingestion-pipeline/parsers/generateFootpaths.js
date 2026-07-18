@@ -12,6 +12,15 @@ const inputPath = path.join(
   __dirname,
   `../../processed-data/${activeNetwork}-processed-data/stops.processed.json`,
 );
+const stopToRoutesPath = path.join(
+  __dirname,
+  `../../processed-data/${activeNetwork}-processed-data/stop-to-routes.json`,
+);
+const routesPath = path.join(
+  __dirname,
+  `../../processed-data/${activeNetwork}-processed-data/routes.processed.json`,
+);
+
 const outputPath = path.join(
   __dirname,
   `../../processed-data/${activeNetwork}-processed-data/footpaths.processed.json`,
@@ -29,29 +38,56 @@ if (!fs.existsSync(inputPath)) {
 console.log(`Loading processed stops from ${path.basename(inputPath)}`);
 // Read and parse stops into an array
 const stops = JSON.parse(fs.readFileSync(inputPath));
+const stopToRoutesProcessed = JSON.parse(fs.readFileSync(stopToRoutesPath));
+const routesProcessed = JSON.parse(fs.readFileSync(routesPath));
+
 console.log(
   `Successfully loaded ${stops.length} stops. Generating footpath matrix...`,
 );
 
 // Constants for Transfer Logic
 const MAX_WALKING_DISTANCE_METERS = 1000;
-const DETOUR_FACTOR = 1.3; // Simulates real sidewalk routing instead of straight line walking
-const WALKING_SPEED_MPS = 1.4; // Average human walking pace (meters/sec)
+const DETOUR_FACTOR = 1.2; // Simulates real sidewalk routing instead of straight line walking
 
 const footpathMatrix = {};
 
-// Generate footpaths for all stations
+// Generate footpaths for all stops
 for (let i = 0; i < stops.length; i++) {
   const stopA = stops[i];
+  let exitStopTimePenalty = 0;
+
+  let routesToCheckRouteType = stopToRoutesProcessed[i] || [];
+  // Loop through ALL routes serving this stop
+  for (let r = 0; r < routesToCheckRouteType.length; r++) {
+    let routeIndex = routesToCheckRouteType[r];
+    let routeType = routesProcessed[routeIndex]["route_type"];
+
+    if (routeType == 1 || routeType == 2 || routeType == 4) {
+      exitStopTimePenalty = 120;
+      break; // Found a heavy transit mode! Stop checking.
+    }
+  }
   footpathMatrix[i] = [];
   // Every stop must have a self-transfer entry to itself costing 0 seconds
-  footpathMatrix[i].push({ to_stop_id: i, duration: 0 });
+  footpathMatrix[i].push({ to_stop_id: i, distance: 0 });
 
-  // Check walking distance to every other station
+  // Check walking distance to every other stop
   for (let j = 0; j < stops.length; j++) {
-    if (j == i) continue; // Same station (handled previously), skip
+    if (j == i) continue; // Same stop (handled previously), skip
     const stopB = stops[j];
-    // Calculate Haversine distance between the 2 stations
+    let enterStopTimePenalty = 0;
+    routesToCheckRouteType = stopToRoutesProcessed[j] || [];
+    // Loop through ALL routes serving this stop
+    for (let r = 0; r < routesToCheckRouteType.length; r++) {
+      let routeIndex = routesToCheckRouteType[r];
+      let routeType = routesProcessed[routeIndex]["route_type"];
+
+      if (routeType == 1 || routeType == 2 || routeType == 4) {
+        enterStopTimePenalty = 120;
+        break; // Found a heavy transit mode! Stop checking.
+      }
+    }
+    // Calculate Haversine distance between the 2 stops
     const distanceMeters = haversine(
       stopA.lat,
       stopA.lon,
@@ -60,13 +96,13 @@ for (let i = 0; i < stops.length; i++) {
     );
     // Apply spatial radius filter
     if (distanceMeters <= MAX_WALKING_DISTANCE_METERS) {
-      const estimatedRealDistance = distanceMeters * DETOUR_FACTOR;
-      const walkingSeconds = Math.round(
-        estimatedRealDistance / WALKING_SPEED_MPS,
-      );
+      const estimatedRealDistance =
+        Math.round((distanceMeters * DETOUR_FACTOR) / 10) * 10;
+
       footpathMatrix[i].push({
         to_stop_id: j,
-        duration: walkingSeconds,
+        distance: estimatedRealDistance,
+        stop_access_penalty: exitStopTimePenalty + enterStopTimePenalty,
       });
     }
   }

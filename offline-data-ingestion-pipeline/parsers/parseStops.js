@@ -40,7 +40,13 @@ fs.createReadStream(inputPath)
   )
   .on("data", (row) => {
     // Pipeline rule validation: Ensure required properties exits in raw data
-    if (!row.stop_id || !row.stop_name || !row.stop_lat || !row.stop_lon) {
+    if (
+      !row.stop_id ||
+      !row.stop_name ||
+      !row.stop_lat ||
+      !row.stop_lon ||
+      !row.stop_code
+    ) {
       console.error(
         "Data Ingestion Error: GTFS stop.txt is missing a required base property",
       );
@@ -48,6 +54,7 @@ fs.createReadStream(inputPath)
     }
     // Extracting specific information from raw data
     const gtfsStopId = row.stop_id;
+    const stopCode = row.stop_code;
     const stopName = row.stop_name;
     const stopLat = parseFloat(row.stop_lat);
     const stopLon = parseFloat(row.stop_lon);
@@ -56,6 +63,7 @@ fs.createReadStream(inputPath)
     stopsArray.push({
       id: internalStopIdCounter,
       gtfs_id: gtfsStopId,
+      stop_code: stopCode,
       name: stopName,
       lat: stopLat,
       lon: stopLon,

@@ -77,7 +77,7 @@ Compiles a complete pedestrian transfer matrix (`footpaths.processed.json`) that
 
 #### Logic Metrics
 1. **Spatial Filter**: Drops any destination pair with a physical distance greater than a **1,000-meter** radius.
-2. **Self-Transfer Rule**: Injects a reflexive transfer edge from every stop to itself with a duration of `0` seconds.
+2. **Self-Transfer Rule**: Injects a reflexive transfer edge from every stop to itself with a distance of `0` meters.
 
 ---
 
@@ -94,14 +94,15 @@ Binds dictionary lookup keys directly to sequential zero-indexed integer array p
 ### Component 7: RAPTOR Routing Engine (`raptorEngine.js`)
 
 #### Objective
-The core online algorithm that consumes pre-compiled transit arrays to answer travel queries.
+The core online algorithm that consumes pre-compiled transit arrays to answer travel queries, now fully equipped with path reconstruction and strict entry safety checks.
 
 #### Operational Logic
-1. **Initialization**: Pre-allocates native 2D arrays to hold arrival times across `MAX_ROUNDS`, utilizing `Infinity` to signify unvisited nodes.
-2. **Stage 1 (Route Accumulation)**: Identifies all active routes that pass through reachable stops in $O(1)$ time.
-3. **Stage 2 (Route Scanning)**: Executes an $O(\log N)$ binary search to retrieve the earliest possible transit trip, scanning stop-by-stop while pruning dominated paths.
-4. **Stage 3 (Footpath Processing)**: Processes pedestrian transfers between stops, enforcing strict pruning to ensure only time-optimal paths are tracked.
-
+1. **Engine Circuit Breakers**: Implements immediate short-circuits for identical source/target queries ($O(1)$ exit) and safeguards against isolated (orphan) stops gracefully.
+2. **Initialization**: Pre-allocates native 2D arrays to hold arrival times across `MAX_ROUNDS`, utilizing `Infinity` to signify unvisited nodes.
+3. **Stage 1 (Route Accumulation)**: Identifies all active routes that pass through reachable stops in $O(1)$ time.
+4. **Stage 2 (Route Scanning)**: Executes an $O(\log N)$ binary search to retrieve the earliest possible transit trip, scanning stop-by-stop while pruning dominated paths. Tracks parent routes, trips, and boarding stops for path reconstruction.
+5. **Stage 3 (Footpath Processing)**: Processes pedestrian transfers between stops, enforcing strict pruning to ensure only time-optimal paths are tracked.
+6. **Path Reconstruction**: Backtracks through parent pointer matrices to construct an ordered, turn-by-turn itinerary. Utilizes Just-In-Time (JIT) walking logic and exact timetable departures to calculate flawless temporal gaps.
 ---
 
 ## Shared Utility Core: Haversine Spatial Calculator (`utils/calculateHaversine.js`)
@@ -165,6 +166,7 @@ raptorEngine(
 | `targetStop` | Original GTFS `stop_id` of the destination stop |
 | `queryDate` | Date of travel in `YYYY-MM-DD` format |
 | `departureTime` | Desired departure time in `HH:MM:SS` format |
+| `WALKING_SPEED_MPS` (optional) | Average human walking pace (meters/sec)|
 
 ---
 
@@ -176,3 +178,38 @@ The engine executes the RAPTOR routing algorithm over the preprocessed transit n
 - Selects the earliest valid trip for each scanned route using binary search.
 - Processes pedestrian transfers between nearby stops.
 - Applies RAPTOR pruning rules to eliminate dominated journeys while preserving correctness.
+- Reconstructs the selected path
+
+Instead of returning a single primitive time, the engine returns a deeply nested `ItineraryDetails` object representing the mathematically optimal journey. 
+
+To ensure absolute data integrity and strictly decouple mathematical logic from frontend presentation (the Presenter Pattern), all durations and internal transit events are output as **raw integer seconds**.
+
+```json
+{
+  "targetArrivalTime": "22:18",
+  "legs": [
+    {
+      "waitDurationSeconds": 0,
+      "startTime": 79800,
+      "fromStopCode": "H0614",
+      "routeShortName": "2",
+      "toStopCode": "H0639",
+      "endTime": 79860,
+      "mode": "TRANSIT",
+      "tripId": "1002_20260831_Su_2_2220",
+      "walkDurationSeconds": null
+    },
+    {
+      "waitDurationSeconds": 300,
+      "startTime": 80160,
+      "fromStopCode": "H0639",
+      "routeShortName": null,
+      "toStopCode": "H1919",
+      "endTime": 80400,
+      "mode": "WALK",
+      "tripId": null,
+      "walkDurationSeconds": 240
+    }
+  ]
+}
+```

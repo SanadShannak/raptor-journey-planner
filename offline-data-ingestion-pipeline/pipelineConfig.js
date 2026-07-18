@@ -13,8 +13,8 @@ module.exports = {
       "calendar_dates.txt",
     ],
     requiredStopHeaders: ["stop_id", "stop_name", "stop_lat", "stop_lon"],
-    requiredRouteHeaders: ["route_id", "route_short_name"],
-    requiredTripHeaders: ["route_id", "trip_id","service_id"],
+    requiredRouteHeaders: ["route_id", "route_short_name", "route_type"],
+    requiredTripHeaders: ["route_id", "trip_id", "service_id"],
     requiredStopTimesHeaders: [
       "trip_id",
       "stop_id",

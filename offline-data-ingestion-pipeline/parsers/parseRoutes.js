@@ -5,16 +5,10 @@ const csv = require("csv-parser");
 // Custom dynamic configuration
 const config = require("../pipelineConfig");
 const calculateTimeOfDayInSeconds = require("../utils/calculateTimeOfDayInSeconds");
+const normalizeRouteType = require("../utils/normalizeRouteType");
 
 // Dynamic directory paths based on whatever network is active (hsl, amman, etc..)
 const activeNetwork = config.ACTIVE_NETWORK;
-
-const serviceMapping = require(
-  `../../processed-data/${activeNetwork}-processed-data/service-mapping.processed.json`,
-);
-const stopMap = require(
-  `../../processed-data/${activeNetwork}-processed-data/stop-mapping.json`,
-);
 
 const routesInputPath = path.join(
   __dirname,
@@ -44,18 +38,24 @@ const tripMappingOutputPath = path.join(
   __dirname,
   `../../processed-data/${activeNetwork}-processed-data/trip-mapping.json`,
 );
+const serviceMapping = require(
+  `../../processed-data/${activeNetwork}-processed-data/service-mapping.processed.json`,
+);
+const stopMap = require(
+  `../../processed-data/${activeNetwork}-processed-data/stop-mapping.json`,
+);
 
 console.log(
   `Initializing Route Builder for network [${activeNetwork.toUpperCase()}]...`,
 );
 
 const routeNamesMap = {};
+const routeTypesMap = {};
 const tripToSequenceMap = {};
-const routeToServicesMap = {}; // Note: Legacy map, currently unused in parallel array architecture
 
-function loadRouteNames() {
+function loadRouteDetails() {
   return new Promise((resolve, reject) => {
-    console.log("Extracting route_id to human-readable format");
+    console.log("Extracting raw data into human-readable format");
 
     // Reading raw data from GTFS file and pipelining into csv reader
     fs.createReadStream(routesInputPath)
@@ -67,7 +67,7 @@ function loadRouteNames() {
       )
       .on("data", (row) => {
         // Pipeline rule validation: Ensure required properties exits in raw data
-        if (!row.route_id || !row.route_short_name) {
+        if (!row.route_id || !row.route_short_name || !row.route_type) {
           return reject(
             new Error(
               "Data Ingestion Error: GTFS routes.txt is missing a required base property",
@@ -76,12 +76,13 @@ function loadRouteNames() {
         }
         // Extracting specific information from raw data
         routeNamesMap[row.route_id] = row.route_short_name;
+        routeTypesMap[row.route_id] = normalizeRouteType(row.route_type);
       })
 
       // Data read from original file is finished
       .on("end", () => {
         console.log(
-          `Successfully loaded ${Object.keys(routeNamesMap).length} route names.`,
+          `Successfully loaded ${Object.keys(routeNamesMap).length} route details.`,
         );
         resolve();
       })
@@ -235,6 +236,7 @@ function compileAndWriteRoutes() {
       if (!routeGroups[routeSignature]) {
         // A new route has been found, initialize its structural properties
         const agencyRouteId = tripData.agency_route_id;
+        const agencyRouteType = routeTypesMap[agencyRouteId];
         const routeShortName = routeNamesMap[agencyRouteId];
         const stopOrderMap = {};
 
@@ -246,6 +248,7 @@ function compileAndWriteRoutes() {
           route_id: uniqueRouteCounter,
           agency_route_id: agencyRouteId,
           short_name: routeShortName,
+          route_type: agencyRouteType,
           stop_ids: stopSequence,
           stop_order_map: stopOrderMap,
           service_buckets: {},
@@ -334,7 +337,7 @@ async function runRouteParsingPipeline() {
   try {
     console.log("\x1b[34m%s\x1b[0m", "\nRoute Parsing Started.\n");
 
-    await loadRouteNames();
+    await loadRouteDetails();
     await parseTripsAndStopTimes();
     await loadStopTime();
     await compileAndWriteRoutes();
