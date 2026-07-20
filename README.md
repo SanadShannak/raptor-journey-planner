@@ -69,8 +69,17 @@ Ingests and transforms raw calendar schedules from `stop_times.txt` into a high-
 2. **Memory Layout**: Groups data into a direct Key-Value Hash Map `{ trip_id: [{ arrival, departure }] }` to ensure $O(1)$ lookup complexity.
 
 ---
+### Component 5: Stop-to-Route Indexer (`parseStopToRoutes.js`)
 
-### Component 5: Footpath Generator (`generateFootpaths.js`)
+#### Objective
+Compiles an inverted relational index matrix that maps every stop to the routes servicing it.
+
+#### Design
+Binds dictionary lookup keys directly to sequential zero-indexed integer array positions, ensuring that the engine can instantly resolve associated routes without string comparisons.
+
+---
+
+### Component 6: Footpath Generator (`generateFootpaths.js`)
 
 #### Objective
 Compiles a complete pedestrian transfer matrix (`footpaths.processed.json`) that bridges nearby transit stops.
@@ -81,31 +90,28 @@ Compiles a complete pedestrian transfer matrix (`footpaths.processed.json`) that
 
 ---
 
-### Component 6: Stop-to-Route Indexer (`parseStopToRoutes.js`)
-
+### Component 7: Spatial Grid Generator (`generateSpatialGrid.js`)
 #### Objective
-Compiles an inverted relational index matrix that maps every stop to the routes servicing it.
-
-#### Design
-Binds dictionary lookup keys directly to sequential zero-indexed integer array positions, ensuring that the engine can instantly resolve associated routes without string comparisons.
+Ingests the processed flat stops array (`stops.processed.json`) and maps every physical stop into a high-performance geographic spatial grid (`spatial-grid.processed.json`).
+#### Logic Metrics
+1. **Grid Partitioning**: Divides coordinates into discrete square boxes using a fine resolution constant (`GRID_SIZE_DEGREES = 0.005`, roughly 500 meters per cell).
+2. **Hash Indexing**: Generates unique string keys (`latIndex_lonIndex`) to group nearby stops, enabling $O(1)$ spatial lookups during coordinate-to-stop routing queries without exhaustive pairwise scans.
 
 ---
 
-### Component 7: RAPTOR Routing Engine (`raptorEngine.js`)
-
+### Component 8: RAPTOR Routing Engine (`raptorEngine.js`)
 #### Objective
-The core online algorithm that consumes pre-compiled transit arrays to answer travel queries, now fully equipped with path reconstruction and strict entry safety checks.
-
+The core online algorithm that consumes pre-compiled transit arrays to answer travel queries, fully equipped with path reconstruction, dynamic walking speed overrides, spatial grid coordinate lookups, and strict machine-readable error codes.
 #### Operational Logic
-1. **Engine Circuit Breakers**: Implements immediate short-circuits for identical source/target queries ($O(1)$ exit) and safeguards against isolated (orphan) stops gracefully.
+1. **Engine Circuit Breakers & Structured Errors**: Implements immediate short-circuits for identical source/target queries ($O(1)$ exit), out-of-bounds coordinates, missing stop IDs, and inactive calendar dates, returning clean objects containing both a descriptive `error` string and a standardized `errorCode` (e.g., `SAME_ORIGIN_TARGET`, `ORIGIN_OUT_OF_BOUNDS`, `ORIGIN_STOP_NOT_FOUND`, `NO_ACTIVE_SERVICES`, `NO_ROUTE_FOUND`).
 2. **Initialization**: Pre-allocates native 2D arrays to hold arrival times across `MAX_ROUNDS`, utilizing `Infinity` to signify unvisited nodes.
 3. **Stage 1 (Route Accumulation)**: Identifies all active routes that pass through reachable stops in $O(1)$ time.
 4. **Stage 2 (Route Scanning)**: Executes an $O(\log N)$ binary search to retrieve the earliest possible transit trip, scanning stop-by-stop while pruning dominated paths. Tracks parent routes, trips, and boarding stops for path reconstruction.
-5. **Stage 3 (Footpath Processing)**: Processes pedestrian transfers between stops, enforcing strict pruning to ensure only time-optimal paths are tracked.
+5. **Stage 3 (Footpath Processing)**: Processes pedestrian transfers between stops using dynamic walking speeds and the spatial grid index (`spatialGrid.js`), enforcing strict pruning to ensure only time-optimal paths are tracked.
 6. **Path Reconstruction**: Backtracks through parent pointer matrices to construct an ordered, turn-by-turn itinerary. Utilizes Just-In-Time (JIT) walking logic and exact timetable departures to calculate flawless temporal gaps.
 ---
 
-## Shared Utility Core: Haversine Spatial Calculator (`utils/calculateHaversine.js`)
+## Haversine Spatial Calculator (`utils/calculateHaversine.js`)
 
 #### Objective
 Provides a zero-dependency mathematical helper to calculate the exact great-circle distance between two geographic coordinates.
@@ -114,6 +120,13 @@ Provides a zero-dependency mathematical helper to calculate the exact great-circ
 1. **Memory Allocation Defenses**: Eliminates heap-allocation churn by performing calculations using direct primitives, blocking the Garbage Collector from triggering stutters.
 2. **Geometric Integrity**: Uses pure spherical trigonometry, ensuring precision for both high-latitude and equatorial networks.
 
+
+## Spatial Grid Indexing Utility (`utils/getNearbyStops.js`)
+#### Objective
+Bridges geographic coordinate pins (latitude/longitude) to the transit network by performing high-speed spatial searches over the compiled spatial grid hash map.
+#### Design Optimization
+1. **Radius Bounding Box**: Calculates a dynamic grid search radius based on a max walking boundary (`2500m`) and grid resolution.
+2. **Detour Simulation**: Applies an urban detour factor (`DETOUR_FACTOR = 1.2`) to simulate real sidewalk paths instead of straight-line distance, returning precise walking durations based on the active walking speed.
 ---
 
 ## Pipeline Orchestration (`runPipeline.js`)
@@ -166,27 +179,24 @@ raptorEngine(
 | `targetStop` | Original GTFS `stop_id` of the destination stop |
 | `queryDate` | Date of travel in `YYYY-MM-DD` format |
 | `departureTime` | Desired departure time in `HH:MM:SS` format |
-| `WALKING_SPEED_MPS` (optional) | Average human walking pace (meters/sec)|
+| `WALKING_SPEED_MPS` (optional, defaults to 1.11) | Average human walking pace (meters/sec)|
 
 ---
 
 ### Output
-
 The engine executes the RAPTOR routing algorithm over the preprocessed transit network and returns the earliest reachable arrival time at the specified destination. During execution, the engine automatically:
-
 - Resolves the transit services active on the query date.
 - Selects the earliest valid trip for each scanned route using binary search.
-- Processes pedestrian transfers between nearby stops.
+- Processes pedestrian transfers between nearby stops via spatial indexing.
+- Displays waiting time at stations *before* a trip shall be boarded
 - Applies RAPTOR pruning rules to eliminate dominated journeys while preserving correctness.
-- Reconstructs the selected path
+- Reconstructs the selected path.
 
-Instead of returning a single primitive time, the engine returns a deeply nested `ItineraryDetails` object representing the mathematically optimal journey. 
-
-To ensure absolute data integrity and strictly decouple mathematical logic from frontend presentation (the Presenter Pattern), all durations and internal transit events are output as **raw integer seconds**.
+To ensure absolute data integrity and strictly decouple mathematical logic from frontend presentation (the Presenter Pattern), all durations, start times, end times, and target arrival times are output as **raw integer seconds from midnight**.
 
 ```json
 {
-  "targetArrivalTime": "22:18",
+  "targetArrivalTime": 80280,
   "legs": [
     {
       "waitDurationSeconds": 0,

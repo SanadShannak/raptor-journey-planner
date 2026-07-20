@@ -11,8 +11,11 @@ const activeServices = cachedData.activeServices;
 const reverseTripMapping = cachedData.reverseTripMapping;
 const calculateTimeOfDayInSeconds = require("./utils/calculateTimeOfDayInSeconds");
 const convertDateToDateId = require("./utils/convertDateToDateId");
-const calculateSecondsToTimeOfDay = require("./utils/calculateSecondsToTimeOfDay");
-const MAX_ROUNDS = 5;
+const convertSecondsToTimeOfDay = require("./utils/convertSecondsToTimeOfDay");
+const getNearbyStops = require("./utils/getNearbyStops");
+const calculateHaversine = require("./utils/calculateHaversine");
+const MAX_ROUNDS = 6;
+const DETOUR_FACTOR = 1.2; // Simulates real sidewalk routing instead of straight line walking
 
 function checkStopOrderInRoute(route_index, stop1, stop2) {
   // Helper function for Stage 1 of the RAPTOR algorithm, returns True if stop1 is visited before stop2 in the provided route, false otherwise
@@ -33,6 +36,7 @@ function getEarliestTrip(
   // Function to get -for a given route- the earliest trip leaving from a specific stop after a given time on the query day
   const routeData = routes[route];
   const routeServices = Object.keys(routeData["service_buckets"]);
+
   const routeActiveServices = [];
   for (let routeServiceId of routeServices) {
     if (queryDayActiveServicesMap[routeServiceId]) {
@@ -73,34 +77,60 @@ function getEarliestTrip(
 }
 
 function raptorEngine(
-  sourceStop,
-  targetStop,
+  sourceNode,
+  targetNode,
   queryDate,
   departureTime,
-  WALKING_SPEED_MPS = 1.28, // Average human walking pace (meters/sec)
+  WALKING_SPEED_MPS = 1.11, // Average human walking pace (meters/sec)
 ) {
   // sourceStop & targetStop must be in their original ID format
   // departureTime must be in string format: HH:MM:SS
 
-  // Safety Check: Make sure both stops exist
-  if (
-    !Object.hasOwn(stopMapping, sourceStop) ||
-    !Object.hasOwn(stopMapping, targetStop)
-  ) {
-    console.error("Source Stop or Target Stop Not Found.");
-    process.exit(1);
-  }
   console.log("RAPTOR ENGINE RUNNING.");
 
-  // Edge Case: Source Stop & Target are the same
-  if (sourceStop === targetStop) {
-    return { targetArrivalTime: departureTime, legs: [] };
+  // Edge Case: Source & Target are the same
+  if (sourceNode.type === targetNode.type) {
+    if (sourceNode.type === "stop" && sourceNode.id === targetNode.id) {
+      return {
+        targetArrivalTime: null,
+        legs: [],
+        errorCode: "SAME_ORIGIN_TARGET",
+        error:
+          "No route suggestions were found because the departure point is the same as the destination.",
+      };
+    }
+    if (
+      sourceNode.type === "coordinate" &&
+      sourceNode.lat === targetNode.lat &&
+      sourceNode.lon === targetNode.lon
+    ) {
+      return {
+        targetArrivalTime: null,
+        legs: [],
+        errorCode: "SAME_ORIGIN_TARGET",
+        error:
+          "No route suggestions were found because the departure point is the same as the destination.",
+      };
+    }
   }
+
+  // // --- UNIFY INPUTS: Convert all stops to coordinates immediately (TO BE USED LATER)---
+  // if (sourceNode.type === "stop") {
+  //   const stopObj = stops[stopMapping[sourceNode.id]];
+  //   sourceNode = { type: "coordinate", lat: stopObj.lat, lon: stopObj.lon };
+  // }
+
+  // if (targetNode.type === "stop") {
+  //   const stopObj = stops[stopMapping[targetNode.id]];
+  //   targetNode = { type: "coordinate", lat: stopObj.lat, lon: stopObj.lon };
+  // }
 
   // Initialization of the algorithm (Lines 1-5 in the research paper)
 
   console.log("Initializing the algorithm... ");
+  // // Initialize array to hold arrival times for each round up to MAX_ROUNDS
   const arrivalTimes = [];
+  // // Initialize set to track stops updated in the current round
   const markedStops = new Set();
   for (let roundNumber = 0; roundNumber <= MAX_ROUNDS; roundNumber++) {
     // Pre-allocation of the 2D arrival matrix with native Infinity fills
@@ -109,9 +139,6 @@ function raptorEngine(
   // Filling the best arrival times matrix with native Infinity fills
   const bestArrivalTimes = new Array(stops.length).fill(Infinity);
 
-  // Mapping the source and target stop id to its index in the flat array
-  const sourceStopIndex = stopMapping[sourceStop];
-  const targetStopIndex = stopMapping[targetStop];
   // Convert the query date to match the mapping date id format in the activeServices object
   const queryDateId = convertDateToDateId(queryDate);
   // Fetch the array of active services for that specific day
@@ -126,24 +153,130 @@ function raptorEngine(
     const serviceId = activeServicesOnQueryDay[serviceIndex];
     isActiveOnQueryDay[serviceId] = true;
   }
-  // Setting the arrival time & best arrival time of the source stop to the provided departure time
-  const departureSeconds = calculateTimeOfDayInSeconds(departureTime);
-  arrivalTimes[0][sourceStopIndex] = departureSeconds;
-  bestArrivalTimes[sourceStopIndex] = departureSeconds;
-  // Adding the source stop to the 'marked' stops set to begin traversing
-  markedStops.add(sourceStopIndex);
+  // Return descriptive error code if no public transit services are scheduled for the queried date
+  if (activeServicesOnQueryDay.length === 0) {
+    return {
+      targetArrivalTime: null,
+      legs: [],
+      errorCode: "NO_ACTIVE_SERVICES",
+      error:
+        "No transit services are active or scheduled for operation on the requested date.",
+    };
+  }
 
+  // // Array to hold the initial boarding locations derived from origin input
+  const startingStops = [];
+  // // Array to hold the destination locations derived from target input
+  const targetStops = [];
+  // // Tracks the global minimum arrival time found so far at any target stop
+  let globalBestTargetArrivalTime = Infinity;
   // Path reconstruction matrices
+  // // 2D matrix tracking the parent stop ID for each stop in each round
   const parentStop = [];
+  // // 2D matrix tracking the trip ID used to reach each stop in each round
   const parentTrip = [];
+  // // 2D matrix tracking the route ID or walk duration used to reach each stop in each round
   const parentRoute = [];
+
+  // // Convert query departure time string into total seconds elapsed since midnight
+  const departureSeconds = calculateTimeOfDayInSeconds(departureTime);
+
   for (let roundNumber = 0; roundNumber <= MAX_ROUNDS; roundNumber++) {
     // Pre-allocation of the 2D arrival matrix with native Infinity fills
     parentStop[roundNumber] = new Array(stops.length).fill(null);
     parentTrip[roundNumber] = new Array(stops.length).fill(null);
     parentRoute[roundNumber] = new Array(stops.length).fill(null);
   }
+  // If origin/target not a saved stop, get nearby stops
+  if (sourceNode.type == "coordinate") {
+    // // Retrieve nearby transit stops within walking reach of origin coordinates
+    const nearbyStops = getNearbyStops(
+      sourceNode.lat,
+      sourceNode.lon,
+      WALKING_SPEED_MPS,
+    );
+    if (nearbyStops.length === 0) {
+      return {
+        targetArrivalTime: null,
+        legs: [],
+        errorCode: "ORIGIN_OUT_OF_BOUNDS",
+        error:
+          "No route suggestions were found because the departure point is outside the service area.",
+      };
+    }
+    startingStops.push(...nearbyStops);
+  } else if (sourceNode.type == "stop") {
+    // Mapping the source stop id to its index in the flat array
+    const sourceStopIndex = stopMapping[sourceNode.id];
 
+    // Return error code if the requested source stop ID does not exist in mapping dictionary
+    if (sourceStopIndex === undefined) {
+      return {
+        targetArrivalTime: null,
+        legs: [],
+        errorCode: "ORIGIN_STOP_NOT_FOUND",
+        error:
+          "The specified origin stop ID does not exist in the transit network database.",
+      };
+    }
+    // Push the source stop and its arrival time
+    startingStops.push({
+      stop: sourceStopIndex,
+      walkDurationSeconds: 0,
+      walkDistanceMeters: 0,
+    });
+  }
+
+  startingStops.forEach((startingNode) => {
+    const stop = startingNode.stop;
+    const arrivalTimeAtStop =
+      departureSeconds + startingNode.walkDurationSeconds;
+    arrivalTimes[0][stop] = arrivalTimeAtStop;
+    bestArrivalTimes[stop] = arrivalTimeAtStop;
+    // Adding the source stop to the 'marked' stops set to begin traversing
+    markedStops.add(stop);
+
+    //Initialize the starting node itself
+    parentStop[0][startingNode.stop] = "ORIGIN";
+    parentTrip[0][startingNode.stop] = -1;
+    parentRoute[0][startingNode.stop] = startingNode.walkDurationSeconds;
+  });
+
+  if (targetNode.type === "coordinate") {
+    // // Retrieve nearby transit stops within walking reach of destination coordinates
+    const nearbyTargets = getNearbyStops(
+      targetNode.lat,
+      targetNode.lon,
+      WALKING_SPEED_MPS,
+    );
+    if (nearbyTargets.length === 0) {
+      return {
+        targetArrivalTime: null,
+        legs: [],
+        errorCode: "DESTINATION_OUT_OF_BOUNDS",
+        error:
+          "No route suggestions were found because the destination point is outside the service area.",
+      };
+    }
+    targetStops.push(...nearbyTargets);
+  } else if (targetNode.type === "stop") {
+    const targetStopIndex = stopMapping[targetNode.id];
+    // Return error code if the requested target stop ID does not exist in mapping dictionary
+    if (targetStopIndex === undefined) {
+      return {
+        targetArrivalTime: null,
+        legs: [],
+        errorCode: "DESTINATION_STOP_NOT_FOUND",
+        error:
+          "The specified destination stop ID does not exist in the transit network database.",
+      };
+    }
+    targetStops.push({
+      stop: targetStopIndex,
+      walkDurationSeconds: 0,
+      walkDistanceMeters: 0,
+    });
+  }
   for (let currentRound = 1; currentRound <= MAX_ROUNDS; currentRound++) {
     // Stage 1: Route Accumulation (Lines 6-14 in the research paper)
     console.log("Stage 1: Route Accumulation... ");
@@ -179,7 +312,9 @@ function raptorEngine(
 
     // Traverse each route
     routesServingMarkedStops.forEach((currentStop, route) => {
+      // // Holds the currently boarded trip ID during route traversal
       let currentTrip = null;
+      // // Holds the stop ID where the current trip was boarded
       let boardingStop = null;
       // Get the stop list of the route
       const routeStopList = routes[route]["stop_ids"];
@@ -202,10 +337,7 @@ function raptorEngine(
           // Local & Target Pruning: Keep the trip if the new arrival time is better than the best arrival time at this stop and at the target stop, else discard trip
           if (
             currentTripArrivalTimeAtCurrentStop <
-            Math.min(
-              bestArrivalTimes[nextStop],
-              bestArrivalTimes[targetStopIndex],
-            )
+            Math.min(bestArrivalTimes[nextStop], globalBestTargetArrivalTime)
           ) {
             arrivalTimes[currentRound][nextStop] =
               currentTripArrivalTimeAtCurrentStop;
@@ -216,6 +348,17 @@ function raptorEngine(
             parentRoute[currentRound][nextStop] = route;
             // Mark the stop if it its arrival times were updated
             markedStops.add(nextStop);
+            // Is this newly updated stop one of our destinations
+            for (let i = 0; i < targetStops.length; i++) {
+              if (targetStops[i].stop === nextStop) {
+                const totalTime =
+                  arrivalTimes[currentRound][nextStop] +
+                  targetStops[i].walkDurationSeconds;
+                if (totalTime < globalBestTargetArrivalTime) {
+                  globalBestTargetArrivalTime = totalTime;
+                }
+              }
+            }
           }
         }
         // Get the arrival time of the previous round at the current stop
@@ -247,6 +390,10 @@ function raptorEngine(
     // Spread the stops marked from stage 2 into a new array to look at possible footpaths
     const stopsToProcessForFootpaths = [...markedStops];
     stopsToProcessForFootpaths.forEach((currentStop) => {
+      // If we got to this stop in this exact round by walking , do not branch our into more walks
+      if (parentTrip[currentRound][currentStop] === -1) {
+        return;
+      }
       // Get the walking-distance neighboring stops footpath details, if any
       const currentStopFootpaths = footpaths[currentStop] || [];
       // For each footpath, check if walking from our current stop to the neighboring stop gets us faster than our previously calculated time of arrival at the neighboring stop
@@ -266,7 +413,7 @@ function raptorEngine(
           footpathArrivalTime <
           Math.min(
             bestArrivalTimes[footpathNextStop],
-            bestArrivalTimes[targetStopIndex],
+            globalBestTargetArrivalTime,
           )
         ) {
           arrivalTimes[currentRound][footpathNextStop] = footpathArrivalTime;
@@ -279,6 +426,17 @@ function raptorEngine(
 
           // Mark the newly updated stop to process next round
           markedStops.add(footpathNextStop);
+          // Is this newly updated stop one of our destinations
+          for (let i = 0; i < targetStops.length; i++) {
+            if (targetStops[i].stop === footpathNextStop) {
+              const totalTime =
+                arrivalTimes[currentRound][footpathNextStop] +
+                targetStops[i].walkDurationSeconds;
+              if (totalTime < globalBestTargetArrivalTime) {
+                globalBestTargetArrivalTime = totalTime;
+              }
+            }
+          }
         }
       });
     });
@@ -288,90 +446,284 @@ function raptorEngine(
     }
   }
 
-  // If the target stop was never reached, return null to indicate no route exists
-  if (bestArrivalTimes[targetStopIndex] === Infinity) {
-    return null;
+  // Pick the Winning Target Stop
+  let winningArrivalTime = Infinity;
+  let candidateTargets = []; // Store all targets that tie for the fastest time
+
+  targetStops.forEach((target) => {
+    const arrivalAtStation = bestArrivalTimes[target.stop];
+    if (arrivalAtStation === Infinity) return;
+
+    const totalArrivalTime = arrivalAtStation + target.walkDurationSeconds;
+
+    if (totalArrivalTime < winningArrivalTime) {
+      winningArrivalTime = totalArrivalTime;
+      candidateTargets = [target]; // Reset the array with the new absolute winner
+    } else if (totalArrivalTime === winningArrivalTime) {
+      candidateTargets.push(target); // Add to the ties
+    }
+  });
+
+  // If we couldn't reach ANY target station (fail), return null
+  if (candidateTargets.length === 0) {
+    return {
+      targetArrivalTime: null,
+      legs: [],
+      errorCode: "NO_ROUTE_FOUND",
+      error:
+        "No valid transit itinerary could be found connecting the origin and destination for the requested time.",
+    };
   }
 
-  // Find the minimum number of rounds (transfers) required to achieve the best arrival time
-  let bestRound = 0;
-  while (
-    arrivalTimes[bestRound][targetStopIndex] !==
-    bestArrivalTimes[targetStopIndex]
-  ) {
-    bestRound++;
-  }
+  // // Holds the selected optimal itinerary object returned by path reconstruction
+  let bestItinerary = null;
+  // // Tracks the minimum accumulated walking duration across winning candidate paths
+  let lowestTotalWalkTime = Infinity;
 
-  // Initialize the final itinerary object to be returned to the API layer
-  const itineraryDetails = {
-    targetArrivalTime: calculateSecondsToTimeOfDay(
-      bestArrivalTimes[targetStopIndex],
-    ),
-    legs: [],
-  };
+  function buildItinerary(candidate) {
+    const targetStop = candidate.stop;
+    const finalWalkSeconds = candidate.walkDurationSeconds;
+    // Find the minimum number of rounds (transfers) required to achieve the best arrival time
+    let bestRound = 0;
+    while (
+      arrivalTimes[bestRound][targetStop] !== bestArrivalTimes[targetStop]
+    ) {
+      bestRound++;
+    }
 
-  // Traverse backwards from the target stop to the source stop to reconstruct the path
-  let stopPointer = targetStopIndex;
-  let backwardRound = bestRound;
-
-  while (stopPointer !== sourceStopIndex) {
-    const tripUsed = parentTrip[backwardRound][stopPointer];
-    const previousStop = parentStop[backwardRound][stopPointer];
-    const routeUsed = parentRoute[backwardRound][stopPointer];
-
-    // If a footpath was used (tripUsed === -1), stay in the same round. If transit was used, step back one round
-    const previousRound = tripUsed === -1 ? backwardRound : backwardRound - 1;
-
-    // Find the order index of the previous stop within the route for timetable lookup
-    const previousStopOrderInRoute =
-      tripUsed === -1
-        ? null
-        : routes[routeUsed]["stop_order_map"][previousStop];
-
-    // Fetch exact departure time from timetable for transit legs, or null for walking legs
-    const exactDepartureSeconds =
-      tripUsed === -1
-        ? null
-        : timetables[tripUsed][previousStopOrderInRoute]["departure"];
-
-    // Get the time the user arrived at the boarding platform in the previous round
-    const platformArrivalSeconds = arrivalTimes[previousRound][previousStop];
-
-    // Construct the detailed segment (leg) object containing wait, walk, transit, and timing data
-    const currentLeg = {
-      waitDurationSeconds:
-        tripUsed === -1 ? 0 : exactDepartureSeconds - platformArrivalSeconds,
-      startTime:
-        tripUsed === -1
-          ? arrivalTimes[backwardRound][stopPointer] - routeUsed
-          : timetables[tripUsed][previousStopOrderInRoute]["departure"],
-      fromStopCode: stops[previousStop]["stop_code"],
-      routeShortName: tripUsed === -1 ? null : routes[routeUsed]["short_name"],
-      toStopCode: stops[stopPointer]["stop_code"],
-      endTime: arrivalTimes[backwardRound][stopPointer],
-      mode: tripUsed === -1 ? "WALK" : "TRANSIT",
-      tripId: tripUsed === -1 ? null : reverseTripMapping[tripUsed],
-      walkDurationSeconds: tripUsed === -1 ? routeUsed : null,
+    // Initialize the final itinerary object to be returned to the API layer
+    const itineraryDetails = {
+      targetArrivalTime: bestArrivalTimes[targetStop],
+      legs: [],
     };
 
-    itineraryDetails.legs.push(currentLeg);
+    // Traverse backwards from the target stop to the source stop to reconstruct the path
+    let stopPointer = targetStop;
+    let backwardRound = bestRound;
 
-    // Shift pointers backwards for the next iteration of the loop
-    stopPointer = previousStop;
-    backwardRound = previousRound;
+    while (parentStop[backwardRound][stopPointer] !== "ORIGIN") {
+      const tripUsed = parentTrip[backwardRound][stopPointer];
+      const previousStop = parentStop[backwardRound][stopPointer];
+      const routeUsed = parentRoute[backwardRound][stopPointer];
+
+      // If a footpath was used (tripUsed === -1), stay in the same round. If transit was used, step back one round
+      const previousRound = tripUsed === -1 ? backwardRound : backwardRound - 1;
+
+      // Find the order index of the previous stop within the route for timetable lookup
+      const previousStopOrderInRoute =
+        tripUsed === -1
+          ? null
+          : routes[routeUsed]["stop_order_map"][previousStop];
+
+      // Fetch exact departure time from timetable for transit legs, or null for walking legs
+      const exactDepartureSeconds =
+        tripUsed === -1
+          ? null
+          : timetables[tripUsed][previousStopOrderInRoute]["departure"];
+
+      // Get the time the user arrived at the boarding platform in the previous round
+      const platformArrivalSeconds = arrivalTimes[previousRound][previousStop];
+
+      // Construct the detailed segment (leg) object containing wait, walk, transit, and timing data
+      const currentLeg = {
+        waitDurationSeconds:
+          tripUsed === -1 ? 0 : exactDepartureSeconds - platformArrivalSeconds,
+        startTime:
+          tripUsed === -1
+            ? arrivalTimes[backwardRound][stopPointer] - routeUsed
+            : timetables[tripUsed][previousStopOrderInRoute]["departure"],
+        fromStopCode: stops[previousStop]["stop_code"],
+        routeShortName:
+          tripUsed === -1 ? null : routes[routeUsed]["short_name"],
+        toStopCode: stops[stopPointer]["stop_code"],
+        endTime: arrivalTimes[backwardRound][stopPointer],
+        mode: tripUsed === -1 ? "WALK" : "TRANSIT",
+        tripId: tripUsed === -1 ? null : reverseTripMapping[tripUsed],
+        walkDurationSeconds: tripUsed === -1 ? routeUsed : null,
+      };
+
+      itineraryDetails.legs.push(currentLeg);
+
+      // Shift pointers backwards for the next iteration of the loop
+      stopPointer = previousStop;
+      backwardRound = previousRound;
+    }
+
+    // Reverse the legs array since we built it from target to source
+    itineraryDetails.legs.reverse();
+
+    if (sourceNode.type === "coordinate") {
+      const initialWalkSeconds = parentRoute[0][stopPointer]; // We stashed this in Round 0
+
+      // Look at the upcoming transit leg to see how long the user was going to wait at the station
+      const firstTransitLeg = itineraryDetails.legs[0];
+      const waitTimeToShift = firstTransitLeg
+        ? firstTransitLeg.waitDurationSeconds
+        : 0;
+
+      // Shift the departure forward so the user doesn't wait at the station
+      const shiftedDepartureSeconds = departureSeconds + waitTimeToShift;
+
+      itineraryDetails.legs.unshift({
+        waitDurationSeconds: 0,
+        startTime: shiftedDepartureSeconds,
+        fromStopCode: "ORIGIN_PIN",
+        routeShortName: null,
+        toStopCode: stops[stopPointer]["stop_code"],
+        endTime: shiftedDepartureSeconds + initialWalkSeconds,
+        mode: "WALK",
+        tripId: null,
+        walkDurationSeconds: initialWalkSeconds,
+      });
+
+      // Now that we shifted the walk forward, the user doesn't have to wait at the station!
+      if (firstTransitLeg) {
+        firstTransitLeg.waitDurationSeconds = 0;
+      }
+    } else {
+      // If the user started directly at a station, just zero out the wait time
+      if (itineraryDetails.legs.length > 0) {
+        itineraryDetails.legs[0].waitDurationSeconds = 0;
+      }
+    }
+
+    // If the destination was a coordinate, inject the final walking leg from the bus stop to the pin
+    if (targetNode.type === "coordinate" && finalWalkSeconds > 0) {
+      // The user arrived at the final bus stop at this exact time
+      const finalStationArrivalSeconds = arrivalTimes[bestRound][targetStop];
+
+      itineraryDetails.legs.push({
+        waitDurationSeconds: 0,
+        startTime: finalStationArrivalSeconds,
+        fromStopCode: stops[targetStop]["stop_code"],
+        routeShortName: null,
+        toStopCode: "TARGET_PIN",
+        endTime: finalStationArrivalSeconds + finalWalkSeconds,
+        mode: "WALK",
+        tripId: null,
+        walkDurationSeconds: finalWalkSeconds,
+      });
+
+      // Update the overarching itinerary arrival time to include this final walk
+      itineraryDetails.targetArrivalTime =
+        finalStationArrivalSeconds + finalWalkSeconds;
+    }
+
+    // // Array holding compressed consecutive walking legs merged together
+    const compressedLegs = [];
+
+    for (let i = 0; i < itineraryDetails.legs.length; i++) {
+      const currentLeg = itineraryDetails.legs[i];
+      const previousLeg = compressedLegs[compressedLegs.length - 1];
+
+      if (
+        previousLeg &&
+        previousLeg.mode === "WALK" &&
+        currentLeg.mode === "WALK"
+      ) {
+        // Merge the current walk into the previous one
+        previousLeg.toStopCode = currentLeg.toStopCode;
+        previousLeg.endTime = currentLeg.endTime;
+        previousLeg.walkDurationSeconds += currentLeg.walkDurationSeconds;
+      } else {
+        compressedLegs.push(currentLeg);
+      }
+    }
+
+    itineraryDetails.legs = compressedLegs;
+
+    return itineraryDetails;
   }
 
-  // Reverse the legs array since we built it from target to source
-  itineraryDetails.legs.reverse();
+  candidateTargets.forEach((candidate) => {
+    // Reconstruct the path for this specific candidate.stop
+    const itinerary = buildItinerary(candidate);
 
-  // Zero out the wait time for the very first leg, as the user is just departing from their origin
-  if (itineraryDetails.legs.length > 0) {
-    itineraryDetails.legs[0].waitDurationSeconds = 0;
+    // Sum up all the walking time in this itinerary
+    let totalWalkTime = 0;
+    itinerary.legs.forEach((leg) => {
+      if (leg.mode === "WALK") {
+        totalWalkTime += leg.walkDurationSeconds;
+      }
+    });
+
+    // Keep it if it has the least walking time
+    if (totalWalkTime < lowestTotalWalkTime) {
+      lowestTotalWalkTime = totalWalkTime;
+      bestItinerary = itinerary;
+    }
+  });
+
+  // Direct Walking Path Fallback
+  // // Boolean flag indicating if direct walking is faster than transit routing
+  let isDirectWalkBetter = false;
+  // // Estimated duration in seconds for a direct walk between coordinates
+  let directWalkingDuration = 0;
+  // // Calculated arrival time timestamp for a direct walking trip
+  let directWalkingArrivalTime = Infinity;
+
+  if (sourceNode.type === "coordinate" && targetNode.type === "coordinate") {
+    const directHaversineDistance = calculateHaversine(
+      sourceNode.lat,
+      sourceNode.lon,
+      targetNode.lat,
+      targetNode.lon,
+    );
+    const estimatedRealDistance =
+      Math.round((directHaversineDistance * DETOUR_FACTOR) / 10) * 10;
+
+    directWalkingDuration = Math.round(
+      estimatedRealDistance / WALKING_SPEED_MPS,
+    );
+    directWalkingArrivalTime = departureSeconds + directWalkingDuration;
+
+    if (
+      bestItinerary === null ||
+      directWalkingArrivalTime < bestItinerary.targetArrivalTime
+    ) {
+      isDirectWalkBetter = true;
+    }
   }
 
-  return itineraryDetails;
+  if (isDirectWalkBetter || bestItinerary === null) {
+    return {
+      targetArrivalTime: directWalkingArrivalTime,
+      legs: [
+        {
+          waitDurationSeconds: 0,
+          startTime: departureSeconds,
+          fromStopCode: "ORIGIN_PIN",
+          routeShortName: null,
+          toStopCode: "TARGET_PIN",
+          endTime: directWalkingArrivalTime,
+          mode: "WALK",
+          tripId: null,
+          walkDurationSeconds: directWalkingDuration,
+        },
+      ],
+    };
+  }
+
+  return bestItinerary;
 }
 
-console.log(raptorEngine("1173433", "2642205", "2026-09-13", "22:10:00"));
+console.log(
+  raptorEngine(
+    { type: "stop", id: "4810243" },
+    { type: "stop", id: "4850204" },
+
+    "2026-09-13",
+    "11:59:00",
+  ),
+);
+
+// console.log(
+//   raptorEngine(
+//     { type: "coordinate", lat: 60.14921733326588, lon: 24.925936899224748 },
+//     { type: "coordinate", lat: 60.14940757590343, lon: 24.927240496946084 },
+//     "2026-09-13",
+//     "11:00:00",
+//   ),
+// );
 
 module.exports = raptorEngine;

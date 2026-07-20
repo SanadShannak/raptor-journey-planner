@@ -1,4 +1,4 @@
-function calculateSecondsToTimeOfDay(totalSeconds) {
+function convertSecondsToTimeOfDay(totalSeconds) {
   // Converts total seconds of day into 24-hour time string (HH:MM)
 
   // Calculate hours and minutes
@@ -11,4 +11,4 @@ function calculateSecondsToTimeOfDay(totalSeconds) {
   return formattedTime;
 }
 
-module.exports = calculateSecondsToTimeOfDay;
+module.exports = convertSecondsToTimeOfDay;

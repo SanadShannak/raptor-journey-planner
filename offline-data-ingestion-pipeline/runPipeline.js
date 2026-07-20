@@ -25,12 +25,17 @@ const parsingComponents = [
     scriptPath: path.join(allParsersFolderPath, "parseTimetables.js"),
   },
   {
-    name: "Component 5: Generate Footpaths",
-    scriptPath: path.join(allParsersFolderPath, "generateFootpaths.js"),
+    name: "Component 5: Map Stop-To-Routes",
+    scriptPath: path.join(allParsersFolderPath, "parseStopToRoutes.js"),
   },
   {
-    name: "Component 6: Map Stop-To-Routes",
-    scriptPath: path.join(allParsersFolderPath, "parseStopToRoutes.js"),
+    name: "Component 6: Generate Footpaths",
+    scriptPath: path.join(allParsersFolderPath, "generateFootpaths.js"),
+  },
+
+  {
+    name: "Component 7: Generate Spatial Grid",
+    scriptPath: path.join(allParsersFolderPath, "generateSpatialGrid.js"),
   },
 ];
 

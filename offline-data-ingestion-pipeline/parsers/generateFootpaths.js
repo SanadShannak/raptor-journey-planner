@@ -69,7 +69,11 @@ for (let i = 0; i < stops.length; i++) {
   }
   footpathMatrix[i] = [];
   // Every stop must have a self-transfer entry to itself costing 0 seconds
-  footpathMatrix[i].push({ to_stop_id: i, distance: 0 });
+  footpathMatrix[i].push({
+    to_stop_id: i,
+    distance: 0,
+    stop_access_penalty: 0,
+  });
 
   // Check walking distance to every other stop
   for (let j = 0; j < stops.length; j++) {
@@ -95,10 +99,9 @@ for (let i = 0; i < stops.length; i++) {
       stopB.lon,
     );
     // Apply spatial radius filter
-    if (distanceMeters <= MAX_WALKING_DISTANCE_METERS) {
-      const estimatedRealDistance =
-        Math.round((distanceMeters * DETOUR_FACTOR) / 10) * 10;
-
+    const estimatedRealDistance =
+      Math.round((distanceMeters * DETOUR_FACTOR) / 10) * 10;
+    if (estimatedRealDistance <= MAX_WALKING_DISTANCE_METERS) {
       footpathMatrix[i].push({
         to_stop_id: j,
         distance: estimatedRealDistance,

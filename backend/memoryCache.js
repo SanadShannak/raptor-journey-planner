@@ -45,6 +45,13 @@ const processedDataFiles = [
       "active-services.processed.json",
     ),
   },
+  {
+    name: "spatialGrid",
+    filePath: path.join(
+      allProcessedDataFolderPath,
+      "spatial-grid.processed.json",
+    ),
+  },
 ];
 
 // Trip Mapping file path - separately to implement reverse mapping
@@ -63,6 +70,7 @@ const cachedData = {
   stopToRoutes: null,
   activeServices: null,
   reverseTripMapping: null,
+  spatialGrid: null,
 };
 
 console.log("Reading file contents into local RAM cache...");
