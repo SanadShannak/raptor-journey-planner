@@ -114,23 +114,12 @@ function raptorEngine(
     }
   }
 
-  // // --- UNIFY INPUTS: Convert all stops to coordinates immediately (TO BE USED LATER)---
-  // if (sourceNode.type === "stop") {
-  //   const stopObj = stops[stopMapping[sourceNode.id]];
-  //   sourceNode = { type: "coordinate", lat: stopObj.lat, lon: stopObj.lon };
-  // }
-
-  // if (targetNode.type === "stop") {
-  //   const stopObj = stops[stopMapping[targetNode.id]];
-  //   targetNode = { type: "coordinate", lat: stopObj.lat, lon: stopObj.lon };
-  // }
-
   // Initialization of the algorithm (Lines 1-5 in the research paper)
 
   console.log("Initializing the algorithm... ");
-  // // Initialize array to hold arrival times for each round up to MAX_ROUNDS
+  // Initialize array to hold arrival times for each round up to MAX_ROUNDS
   const arrivalTimes = [];
-  // // Initialize set to track stops updated in the current round
+  // Initialize set to track stops updated in the current round
   const markedStops = new Set();
   for (let roundNumber = 0; roundNumber <= MAX_ROUNDS; roundNumber++) {
     // Pre-allocation of the 2D arrival matrix with native Infinity fills
@@ -164,38 +153,37 @@ function raptorEngine(
     };
   }
 
-  // // Array to hold the initial boarding locations derived from origin input
+  // Array to hold the initial boarding locations derived from origin input
   const startingStops = [];
-  // // Array to hold the destination locations derived from target input
+  // Array to hold the destination locations derived from target input
   const targetStops = [];
-  // // Tracks the global minimum arrival time found so far at any target stop
+  // Tracks the global minimum arrival time found so far at any target stop
   let globalBestTargetArrivalTime = Infinity;
   // Path reconstruction matrices
-  // // 2D matrix tracking the parent stop ID for each stop in each round
+  // 2D matrix tracking the parent stop ID for each stop in each round
   const parentStop = [];
-  // // 2D matrix tracking the trip ID used to reach each stop in each round
+  // 2D matrix tracking the trip ID used to reach each stop in each round
   const parentTrip = [];
-  // // 2D matrix tracking the route ID or walk duration used to reach each stop in each round
+  // 2D matrix tracking metadata (route ID / walk duration) used to reach each stop
   const parentRoute = [];
+  // NEW: 2D matrix tracking exact walk distances in meters for footpath/origin/destination legs
+  const parentWalkDistance = [];
 
-  // // Convert query departure time string into total seconds elapsed since midnight
+  // Convert query departure time string into total seconds elapsed since midnight
   const departureSeconds = calculateTimeOfDayInSeconds(departureTime);
 
   for (let roundNumber = 0; roundNumber <= MAX_ROUNDS; roundNumber++) {
-    // Pre-allocation of the 2D arrival matrix with native Infinity fills
+    // Pre-allocation of matrices with native fills
     parentStop[roundNumber] = new Array(stops.length).fill(null);
     parentTrip[roundNumber] = new Array(stops.length).fill(null);
     parentRoute[roundNumber] = new Array(stops.length).fill(null);
+    parentWalkDistance[roundNumber] = new Array(stops.length).fill(null);
   }
   // If origin/target not a saved stop, get nearby stops
   if (sourceNode.type == "coordinate") {
-    // // Retrieve nearby transit stops within walking reach of origin coordinates
-    const nearbyStops = getNearbyStops(
-      sourceNode.lat,
-      sourceNode.lon,
-      WALKING_SPEED_MPS,
-    );
-    if (nearbyStops.length === 0) {
+    // Retrieve nearby transit stops within walking reach of origin coordinates
+    const rawNearbyStops = getNearbyStops(sourceNode.lat, sourceNode.lon);
+    if (rawNearbyStops.length === 0) {
       return {
         targetArrivalTime: null,
         legs: [],
@@ -204,6 +192,20 @@ function raptorEngine(
           "No route suggestions were found because the departure point is outside the service area.",
       };
     }
+    // Compute total walk duration + stop access penalty
+    const nearbyStops = [];
+    rawNearbyStops.forEach((nearbyStop) => {
+      const walkingDuration = Math.round(
+        nearbyStop.walkDistanceMeters / WALKING_SPEED_MPS,
+      );
+      const totalWalkDuration = walkingDuration + nearbyStop.stopAccessPenalty;
+
+      nearbyStops.push({
+        stop: nearbyStop.stop,
+        walkDurationSeconds: totalWalkDuration,
+        walkDistanceMeters: nearbyStop.walkDistanceMeters,
+      });
+    });
     startingStops.push(...nearbyStops);
   } else if (sourceNode.type == "stop") {
     // Mapping the source stop id to its index in the flat array
@@ -240,16 +242,16 @@ function raptorEngine(
     parentStop[0][startingNode.stop] = "ORIGIN";
     parentTrip[0][startingNode.stop] = -1;
     parentRoute[0][startingNode.stop] = startingNode.walkDurationSeconds;
+    // Stash the origin walk distance
+    // Stash the origin walk distance
+    parentWalkDistance[0][startingNode.stop] =
+      startingNode.walkDistanceMeters || 0;
   });
 
   if (targetNode.type === "coordinate") {
-    // // Retrieve nearby transit stops within walking reach of destination coordinates
-    const nearbyTargets = getNearbyStops(
-      targetNode.lat,
-      targetNode.lon,
-      WALKING_SPEED_MPS,
-    );
-    if (nearbyTargets.length === 0) {
+    // Retrieve nearby transit stops within walking reach of destination coordinates
+    const rawNearbyTargets = getNearbyStops(targetNode.lat, targetNode.lon);
+    if (rawNearbyTargets.length === 0) {
       return {
         targetArrivalTime: null,
         legs: [],
@@ -258,6 +260,21 @@ function raptorEngine(
           "No route suggestions were found because the destination point is outside the service area.",
       };
     }
+    // Compute total walk duration + stop access penalty
+    const nearbyTargets = [];
+    rawNearbyTargets.forEach((nearbyTarget) => {
+      const walkingDuration = Math.round(
+        nearbyTarget.walkDistanceMeters / WALKING_SPEED_MPS,
+      );
+      const totalWalkDuration =
+        walkingDuration + nearbyTarget.stopAccessPenalty;
+
+      nearbyTargets.push({
+        stop: nearbyTarget.stop,
+        walkDurationSeconds: totalWalkDuration,
+        walkDistanceMeters: nearbyTarget.walkDistanceMeters,
+      });
+    });
     targetStops.push(...nearbyTargets);
   } else if (targetNode.type === "stop") {
     const targetStopIndex = stopMapping[targetNode.id];
@@ -312,9 +329,9 @@ function raptorEngine(
 
     // Traverse each route
     routesServingMarkedStops.forEach((currentStop, route) => {
-      // // Holds the currently boarded trip ID during route traversal
+      // Holds the currently boarded trip ID during route traversal
       let currentTrip = null;
-      // // Holds the stop ID where the current trip was boarded
+      // Holds the stop ID where the current trip was boarded
       let boardingStop = null;
       // Get the stop list of the route
       const routeStopList = routes[route]["stop_ids"];
@@ -346,6 +363,7 @@ function raptorEngine(
             parentStop[currentRound][nextStop] = boardingStop;
             parentTrip[currentRound][nextStop] = currentTrip;
             parentRoute[currentRound][nextStop] = route;
+            parentWalkDistance[currentRound][nextStop] = null; // Transit leg has no walk distance
             // Mark the stop if it its arrival times were updated
             markedStops.add(nextStop);
             // Is this newly updated stop one of our destinations
@@ -423,6 +441,8 @@ function raptorEngine(
           parentTrip[currentRound][footpathNextStop] = -1;
           parentRoute[currentRound][footpathNextStop] =
             footpathDuration + footpathStationPenalty;
+          // Store exact pre-calculated footpath distance directly
+          parentWalkDistance[currentRound][footpathNextStop] = footpathDistance;
 
           // Mark the newly updated stop to process next round
           markedStops.add(footpathNextStop);
@@ -475,14 +495,15 @@ function raptorEngine(
     };
   }
 
-  // // Holds the selected optimal itinerary object returned by path reconstruction
+  // Holds the selected optimal itinerary object returned by path reconstruction
   let bestItinerary = null;
-  // // Tracks the minimum accumulated walking duration across winning candidate paths
+  // Tracks the minimum accumulated walking duration across winning candidate paths
   let lowestTotalWalkTime = Infinity;
 
   function buildItinerary(candidate) {
     const targetStop = candidate.stop;
     const finalWalkSeconds = candidate.walkDurationSeconds;
+    const finalWalkDistance = candidate.walkDistanceMeters;
     // Find the minimum number of rounds (transfers) required to achieve the best arrival time
     let bestRound = 0;
     while (
@@ -505,6 +526,7 @@ function raptorEngine(
       const tripUsed = parentTrip[backwardRound][stopPointer];
       const previousStop = parentStop[backwardRound][stopPointer];
       const routeUsed = parentRoute[backwardRound][stopPointer];
+      const walkDistance = parentWalkDistance[backwardRound][stopPointer];
 
       // If a footpath was used (tripUsed === -1), stay in the same round. If transit was used, step back one round
       const previousRound = tripUsed === -1 ? backwardRound : backwardRound - 1;
@@ -539,7 +561,9 @@ function raptorEngine(
         endTime: arrivalTimes[backwardRound][stopPointer],
         mode: tripUsed === -1 ? "WALK" : "TRANSIT",
         tripId: tripUsed === -1 ? null : reverseTripMapping[tripUsed],
-        walkDurationSeconds: tripUsed === -1 ? routeUsed : null,
+        walkDurationSeconds: tripUsed === -1 ? routeUsed : 0,
+        // Inject pre-calculated distance for footpath legs, null for transit
+        walkDistanceMeters: tripUsed === -1 ? walkDistance : null,
       };
 
       itineraryDetails.legs.push(currentLeg);
@@ -553,7 +577,9 @@ function raptorEngine(
     itineraryDetails.legs.reverse();
 
     if (sourceNode.type === "coordinate") {
-      const initialWalkSeconds = parentRoute[0][stopPointer]; // We stashed this in Round 0
+      const initialWalkSeconds = parentRoute[0][stopPointer]; // Stashed in Round 0
+      // Retrieve pre-calculated distance stashed in Round 0 for initial origin walk
+      const initialWalkDistance = parentWalkDistance[0][stopPointer];
 
       // Look at the upcoming transit leg to see how long the user was going to wait at the station
       const firstTransitLeg = itineraryDetails.legs[0];
@@ -574,6 +600,7 @@ function raptorEngine(
         mode: "WALK",
         tripId: null,
         walkDurationSeconds: initialWalkSeconds,
+        walkDistanceMeters: initialWalkDistance,
       });
 
       // Now that we shifted the walk forward, the user doesn't have to wait at the station!
@@ -591,6 +618,7 @@ function raptorEngine(
     if (targetNode.type === "coordinate" && finalWalkSeconds > 0) {
       // The user arrived at the final bus stop at this exact time
       const finalStationArrivalSeconds = arrivalTimes[bestRound][targetStop];
+      // Calculate destination Haversine distance with detour factor
 
       itineraryDetails.legs.push({
         waitDurationSeconds: 0,
@@ -602,6 +630,7 @@ function raptorEngine(
         mode: "WALK",
         tripId: null,
         walkDurationSeconds: finalWalkSeconds,
+        walkDistanceMeters: finalWalkDistance,
       });
 
       // Update the overarching itinerary arrival time to include this final walk
@@ -609,7 +638,7 @@ function raptorEngine(
         finalStationArrivalSeconds + finalWalkSeconds;
     }
 
-    // // Array holding compressed consecutive walking legs merged together
+    // Array holding compressed consecutive walking legs merged together
     const compressedLegs = [];
 
     for (let i = 0; i < itineraryDetails.legs.length; i++) {
@@ -625,6 +654,7 @@ function raptorEngine(
         previousLeg.toStopCode = currentLeg.toStopCode;
         previousLeg.endTime = currentLeg.endTime;
         previousLeg.walkDurationSeconds += currentLeg.walkDurationSeconds;
+        previousLeg.walkDistanceMeters += currentLeg.walkDistanceMeters;
       } else {
         compressedLegs.push(currentLeg);
       }
@@ -655,12 +685,13 @@ function raptorEngine(
   });
 
   // Direct Walking Path Fallback
-  // // Boolean flag indicating if direct walking is faster than transit routing
+  // Boolean flag indicating if direct walking is faster than transit routing
   let isDirectWalkBetter = false;
-  // // Estimated duration in seconds for a direct walk between coordinates
+  // Estimated duration in seconds for a direct walk between coordinates
   let directWalkingDuration = 0;
-  // // Calculated arrival time timestamp for a direct walking trip
+  // Calculated arrival time timestamp for a direct walking trip
   let directWalkingArrivalTime = Infinity;
+  let directRealDistance = 0;
 
   if (sourceNode.type === "coordinate" && targetNode.type === "coordinate") {
     const directHaversineDistance = calculateHaversine(
@@ -669,12 +700,10 @@ function raptorEngine(
       targetNode.lat,
       targetNode.lon,
     );
-    const estimatedRealDistance =
+    directRealDistance =
       Math.round((directHaversineDistance * DETOUR_FACTOR) / 10) * 10;
 
-    directWalkingDuration = Math.round(
-      estimatedRealDistance / WALKING_SPEED_MPS,
-    );
+    directWalkingDuration = Math.round(directRealDistance / WALKING_SPEED_MPS);
     directWalkingArrivalTime = departureSeconds + directWalkingDuration;
 
     if (
@@ -699,6 +728,7 @@ function raptorEngine(
           mode: "WALK",
           tripId: null,
           walkDurationSeconds: directWalkingDuration,
+          walkDistanceMeters: directRealDistance,
         },
       ],
     };
@@ -707,23 +737,23 @@ function raptorEngine(
   return bestItinerary;
 }
 
-console.log(
-  raptorEngine(
-    { type: "stop", id: "4810243" },
-    { type: "stop", id: "4850204" },
-
-    "2026-09-13",
-    "11:59:00",
-  ),
-);
-
 // console.log(
 //   raptorEngine(
-//     { type: "coordinate", lat: 60.14921733326588, lon: 24.925936899224748 },
-//     { type: "coordinate", lat: 60.14940757590343, lon: 24.927240496946084 },
+//     { type: "stop", id: "4810243" },
+//     { type: "stop", id: "4850204" },
+
 //     "2026-09-13",
-//     "11:00:00",
+//     "11:59:00",
 //   ),
 // );
+
+console.log(
+  raptorEngine(
+    { type: "coordinate", lat: 60.173766355934, lon: 24.779820890764707 },
+    { type: "coordinate", lat: 60.14468173039075, lon: 24.982796872940842 },
+    "2026-09-13",
+    "11:05:00",
+  ),
+);
 
 module.exports = raptorEngine;

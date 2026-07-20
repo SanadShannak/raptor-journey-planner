@@ -80,14 +80,11 @@ Binds dictionary lookup keys directly to sequential zero-indexed integer array p
 ---
 
 ### Component 6: Footpath Generator (`generateFootpaths.js`)
-
 #### Objective
 Compiles a complete pedestrian transfer matrix (`footpaths.processed.json`) that bridges nearby transit stops.
-
 #### Logic Metrics
-1. **Spatial Filter**: Drops any destination pair with a physical distance greater than a **1,000-meter** radius.
-2. **Self-Transfer Rule**: Injects a reflexive transfer edge from every stop to itself with a distance of `0` meters.
-
+1. **Spatial Filter & Spatial Grid Acceleration (`spatialGrid.js`)**: Utilizes a high-performance spatial partitioning grid (`spatialGrid.js`) to bucket transit stops spatially, drastically reducing candidate search pairs and dropping any destination pair with a physical distance greater than a **1,000-meter** radius.
+2. **Self-Transfer Rule & Bilateral Station Access Penalties**: Injects a reflexive transfer edge from every stop to itself with a distance of `0` meters. For stations servicing **metro, railway, or ferry (`route_type` 1, 2, or 4)**, a **120-second station access penalty** is embedded into the transfer logic per interaction—assessing 120 seconds for station entry, 120 seconds for station exit, and a cumulative **240 seconds** when both entry and exit thresholds are crossed.
 ---
 
 ### Component 7: Spatial Grid Generator (`generateSpatialGrid.js`)
@@ -121,12 +118,15 @@ Provides a zero-dependency mathematical helper to calculate the exact great-circ
 2. **Geometric Integrity**: Uses pure spherical trigonometry, ensuring precision for both high-latitude and equatorial networks.
 
 
+---
+
 ## Spatial Grid Indexing Utility (`utils/getNearbyStops.js`)
 #### Objective
 Bridges geographic coordinate pins (latitude/longitude) to the transit network by performing high-speed spatial searches over the compiled spatial grid hash map.
-#### Design Optimization
+#### Design Optimization & Penalties
 1. **Radius Bounding Box**: Calculates a dynamic grid search radius based on a max walking boundary (`2500m`) and grid resolution.
-2. **Detour Simulation**: Applies an urban detour factor (`DETOUR_FACTOR = 1.2`) to simulate real sidewalk paths instead of straight-line distance, returning precise walking durations based on the active walking speed.
+2. **Detour Simulation**: Applies an urban detour factor (`DETOUR_FACTOR = 1.2`) to simulate real sidewalk paths instead of straight-line distance, yielding exact walking distances (`walkDistanceMeters`).
+3. **Bilateral Station Access Penalties**: Inspects the transit routes servicing each candidate stop. If a station serves a heavy transit mode—specifically **metro, railway, or ferry (`route_type` 1, 2, or 4)**—a **120-second station access penalty** is automatically added to both station-entry (origin) and station-exit (destination) walking legs to account for platform and gate traversal friction.
 ---
 
 ## Pipeline Orchestration (`runPipeline.js`)

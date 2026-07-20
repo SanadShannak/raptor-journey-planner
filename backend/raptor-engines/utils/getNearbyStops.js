@@ -4,15 +4,17 @@ const memoryCache = require("../../memoryCache");
 // Retrieve cached data structure
 const cachedData = memoryCache.getCache();
 const spatialGrid = cachedData.spatialGrid;
-// FIX: Added stopMapping to translate string IDs to internal integer indices
+// Added stopMapping to translate string IDs to internal integer indices
 const stopMapping = cachedData.stopMapping;
+const stopToRoutes = cachedData.stopToRoutes;
+const routes = cachedData.routes;
 
 const GRID_SIZE_DEGREES = 0.005;
 const MAX_WALKING_DISTANCE_METERS = 2500;
 // Simulates real sidewalk routing instead of straight line walking
 const DETOUR_FACTOR = 1.2;
 
-function getNearbyStops(lat, lon, WALKING_SPEED_MPS) {
+function getNearbyStops(lat, lon) {
   const nearbyStops = [];
 
   // Calculate how many grid squares out we need to search (e.g., 5 squares for 2500m)
@@ -48,12 +50,24 @@ function getNearbyStops(lat, lon, WALKING_SPEED_MPS) {
 
           // Strict cutoff using the detoured distance
           if (estimatedRealDistance <= MAX_WALKING_DISTANCE_METERS) {
+            let accessStopTimePenalty = 0;
+
+            let routesToCheckRouteType = stopToRoutes[stop.id] || [];
+            // Loop through ALL routes serving this stop
+            for (let r = 0; r < routesToCheckRouteType.length; r++) {
+              let routeIndex = routesToCheckRouteType[r];
+              let routeType = routes[routeIndex]["route_type"];
+
+              if (routeType == 1 || routeType == 2 || routeType == 4) {
+                accessStopTimePenalty = 120;
+                break; // Found a heavy transit mode! Stop checking.
+              }
+            }
+
             nearbyStops.push({
               stop: stop.id,
-              walkDurationSeconds: Math.round(
-                estimatedRealDistance / WALKING_SPEED_MPS,
-              ),
               walkDistanceMeters: estimatedRealDistance,
+              stopAccessPenalty: accessStopTimePenalty,
             });
           }
         });
