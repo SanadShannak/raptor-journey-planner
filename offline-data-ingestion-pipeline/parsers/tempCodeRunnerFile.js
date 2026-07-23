@@ -1,1 +1,1 @@
-    for (const stringTripId in tripToSequenceMap) {
+stop_distance_traveled

@@ -34,5 +34,6 @@ module.exports = {
       "start_date",
       "end_date",
     ],
+    optionalStopTimesHeaders: ["shape_dist_traveled"],
   },
 };

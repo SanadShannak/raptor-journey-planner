@@ -12,3 +12,5 @@ function convertSecondsToTimeOfDay(totalSeconds) {
 }
 
 module.exports = convertSecondsToTimeOfDay;
+
+console.log(convertSecondsToTimeOfDay(19647));

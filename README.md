@@ -98,14 +98,16 @@ Ingests the processed flat stops array (`stops.processed.json`) and maps every p
 
 ### Component 8: RAPTOR Routing Engine (`raptorEngine.js`)
 #### Objective
-The core online algorithm that consumes pre-compiled transit arrays to answer travel queries, fully equipped with path reconstruction, dynamic walking speed overrides, spatial grid coordinate lookups, and strict machine-readable error codes.
+The core online algorithm that consumes pre-compiled transit arrays to answer travel queries, fully equipped with path reconstruction, dynamic walking speed overrides, spatial grid coordinate lookups, multi-day temporal windows, and strict machine-readable error codes.
 #### Operational Logic
-1. **Engine Circuit Breakers & Structured Errors**: Implements immediate short-circuits for identical source/target queries ($O(1)$ exit), out-of-bounds coordinates, missing stop IDs, and inactive calendar dates, returning clean objects containing both a descriptive `error` string and a standardized `errorCode` (e.g., `SAME_ORIGIN_TARGET`, `ORIGIN_OUT_OF_BOUNDS`, `ORIGIN_STOP_NOT_FOUND`, `NO_ACTIVE_SERVICES`, `NO_ROUTE_FOUND`).
-2. **Initialization**: Pre-allocates native 2D arrays to hold arrival times across `MAX_ROUNDS`, utilizing `Infinity` to signify unvisited nodes.
-3. **Stage 1 (Route Accumulation)**: Identifies all active routes that pass through reachable stops in $O(1)$ time.
-4. **Stage 2 (Route Scanning)**: Executes an $O(\log N)$ binary search to retrieve the earliest possible transit trip, scanning stop-by-stop while pruning dominated paths. Tracks parent routes, trips, and boarding stops for path reconstruction.
-5. **Stage 3 (Footpath Processing)**: Processes pedestrian transfers between stops using dynamic walking speeds and the spatial grid index (`spatialGrid.js`), enforcing strict pruning to ensure only time-optimal paths are tracked.
-6. **Path Reconstruction**: Backtracks through parent pointer matrices to construct an ordered, turn-by-turn itinerary. Utilizes Just-In-Time (JIT) walking logic and exact timetable departures to calculate flawless temporal gaps.
+1. **Multi-Day Temporal Window**: Automatically loads "Yesterday", "Today", and "Tomorrow" transit schedules, applying mathematical offsets to ensure seamless cross-midnight transit routing.
+2. **Coordinate & Pin Routing**: Supports dynamic lat/lon inputs with Just-In-Time (JIT) spatial grid lookups, automatically generating origin/destination walking legs and analyzing fallback direct-walk scenarios.
+3. **Engine Circuit Breakers & Structured Errors**: Implements immediate short-circuits for identical source/target queries ($O(1)$ exit), out-of-bounds coordinates, missing stop IDs, and inactive calendar dates, returning clean objects containing both a descriptive `error` string and a standardized `errorCode`.
+4. **Initialization**: Pre-allocates native 2D arrays to hold arrival times across `MAX_ROUNDS`, utilizing `Infinity` to signify unvisited nodes.
+5. **Stage 1 (Route Accumulation)**: Identifies all active routes that pass through reachable stops in $O(1)$ time.
+6. **Stage 2 (Route Scanning)**: Executes an $O(\log N)$ binary search across the multi-day temporal window to retrieve the earliest possible transit trip, scanning stop-by-stop while pruning dominated paths. Tracks parent routes, trips, and offsets for UI hydration.
+7. **Stage 3 (Footpath Processing)**: Processes pedestrian transfers between stops using dynamic walking speeds and the spatial grid index (`spatialGrid.js`), enforcing strict pruning to ensure only time-optimal paths are tracked.
+8. **Path Reconstruction**: Backtracks through parent pointer matrices to construct an ordered, turn-by-turn itinerary. Embeds fat-payload UI data, including intermediate transit stops and exact geographical coordinates for map rendering.
 ---
 
 ## Haversine Spatial Calculator (`utils/calculateHaversine.js`)
@@ -164,8 +166,8 @@ Invoke the `raptorEngine` function with the following parameters:
 
 ```javascript
 raptorEngine(
-    sourceStop,      // Original GTFS stop_id
-    targetStop,      // Original GTFS stop_id
+    sourceNode,      // Object: { type: "stop", id: "123" } OR { type: "coordinate", lat: 60.1, lon: 24.9 }
+    targetNode,      // Object: { type: "stop", id: "123" } OR { type: "coordinate", lat: 60.1, lon: 24.9 }
     queryDate,       // "YYYY-MM-DD"
     departureTime    // "HH:MM:SS"
 );
@@ -175,11 +177,11 @@ raptorEngine(
 
 | Parameter | Description |
 |-----------|-------------|
-| `sourceStop` | Original GTFS `stop_id` of the departure stop |
-| `targetStop` | Original GTFS `stop_id` of the destination stop |
+| `sourceStop` | Object defining the origin (either a GTFS Stop ID or lat/lon coordinates) |
+| `targetStop` | Object defining the destination (either a GTFS Stop ID or lat/lon coordinates) |
 | `queryDate` | Date of travel in `YYYY-MM-DD` format |
 | `departureTime` | Desired departure time in `HH:MM:SS` format |
-| `WALKING_SPEED_MPS` (optional, defaults to 1.11) | Average human walking pace (meters/sec)|
+| `WALKING_SPEED_MPS` (Optional) Average human walking pace in meters/sec (Defaults to 1.11)|
 
 ---
 
@@ -192,7 +194,7 @@ The engine executes the RAPTOR routing algorithm over the preprocessed transit n
 - Applies RAPTOR pruning rules to eliminate dominated journeys while preserving correctness.
 - Reconstructs the selected path.
 
-To ensure absolute data integrity and strictly decouple mathematical logic from frontend presentation (the Presenter Pattern), all durations, start times, end times, and target arrival times are output as **raw integer seconds from midnight**.
+To ensure absolute data integrity and strictly decouple mathematical logic from frontend presentation (the Presenter Pattern), all durations, start times, end times, and target arrival times are output as **raw integer seconds from absolute engine midnight**.
 
 ```json
 {
@@ -201,25 +203,78 @@ To ensure absolute data integrity and strictly decouple mathematical logic from 
     {
       "waitDurationSeconds": 0,
       "startTime": 79800,
-      "fromStopCode": "H0614",
+      "fromStop": {
+        "name": "Kamppi",
+        "code": "H0614",
+        "lat": 60.168,
+        "lon": 24.931
+      },
       "routeShortName": "2",
-      "toStopCode": "H0639",
+      "intermediateStops": [
+        {
+          "stopName": "Luonnontieteellinen museo",
+          "stopCode": "H0612",
+          "stopArrivalTimeSeconds": 79830
+        }
+      ],
+      "toStop": {
+        "name": "Sammonkatu",
+        "code": "H0639",
+        "lat": 60.171,
+        "lon": 24.925
+      },
       "endTime": 79860,
       "mode": "TRANSIT",
       "tripId": "1002_20260831_Su_2_2220",
-      "walkDurationSeconds": null
+      "transitDistanceKilometers": 1.209,
+      "walkDurationSeconds": 0,
+      "walkDistanceMeters": null
     },
     {
       "waitDurationSeconds": 300,
       "startTime": 80160,
-      "fromStopCode": "H0639",
+      "fromStop": {
+        "name": "Sammonkatu",
+        "code": "H0639",
+        "lat": 60.171,
+        "lon": 24.925
+      },
       "routeShortName": null,
-      "toStopCode": "H1919",
+      "intermediateStops": null,
+      "toStop": {
+        "name": "Destination",
+        "code": "TARGET_PIN",
+        "lat": 60.175,
+        "lon": 24.930
+      },
       "endTime": 80400,
       "mode": "WALK",
       "tripId": null,
-      "walkDurationSeconds": 240
+      "transitDistanceKilometers": null,
+      "walkDurationSeconds": 240,
+      "walkDistanceMeters": 266
     }
   ]
 }
 ```
+## Known Limitations & Unexpected Behaviors
+
+Because this engine strictly implements the foundational RAPTOR algorithm, there are a few edge cases and mathematical quirks to be aware of during routing.
+
+### 1. The "No Direct Start" Limitation
+* **The Behavior:** When running a pure station-to-station query (passing `type: "stop"` for both origin and destination), the engine may fail to find a route if the origin stop does not have a direct connection, even if a stop 100 meters away does.
+* **The Cause:** This implementation uses pure RAPTOR without Round-0 footpath expansion for exact stop nodes.
+* **The Resolution:** This occurs specifically when we don't convert the origin stop into a coordinate. This will be completely resolved once the Stop-to-Coordinate conversion pipeline (which is currently written but commented out) is fully activated.
+
+### 2. The Latent "Trip Over-Boarding" Bug
+* **The Behavior:** The engine might instruct a user to get off a bus, walk to a nearby stop, and re-board the *exact same vehicle*, or even leave a the initial station, walk to a nearby station, then board the same exact bus that passed through the initial station.
+* **The Cause:** Pure RAPTOR optimizes exclusively for the earliest absolute arrival time. If walking a footpath cuts a corner faster than the bus drives it, the math blindly accepts the walk as the "better" path.
+* **The Resolution:** This surfaces primarily when coordinate-based origins trigger dense footpath overlaps. This will be permanently eliminated in future iterations by upgrading the core engine to **McRAPTOR (Multi-Criteria RAPTOR)**, which natively penalizes unnecessary transfers.
+
+### 3. Pedestrian-Only Itineraries
+* **The Behavior:** The engine returns an itinerary consisting of a single, direct walking leg with no transit boarded.
+* **The Cause:** This is mathematically correct behavior. It means one of two things: either walking directly from the origin pin to the target pin is objectively faster than walking to a station, waiting for a bus, and riding it; or there is simply no valid transit service operating during the requested temporal window.
+
+### 4. Null Transit Distances
+* **The Behavior:** The `transitDistanceKilometers` property returns `null` in the final JSON payload for a transit leg.
+* **The Cause:** This is an expected fallback. The GTFS specification considers the `shape_dist_traveled` column inside `stop_times.txt` to be optional. If a transit agency omits this column, the offline compiler dynamically disables distance tracking to save RAM, resulting in a clean `null` value in the frontend payload.

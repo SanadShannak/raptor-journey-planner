@@ -31,49 +31,61 @@ function getEarliestTrip(
   route,
   departureStopIndex,
   arrivalTime,
-  queryDayActiveServicesMap,
+  serviceOffsets,
 ) {
   // Function to get -for a given route- the earliest trip leaving from a specific stop after a given time on the query day
   const routeData = routes[route];
   const routeServices = Object.keys(routeData["service_buckets"]);
 
-  const routeActiveServices = [];
-  for (let routeServiceId of routeServices) {
-    if (queryDayActiveServicesMap[routeServiceId]) {
-      routeActiveServices.push(routeServiceId);
-    }
-  }
   let earliestDepartureTime = Infinity;
   let earliestTrip = null;
-  for (let routeActiveServiceId of routeActiveServices) {
+  let bestOffset = 0;
+
+  for (let serviceId of routeServices) {
+    // Grab the array of offsets for this service (e.g: [-86640, 0])
+    const offsets = serviceOffsets[serviceId];
+    if (!offsets) continue;
+
     const currentStopAllDepartureTimeForCurrentService =
-      routeData["service_buckets"][routeActiveServiceId][departureStopIndex];
-    const serviceTrips =
-      routeData["service_buckets"][routeActiveServiceId]["trip_ids"];
-    // Binary search
-    let lower = 0;
-    let upper = currentStopAllDepartureTimeForCurrentService.length - 1;
-    let resultIndex = -1;
-    while (lower <= upper) {
-      const mid = Math.floor((lower + upper) / 2);
-      if (currentStopAllDepartureTimeForCurrentService[mid] >= arrivalTime) {
-        resultIndex = mid;
-        upper = mid - 1;
-      } else {
-        lower = mid + 1;
+      routeData["service_buckets"][serviceId][departureStopIndex];
+    const serviceTrips = routeData["service_buckets"][serviceId]["trip_ids"];
+
+    // Binary Search for every offset
+    for (let offsetIndex = 0; offsetIndex < offsets.length; offsetIndex++) {
+      const offset = offsets[offsetIndex];
+      // Shift the target time relative to the timetable's day
+      const currentOffsetTargetTime = arrivalTime - offset;
+
+      // Binary search
+      let lower = 0;
+      let upper = currentStopAllDepartureTimeForCurrentService.length - 1;
+      let resultIndex = -1;
+      while (lower <= upper) {
+        const mid = Math.floor((lower + upper) / 2);
+        if (
+          currentStopAllDepartureTimeForCurrentService[mid] >=
+          currentOffsetTargetTime
+        ) {
+          resultIndex = mid;
+          upper = mid - 1;
+        } else {
+          lower = mid + 1;
+        }
+      }
+      if (resultIndex !== -1) {
+        // Translate the found time back to the absolute engine clock's time
+        const absoluteFoundTime =
+          currentStopAllDepartureTimeForCurrentService[resultIndex] + offset;
+        if (absoluteFoundTime < earliestDepartureTime) {
+          earliestDepartureTime = absoluteFoundTime;
+          earliestTrip = serviceTrips[resultIndex];
+          bestOffset = offset;
+        }
       }
     }
-    if (
-      resultIndex !== -1 &&
-      currentStopAllDepartureTimeForCurrentService[resultIndex] <
-        earliestDepartureTime
-    ) {
-      earliestDepartureTime =
-        currentStopAllDepartureTimeForCurrentService[resultIndex];
-      earliestTrip = serviceTrips[resultIndex];
-    }
   }
-  return earliestTrip;
+  if (earliestTrip !== null) return { trip: earliestTrip, offset: bestOffset };
+  return null;
 }
 
 function raptorEngine(
@@ -128,22 +140,33 @@ function raptorEngine(
   // Filling the best arrival times matrix with native Infinity fills
   const bestArrivalTimes = new Array(stops.length).fill(Infinity);
 
-  // Convert the query date to match the mapping date id format in the activeServices object
-  const queryDateId = convertDateToDateId(queryDate);
+  // Load Yesterday, Today, and Tomorrow to handle overnight GTFS boundaries
+  const queryDateObj = new Date(queryDate);
+  const yesterdayObj = new Date(queryDateObj);
+  yesterdayObj.setDate(yesterdayObj.getDate() - 1);
+  const tomorrowObj = new Date(queryDateObj);
+  tomorrowObj.setDate(tomorrowObj.getDate() + 1);
+
+  // Convert the query dates to match the mapping date id format in the activeServices object
+  const yesterdayId = convertDateToDateId(
+    yesterdayObj.toISOString().split("T")[0],
+  );
+  const todayId = convertDateToDateId(queryDate);
+  const tomorrowId = convertDateToDateId(
+    tomorrowObj.toISOString().split("T")[0],
+  );
+
   // Fetch the array of active services for that specific day
-  const activeServicesOnQueryDay = activeServices[queryDateId] || [];
-  // Create a O(1) access map to check if a specific service is active on query day
-  const isActiveOnQueryDay = {};
-  for (
-    let serviceIndex = 0;
-    serviceIndex < activeServicesOnQueryDay.length;
-    serviceIndex++
+  const activeServicesYesterday = activeServices[yesterdayId] || [];
+  const activeServicesToday = activeServices[todayId] || [];
+  const activeServicesTomorrow = activeServices[tomorrowId] || [];
+
+  // Return descriptive error code if no public transit services are scheduled for the queried date (and around it)
+  if (
+    activeServicesToday.length === 0 &&
+    activeServicesYesterday.length === 0 &&
+    activeServicesTomorrow.length === 0
   ) {
-    const serviceId = activeServicesOnQueryDay[serviceIndex];
-    isActiveOnQueryDay[serviceId] = true;
-  }
-  // Return descriptive error code if no public transit services are scheduled for the queried date
-  if (activeServicesOnQueryDay.length === 0) {
     return {
       targetArrivalTime: null,
       legs: [],
@@ -152,6 +175,24 @@ function raptorEngine(
         "No transit services are active or scheduled for operation on the requested date.",
     };
   }
+
+  // O(1) map linking service_ids to their time offsets
+  // E.g., { "4153": [0], "4154": [-86400, 0] }
+  const serviceOffsets = {};
+
+  // Helper function to assign the offsets for binary searching through the each service
+  function assignOffsets(services, offset) {
+    for (let serviceIndex = 0; serviceIndex < services.length; serviceIndex++) {
+      if (!Object.hasOwn(serviceOffsets, services[serviceIndex])) {
+        serviceOffsets[services[serviceIndex]] = [];
+      }
+      serviceOffsets[services[serviceIndex]].push(offset);
+    }
+  }
+
+  assignOffsets(activeServicesYesterday, -86400); // Yesterday's Trips Shifted Back By 86640 seconds (1 day)
+  assignOffsets(activeServicesToday, 0);
+  assignOffsets(activeServicesTomorrow, 86400); // Tomorrow's Trips Shifted Forward By 86640 seconds (1 day)
 
   // Array to hold the initial boarding locations derived from origin input
   const startingStops = [];
@@ -166,8 +207,10 @@ function raptorEngine(
   const parentTrip = [];
   // 2D matrix tracking metadata (route ID / walk duration) used to reach each stop
   const parentRoute = [];
-  // NEW: 2D matrix tracking exact walk distances in meters for footpath/origin/destination legs
+  // 2D matrix tracking exact walk distances in meters for footpath/origin/destination legs
   const parentWalkDistance = [];
+  // 2D matrix tracking the day offset used for the leg
+  const parentTripOffset = [];
 
   // Convert query departure time string into total seconds elapsed since midnight
   const departureSeconds = calculateTimeOfDayInSeconds(departureTime);
@@ -178,6 +221,7 @@ function raptorEngine(
     parentTrip[roundNumber] = new Array(stops.length).fill(null);
     parentRoute[roundNumber] = new Array(stops.length).fill(null);
     parentWalkDistance[roundNumber] = new Array(stops.length).fill(null);
+    parentTripOffset[roundNumber] = new Array(stops.length).fill(0);
   }
   // If origin/target not a saved stop, get nearby stops
   if (sourceNode.type == "coordinate") {
@@ -331,6 +375,9 @@ function raptorEngine(
     routesServingMarkedStops.forEach((currentStop, route) => {
       // Holds the currently boarded trip ID during route traversal
       let currentTrip = null;
+      // Tracks the time shift for the boarded trip
+      let currentTripOffset = 0;
+
       // Holds the stop ID where the current trip was boarded
       let boardingStop = null;
       // Get the stop list of the route
@@ -350,7 +397,8 @@ function raptorEngine(
         if (currentTrip != null) {
           // Get the arrival time of the boarded trip at this stop
           const currentTripArrivalTimeAtCurrentStop =
-            timetables[currentTrip][nextStopIndex]["arrival"];
+            timetables[currentTrip][nextStopIndex]["arrival"] +
+            currentTripOffset;
           // Local & Target Pruning: Keep the trip if the new arrival time is better than the best arrival time at this stop and at the target stop, else discard trip
           if (
             currentTripArrivalTimeAtCurrentStop <
@@ -364,6 +412,7 @@ function raptorEngine(
             parentTrip[currentRound][nextStop] = currentTrip;
             parentRoute[currentRound][nextStop] = route;
             parentWalkDistance[currentRound][nextStop] = null; // Transit leg has no walk distance
+            parentTripOffset[currentRound][nextStop] = currentTripOffset;
             // Mark the stop if it its arrival times were updated
             markedStops.add(nextStop);
             // Is this newly updated stop one of our destinations
@@ -388,15 +437,20 @@ function raptorEngine(
             // If there isn't a currently boarded trip, or the we had arrived at this stop earlier in the previous round, so we might be able to catch an earlier trip
             currentTrip === null ||
             previousRoundArrivalTimeAtCurrentStop <=
-              timetables[currentTrip][nextStopIndex]["departure"]
+              timetables[currentTrip][nextStopIndex]["departure"] +
+                currentTripOffset
           ) {
-            currentTrip = getEarliestTrip(
+            const earliestFoundTrip = getEarliestTrip(
               route,
               nextStopIndex,
               previousRoundArrivalTimeAtCurrentStop,
-              isActiveOnQueryDay,
+              serviceOffsets,
             );
-            boardingStop = nextStop;
+            if (earliestFoundTrip !== null) {
+              currentTrip = earliestFoundTrip.trip;
+              currentTripOffset = earliestFoundTrip.offset;
+              boardingStop = nextStop;
+            }
           }
         }
       }
@@ -439,6 +493,7 @@ function raptorEngine(
           // Set the parent stop & trip (For path reconstruction)
           parentStop[currentRound][footpathNextStop] = currentStop;
           parentTrip[currentRound][footpathNextStop] = -1;
+          parentTripOffset[currentRound][footpathNextStop] = 0;
           parentRoute[currentRound][footpathNextStop] =
             footpathDuration + footpathStationPenalty;
           // Store exact pre-calculated footpath distance directly
@@ -527,24 +582,67 @@ function raptorEngine(
       const previousStop = parentStop[backwardRound][stopPointer];
       const routeUsed = parentRoute[backwardRound][stopPointer];
       const walkDistance = parentWalkDistance[backwardRound][stopPointer];
-
+      // Retrieve the offset used for this specific trip
+      const tripOffset = parentTripOffset[backwardRound][stopPointer];
       // If a footpath was used (tripUsed === -1), stay in the same round. If transit was used, step back one round
       const previousRound = tripUsed === -1 ? backwardRound : backwardRound - 1;
 
-      // Find the order index of the previous stop within the route for timetable lookup
+      // Find the order index of the boarding stop within the route for timetable lookup & intermediate stop list construction
       const previousStopOrderInRoute =
         tripUsed === -1
           ? null
           : routes[routeUsed]["stop_order_map"][previousStop];
+      // Find the order index of the disembarking stop within the route for & intermediate stop list construction
+      const disembarkingStopOrderInRoute =
+        tripUsed === -1
+          ? null
+          : routes[routeUsed]["stop_order_map"][stopPointer];
+
+      const intermediateStops = [];
+      // Extract intermediate stops with Arrival Times
+      if (tripUsed !== -1) {
+        // Loop through the stops between boarding and disembarking
+        for (
+          let stopIndexInRoute = previousStopOrderInRoute + 1;
+          stopIndexInRoute < disembarkingStopOrderInRoute;
+          stopIndexInRoute++
+        ) {
+          const intermediateStopInternalId =
+            routes[routeUsed]["stop_ids"][stopIndexInRoute];
+          // Grab the arrival time from the timetable and apply the time-travel offset
+          const scheduledStopArrivalTimeSeconds =
+            timetables[tripUsed][stopIndexInRoute]["arrival"] + tripOffset;
+
+          intermediateStops.push({
+            stopName: stops[intermediateStopInternalId]["name"],
+            stopCode: stops[intermediateStopInternalId]["stop_code"],
+            stopArrivalTimeSeconds: scheduledStopArrivalTimeSeconds,
+          });
+        }
+      }
 
       // Fetch exact departure time from timetable for transit legs, or null for walking legs
       const exactDepartureSeconds =
         tripUsed === -1
           ? null
-          : timetables[tripUsed][previousStopOrderInRoute]["departure"];
+          : timetables[tripUsed][previousStopOrderInRoute]["departure"] +
+            tripOffset;
 
       // Get the time the user arrived at the boarding platform in the previous round
       const platformArrivalSeconds = arrivalTimes[previousRound][previousStop];
+
+      // Get the exact distance traveled (in KM) if the leg was TRANSIT
+      const distanceTraveledKM =
+        tripUsed === -1
+          ? null
+          : Object.hasOwn(routes[routeUsed], "stop_distance_traveled")
+            ? routes[routeUsed]["stop_distance_traveled"][
+                disembarkingStopOrderInRoute
+              ] -
+              routes[routeUsed]["stop_distance_traveled"][
+                previousStopOrderInRoute
+              ]
+            : null;
 
       // Construct the detailed segment (leg) object containing wait, walk, transit, and timing data
       const currentLeg = {
@@ -553,16 +651,28 @@ function raptorEngine(
         startTime:
           tripUsed === -1
             ? arrivalTimes[backwardRound][stopPointer] - routeUsed
-            : timetables[tripUsed][previousStopOrderInRoute]["departure"],
-        fromStopCode: stops[previousStop]["stop_code"],
+            : timetables[tripUsed][previousStopOrderInRoute]["departure"] +
+              tripOffset,
+        fromStop: {
+          name: stops[previousStop]["name"],
+          code: stops[previousStop]["stop_code"],
+          lat: stops[previousStop]["lat"],
+          lon: stops[previousStop]["lon"],
+        },
         routeShortName:
           tripUsed === -1 ? null : routes[routeUsed]["short_name"],
-        toStopCode: stops[stopPointer]["stop_code"],
+        intermediateStops: tripUsed === -1 ? null : intermediateStops,
+        toStop: {
+          name: stops[stopPointer]["name"],
+          code: stops[stopPointer]["stop_code"],
+          lat: stops[stopPointer]["lat"],
+          lon: stops[stopPointer]["lon"],
+        },
         endTime: arrivalTimes[backwardRound][stopPointer],
         mode: tripUsed === -1 ? "WALK" : "TRANSIT",
         tripId: tripUsed === -1 ? null : reverseTripMapping[tripUsed],
+        transitDistanceKilometers: distanceTraveledKM,
         walkDurationSeconds: tripUsed === -1 ? routeUsed : 0,
-        // Inject pre-calculated distance for footpath legs, null for transit
         walkDistanceMeters: tripUsed === -1 ? walkDistance : null,
       };
 
@@ -593,12 +703,24 @@ function raptorEngine(
       itineraryDetails.legs.unshift({
         waitDurationSeconds: 0,
         startTime: shiftedDepartureSeconds,
-        fromStopCode: "ORIGIN_PIN",
+        fromStop: {
+          name: "ORIGIN",
+          code: "ORIGIN_PIN",
+          lat: sourceNode.lat,
+          lon: sourceNode.lon,
+        },
         routeShortName: null,
-        toStopCode: stops[stopPointer]["stop_code"],
+        intermediateStops: null,
+        toStop: {
+          name: stops[stopPointer]["name"],
+          code: stops[stopPointer]["stop_code"],
+          lat: stops[stopPointer]["lat"],
+          lon: stops[stopPointer]["lon"],
+        },
         endTime: shiftedDepartureSeconds + initialWalkSeconds,
         mode: "WALK",
         tripId: null,
+        transitDistanceKilometers: null,
         walkDurationSeconds: initialWalkSeconds,
         walkDistanceMeters: initialWalkDistance,
       });
@@ -623,12 +745,24 @@ function raptorEngine(
       itineraryDetails.legs.push({
         waitDurationSeconds: 0,
         startTime: finalStationArrivalSeconds,
-        fromStopCode: stops[targetStop]["stop_code"],
+        fromStop: {
+          name: stops[targetStop]["name"],
+          code: stops[targetStop]["stop_code"],
+          lat: stops[targetStop]["lat"],
+          lon: stops[targetStop]["lon"],
+        },
         routeShortName: null,
-        toStopCode: "TARGET_PIN",
+        intermediateStops: null,
+        toStop: {
+          name: "TARGET",
+          code: "TARGET_PIN",
+          lat: targetNode.lat,
+          lon: targetNode.lon,
+        },
         endTime: finalStationArrivalSeconds + finalWalkSeconds,
         mode: "WALK",
         tripId: null,
+        transitDistanceKilometers: null,
         walkDurationSeconds: finalWalkSeconds,
         walkDistanceMeters: finalWalkDistance,
       });
@@ -651,7 +785,7 @@ function raptorEngine(
         currentLeg.mode === "WALK"
       ) {
         // Merge the current walk into the previous one
-        previousLeg.toStopCode = currentLeg.toStopCode;
+        previousLeg.toStop = currentLeg.toStop;
         previousLeg.endTime = currentLeg.endTime;
         previousLeg.walkDurationSeconds += currentLeg.walkDurationSeconds;
         previousLeg.walkDistanceMeters += currentLeg.walkDistanceMeters;
@@ -721,12 +855,24 @@ function raptorEngine(
         {
           waitDurationSeconds: 0,
           startTime: departureSeconds,
-          fromStopCode: "ORIGIN_PIN",
+          fromStop: {
+            name: "ORIGIN",
+            code: "ORIGIN_PIN",
+            lat: sourceNode.lat,
+            lon: sourceNode.lon,
+          },
           routeShortName: null,
-          toStopCode: "TARGET_PIN",
+          intermediateStops: null,
+          toStop: {
+            name: "TARGET",
+            code: "TARGET_PIN",
+            lat: targetNode.lat,
+            lon: targetNode.lon,
+          },
           endTime: directWalkingArrivalTime,
           mode: "WALK",
           tripId: null,
+          transitDistanceKilometers: null,
           walkDurationSeconds: directWalkingDuration,
           walkDistanceMeters: directRealDistance,
         },
@@ -737,23 +883,25 @@ function raptorEngine(
   return bestItinerary;
 }
 
-// console.log(
-//   raptorEngine(
-//     { type: "stop", id: "4810243" },
-//     { type: "stop", id: "4850204" },
-
-//     "2026-09-13",
-//     "11:59:00",
-//   ),
-// );
-
-console.log(
+console.dir(
   raptorEngine(
-    { type: "coordinate", lat: 60.173766355934, lon: 24.779820890764707 },
-    { type: "coordinate", lat: 60.14468173039075, lon: 24.982796872940842 },
+    { type: "stop", id: "4810243" },
+    { type: "stop", id: "4850204" },
+
     "2026-09-13",
-    "11:05:00",
+    "11:59:00",
   ),
+  { depth: null },
 );
+
+// console.dir(
+//   raptorEngine(
+//     { type: "coordinate", lat: 60.17386526295858, lon: 24.779808468749625 }, //Jousenpuistonkatu 1
+//     { type: "coordinate", lat: 60.280401420769856, lon: 24.584947108434328 }, // Nuuksiontie
+//     "2026-09-14",
+//     "02:00:00",
+//   ),
+// { depth: null },
+// );
 
 module.exports = raptorEngine;

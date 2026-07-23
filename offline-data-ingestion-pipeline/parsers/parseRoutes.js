@@ -161,7 +161,7 @@ function loadStopTime() {
     );
 
     let totalRowsParsed = 0;
-
+    let hasDistanceData = false;
     fs.createReadStream(stopTimesInputPath)
       .pipe(
         csv({
@@ -169,6 +169,18 @@ function loadStopTime() {
           mapHeaders: ({ header }) => header.replace(/^\W+/, "").trim(),
         }),
       )
+      .on("headers", (headers) => {
+        if (headers.includes("shape_dist_traveled")) {
+          hasDistanceData = true;
+          console.log(
+            "Data has shape_dist_traveled column. Distance tracking enabled.",
+          );
+        } else {
+          console.log(
+            "Data does not have shape_dist_traveled column. Distance tracking disabled.",
+          );
+        }
+      })
       .on("data", (row) => {
         const tripId = row.trip_id;
         const rawStopId = row.stop_id;
@@ -191,6 +203,24 @@ function loadStopTime() {
           const internalStopId = stopMap[rawStopId];
           tripToSequenceMap[tripId].stops.push(internalStopId);
           tripToSequenceMap[tripId].stop_departure_times.push(stopDeptTimeSecs);
+          // If data has optional shape_dist_traveled header -> save traveled distance by stop
+          if (hasDistanceData) {
+            if (
+              !Object.hasOwn(
+                tripToSequenceMap[tripId],
+                "stop_distance_traveled",
+              )
+            ) {
+              tripToSequenceMap[tripId].stop_distance_traveled = [];
+            }
+            const distanceTraveledByStop = row.shape_dist_traveled
+              ? parseFloat(row.shape_dist_traveled)
+              : null;
+
+            tripToSequenceMap[tripId].stop_distance_traveled.push(
+              distanceTraveledByStop,
+            );
+          }
         }
         totalRowsParsed++;
       })
@@ -223,6 +253,12 @@ function compileAndWriteRoutes() {
       const tripData = tripToSequenceMap[stringTripId];
       const stopSequence = tripData.stops;
       const serviceId = tripData.service_id;
+      const stopDistanceTraveled = Object.hasOwn(
+        tripData,
+        "stop_distance_traveled",
+      )
+        ? tripData.stop_distance_traveled
+        : null;
 
       // Create a unique text signature for each route based on its stop sequence
       const routeSignature = stopSequence.join("-");
@@ -243,8 +279,7 @@ function compileAndWriteRoutes() {
         stopSequence.forEach((stopId, stopOrder) => {
           stopOrderMap[stopId] = stopOrder;
         });
-
-        routeGroups[routeSignature] = {
+        const routeObject = {
           route_id: uniqueRouteCounter,
           agency_route_id: agencyRouteId,
           short_name: routeShortName,
@@ -253,6 +288,10 @@ function compileAndWriteRoutes() {
           stop_order_map: stopOrderMap,
           service_buckets: {},
         };
+        if (stopDistanceTraveled) {
+          routeObject["stop_distance_traveled"] = stopDistanceTraveled;
+        }
+        routeGroups[routeSignature] = routeObject;
         uniqueRouteCounter++;
       }
 

@@ -8,3 +8,5 @@ function calculateTimeOfDayInSeconds(timestamp) {
 }
 
 module.exports = calculateTimeOfDayInSeconds;
+
+//console.log(calculateTimeOfDayInSeconds("24:00"));
