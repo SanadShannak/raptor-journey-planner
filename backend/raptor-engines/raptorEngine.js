@@ -1,3 +1,4 @@
+// Trigger the cold-start memory caching
 const memoryCache = require("../memoryCache");
 
 const cachedData = memoryCache.getCache();
@@ -11,9 +12,9 @@ const activeServices = cachedData.activeServices;
 const reverseTripMapping = cachedData.reverseTripMapping;
 const calculateTimeOfDayInSeconds = require("./utils/calculateTimeOfDayInSeconds");
 const convertDateToDateId = require("./utils/convertDateToDateId");
-const convertSecondsToTimeOfDay = require("./utils/convertSecondsToTimeOfDay");
 const getNearbyStops = require("./utils/getNearbyStops");
 const calculateHaversine = require("./utils/calculateHaversine");
+const injectTransitShape = require("./utils/injectTransitShape");
 const MAX_ROUNDS = 6;
 const DETOUR_FACTOR = 1.2; // Simulates real sidewalk routing instead of straight line walking
 
@@ -97,6 +98,7 @@ function raptorEngine(
 ) {
   // sourceStop & targetStop must be in their original ID format
   // departureTime must be in string format: HH:MM:SS
+  // queryDate must be in string format: YYYY-MM-DD
 
   console.log("RAPTOR ENGINE RUNNING.");
 
@@ -128,7 +130,7 @@ function raptorEngine(
 
   // Initialization of the algorithm (Lines 1-5 in the research paper)
 
-  console.log("Initializing the algorithm... ");
+  // console.log("Initializing the algorithm... ");
   // Initialize array to hold arrival times for each round up to MAX_ROUNDS
   const arrivalTimes = [];
   // Initialize set to track stops updated in the current round
@@ -340,7 +342,7 @@ function raptorEngine(
   }
   for (let currentRound = 1; currentRound <= MAX_ROUNDS; currentRound++) {
     // Stage 1: Route Accumulation (Lines 6-14 in the research paper)
-    console.log("Stage 1: Route Accumulation... ");
+    // console.log("Stage 1: Route Accumulation... ");
 
     // Empty map to store routes serving all marked stops to be explored by later stages
     const routesServingMarkedStops = new Map();
@@ -369,7 +371,7 @@ function raptorEngine(
     markedStops.clear();
 
     // Stage 2: Route Scanning (Lines 15-23 in the research paper)
-    console.log("Stage 2: Route Scanning... ");
+    // console.log("Stage 2: Route Scanning... ");
 
     // Traverse each route
     routesServingMarkedStops.forEach((currentStop, route) => {
@@ -457,7 +459,7 @@ function raptorEngine(
     });
 
     // Stage 3: Footpath Processing (Lines 24-27 in the research paper)
-    console.log("Stage 3: Footpath Processing... ");
+    // console.log("Stage 3: Footpath Processing... ");
 
     // Spread the stops marked from stage 2 into a new array to look at possible footpaths
     const stopsToProcessForFootpaths = [...markedStops];
@@ -632,16 +634,17 @@ function raptorEngine(
       const platformArrivalSeconds = arrivalTimes[previousRound][previousStop];
 
       // Get the exact distance traveled (in KM) if the leg was TRANSIT
-      const distanceTraveledKM =
+      const distanceTraveledMeters =
         tripUsed === -1
           ? null
           : Object.hasOwn(routes[routeUsed], "stop_distance_traveled")
-            ? routes[routeUsed]["stop_distance_traveled"][
+            ? (routes[routeUsed]["stop_distance_traveled"][
                 disembarkingStopOrderInRoute
               ] -
-              routes[routeUsed]["stop_distance_traveled"][
-                previousStopOrderInRoute
-              ]
+                routes[routeUsed]["stop_distance_traveled"][
+                  previousStopOrderInRoute
+                ]) *
+              1000
             : null;
 
       // Construct the detailed segment (leg) object containing wait, walk, transit, and timing data
@@ -661,6 +664,7 @@ function raptorEngine(
         },
         routeShortName:
           tripUsed === -1 ? null : routes[routeUsed]["short_name"],
+        routeType: tripUsed === -1 ? null : routes[routeUsed]["route_type"],
         intermediateStops: tripUsed === -1 ? null : intermediateStops,
         toStop: {
           name: stops[stopPointer]["name"],
@@ -671,9 +675,22 @@ function raptorEngine(
         endTime: arrivalTimes[backwardRound][stopPointer],
         mode: tripUsed === -1 ? "WALK" : "TRANSIT",
         tripId: tripUsed === -1 ? null : reverseTripMapping[tripUsed],
-        transitDistanceKilometers: distanceTraveledKM,
+        transitDurationSeconds:
+          tripUsed === -1
+            ? null
+            : arrivalTimes[backwardRound][stopPointer] -
+              (timetables[tripUsed][previousStopOrderInRoute]["departure"] +
+                tripOffset),
+        transitDistanceMeters: distanceTraveledMeters,
         walkDurationSeconds: tripUsed === -1 ? routeUsed : 0,
         walkDistanceMeters: tripUsed === -1 ? walkDistance : null,
+        shape:
+          tripUsed === -1
+            ? [
+                [stops[previousStop]["lat"], stops[previousStop]["lon"]],
+                [stops[stopPointer]["lat"], stops[stopPointer]["lon"]],
+              ]
+            : injectTransitShape(tripUsed, previousStop, stopPointer, stops),
       };
 
       itineraryDetails.legs.push(currentLeg);
@@ -710,6 +727,8 @@ function raptorEngine(
           lon: sourceNode.lon,
         },
         routeShortName: null,
+        routeType: null,
+
         intermediateStops: null,
         toStop: {
           name: stops[stopPointer]["name"],
@@ -720,9 +739,14 @@ function raptorEngine(
         endTime: shiftedDepartureSeconds + initialWalkSeconds,
         mode: "WALK",
         tripId: null,
+        transitDurationSeconds: null,
         transitDistanceKilometers: null,
         walkDurationSeconds: initialWalkSeconds,
         walkDistanceMeters: initialWalkDistance,
+        shape: [
+          [sourceNode.lat, sourceNode.lon],
+          [stops[stopPointer]["lat"], stops[stopPointer]["lon"]],
+        ],
       });
 
       // Now that we shifted the walk forward, the user doesn't have to wait at the station!
@@ -752,6 +776,8 @@ function raptorEngine(
           lon: stops[targetStop]["lon"],
         },
         routeShortName: null,
+        routeType: null,
+
         intermediateStops: null,
         toStop: {
           name: "TARGET",
@@ -762,9 +788,14 @@ function raptorEngine(
         endTime: finalStationArrivalSeconds + finalWalkSeconds,
         mode: "WALK",
         tripId: null,
+        transitDurationSeconds: null,
         transitDistanceKilometers: null,
         walkDurationSeconds: finalWalkSeconds,
         walkDistanceMeters: finalWalkDistance,
+        shape: [
+          [stops[targetStop]["lat"], stops[targetStop]["lon"]],
+          [targetNode.lat, targetNode.lon],
+        ],
       });
 
       // Update the overarching itinerary arrival time to include this final walk
@@ -789,6 +820,7 @@ function raptorEngine(
         previousLeg.endTime = currentLeg.endTime;
         previousLeg.walkDurationSeconds += currentLeg.walkDurationSeconds;
         previousLeg.walkDistanceMeters += currentLeg.walkDistanceMeters;
+        previousLeg.shape.push(currentLeg.shape[-1]);
       } else {
         compressedLegs.push(currentLeg);
       }
@@ -862,6 +894,7 @@ function raptorEngine(
             lon: sourceNode.lon,
           },
           routeShortName: null,
+          routeType: null,
           intermediateStops: null,
           toStop: {
             name: "TARGET",
@@ -872,9 +905,14 @@ function raptorEngine(
           endTime: directWalkingArrivalTime,
           mode: "WALK",
           tripId: null,
+          transitDurationSeconds: null,
           transitDistanceKilometers: null,
           walkDurationSeconds: directWalkingDuration,
           walkDistanceMeters: directRealDistance,
+          shape: [
+            [sourceNode.lat, sourceNode.lon],
+            [targetNode.lat, targetNode.lon],
+          ],
         },
       ],
     };
@@ -883,25 +921,25 @@ function raptorEngine(
   return bestItinerary;
 }
 
-console.dir(
-  raptorEngine(
-    { type: "stop", id: "4810243" },
-    { type: "stop", id: "4850204" },
+// console.dir(
+//   raptorEngine(
+//     { type: "stop", id: "4810243" },
+//     { type: "stop", id: "4850204" },
 
-    "2026-09-13",
-    "11:59:00",
-  ),
-  { depth: null },
-);
+//     "2026-09-13",
+//     "11:59:00",
+//   ),
+//   { depth: null },
+// );
 
 // console.dir(
 //   raptorEngine(
-//     { type: "coordinate", lat: 60.17386526295858, lon: 24.779808468749625 }, //Jousenpuistonkatu 1
-//     { type: "coordinate", lat: 60.280401420769856, lon: 24.584947108434328 }, // Nuuksiontie
+//     { type: "coordinate", lat: 60.34319288046335, lon: 25.006410909717975 },
+//     { type: "coordinate", lat: 60.15609429936444, lon: 24.652386097823833 },
 //     "2026-09-14",
 //     "02:00:00",
 //   ),
-// { depth: null },
+//   { depth: null },
 // );
 
 module.exports = raptorEngine;

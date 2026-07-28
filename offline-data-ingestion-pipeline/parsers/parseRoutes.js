@@ -324,7 +324,7 @@ function compileAndWriteRoutes() {
           (a, b) => a.trip_stop_times[0] - b.trip_stop_times[0],
         );
 
-        // Initialize the new cache-friendly parallel bucket architecture
+        // Initialize the cache-friendly parallel bucket architecture
         const newBucket = { trip_ids: [] };
 
         // Dynamically instantiate an empty array for every valid stop index along the route

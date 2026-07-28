@@ -96,18 +96,42 @@ Ingests the processed flat stops array (`stops.processed.json`) and maps every p
 
 ---
 
-### Component 8: RAPTOR Routing Engine (`raptorEngine.js`)
+### Component 8: Trip Shape Builder (`generateShapes.js`)
 #### Objective
-The core online algorithm that consumes pre-compiled transit arrays to answer travel queries, fully equipped with path reconstruction, dynamic walking speed overrides, spatial grid coordinate lookups, multi-day temporal windows, and strict machine-readable error codes.
+Fuses sparse station coordinate data with high-density polyline drawing instructions (`shapes.txt`) to generate exact geographic paths for map rendering.
+#### Logic Metrics
+1. **Defensive Validation**: Gracefully skips processing without crashing if the optional `shapes.txt` feed is not provided by the transit agency.
+2. **Two-Pointer Merge Algorithm**: Strictly sorts both station stops and polyline points by distance and sequence, merging them in a single $O(N)$ pass to guarantee stations are perfectly anchored to the map line.
+3. **$O(1)$ Memory Indexing**: Distributes static array slicing indices to individual trips (`trip-to-shape-mapping.json`), ensuring the routing engine can extract a 50-kilometer polyline in under a millisecond.
+
+---
+
+### The Online Routing Server: RAPTOR Engine (`raptorEngine.js`)
+#### Objective
+The core online algorithm that consumes pre-compiled transit arrays to answer travel queries, fully equipped with path reconstruction, spatial grid coordinate lookups, multi-day temporal windows, and strict machine-readable error codes.
 #### Operational Logic
 1. **Multi-Day Temporal Window**: Automatically loads "Yesterday", "Today", and "Tomorrow" transit schedules, applying mathematical offsets to ensure seamless cross-midnight transit routing.
 2. **Coordinate & Pin Routing**: Supports dynamic lat/lon inputs with Just-In-Time (JIT) spatial grid lookups, automatically generating origin/destination walking legs and analyzing fallback direct-walk scenarios.
-3. **Engine Circuit Breakers & Structured Errors**: Implements immediate short-circuits for identical source/target queries ($O(1)$ exit), out-of-bounds coordinates, missing stop IDs, and inactive calendar dates, returning clean objects containing both a descriptive `error` string and a standardized `errorCode`.
+3. **Engine Circuit Breakers & Structured Errors**: Implements immediate short-circuits for identical source/target queries, out-of-bounds coordinates, missing stop IDs, and inactive calendar dates.
 4. **Initialization**: Pre-allocates native 2D arrays to hold arrival times across `MAX_ROUNDS`, utilizing `Infinity` to signify unvisited nodes.
 5. **Stage 1 (Route Accumulation)**: Identifies all active routes that pass through reachable stops in $O(1)$ time.
-6. **Stage 2 (Route Scanning)**: Executes an $O(\log N)$ binary search across the multi-day temporal window to retrieve the earliest possible transit trip, scanning stop-by-stop while pruning dominated paths. Tracks parent routes, trips, and offsets for UI hydration.
-7. **Stage 3 (Footpath Processing)**: Processes pedestrian transfers between stops using dynamic walking speeds and the spatial grid index (`spatialGrid.js`), enforcing strict pruning to ensure only time-optimal paths are tracked.
-8. **Path Reconstruction**: Backtracks through parent pointer matrices to construct an ordered, turn-by-turn itinerary. Embeds fat-payload UI data, including intermediate transit stops and exact geographical coordinates for map rendering.
+6. **Stage 2 (Route Scanning)**: Executes an $O(\log N)$ binary search across the multi-day temporal window to retrieve the earliest possible transit trip, scanning stop-by-stop while pruning dominated paths. 
+7. **Stage 3 (Footpath Processing)**: Processes pedestrian transfers between stops using dynamic walking speeds and the spatial grid index (`spatialGrid.js`).
+8. **Path Reconstruction**: Backtracks through parent pointer matrices to construct an ordered, turn-by-turn itinerary. 
+9. **UI & Geometry Hydration**: Enriches the final mathematical path with UI metadata (GTFS `route_type` integer) and injects highly accurate geographic shape polylines via $O(1)$ array slicing for frontend map rendering.
+
+---
+
+### The API Controller (`index.js`)
+#### Objective
+Exposes the RAPTOR engine to client applications via a RESTful HTTP endpoint, handling request validation, performance tracking, and payload formatting.
+#### Operational Logic
+1. **Synchronous Memory Bootstrapping**: Leverages Node's synchronous `require()` behavior to load all massive GTFS JSON data into the V8 memory heap *before* opening the port to accept traffic.
+2. **Input Validation**: Uses utility validators to strictly enforce date formats (`YYYY-MM-DD`), time formats (`HH:MM:SS`), and optional walking speed constraints.
+3. **Performance Telemetry**: Utilizes `performance.now()` to track and log exact execution times for every route calculated.
+4. **Error Propagation**: Catches RAPTOR's internal engine error codes (e.g., `NO_ROUTE_FOUND`, `OUT_OF_BOUNDS`) and maps them to appropriate HTTP status codes (400, 404, 500) so the frontend can display helpful UI states.
+5. **Presenter Pattern (`formatItinerary.js`)**: Once the engine completes execution, the raw timeline arrays are passed through a formatter to translate raw engine seconds into human-readable strings (e.g., `18:02`, `14 min`) and attach overarching itinerary metrics.
+
 ---
 
 ## Haversine Spatial Calculator (`utils/calculateHaversine.js`)
@@ -129,6 +153,16 @@ Bridges geographic coordinate pins (latitude/longitude) to the transit network b
 1. **Radius Bounding Box**: Calculates a dynamic grid search radius based on a max walking boundary (`2500m`) and grid resolution.
 2. **Detour Simulation**: Applies an urban detour factor (`DETOUR_FACTOR = 1.2`) to simulate real sidewalk paths instead of straight-line distance, yielding exact walking distances (`walkDistanceMeters`).
 3. **Bilateral Station Access Penalties**: Inspects the transit routes servicing each candidate stop. If a station serves a heavy transit mode—specifically **metro, railway, or ferry (`route_type` 1, 2, or 4)**—a **120-second station access penalty** is automatically added to both station-entry (origin) and station-exit (destination) walking legs to account for platform and gate traversal friction.
+
+---
+
+## Shape Injection Utility (`utils/injectTransitShape.js`)
+#### Objective
+An isolation layer that shields the core routing engine from heavy map geometry processing.
+#### Design Optimization
+1. **$O(1)$ Array Slicing**: Retrieves exact transit polylines by referencing pre-computed array indices.
+2. **Graceful Fallback**: Dynamically falls back to generating a straight 2-point line connecting the boarding and alighting stations if the transit agency omitted shape geometry for a specific trip.
+
 ---
 
 ## Pipeline Orchestration (`runPipeline.js`)
@@ -257,6 +291,85 @@ To ensure absolute data integrity and strictly decouple mathematical logic from 
   ]
 }
 ```
+
+This payload is then formatted by the API layer itinerary formatter to present the data nicely to the frontend:
+```json
+{
+  "startTime": "18:02",
+  "endTime": "19:06",
+  "totalDurationMinutes": 64,
+  "legs": [
+    {
+      "mode": "WALK",
+      "waitDurationMinutes": 0,
+      "startTime": "18:02",
+      "fromStop": {
+        "name": "ORIGIN",
+        "code": "ORIGIN_PIN",
+        "lat": 60.2050763376478,
+        "lon": 24.962304855336
+      },
+      "routeShortName": null,
+      "routeType": null,
+      "intermediateStops": null,
+      "toStop": {
+        "name": "Kumpulan kampus",
+        "code": "H0326",
+        "lat": 60.203071,
+        "lon": 24.965821
+      },
+      "endTime": "18:08",
+      "tripId": null,
+      "transitDurationMinutes": null,
+      "transitDistanceMeters": null,
+      "walkDurationMinutes": 5,
+      "walkDistanceMeters": 350,
+      "shape": [
+        [60.2050763376478, 24.962304855336],
+        [60.203071, 24.965821]
+      ]
+    },
+    {
+      "mode": "TRANSIT",
+      "waitDurationMinutes": 0,
+      "startTime": "18:08",
+      "fromStop": {
+        "name": "Kumpulan kampus",
+        "code": "H0326",
+        "lat": 60.203071,
+        "lon": 24.965821
+      },
+      "routeShortName": "6",
+      "routeType": 0,
+      "intermediateStops": [
+        {
+          "stopName": "Paavalinkirkko",
+          "stopCode": "H0330",
+          "stopArrivalTime": "18:10"
+        }
+      ],
+      "toStop": {
+        "name": "Kaisaniemenkatu",
+        "code": "H0304",
+        "lat": 60.17163,
+        "lon": 24.94737
+      },
+      "endTime": "18:24",
+      "tripId": "1006_20260831_Su_2_1805",
+      "transitDurationMinutes": 16,
+      "transitDistanceMeters": 3950,
+      "walkDurationMinutes": 0,
+      "walkDistanceMeters": null,
+      "shape": [
+        [60.203071, 24.965821],
+        [60.203072, 24.965429],
+        [60.17163, 24.94737]
+      ]
+    }
+  ]
+}
+```
+
 ## Known Limitations & Unexpected Behaviors
 
 Because this engine strictly implements the foundational RAPTOR algorithm, there are a few edge cases and mathematical quirks to be aware of during routing.

@@ -52,6 +52,17 @@ const processedDataFiles = [
       "spatial-grid.processed.json",
     ),
   },
+  {
+    name: "tripToShapeIdMap",
+    filePath: path.join(
+      allProcessedDataFolderPath,
+      "trip-to-shape-mapping.json",
+    ),
+  },
+  {
+    name: "shapes",
+    filePath: path.join(allProcessedDataFolderPath, "shapes.processed.json"),
+  },
 ];
 
 // Trip Mapping file path - separately to implement reverse mapping

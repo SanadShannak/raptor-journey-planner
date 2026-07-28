@@ -37,6 +37,10 @@ const parsingComponents = [
     name: "Component 7: Generate Spatial Grid",
     scriptPath: path.join(allParsersFolderPath, "generateSpatialGrid.js"),
   },
+  {
+    name: "Component 8: Build Trip Shapes",
+    scriptPath: path.join(allParsersFolderPath, "generateShapes.js"),
+  },
 ];
 
 console.log("\x1b[32m%s\x1b[0m", "Offline Pipeline Execution Starting...\n");
