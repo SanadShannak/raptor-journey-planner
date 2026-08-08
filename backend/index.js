@@ -1,8 +1,19 @@
 const express = require("express");
 const cors = require("cors");
 
+// Custom dynamic configuration
+const config = require("../offline-data-ingestion-pipeline/pipelineConfig");
+// Dynamic directory paths based on whatever network is active (hsl, amman, etc..)
+const activeNetwork = config.ACTIVE_NETWORK;
+
 // Import the core RAPTOR engine
 const raptorEngine = require("./raptor-engines/raptorEngine");
+
+// Import the processed files
+const activeServices = require(
+  `../processed-data/${activeNetwork}-processed-data/active-services.processed.json`,
+);
+
 // Import the input validators
 const {
   isValidDate,
@@ -11,6 +22,7 @@ const {
 } = require("./utils/inputValidator");
 // Import the itinerary formatter
 const formatItinerary = require("./utils/formatItinerary");
+const convertDateIdToDateObject = require("./utils/convertDateIdToDateObject");
 
 // Initialize the express app
 const app = express();
@@ -134,6 +146,25 @@ app.get("/api/route", (req, res) => {
       error: "The routing engine encountered an unexpected failure.",
     });
   }
+});
+
+const dayOfWeekFormatter = new Intl.DateTimeFormat("en-US", {
+  weekday: "short",
+});
+// Loop through the JSON once and cache the result in memory
+const validDatesCache = Object.keys(activeServices).map((serviceDateId) => {
+  const dateObject = convertDateIdToDateObject(serviceDateId);
+
+  const year = dateObject.getFullYear();
+  const month = String(dateObject.getMonth() + 1).padStart(2, "0");
+  const day = String(dateObject.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+});
+
+// Active Service Dates endpoint
+app.get("/api/valid-dates", (req, res) => {
+  res.json(validDatesCache);
 });
 
 // Bind the server to the designated local port

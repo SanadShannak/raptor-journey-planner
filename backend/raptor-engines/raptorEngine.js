@@ -94,7 +94,7 @@ function raptorEngine(
   targetNode,
   queryDate,
   departureTime,
-  WALKING_SPEED_MPS = 1.11, // Average human walking pace (meters/sec)
+  WALKING_SPEED_MPS = 1.27778, // Average human walking pace (meters/sec)
 ) {
   // sourceStop & targetStop must be in their original ID format
   // departureTime must be in string format: HH:MM:SS
@@ -820,7 +820,7 @@ function raptorEngine(
         previousLeg.endTime = currentLeg.endTime;
         previousLeg.walkDurationSeconds += currentLeg.walkDurationSeconds;
         previousLeg.walkDistanceMeters += currentLeg.walkDistanceMeters;
-        previousLeg.shape.push(currentLeg.shape[-1]);
+        previousLeg.shape.push(...currentLeg.shape.slice(1));
       } else {
         compressedLegs.push(currentLeg);
       }

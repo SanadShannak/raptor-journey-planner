@@ -215,7 +215,7 @@ raptorEngine(
 | `targetStop` | Object defining the destination (either a GTFS Stop ID or lat/lon coordinates) |
 | `queryDate` | Date of travel in `YYYY-MM-DD` format |
 | `departureTime` | Desired departure time in `HH:MM:SS` format |
-| `WALKING_SPEED_MPS` (Optional) Average human walking pace in meters/sec (Defaults to 1.11)|
+| `WALKING_SPEED_MPS` (Optional) Average human walking pace in meters/sec (Defaults to 1.27778)|
 
 ---
 
@@ -244,6 +244,7 @@ To ensure absolute data integrity and strictly decouple mathematical logic from 
         "lon": 24.931
       },
       "routeShortName": "2",
+      "routeType": 0,
       "intermediateStops": [
         {
           "stopName": "Luonnontieteellinen museo",
@@ -274,6 +275,7 @@ To ensure absolute data integrity and strictly decouple mathematical logic from 
         "lon": 24.925
       },
       "routeShortName": null,
+      "routeType": null,
       "intermediateStops": null,
       "toStop": {
         "name": "Destination",
