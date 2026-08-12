@@ -12,75 +12,11 @@ import DropdownOption from "./DropdownOption";
 import IconWalking from "../icons/Walking";
 import { BarLoader } from "react-spinners";
 import ItineraryCard from "./ItineraryCard";
+import { validateAndTimeFormat } from "../utils/validators";
+import ItineraryDetails from "./ItineraryDetails";
+import { formatDateLabel } from "../utils/formatDateLabel";
 
-// TODO: DELETE
-const TEST_CASES = [
-  {
-    label: "🚢 Ferry + Walk",
-    originText: "Kamppi",
-    originLat: 60.1689,
-    originLon: 24.9316,
-    destText: "Suomenlinna",
-    destLat: 60.1454,
-    destLon: 24.9881,
-  },
-  {
-    label: "🚆 Train + 🚌 Bus",
-    originText: "Leppävaara",
-    originLat: 60.2181,
-    originLon: 24.8105,
-    destText: "Helsinki Airport",
-    destLat: 60.3172,
-    destLon: 24.9633,
-  },
-  {
-    label: "🚇 Metro + Walk",
-    originText: "Rautatientori",
-    originLat: 60.1708,
-    originLon: 24.9415,
-    destText: "Aalto University",
-    destLat: 60.1856,
-    destLon: 24.8297,
-  },
-  {
-    label: "🚋 Tram (City Center)",
-    originText: "Hakaniemi",
-    originLat: 60.1793,
-    originLon: 24.9513,
-    destText: "West Terminal 2",
-    destLat: 60.1495,
-    destLon: 24.9142,
-  },
-  {
-    label: "🚌 Long Bus Route",
-    originText: "Espoon keskus",
-    originLat: 60.2055,
-    originLon: 24.6559,
-    destText: "Itäkeskus",
-    destLat: 60.21,
-    destLon: 25.0828,
-  },
-  {
-    label: "🚆 Train + 🚇 Metro",
-    originText: "Pasila Station",
-    originLat: 60.1984,
-    originLon: 24.9333,
-    destText: "Tapiola",
-    destLat: 60.1748,
-    destLon: 24.8055,
-  },
-  {
-    label: "🚶 Walk Only (Short)",
-    originText: "Kamppi",
-    originLat: 60.1689,
-    originLon: 24.9316,
-    destText: "Rautatientori",
-    destLat: 60.1714,
-    destLon: 24.9414,
-  },
-];
-
-const API_KEY = "2824640944e74c849b739e5c807c2679"; // TODO: HIDE
+const DIGITRANSIT_API_KEY = import.meta.env.VITE_DIGITRANSIT_API_KEY;
 
 const TIME_OPTIONS = [];
 for (let h = 0; h < 24; h++) {
@@ -97,22 +33,22 @@ const WALKING_SPEED_OPTIONS = [
   { description: "Fast", displaySpeed: "6.0 km/h", speedMPS: 1.66667 },
 ];
 
-const getClosestTimeInterval = (timeStr) => {
-  if (!timeStr) return "00:00";
-  const [h, m] = timeStr.split(":").map(Number);
-
-  const totalMinutes = h * 60 + m;
-  const roundedMinutes = Math.round(totalMinutes / 15) * 15;
-
-  let resH = Math.floor(roundedMinutes / 60);
-  let resM = roundedMinutes % 60;
-
-  if (resH === 24) resH = 0;
-
-  return `${String(resH).padStart(2, "0")}:${String(resM).padStart(2, "0")}`;
-};
-
-export default function Sidebar() {
+export default function Sidebar({
+  originInput,
+  setOriginInput,
+  destinationInput,
+  setDestinationInput,
+  originLat,
+  setOriginLat,
+  originLon,
+  setOriginLon,
+  destLat,
+  setDestLat,
+  destLon,
+  setDestLon,
+  itineraryData,
+  setItineraryData,
+}) {
   const getCurrentTime = () => {
     const now = new Date();
     const hours = String(now.getHours()).padStart(2, "0");
@@ -130,31 +66,52 @@ export default function Sidebar() {
     return date;
   };
 
-  const [originInput, setOriginInput] = useState("");
-  const [destinationInput, setDestinationInput] = useState("");
+  const getClosestTimeInterval = (timeStr) => {
+    if (!timeStr) return "00:00";
+    const [h, m] = timeStr.split(":").map(Number);
 
-  const [originLat, setOriginLat] = useState("");
-  const [originLon, setOriginLon] = useState("");
-  const [destLat, setDestLat] = useState("");
-  const [destLon, setDestLon] = useState("");
+    const totalMinutes = h * 60 + m;
+    const roundedMinutes = Math.round(totalMinutes / 15) * 15;
+
+    let resH = Math.floor(roundedMinutes / 60);
+    let resM = roundedMinutes % 60;
+
+    if (resH === 24) resH = 0;
+
+    return `${String(resH).padStart(2, "0")}:${String(resM).padStart(2, "0")}`;
+  };
 
   const [dateDropdownMenuState, setDateDropdownMenuState] = useState(false);
   const [timeDropdownMenuState, setTimeDropdownMenuState] = useState(false);
   const [walkingSpeedMenuState, setWalkingSpeedMenuState] = useState(false);
+  const [originDropdownMenuState, setOriginDropdownMenuState] = useState(false);
+  const [destDropdownMenuState, setDestDropdownMenuState] = useState(false);
 
   const [availableDates, setAvailableDates] = useState([]);
   const [selectedDate, setSelectedDate] = useState(getCurrentDate());
 
   const [selectedTime, setSelectedTime] = useState(getCurrentTime());
+  const [timeInputValue, setTimeInputValue] = useState(selectedTime);
   const [selectedWalkingSpeed, setSelectedWalkingSpeed] = useState(1.27778);
 
-  const [itineraryData, setItineraryData] = useState(null);
   const [isLoadingItinerary, setIsLoadingItinerary] = useState(false);
   const [itineraryError, setItineraryError] = useState(null);
+
+  const [originDropdownOptions, setOriginDropdownOptions] = useState([]);
+  const [destDropdownOptions, setDestDropdownOptions] = useState([]);
 
   const dateDropdownRef = useRef(null);
   const timeDropdownRef = useRef(null);
   const walkingSpeedDropdownRef = useRef(null);
+  const originTimeoutRef = useRef(null);
+  const destTimeoutRef = useRef(null);
+  const originDropdownRef = useRef(null);
+  const destDropdownRef = useRef(null);
+  const originAbortControllerRef = useRef(null);
+  const destAbortControllerRef = useRef(null);
+
+  const [itineraryDetailSidebarActive, setItineraryDetailSidebarActive] =
+    useState(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -175,6 +132,18 @@ export default function Sidebar() {
         !walkingSpeedDropdownRef.current.contains(event.target)
       ) {
         setWalkingSpeedMenuState(false);
+      }
+      if (
+        originDropdownRef.current &&
+        !originDropdownRef.current.contains(event.target)
+      ) {
+        setOriginDropdownMenuState(false);
+      }
+      if (
+        destDropdownRef.current &&
+        !destDropdownRef.current.contains(event.target)
+      ) {
+        setDestDropdownMenuState(false);
       }
     };
 
@@ -203,6 +172,7 @@ export default function Sidebar() {
       setItineraryData(null);
       setIsLoadingItinerary(true);
       setItineraryError(null);
+      setItineraryDetailSidebarActive(false);
 
       setTimeout(() => {
         const timeForApi = `${selectedTime}:00`;
@@ -218,6 +188,9 @@ export default function Sidebar() {
               console.log("Routing data error:", data.error);
               setItineraryError(data.error);
             } else {
+              console.log(
+                `http://localhost:3000/api/route?originLat=${originLat}&originLon=${originLon}&destLat=${destLat}&destLon=${destLon}&date=${selectedDate}&time=${timeForApi}&WALKING_SPEED_MPS=${selectedWalkingSpeed}`,
+              );
               console.log("Itinerary data from routing engine:", data);
               setItineraryData(data);
             }
@@ -229,7 +202,7 @@ export default function Sidebar() {
           .finally(() => {
             setIsLoadingItinerary(false);
           });
-      }, 500);
+      }, 750);
     }
   }, [
     originLat,
@@ -243,45 +216,42 @@ export default function Sidebar() {
 
   const toggleDateDropdown = () => {
     setDateDropdownMenuState((prev) => !prev);
-    setTimeDropdownMenuState(false);
     setWalkingSpeedMenuState(false);
+    setOriginDropdownMenuState(false);
+    setTimeDropdownMenuState(false);
+    setDestDropdownMenuState(false);
   };
 
   const toggleWalkingSpeedDropdown = () => {
     setWalkingSpeedMenuState((prev) => !prev);
+    setOriginDropdownMenuState(false);
     setDateDropdownMenuState(false);
     setTimeDropdownMenuState(false);
+    setDestDropdownMenuState(false);
   };
 
   const toggleTimeDropdown = () => {
     setTimeDropdownMenuState((prev) => !prev);
+    setOriginDropdownMenuState(false);
     setDateDropdownMenuState(false);
     setWalkingSpeedMenuState(false);
+    setDestDropdownMenuState(false);
   };
 
-  const formatDateLabel = (dateString) => {
-    if (!dateString) return "Select date";
+  const toggleOriginDropdown = () => {
+    setOriginDropdownMenuState((prev) => !prev);
+    setDateDropdownMenuState(false);
+    setTimeDropdownMenuState(false);
+    setWalkingSpeedMenuState(false);
+    setDestDropdownMenuState(false);
+  };
 
-    const [year, month, day] = dateString.split("-");
-    const targetDate = new Date(year, month - 1, day);
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const diffTime = targetDate - today;
-    const diffDays = Math.round(diffTime / (24 * 60 * 60 * 1000));
-    if (diffDays === 0) return "Today";
-    if (diffDays === 1) return "Tomorrow";
-    if (diffDays === -1) return "Yesterday";
-
-    // If none of the above return the date as "Sat 01/08"
-    return targetDate
-      .toLocaleDateString("en-GB", {
-        weekday: "short",
-        day: "numeric",
-        month: "numeric",
-      })
-      .replace(",", "/");
+  const toggleDestinationDropdown = () => {
+    setDestDropdownMenuState((prev) => !prev);
+    setOriginDropdownMenuState(false);
+    setDateDropdownMenuState(false);
+    setTimeDropdownMenuState(false);
+    setWalkingSpeedMenuState(false);
   };
 
   const formatWalkingSpeedLabel = (speedMps) => {
@@ -296,12 +266,23 @@ export default function Sidebar() {
   const handleGeocode = async (searchText, type) => {
     if (!searchText) return;
 
+    if (type === "origin") {
+      if (originAbortControllerRef.current) {
+        originAbortControllerRef.current.abort();
+      }
+      setOriginDropdownMenuState(false);
+    } else if (type === "destination") {
+      if (destAbortControllerRef.current) {
+        destAbortControllerRef.current.abort();
+      }
+      setDestDropdownMenuState(false);
+    }
     try {
       const response = await fetch(
         `https://api.digitransit.fi/geocoding/v1/search?text=${encodeURIComponent(searchText)}`,
         {
           headers: {
-            "digitransit-subscription-key": API_KEY,
+            "digitransit-subscription-key": DIGITRANSIT_API_KEY,
           },
         },
       );
@@ -316,10 +297,12 @@ export default function Sidebar() {
           setOriginLat(lat);
           setOriginLon(lon);
           setOriginInput(formattedLabel);
+          setOriginDropdownMenuState(false);
         } else if (type === "destination") {
           setDestLat(lat);
           setDestLon(lon);
           setDestinationInput(formattedLabel);
+          setDestDropdownMenuState(false);
         }
       } else {
         console.log("No locations found for", searchText);
@@ -329,6 +312,134 @@ export default function Sidebar() {
     }
   };
 
+  const handleGeocodeDropdown = async (searchText, type) => {
+    if (!searchText) {
+      if (type === "origin") {
+        if (originAbortControllerRef.current)
+          originAbortControllerRef.current.abort();
+        setOriginDropdownOptions([]);
+        setOriginDropdownMenuState(false);
+      } else {
+        if (destAbortControllerRef.current)
+          destAbortControllerRef.current.abort();
+        setDestDropdownOptions([]);
+        setDestDropdownMenuState(false);
+      }
+      return;
+    }
+    let signal = null;
+    if (type === "origin") {
+      if (originAbortControllerRef.current) {
+        originAbortControllerRef.current.abort();
+      }
+      originAbortControllerRef.current = new AbortController();
+      signal = originAbortControllerRef.current.signal;
+    } else if (type === "destination") {
+      if (destAbortControllerRef.current) {
+        destAbortControllerRef.current.abort();
+      }
+      destAbortControllerRef.current = new AbortController();
+      signal = destAbortControllerRef.current.signal;
+    }
+
+    try {
+      const response = await fetch(
+        `https://api.digitransit.fi/geocoding/v1/search?text=${encodeURIComponent(searchText)}`,
+        {
+          headers: {
+            "digitransit-subscription-key": DIGITRANSIT_API_KEY,
+          },
+          signal,
+        },
+      );
+      const data = await response.json();
+      if (data.features && data.features.length > 0) {
+        const newOptions = [];
+        for (let result of data.features) {
+          const [lon, lat] = result.geometry.coordinates;
+          const formattedLabel = result.properties.label;
+          newOptions.push({ lat: lat, lon: lon, label: formattedLabel });
+        }
+        if (type === "origin" && newOptions.length > 0) {
+          setOriginDropdownOptions(newOptions);
+          if (originDropdownMenuState !== true) {
+            setOriginDropdownMenuState(true);
+          }
+        } else if (type === "destination" && newOptions.length > 0) {
+          setDestDropdownOptions(newOptions);
+          if (destDropdownMenuState !== true) {
+            setDestDropdownMenuState(true);
+          }
+        }
+      } else {
+        if (type === "origin") {
+          setOriginDropdownOptions([]);
+          setOriginDropdownMenuState(false);
+        } else {
+          setDestDropdownOptions([]);
+          setDestDropdownMenuState(false);
+        }
+      }
+    } catch (error) {
+      if (error.name !== "AbortError") {
+        console.error("Geocoding failed:", error);
+      }
+    }
+  };
+
+  const handleOriginInputKeyDown = (e) => {
+    if (e.key === "Enter") {
+      if (originTimeoutRef.current) clearTimeout(originTimeoutRef.current);
+      if (originAbortControllerRef.current)
+        originAbortControllerRef.current.abort();
+      handleGeocode(originInput, "origin");
+      setOriginDropdownMenuState(false);
+    } else {
+      if (originTimeoutRef.current) {
+        clearTimeout(originTimeoutRef.current);
+      }
+      originTimeoutRef.current = setTimeout(() => {
+        if (originInput) {
+          handleGeocodeDropdown(originInput, "origin");
+        } else {
+          setOriginDropdownOptions([]);
+          setOriginDropdownMenuState(false);
+        }
+      }, 200);
+    }
+  };
+
+  const handleDestinationInputKeyDown = (e) => {
+    if (e.key === "Enter") {
+      if (destTimeoutRef.current) clearTimeout(destTimeoutRef.current);
+      if (destAbortControllerRef.current)
+        destAbortControllerRef.current.abort();
+      handleGeocode(destinationInput, "destination");
+      setDestDropdownMenuState(false);
+    } else {
+      if (destTimeoutRef.current) {
+        clearTimeout(destTimeoutRef.current);
+      }
+      destTimeoutRef.current = setTimeout(() => {
+        if (destinationInput) {
+          handleGeocodeDropdown(destinationInput, "destination");
+        } else {
+          setDestDropdownOptions([]);
+          setDestDropdownMenuState(false);
+        }
+      }, 200);
+    }
+  };
+  if (itineraryDetailSidebarActive) {
+    return (
+      <ItineraryDetails
+        itineraryData={itineraryData}
+        originName={originInput}
+        destinationName={destinationInput}
+        onBack={() => setItineraryDetailSidebarActive(false)}
+      />
+    );
+  }
   return (
     <div
       className="
@@ -346,73 +457,150 @@ export default function Sidebar() {
         shadow-xl
         pt-10
         gap-5
+        transition-all
+        duration-200
       "
     >
-      {/* Top Section Wrapper  */}
       <div className="px-4 sm:px-6 md:px-8 flex flex-col gap-5 shrink-0">
         <h1 className="font-sans font-medium text-xl md:text-2xl">
           Itinerary Suggestions
         </h1>
 
-        {/* Origin / Destination */}
         <div className="flex items-center gap-2">
           <div className="flex flex-col gap-2 flex-1">
-            <Input
-              inputValue={originInput}
-              onChange={(e) => setOriginInput(e.target.value)}
-              onClear={() => {
-                setOriginInput("");
-                setOriginLat("");
-                setOriginLon("");
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  handleGeocode(originInput, "origin");
+            <div className="relative flex flex-col">
+              <Input
+                inputValue={originInput}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setOriginInput(val);
+                  if (!val) {
+                    if (originAbortControllerRef.current)
+                      originAbortControllerRef.current.abort();
+                    if (originTimeoutRef.current)
+                      clearTimeout(originTimeoutRef.current);
+                    setOriginDropdownOptions([]);
+                    setOriginDropdownMenuState(false);
+                  }
+                }}
+                onClear={() => {
+                  if (originAbortControllerRef.current)
+                    originAbortControllerRef.current.abort();
+                  if (originTimeoutRef.current)
+                    clearTimeout(originTimeoutRef.current);
+                  setOriginInput("");
+                  setOriginLat("");
+                  setOriginLon("");
+                  setOriginDropdownMenuState(false);
+                  setOriginDropdownOptions([]);
+                }}
+                onKeyDown={handleOriginInputKeyDown}
+                leadingIcon={
+                  <IconOriginCircle
+                    strokeWidth={2}
+                    innerCircleSize="size-2 md:size-2.5"
+                    className="stroke-white size-6 md:size-7"
+                  />
                 }
-              }}
-              leadingIcon={
-                <IconOriginCircle
-                  strokeWidth={2}
-                  innerCircleSize="size-2 md:size-2.5"
-                  className="stroke-white size-6 md:size-7"
-                />
-              }
-              trailingIcon={
-                <IconX
-                  strokeWidth={2}
-                  className="text-sky-600 size-6 md:size-7"
-                />
-              }
-              placeholderText="Enter origin"
-            />
+                trailingIcon={
+                  <IconX
+                    strokeWidth={2}
+                    className="text-sky-600 size-6 md:size-7"
+                  />
+                }
+                placeholderText="Enter origin"
+              />
+              <Dropdown
+                innerRef={originDropdownRef}
+                dropdownMenuState={originDropdownMenuState}
+                onClick={toggleOriginDropdown}
+                showTrigger={false}
+                className="absolute top-full left-0 w-full  z-20"
+              >
+                {originDropdownOptions.map((originOption, index) => {
+                  const label = originOption.label;
+                  return (
+                    <DropdownOption
+                      key={index}
+                      value={label}
+                      onClick={() => {
+                        setOriginInput(label);
+                        setOriginLat(originOption.lat);
+                        setOriginLon(originOption.lon);
+                        setOriginDropdownMenuState(false);
+                      }}
+                    />
+                  );
+                })}
+              </Dropdown>
+            </div>
+            <div className="relative flex flex-col">
+              <Input
+                inputValue={destinationInput}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setDestinationInput(val);
+                  if (!val) {
+                    if (destAbortControllerRef.current)
+                      destAbortControllerRef.current.abort();
+                    if (destTimeoutRef.current)
+                      clearTimeout(destTimeoutRef.current);
+                    setDestDropdownOptions([]);
+                    setDestDropdownMenuState(false);
+                  }
+                }}
+                onClear={() => {
+                  if (destAbortControllerRef.current)
+                    destAbortControllerRef.current.abort();
+                  if (destTimeoutRef.current)
+                    clearTimeout(destTimeoutRef.current);
+                  setDestinationInput("");
+                  setDestLat("");
+                  setDestLon("");
+                  setDestDropdownMenuState(false);
+                  setDestDropdownOptions([]);
+                }}
 
-            <Input
-              inputValue={destinationInput}
-              onChange={(e) => setDestinationInput(e.target.value)}
-              onClear={() => {
-                setDestinationInput("");
-                setDestLat("");
-                setDestLon("");
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  handleGeocode(destinationInput, "destination");
+                onKeyDown={handleDestinationInputKeyDown}
+                leadingIcon={
+                  <IconMapPin
+                    strokeWidth={2}
+                    className="stroke-white size-6 md:size-7"
+                  />
                 }
-              }}
-              leadingIcon={
-                <IconMapPin
-                  strokeWidth={2}
-                  className="stroke-white size-6 md:size-7"
-                />
-              }
-              trailingIcon={
-                <IconX
-                  strokeWidth={2}
-                  className="text-sky-600 size-6 md:size-7"
-                />
-              }
-              placeholderText="Enter destination"
-            />
+                trailingIcon={
+                  <IconX
+                    strokeWidth={2}
+                    className="text-sky-600 size-6 md:size-7"
+                  />
+                }
+                placeholderText="Enter destination"
+              />
+
+              <Dropdown
+                innerRef={destDropdownRef}
+                dropdownMenuState={destDropdownMenuState}
+                onClick={toggleDestinationDropdown}
+                showTrigger={false}
+                className="absolute top-full left-0 w-full  z-20"
+              >
+                {destDropdownOptions.map((destOption, index) => {
+                  const label = destOption.label;
+                  return (
+                    <DropdownOption
+                      key={index}
+                      value={label}
+                      onClick={() => {
+                        setDestinationInput(label);
+                        setDestLat(destOption.lat);
+                        setDestLon(destOption.lon);
+                        setDestDropdownMenuState(false);
+                      }}
+                    />
+                  );
+                })}
+              </Dropdown>
+            </div>
           </div>
 
           <button
@@ -437,7 +625,6 @@ export default function Sidebar() {
           </button>
         </div>
 
-        {/* Date / Time / Walking Speed */}
         <div className="flex flex-col gap-2">
           <div className="flex flex-row gap-2 pr-12">
             <Dropdown
@@ -479,51 +666,101 @@ export default function Sidebar() {
               })}
             </Dropdown>
 
-            <Dropdown
-              innerRef={timeDropdownRef}
-              value={selectedTime}
-              placeholder="Select time"
-              dropdownMenuState={timeDropdownMenuState}
-              onClick={toggleTimeDropdown}
-              className="w-32"
-              leadingIcon={
-                <IconClock
-                  strokeWidth={2}
-                  className="text-sky-600 size-5 md:size-6"
-                />
-              }
-              trailingIcon={
-                <IconChevron
-                  chevronState={timeDropdownMenuState}
-                  strokeWidth={2}
-                  className="text-sky-600 size-5 md:size-6"
-                />
-              }
-            >
-              {TIME_OPTIONS.map((timeStr) => {
-                const isExactMatch = timeStr === selectedTime;
-                const isClosestMatch =
-                  timeStr === getClosestTimeInterval(selectedTime);
-                return (
-                  <DropdownOption
-                    key={timeStr}
-                    value={timeStr}
-                    isSelected={isExactMatch}
-                    isAnchor={isClosestMatch}
-                    onClick={(value) => {
-                      setSelectedTime(value);
-                      toggleTimeDropdown();
-                    }}
+            <div className="relative flex flex-col w-32" ref={timeDropdownRef}>
+              <Input
+                inputValue={timeInputValue}
+                validator={validateAndTimeFormat}
+                onChange={(e) => setTimeInputValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+
+                    const trimmed = timeInputValue.trim();
+                    const timeRegex = /^([0-1]?[0-9]|2[0-3]):([0-5][0-9])$/;
+                    const shortRegex = /^([0-1]?[0-9]|2[0-3])([0-5][0-9])$/;
+
+                    let finalizedTime = getCurrentTime();
+
+                    if (timeRegex.test(trimmed)) {
+                      const [h, m] = trimmed.split(":");
+                      finalizedTime = `${h.padStart(2, "0")}:${m}`;
+                    } else if (shortRegex.test(trimmed)) {
+                      const h = trimmed.slice(0, 2);
+                      const m = trimmed.slice(2);
+                      finalizedTime = `${h}:${m}`;
+                    }
+
+                    setSelectedTime(finalizedTime);
+                    setTimeInputValue(finalizedTime);
+                    setTimeDropdownMenuState(false);
+
+                    e.target.blur();
+                  }
+                }}
+                onFocus={() => {
+                  if (!timeDropdownMenuState) {
+                    setTimeDropdownMenuState(true);
+                    setDateDropdownMenuState(false);
+                    setWalkingSpeedMenuState(false);
+                    setOriginDropdownMenuState(false);
+                    setDestDropdownMenuState(false);
+                  }
+                }}
+                onTrailingClick={(e) => {
+                  e.stopPropagation();
+                  toggleTimeDropdown();
+                }}
+                leadingIcon={
+                  <IconClock
+                    strokeWidth={2}
+                    className="text-sky-600 size-5 md:size-6"
                   />
-                );
-              })}
-            </Dropdown>
+                }
+                trailingIcon={
+                  <IconChevron
+                    chevronState={timeDropdownMenuState}
+                    strokeWidth={2}
+                    className="text-sky-600 size-5 md:size-6"
+                  />
+                }
+                className={`w-32 ${timeDropdownMenuState ? "border-sky-600 ring-1 ring-sky-600 shadow-lg" : ""}`}
+              />
+
+              <Dropdown
+                innerRef={timeDropdownRef}
+                dropdownMenuState={timeDropdownMenuState}
+                onClick={toggleTimeDropdown}
+                showTrigger={false}
+                className="absolute left-0 w-full mt-1 z-20"
+              >
+                {TIME_OPTIONS.map((timeStr) => {
+                  const isExactMatch = timeStr === selectedTime;
+                  const isClosestMatch =
+                    timeStr === getClosestTimeInterval(selectedTime);
+                  return (
+                    <DropdownOption
+                      key={timeStr}
+                      value={timeStr}
+                      isSelected={isExactMatch}
+                      isAnchor={isClosestMatch}
+                      onClick={(value) => {
+                        setSelectedTime(value);
+                        setTimeInputValue(value);
+                        setTimeDropdownMenuState(false);
+                      }}
+                    />
+                  );
+                })}
+              </Dropdown>
+            </div>
           </div>
           <div className="flex flex-row items-center gap-3 pr-12 pt-2">
             <button
               type="button"
               onClick={() => {
-                setSelectedTime(getCurrentTime());
+                const nowTime = getCurrentTime();
+                setSelectedTime(nowTime);
+                setTimeInputValue(nowTime);
                 setSelectedDate(getCurrentDate());
               }}
               className="h-11 px-5 rounded-full border border-sky-600 text-sky-600 bg-white hover:bg-sky-50 font-medium text-sm md:text-base transition-colors cursor-pointer whitespace-nowrap"
@@ -566,12 +803,8 @@ export default function Sidebar() {
           </div>
         </div>
       </div>
-      {/* --- END TOP SECTION --- */}
-
-      {/* Route Results Section  */}
 
       <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
-        {/* Full-Width Separator  */}
         <div className="h-px bg-gray-200 shrink-0 mt-2"></div>
         {isLoadingItinerary ? (
           <div className="flex-1 flex flex-col items-center justify-start mt-10 gap-4">
@@ -588,7 +821,13 @@ export default function Sidebar() {
           </div>
         ) : itineraryData ? (
           <div className="w-full h-30">
-            {<ItineraryCard itineraryData={itineraryData} isSelected={true} />}
+            {
+              <ItineraryCard
+                itineraryData={itineraryData}
+                isSelected={true}
+                onClick={() => setItineraryDetailSidebarActive(true)}
+              />
+            }
           </div>
         ) : (
           <div className="flex-1 flex items-start mt-10 justify-center px-4 sm:px-6 md:px-8">
@@ -599,50 +838,6 @@ export default function Sidebar() {
             </div>
           </div>
         )}
-        {/* --- START TEST BUTTONS (BOTTOM) --- */} {/*TODO: DELETE */}
-        {/* mt-auto pushes this firmly to the bottom of the scroll container */}
-        <div className="px-4 sm:px-6 md:px-8 pb-8 pt-4 mt-auto shrink-0">
-          <div className="flex flex-col gap-3 p-4 bg-amber-50/50 border border-amber-200/50 rounded-xl">
-            <span className="text-[11px] font-bold text-amber-700/80 uppercase tracking-wider flex justify-between items-center">
-              Dev Tools: Quick Load Routes
-              <button
-                type="button"
-                onClick={() => {
-                  setOriginInput("");
-                  setDestinationInput("");
-                  setOriginLat("");
-                  setOriginLon("");
-                  setDestLat("");
-                  setDestLon("");
-                  setItineraryData(null);
-                }}
-                className="text-red-500 hover:text-red-700 transition-colors"
-              >
-                Clear All
-              </button>
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {TEST_CASES.map((tc, index) => (
-                <button
-                  key={index}
-                  type="button"
-                  onClick={() => {
-                    setOriginInput(tc.originText);
-                    setDestinationInput(tc.destText);
-                    setOriginLat(tc.originLat);
-                    setOriginLon(tc.originLon);
-                    setDestLat(tc.destLat);
-                    setDestLon(tc.destLon);
-                  }}
-                  className="px-3 py-1.5 bg-white border border-amber-300 text-amber-800 text-xs rounded-md hover:bg-amber-100 hover:border-amber-400 transition-colors shadow-sm"
-                >
-                  {tc.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-        {/* --- END TEST BUTTONS --- */}
       </div>
     </div>
   );

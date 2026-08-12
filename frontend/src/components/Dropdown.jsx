@@ -9,6 +9,7 @@ export default function Dropdown({
   dropdownMenuState,
   innerRef,
   onClick,
+  showTrigger = true,
   children,
   className = "",
 }) {
@@ -31,14 +32,16 @@ export default function Dropdown({
   }, [dropdownMenuState, innerRef]);
   return (
     <div ref={innerRef} className={`relative ${className}`}>
-      <DropdownTrigger
-        value={value}
-        placeholder={placeholder}
-        leadingIcon={leadingIcon}
-        trailingIcon={trailingIcon}
-        open={dropdownMenuState}
-        onClick={onClick}
-      />
+      {showTrigger && (
+        <DropdownTrigger
+          value={value}
+          placeholder={placeholder}
+          leadingIcon={leadingIcon}
+          trailingIcon={trailingIcon}
+          open={dropdownMenuState}
+          onClick={onClick}
+        />
+      )}
 
       <ul
         className={`

@@ -2,7 +2,7 @@ import { Circle } from "lucide-react";
 
 export default function IconOriginCircle({
   className = "",
-  innerCircleSize = "size-1 md:size-2.5",
+  innerCircleSize = "size-1 md:size-2.5 ",
   ...props
 }) {
   const combinedClassName = `fill-[#4FA701] ${className}`;

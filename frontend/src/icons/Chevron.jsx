@@ -10,7 +10,7 @@ export default function IconChevron({
     transition-transform
     duration-250
     ease-out
-    ${chevronState ? "rotate-90" : "rotate-0"}
+    ${chevronState ? "rotate-0" : "rotate-90"}
   `;
 
   return <ChevronDown {...props} className={combinedClassName} />;

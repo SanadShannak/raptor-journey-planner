@@ -148,3 +148,5 @@ processed-data/*-processed-data/
 
 #  mac folder viewing purposes
 .DS_Store
+
+.env

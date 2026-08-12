@@ -89,6 +89,30 @@ function getEarliestTrip(
   return null;
 }
 
+function getDateForTimestamp(queryDate, timestampInSeconds) {
+  const SECONDS_IN_DAY = 86400;
+
+  // Calculate how many full days to shift from the query date
+  const dayOffset = Math.floor(timestampInSeconds / SECONDS_IN_DAY);
+
+  // Calculate the remaining seconds of the day (handling negative mod)
+  const timeOfDaySeconds =
+    ((timestampInSeconds % SECONDS_IN_DAY) + SECONDS_IN_DAY) % SECONDS_IN_DAY;
+
+  // Construct the target Date object based on the query date + day offset
+  const baseDate = new Date(queryDate);
+  baseDate.setDate(baseDate.getDate() + dayOffset);
+
+  // Add the time of day to the date object
+  const hours = Math.floor(timeOfDaySeconds / 3600);
+  const minutes = Math.floor((timeOfDaySeconds % 3600) / 60);
+  const seconds = timeOfDaySeconds % 60;
+
+  baseDate.setHours(hours, minutes, seconds, 0);
+
+  return baseDate;
+}
+
 function raptorEngine(
   sourceNode,
   targetNode,
@@ -459,7 +483,6 @@ function raptorEngine(
     });
 
     // Stage 3: Footpath Processing (Lines 24-27 in the research paper)
-    // console.log("Stage 3: Footpath Processing... ");
 
     // Spread the stops marked from stage 2 into a new array to look at possible footpaths
     const stopsToProcessForFootpaths = [...markedStops];
@@ -474,6 +497,12 @@ function raptorEngine(
       currentStopFootpaths.forEach((footpath) => {
         const footpathNextStop = footpath["to_stop_id"];
         const footpathDistance = footpath["distance"];
+
+        // Prevent considering a footpath to the same stop
+        if (footpathDistance < 1) {
+          return;
+        }
+
         const footpathDuration = Math.round(
           footpathDistance / WALKING_SPEED_MPS,
         );
@@ -647,15 +676,23 @@ function raptorEngine(
               1000
             : null;
 
+      const legStartTime =
+        tripUsed === -1
+          ? arrivalTimes[backwardRound][stopPointer] - routeUsed
+          : timetables[tripUsed][previousStopOrderInRoute]["departure"] +
+            tripOffset;
+      const legEndTime = arrivalTimes[backwardRound][stopPointer];
+
       // Construct the detailed segment (leg) object containing wait, walk, transit, and timing data
+
       const currentLeg = {
         waitDurationSeconds:
           tripUsed === -1 ? 0 : exactDepartureSeconds - platformArrivalSeconds,
-        startTime:
-          tripUsed === -1
-            ? arrivalTimes[backwardRound][stopPointer] - routeUsed
-            : timetables[tripUsed][previousStopOrderInRoute]["departure"] +
-              tripOffset,
+        startDate: getDateForTimestamp(
+          queryDate,
+          legStartTime,
+        ).toLocaleDateString("en-CA"),
+        startTime: legStartTime,
         fromStop: {
           name: stops[previousStop]["name"],
           code: stops[previousStop]["stop_code"],
@@ -672,7 +709,10 @@ function raptorEngine(
           lat: stops[stopPointer]["lat"],
           lon: stops[stopPointer]["lon"],
         },
-        endTime: arrivalTimes[backwardRound][stopPointer],
+        endDate: getDateForTimestamp(queryDate, legEndTime).toLocaleDateString(
+          "en-CA",
+        ),
+        endTime: legEndTime,
         mode: tripUsed === -1 ? "WALK" : "TRANSIT",
         tripId: tripUsed === -1 ? null : reverseTripMapping[tripUsed],
         transitDurationSeconds:
@@ -719,6 +759,11 @@ function raptorEngine(
 
       itineraryDetails.legs.unshift({
         waitDurationSeconds: 0,
+        startDate: getDateForTimestamp(
+          queryDate,
+          shiftedDepartureSeconds,
+        ).toLocaleDateString("en-CA"),
+
         startTime: shiftedDepartureSeconds,
         fromStop: {
           name: "ORIGIN",
@@ -736,11 +781,16 @@ function raptorEngine(
           lat: stops[stopPointer]["lat"],
           lon: stops[stopPointer]["lon"],
         },
+        endDate: getDateForTimestamp(
+          queryDate,
+          shiftedDepartureSeconds + initialWalkSeconds,
+        ).toLocaleDateString("en-CA"),
+
         endTime: shiftedDepartureSeconds + initialWalkSeconds,
         mode: "WALK",
         tripId: null,
         transitDurationSeconds: null,
-        transitDistanceKilometers: null,
+        transitDistanceMeters: null,
         walkDurationSeconds: initialWalkSeconds,
         walkDistanceMeters: initialWalkDistance,
         shape: [
@@ -764,11 +814,16 @@ function raptorEngine(
     if (targetNode.type === "coordinate" && finalWalkSeconds > 0) {
       // The user arrived at the final bus stop at this exact time
       const finalStationArrivalSeconds = arrivalTimes[bestRound][targetStop];
-      // Calculate destination Haversine distance with detour factor
 
       itineraryDetails.legs.push({
         waitDurationSeconds: 0,
+        startDate: getDateForTimestamp(
+          queryDate,
+          finalStationArrivalSeconds,
+        ).toLocaleDateString("en-CA"),
+
         startTime: finalStationArrivalSeconds,
+
         fromStop: {
           name: stops[targetStop]["name"],
           code: stops[targetStop]["stop_code"],
@@ -785,11 +840,16 @@ function raptorEngine(
           lat: targetNode.lat,
           lon: targetNode.lon,
         },
+        endDate: getDateForTimestamp(
+          queryDate,
+          finalStationArrivalSeconds + finalWalkSeconds,
+        ).toLocaleDateString("en-CA"),
+
         endTime: finalStationArrivalSeconds + finalWalkSeconds,
         mode: "WALK",
         tripId: null,
         transitDurationSeconds: null,
-        transitDistanceKilometers: null,
+        transitDistanceMeters: null,
         walkDurationSeconds: finalWalkSeconds,
         walkDistanceMeters: finalWalkDistance,
         shape: [
@@ -818,6 +878,7 @@ function raptorEngine(
         // Merge the current walk into the previous one
         previousLeg.toStop = currentLeg.toStop;
         previousLeg.endTime = currentLeg.endTime;
+        previousLeg.endDate = currentLeg.endDate;
         previousLeg.walkDurationSeconds += currentLeg.walkDurationSeconds;
         previousLeg.walkDistanceMeters += currentLeg.walkDistanceMeters;
         previousLeg.shape.push(...currentLeg.shape.slice(1));
@@ -886,6 +947,11 @@ function raptorEngine(
       legs: [
         {
           waitDurationSeconds: 0,
+          startDate: getDateForTimestamp(
+            queryDate,
+            departureSeconds,
+          ).toLocaleDateString("en-CA"),
+
           startTime: departureSeconds,
           fromStop: {
             name: "ORIGIN",
@@ -902,11 +968,16 @@ function raptorEngine(
             lat: targetNode.lat,
             lon: targetNode.lon,
           },
+          endDate: getDateForTimestamp(
+            queryDate,
+            directWalkingArrivalTime,
+          ).toLocaleDateString("en-CA"),
+
           endTime: directWalkingArrivalTime,
           mode: "WALK",
           tripId: null,
           transitDurationSeconds: null,
-          transitDistanceKilometers: null,
+          transitDistanceMeters: null,
           walkDurationSeconds: directWalkingDuration,
           walkDistanceMeters: directRealDistance,
           shape: [
