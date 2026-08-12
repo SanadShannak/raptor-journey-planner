@@ -386,10 +386,15 @@ Because this engine strictly implements the foundational RAPTOR algorithm, there
 * **The Cause:** Pure RAPTOR optimizes exclusively for the earliest absolute arrival time. If walking a footpath cuts a corner faster than the bus drives it, the math blindly accepts the walk as the "better" path.
 * **The Resolution:** This surfaces primarily when coordinate-based origins trigger dense footpath overlaps. This will be permanently eliminated in future iterations by upgrading the core engine to **McRAPTOR (Multi-Criteria RAPTOR)**, which natively penalizes unnecessary transfers.
 
-### 3. Pedestrian-Only Itineraries
+### 2. Unrealistic Footpath Routing
+* **The Behavior:** The routing engine occasionally generates walking legs or footpaths that traverse physically impassable terrain, such as walking straight across bodies of water, cutting directly through building footprints, or crossing restricted private property.
+* **The Cause:** This anomaly is a direct result of calculating footpaths using the Haversine formula. The Haversine function computes the straight-line ("as-the-crow-flies") distance between two geographic coordinates without any awareness of urban topology, street layouts, sidewalks, or natural barriers. As a result, stops that are geographically close get connected via a direct Euclidean vector, completely ignoring real-world obstacles like rivers, lakes, and structural blockages.
+
+### 4. Pedestrian-Only Itineraries
 * **The Behavior:** The engine returns an itinerary consisting of a single, direct walking leg with no transit boarded.
 * **The Cause:** This is mathematically correct behavior. It means one of two things: either walking directly from the origin pin to the target pin is objectively faster than walking to a station, waiting for a bus, and riding it; or there is simply no valid transit service operating during the requested temporal window.
 
-### 4. Null Transit Distances
-* **The Behavior:** The `transitDistanceKilometers` property returns `null` in the final JSON payload for a transit leg.
+
+### 5. Null Transit Distances
+* **The Behavior:** The `transitDistanceMeters` property returns `null` in the final JSON payload for a transit leg.
 * **The Cause:** This is an expected fallback. The GTFS specification considers the `shape_dist_traveled` column inside `stop_times.txt` to be optional. If a transit agency omits this column, the offline compiler dynamically disables distance tracking to save RAM, resulting in a clean `null` value in the frontend payload.
