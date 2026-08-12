@@ -215,7 +215,7 @@ raptorEngine(
 | `targetStop` | Object defining the destination (either a GTFS Stop ID or lat/lon coordinates) |
 | `queryDate` | Date of travel in `YYYY-MM-DD` format |
 | `departureTime` | Desired departure time in `HH:MM:SS` format |
-| `WALKING_SPEED_MPS` (Optional) Average human walking pace in meters/sec (Defaults to 1.27778)|
+| `WALKING_SPEED_MPS` | (Optional) Average human walking pace in meters/sec (Defaults to 1.27778)|
 
 ---
 
@@ -386,7 +386,7 @@ Because this engine strictly implements the foundational RAPTOR algorithm, there
 * **The Cause:** Pure RAPTOR optimizes exclusively for the earliest absolute arrival time. If walking a footpath cuts a corner faster than the bus drives it, the math blindly accepts the walk as the "better" path.
 * **The Resolution:** This surfaces primarily when coordinate-based origins trigger dense footpath overlaps. This will be permanently eliminated in future iterations by upgrading the core engine to **McRAPTOR (Multi-Criteria RAPTOR)**, which natively penalizes unnecessary transfers.
 
-### 2. Unrealistic Footpath Routing
+### 3. Unrealistic Footpath Routing
 * **The Behavior:** The routing engine occasionally generates walking legs or footpaths that traverse physically impassable terrain, such as walking straight across bodies of water, cutting directly through building footprints, or crossing restricted private property.
 * **The Cause:** This anomaly is a direct result of calculating footpaths using the Haversine formula. The Haversine function computes the straight-line ("as-the-crow-flies") distance between two geographic coordinates without any awareness of urban topology, street layouts, sidewalks, or natural barriers. As a result, stops that are geographically close get connected via a direct Euclidean vector, completely ignoring real-world obstacles like rivers, lakes, and structural blockages.
 
