@@ -67,7 +67,11 @@ function loadRouteDetails() {
       )
       .on("data", (row) => {
         // Pipeline rule validation: Ensure required properties exits in raw data
-        if (!row.route_id || !row.route_short_name || !row.route_type) {
+        if (
+          !row.route_id ||
+          (!row.route_short_name && !row.route_long_name) ||
+          !row.route_type
+        ) {
           return reject(
             new Error(
               "Data Ingestion Error: GTFS routes.txt is missing a required base property",
@@ -75,7 +79,8 @@ function loadRouteDetails() {
           );
         }
         // Extracting specific information from raw data
-        routeNamesMap[row.route_id] = row.route_short_name;
+        routeNamesMap[row.route_id] =
+          row.route_short_name || row.route_long_name;
         routeTypesMap[row.route_id] = normalizeRouteType(row.route_type);
       })
 
@@ -353,18 +358,12 @@ function compileAndWriteRoutes() {
     console.log(
       `Saving ${finalRoutesArray.length} compiled RAPTOR routes to disk...`,
     );
-    // Create routes output file (if non existing), stringify the 'finalRoutesArray' & write to its output file (using arg '2' for indentation)
-    fs.writeFileSync(
-      routesOutputPath,
-      JSON.stringify(finalRoutesArray, null, 2),
-    );
+    // Create routes output file (if non existing), stringify the 'finalRoutesArray' & write to its output file
+    fs.writeFileSync(routesOutputPath, JSON.stringify(finalRoutesArray));
     console.log(`Saving Trip token mapping configuration dictionary...`);
-    // Create trip mapping output file (if non existing), stringify the 'tripMapping' & write to its output file (using arg '2' for indentation)
+    // Create trip mapping output file (if non existing), stringify the 'tripMapping' & write to its output file
 
-    fs.writeFileSync(
-      tripMappingOutputPath,
-      JSON.stringify(tripMapping, null, 2),
-    );
+    fs.writeFileSync(tripMappingOutputPath, JSON.stringify(tripMapping));
     console.log(
       `Successfully compiled and formatted ${finalRoutesArray.length} routes.`,
     );

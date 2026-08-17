@@ -79,22 +79,32 @@ Binds dictionary lookup keys directly to sequential zero-indexed integer array p
 
 ---
 
-### Component 6: Footpath Generator (`generateFootpaths.js`)
+### Component 6: Spatial Grid Generator (`generateSpatialGrid.js`)
 #### Objective
-Compiles a complete pedestrian transfer matrix (`footpaths.processed.json`) that bridges nearby transit stops.
-#### Logic Metrics
-1. **Spatial Filter & Spatial Grid Acceleration (`spatialGrid.js`)**: Utilizes a high-performance spatial partitioning grid (`spatialGrid.js`) to bucket transit stops spatially, drastically reducing candidate search pairs and dropping any destination pair with a physical distance greater than a **1,000-meter** radius.
-2. **Self-Transfer Rule & Bilateral Station Access Penalties**: Injects a reflexive transfer edge from every stop to itself with a distance of `0` meters. For stations servicing **metro, railway, or ferry (`route_type` 1, 2, or 4)**, a **120-second station access penalty** is embedded into the transfer logic per interaction—assessing 120 seconds for station entry, 120 seconds for station exit, and a cumulative **240 seconds** when both entry and exit thresholds are crossed.
----
+Ingests the processed flat stops array (`stops.processed.json`) and maps every physical stop into a geographic spatial grid (`spatial-grid.processed.json`).
 
-### Component 7: Spatial Grid Generator (`generateSpatialGrid.js`)
-#### Objective
-Ingests the processed flat stops array (`stops.processed.json`) and maps every physical stop into a high-performance geographic spatial grid (`spatial-grid.processed.json`).
 #### Logic Metrics
-1. **Grid Partitioning**: Divides coordinates into discrete square boxes using a fine resolution constant (`GRID_SIZE_DEGREES = 0.005`, roughly 500 meters per cell).
-2. **Hash Indexing**: Generates unique string keys (`latIndex_lonIndex`) to group nearby stops, enabling $O(1)$ spatial lookups during coordinate-to-stop routing queries without exhaustive pairwise scans.
+1. **Grid Partitioning**: Divides coordinates into discrete square boxes using a resolution constant (`GRID_SIZE_DEGREES = 0.005`, roughly 500 meters per cell).
+2. **Spatial Hashing**: Generates unique string keys (`latIndex_lonIndex`) to group stops by geographic area. Each populated grid cell stores the stop's internal ID, latitude, longitude, and stop code.
+3. **Footpath Candidate Acceleration**: The generated grid is consumed by the footpath generator to identify nearby candidate stops without performing an exhaustive all-to-all comparison between every stop in the network.
+
 
 ---
+
+### Component 7: Footpath Generator (`generateFootpaths.js`)
+#### Objective
+Compiles a complete pedestrian transfer matrix (`footpaths.processed.json`) connecting transit stops that are within the configured walking radius.
+
+#### Logic Metrics
+1. **Spatial Grid Candidate Search**: Uses the pre-generated spatial grid (`spatial-grid.processed.json`) to restrict walking calculations to stops located within the relevant neighboring grid cells.
+2. **Walking Distance Calculation**: Calculates the straight-line distance between candidate stops using the Haversine formula. A `DETOUR_FACTOR = 1.2` is applied to approximate real-world pedestrian routing distance, with the resulting distance rounded to the nearest 10 meters.
+3. **Maximum Walking Radius**: Only candidate pairs with an estimated walking distance of **1,000 meters or less** are included in the footpath matrix.
+4. **Self-Transfer Rule**: Every stop receives a reflexive transfer edge to itself with a distance of `0` meters and a `stop_access_penalty` of `0`.
+5. **Station Access & Exit Penalties**: Stops serving **metro, railway, or ferry (`route_type` 1, 2, or 4)** receive a **120-second station access penalty** when entering or exiting the station. When both the origin and destination stops require the penalty, the resulting footpath carries a cumulative **240-second** penalty.
+6. **Output Structure**: Each stop is represented by its internal stop ID and contains a list of reachable destination stops, their estimated walking distance, and the corresponding station access penalty. The resulting matrix is written incrementally to `footpaths.processed.json` to avoid JavaScript string-length limitations when processing large networks.
+
+---
+
 
 ### Component 8: Trip Shape Builder (`generateShapes.js`)
 #### Objective

@@ -29,13 +29,12 @@ const parsingComponents = [
     scriptPath: path.join(allParsersFolderPath, "parseStopToRoutes.js"),
   },
   {
-    name: "Component 6: Generate Footpaths",
-    scriptPath: path.join(allParsersFolderPath, "generateFootpaths.js"),
-  },
-
-  {
-    name: "Component 7: Generate Spatial Grid",
+    name: "Component 6: Generate Spatial Grid",
     scriptPath: path.join(allParsersFolderPath, "generateSpatialGrid.js"),
+  },
+  {
+    name: "Component 7: Generate Footpaths",
+    scriptPath: path.join(allParsersFolderPath, "generateFootpaths.js"),
   },
   {
     name: "Component 8: Build Trip Shapes",
@@ -45,6 +44,7 @@ const parsingComponents = [
 
 console.log("\x1b[32m%s\x1b[0m", "Offline Pipeline Execution Starting...\n");
 
+const parsingStartTime = performance.now();
 // Loop through each parser and execute them synchronously
 parsingComponents.forEach(({ name, scriptPath }) => {
   try {
@@ -58,5 +58,9 @@ parsingComponents.forEach(({ name, scriptPath }) => {
     process.exit(1);
   }
 });
+
+const parsingEndTime = performance.now();
+const parsingExecTime = ((parsingEndTime - parsingStartTime) / 1000).toFixed(2);
+console.log(`Parsing Finished in ${parsingExecTime}s`);
 
 console.log("\x1b[32m%s\x1b[0m", "\nOffline Pipeline Execution Finished.");

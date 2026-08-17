@@ -29,7 +29,7 @@ export default function ItineraryCardLegBar({
     <div
       ref={legBarRef}
       style={{ flex: `${widthPercentage} 1 0%` }}
-      className={`flex ${bgColor} ${border}  ${showText ? "" : "justify-center"} min-h-4  ${isTransit ? "min-w-max" : "min-w-4"} py-1 px-2  rounded-md items-center gap-2  `}
+      className={`flex ${bgColor} ${border}  ${showText ? "" : "justify-center"} min-h-fit  ${isTransit ? "min-w-max" : "min-w-4"} py-1 px-2  rounded-md items-center gap-2  `}
     >
       {Icon && <Icon className={`${iconColor}  h-5 w-5 shrink-0`} />}
 

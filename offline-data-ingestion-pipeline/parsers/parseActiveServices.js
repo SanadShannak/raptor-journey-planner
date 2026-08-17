@@ -39,10 +39,26 @@ const dateToServices = {};
 
 // Reading raw data from GTFS file and pipelining into csv reader
 fs.createReadStream(calendarInputPath)
-  .pipe(csv())
+  .pipe(
+    csv({
+      // Sanitizes headers by stripping hidden BOM characters or non-alphanumeric objects from the start of the column name
+      mapHeaders: ({ header }) => header.replace(/^\W+/, "").trim(),
+    }),
+  )
   .on("data", (row) => {
     // Pipeline rule validation: Ensure required properties exits in raw data
-    if (!row.service_id || !row.start_date || !row.end_date) {
+    if (
+      !row.service_id ||
+      !row.start_date ||
+      !row.end_date ||
+      !row.sunday ||
+      !row.monday ||
+      !row.tuesday ||
+      !row.wednesday ||
+      !row.thursday ||
+      !row.friday ||
+      !row.saturday
+    ) {
       console.error(
         "Data Ingestion Error: GTFS calendar.txt is missing a required base property",
       );
@@ -105,7 +121,12 @@ fs.createReadStream(calendarInputPath)
 
     // Reading raw data from GTFS file and pipelining into csv reader
     fs.createReadStream(exceptionsInputPath)
-      .pipe(csv())
+      .pipe(
+        csv({
+          // Sanitizes headers by stripping hidden BOM characters or non-alphanumeric objects from the start of the column name
+          mapHeaders: ({ header }) => header.replace(/^\W+/, "").trim(),
+        }),
+      )
       .on("data", (row) => {
         // Pipeline rule validation: Ensure required properties exits in raw data
         if (!row.service_id || !row.date || !row.exception_type) {
@@ -155,11 +176,11 @@ fs.createReadStream(calendarInputPath)
 
         console.log(`Saving compiled Active Services to disk...`);
         // Create active services output file (if non existing), stringify the 'dateToServices' & write to its output file (using arg '2' for indentation)
-        fs.writeFileSync(outputPath, JSON.stringify(dateToServices, null, 2));
+        fs.writeFileSync(outputPath, JSON.stringify(dateToServices));
 
         console.log(`Saving Service token mapping configuration dictionary...`);
         // Create mapping output file (if non existing), stringify the 'serviceIdMap' & write to its output file (using arg '2' for indentation)
-        fs.writeFileSync(mappingPath, JSON.stringify(serviceIdMap, null, 2));
+        fs.writeFileSync(mappingPath, JSON.stringify(serviceIdMap));
 
         console.log(
           "\x1b[34m%s\x1b[0m",

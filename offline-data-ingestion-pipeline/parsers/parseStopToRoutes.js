@@ -57,7 +57,7 @@ routes.forEach((route) => {
 });
 
 // Create Stop-To-Route output file (if non existing), stringify the 'stopToRoutes' & write to its output file (NOT using arg '2' for indentation because of memory limits)
-fs.writeFileSync(outputPath, JSON.stringify(stopToRoutes, null, 2));
+fs.writeFileSync(outputPath, JSON.stringify(stopToRoutes));
 
 console.log(
   `Successfully parsed all routes for ${Object.keys(stopToRoutes).length} stops.`,

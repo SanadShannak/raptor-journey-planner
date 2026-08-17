@@ -185,13 +185,13 @@ export default function Sidebar({
           })
           .then((data) => {
             if (data.errorCode) {
-              console.log("Routing data error:", data.error);
+              // console.log("Routing data error:", data.error);
               setItineraryError(data.error);
             } else {
-              console.log(
-                `http://localhost:3000/api/route?originLat=${originLat}&originLon=${originLon}&destLat=${destLat}&destLon=${destLon}&date=${selectedDate}&time=${timeForApi}&WALKING_SPEED_MPS=${selectedWalkingSpeed}`,
-              );
-              console.log("Itinerary data from routing engine:", data);
+              // console.log(
+              //   `http://localhost:3000/api/route?originLat=${originLat}&originLon=${originLon}&destLat=${destLat}&destLon=${destLon}&date=${selectedDate}&time=${timeForApi}&WALKING_SPEED_MPS=${selectedWalkingSpeed}`,
+              // );
+              // console.log("Itinerary data from routing engine:", data);
               setItineraryData(data);
             }
           })
@@ -304,9 +304,10 @@ export default function Sidebar({
           setDestinationInput(formattedLabel);
           setDestDropdownMenuState(false);
         }
-      } else {
-        console.log("No locations found for", searchText);
       }
+      // else {
+      //   console.log("No locations found for", searchText);
+      // }
     } catch (error) {
       console.error("Geocoding failed:", error);
     }

@@ -33,13 +33,13 @@ export default function ItineraryCard({
 
   return (
     <div
-      className="relative flex w-full h-full justify-center hover:bg-gray-200/40 transition-all duration-200 ease-out  items-center cursor-pointer"
+      className="relative flex w-full h-full justify-center hover:bg-gray-200/40 transition-all duration-200 ease-out items-center cursor-pointer"
       onClick={onClick}
     >
       {isSelected ? (
-        <span className="absolute top-1/2 -translate-y-1/2 left-0 border-l-6 h-7/10 border-l-sky-600 "></span>
+        <span className="absolute top-1/2 -translate-y-1/2 left-0 border-l-6 h-7/10 border-l-sky-600"></span>
       ) : null}
-      <div className="flex flex-col flex-1 ml-8 mr-4 gap-2 justify-around w-8/10 h-full py-3 border-b-2 border-gray-400/50">
+      <div className="flex flex-col flex-1 ml-8 mr-4 gap-2 justify-around w-8/10 h-full py-3 border-b-2 border-gray-400/50 overflow-hidden">
         <div className="flex justify-between">
           <div className="text-lg md:text-base font-semibold text-gray-700">
             {timeDisplayString}
@@ -48,7 +48,7 @@ export default function ItineraryCard({
             {convertMinutesToDuration(itineraryData.totalDurationMinutes)}
           </div>
         </div>
-        <div className="flex w-full h-full overflow-hidden gap-1 ">
+        <div className="flex w-full h-full overflow-hidden gap-1 min-h-9">
           {itineraryData.legs.map((leg, index) => {
             const { bgColor, border, icon, iconColor, textColor } =
               getTransportModeConfig(leg);
@@ -117,7 +117,7 @@ export default function ItineraryCard({
         </div>
 
         {itineraryHasTransit ? (
-          <div className="text-xs md:text-sm font-light text-gray-700">
+          <div className="text-xs md:text-sm font-light text-gray-700 h-full truncate">
             Departs at{" "}
             <span className="font-semibold">{firstTransitDepartureTime}</span>{" "}
             from {""}
@@ -129,10 +129,10 @@ export default function ItineraryCard({
           </div>
         )}
       </div>
-      <div className="flex items-center justify-center  ">
+      <div className="flex items-center justify-center">
         <IconChevron
           chevronState={true}
-          className="text-sky-600 rotate-270 mr-4 size-8 md:size-8  "
+          className="text-sky-600 rotate-270 mr-4 size-8 md:size-8"
         />
       </div>
     </div>

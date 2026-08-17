@@ -13,20 +13,20 @@ module.exports = {
       "calendar_dates.txt",
     ],
     optionalFiles: ["shapes.txt"],
-    requiredStopHeaders: [
-      "stop_id",
-      "stop_name",
-      "stop_lat",
-      "stop_lon",
-      "stop_code",
+    requiredStopHeaders: ["stop_id", "stop_name", "stop_lat", "stop_lon"],
+    optionalStopHeaders: ["stop_code"],
+    requiredRouteHeaders: [
+      "route_id",
+      "route_short_name" || "route_long_name",
+      "route_type",
     ],
-    requiredRouteHeaders: ["route_id", "route_short_name", "route_type"],
     requiredTripHeaders: ["route_id", "trip_id", "service_id"],
     requiredStopTimesHeaders: [
       "trip_id",
       "stop_id",
       "arrival_time",
       "departure_time",
+      "stop_sequence",
     ],
     requiredCalendarDatesHeaders: ["service_id", "date", "exception_type"],
     requiredCalendarHeaders: [

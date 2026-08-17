@@ -24,6 +24,9 @@ console.log("\x1b[34m%s\x1b[0m", "\nTimetable Parsing Started.\n");
 
 // Pre-allocate our target output container as a clean flat array list
 const finalTimetableArray = [];
+// Temporary storage to hold stop sequence data per trip before sorting
+const tripStopsMap = {};
+
 console.log("Streaming stop_times.txt to parse trip timetables");
 fs.createReadStream(stopTimesInputPath)
   .pipe(
@@ -34,7 +37,12 @@ fs.createReadStream(stopTimesInputPath)
   )
   .on("data", (row) => {
     // Pipeline rule validation: Ensure required properties exits in raw data
-    if (!row.trip_id || !row.arrival_time || !row.departure_time) {
+    if (
+      !row.trip_id ||
+      !row.arrival_time ||
+      !row.departure_time ||
+      !row.stop_sequence
+    ) {
       console.error(
         "Data Ingestion Error: GTFS stop_times.txt is missing a required base property",
       );
@@ -52,16 +60,29 @@ fs.createReadStream(stopTimesInputPath)
     // Converting arrival and departure times into RAPTOR-suitable format
     const arrivalTime = calculateTimeOfDayInSeconds(rawArrivalTime);
     const departureTime = calculateTimeOfDayInSeconds(rawDepartureTime);
-    if (!finalTimetableArray[tripIntId]) {
-      finalTimetableArray[tripIntId] = [];
+    const stopSequence = parseInt(row.stop_sequence, 10);
+
+    if (!tripStopsMap[tripIntId]) {
+      tripStopsMap[tripIntId] = [];
     }
-    finalTimetableArray[tripIntId].push({
+    tripStopsMap[tripIntId].push({
+      stopSequence,
       arrival: arrivalTime,
       departure: departureTime,
     });
   })
   // Data read from original file is finished
   .on("end", () => {
+    // Ensure every trip's stops are strictly ordered by stop_sequence
+    for (const [tripIntIdStr, stops] of Object.entries(tripStopsMap)) {
+      const tripIntId = Number(tripIntIdStr);
+      stops.sort((a, b) => a.stopSequence - b.stopSequence);
+      finalTimetableArray[tripIntId] = stops.map((s) => ({
+        arrival: s.arrival,
+        departure: s.departure,
+      }));
+    }
+
     console.log(
       "Writing flat, high-density integer-indexed timetables to disk...",
     );

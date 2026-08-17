@@ -14,6 +14,7 @@ import { getTransportModeConfig } from "../utils/transitStyles";
 import { renderToString } from "react-dom/server";
 import IconOriginCircle from "../icons/OriginCircle";
 import IconMapPin from "../icons/MapPin";
+const ACTIVE_NETWORK = "hsl";
 
 const MAPTILER_API_KEY = import.meta.env.VITE_MAPTILER_API_KEY;
 const DIGITRANSIT_API_KEY = import.meta.env.VITE_DIGITRANSIT_API_KEY;
@@ -94,11 +95,31 @@ export default function MapView({
   setOriginInput,
   setDestinationInput,
 }) {
-  const defaultPosition = [60.1695, 24.9354];
-  const mapBounds = [
-    [59.547988648544, 22.120551030851594],
-    [61.02939657171681, 27.03921788018682],
-  ];
+  const availableNetworks = {
+    hsl: {
+      defaultPosition: [60.1695, 24.9354],
+      mapBounds: [
+        [59.547988648544, 22.120551030851594],
+        [61.02939657171681, 27.03921788018682],
+      ],
+    },
+    germany: {
+      defaultPosition: [52.52, 13.405],
+      mapBounds: [
+        [55.0581, 5.8663],
+        [47.2701, 15.0419],
+      ],
+    },
+    sydney: {
+      defaultPosition: [-33.8688, 151.2093],
+      mapBounds: [
+        [-8.0, 96.0],
+        [-45.0, 169.0],
+      ],
+    },
+  };
+
+  const network = availableNetworks[ACTIVE_NETWORK];
 
   function getItineraryFullShape(itineraryData) {
     const fullShape = [];
@@ -112,37 +133,49 @@ export default function MapView({
 
   async function handleGeocode(selectedLat, selectedLon, type) {
     if (!selectedLat || !selectedLon) return;
-
-    try {
-      const response = await fetch(
-        `https://api.digitransit.fi/geocoding/v1/reverse?point.lat=${selectedLat}&point.lon=${selectedLon}`,
-        {
-          headers: {
-            "digitransit-subscription-key": DIGITRANSIT_API_KEY,
+    if (ACTIVE_NETWORK === "hsl") {
+      try {
+        const response = await fetch(
+          `https://api.digitransit.fi/geocoding/v1/reverse?point.lat=${selectedLat}&point.lon=${selectedLon}`,
+          {
+            headers: {
+              "digitransit-subscription-key": DIGITRANSIT_API_KEY,
+            },
           },
-        },
-      );
+        );
 
-      const data = await response.json();
-      if (data.features && data.features.length > 0) {
-        const topResult = data.features[0];
-        const [lon, lat] = topResult.geometry.coordinates;
-        const formattedLabel = topResult.properties.label;
+        const data = await response.json();
+        if (data.features && data.features.length > 0) {
+          const topResult = data.features[0];
+          const [lon, lat] = topResult.geometry.coordinates;
+          const formattedLabel = topResult.properties.label;
 
-        if (type === "origin") {
-          setOriginLat(lat);
-          setOriginLon(lon);
-          setOriginInput(formattedLabel);
-        } else if (type === "destination") {
-          setDestLat(lat);
-          setDestLon(lon);
-          setDestinationInput(formattedLabel);
+          if (type === "origin") {
+            setOriginLat(lat);
+            setOriginLon(lon);
+            setOriginInput(formattedLabel);
+          } else if (type === "destination") {
+            setDestLat(lat);
+            setDestLon(lon);
+            setDestinationInput(formattedLabel);
+          }
         }
-      } else {
-        console.log("No locations found for", selectedLat, ", ", selectedLon);
+        //  else {
+        //   console.log("No locations found for", selectedLat, ", ", selectedLon);
+        // }
+      } catch (error) {
+        console.error("Geocoding failed:", error);
       }
-    } catch (error) {
-      console.error("Geocoding failed:", error);
+    } else {
+      if (type === "origin") {
+        setOriginLat(selectedLat);
+        setOriginLon(selectedLon);
+        setOriginInput(`Selected Location`);
+      } else if (type === "destination") {
+        setDestLat(selectedLat);
+        setDestLon(selectedLon);
+        setDestinationInput(`Selected Location`);
+      }
     }
   }
 
@@ -228,10 +261,10 @@ export default function MapView({
   return (
     <MapContainer
       className="h-full w-full"
-      center={defaultPosition}
+      center={network.defaultPosition}
       zoom={14}
       minZoom={9}
-      maxBounds={mapBounds}
+      maxBounds={network.mapBounds}
       maxBoundsViscosity={1.0}
     >
       <TileLayer

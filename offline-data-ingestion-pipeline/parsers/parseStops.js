@@ -40,13 +40,7 @@ fs.createReadStream(inputPath)
   )
   .on("data", (row) => {
     // Pipeline rule validation: Ensure required properties exits in raw data
-    if (
-      !row.stop_id ||
-      !row.stop_name ||
-      !row.stop_lat ||
-      !row.stop_lon ||
-      !row.stop_code
-    ) {
+    if (!row.stop_id || !row.stop_name || !row.stop_lat || !row.stop_lon) {
       console.error(
         "Data Ingestion Error: GTFS stop.txt is missing a required base property",
       );
@@ -54,7 +48,7 @@ fs.createReadStream(inputPath)
     }
     // Extracting specific information from raw data
     const gtfsStopId = row.stop_id;
-    const stopCode = row.stop_code;
+    const stopCode = row.stop_code ? row.stop_code : null;
     const stopName = row.stop_name;
     const stopLat = parseFloat(row.stop_lat);
     const stopLon = parseFloat(row.stop_lon);
@@ -80,10 +74,10 @@ fs.createReadStream(inputPath)
     fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 
     //Create stops output file (if non existing), stringify the 'stopsArray' & write to its output file (using arg '2' for indentation)
-    fs.writeFileSync(outputPath, JSON.stringify(stopsArray, null, 2));
+    fs.writeFileSync(outputPath, JSON.stringify(stopsArray));
     //Create mapping output file (if non existing), stringify the 'stringToIntegerMap' & write to its output file (using arg '2' for indentation)
 
-    fs.writeFileSync(mappingPath, JSON.stringify(stringToIntegerMap, null, 2));
+    fs.writeFileSync(mappingPath, JSON.stringify(stringToIntegerMap));
 
     console.log(
       `Successfully compiled ${internalStopIdCounter} stops into optimized indexes.`,

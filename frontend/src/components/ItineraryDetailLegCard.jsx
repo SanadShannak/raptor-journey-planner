@@ -23,6 +23,14 @@ const getLocationNameAndDetail = (fullName) => {
     .filter(Boolean);
 };
 
+const getArrivalTimeBeforeWait = (startTimeStr, waitMinutes) => {
+  if (!waitMinutes) return startTimeStr;
+  const [hours, minutes] = startTimeStr.split(":").map(Number);
+  const date = new Date();
+  date.setHours(hours, minutes - waitMinutes);
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+};
+
 export default function ItineraryDetailLegCard({
   leg,
   previousLeg,
@@ -35,6 +43,9 @@ export default function ItineraryDetailLegCard({
 
   const isWalk = leg.mode === "WALK";
   const hasWait = leg.waitDurationMinutes > 0;
+  const arrivalTimeBeforeWait = hasWait
+    ? getArrivalTimeBeforeWait(leg.startTime, leg.waitDurationMinutes)
+    : null;
   const modeConfig = getTransportModeConfig(leg);
   const ModeIcon = modeConfig.icon;
 
@@ -84,7 +95,7 @@ export default function ItineraryDetailLegCard({
     <div className="flex flex-col w-full font-sans">
       <div className="flex flex-row w-full items-stretch min-h-13">
         <div className="w-14 shrink-0 text-[15px] font-bold text-[#1A1A1A] text-right pr-2.5 pt-3 h-6 leading-6">
-          {leg.startTime}
+          {hasWait ? arrivalTimeBeforeWait : leg.startTime}
         </div>
 
         <div className="w-8 shrink-0 relative self-stretch">

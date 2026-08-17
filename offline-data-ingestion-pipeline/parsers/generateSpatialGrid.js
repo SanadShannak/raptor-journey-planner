@@ -64,7 +64,7 @@ stops.forEach((stop) => {
 });
 
 // Serialize and write the fully populated spatial grid hash map to disk
-fs.writeFileSync(outputPath, JSON.stringify(spatialGrid, null, 2));
+fs.writeFileSync(outputPath, JSON.stringify(spatialGrid));
 
 console.log(
   `Spatial Grid generated successfully! Created ${Object.keys(spatialGrid).length} populated grid squares.`,
