@@ -32,10 +32,13 @@ cd frontend && npm install
 cd frontend && npm run dev                     # Vite dev server
 cd frontend && npm run build                   # tsc -b && vite build
 cd frontend && npm run lint                    # oxlint
+cd frontend && npm test                        # vitest, single run
+cd frontend && npm run test:watch              # vitest, watch mode
+cd frontend && npx vitest run path/to/x.test.ts   # a single test file
 cd frontend && npm run check:contrast          # WCAG AA check on design tokens
 ```
 
-There is no test suite anywhere in the repo — `npm test` is an unimplemented stub in both `package.json` files. Verify changes by running the app.
+The frontend has a Vitest suite. **The pipeline and backend have no tests and are not to get any** — `npm test` there is an unimplemented stub. Verify backend behaviour by calling the running server.
 
 The backend port (`3000`) is hardcoded in `backend/index.js`.
 
@@ -82,6 +85,7 @@ Deliberately small dependency footprint. Before adding any package, justify it: 
 - **No literal colours, radii, or shadows in components.** Use the design tokens declared in the `@theme` block of `src/styles/index.css` (Tailwind v4 — tokens become both CSS variables and utilities). Add a token rather than an arbitrary value.
 - **Every async surface needs three states** — loading, empty, and error — designed together with the success state, not bolted on. A journey search that legitimately returns nothing (`NO_ROUTE_FOUND`) is an empty state, not an error.
 - **Never show the API's `error` string to a user.** It is developer-facing English. Map `errorCode` to a localised message; fall back to a generic one for unrecognised codes.
+- **Stay inside the declared browser baseline** (`build.target` in `vite.config.ts`: Chrome/Edge 111, Firefox 113, Safari 15.4). Anything newer needs a feature-detected fallback — see `anySignal()` in `src/api/client.ts` for the pattern, and the `@supports not (color: oklch(...))` block for the CSS one. Widening or narrowing the baseline is a deliberate decision, not a side effect.
 - Avoid premature abstraction. Don't create an abstraction, or split out a tiny component, without a present need.
 
 ## Localisation
@@ -111,6 +115,20 @@ The target is **WCAG 2.1 AA**. For a public-transport planner in the EU this is 
 - Text contrast ≥ 4.5:1, large text and UI boundaries ≥ 3:1, in both colour schemes. `npm run check:contrast` verifies this against the tokens in `src/styles/index.css`; when you add a foreground/background combination, add the pair to `scripts/check-contrast.mjs` and run it. Use `border-strong`, not `border`, for anything that outlines a control.
 - Every input needs a real associated `<label>`; placeholder text is not a label.
 - Never disable focus outlines without replacing them with something at least as visible.
+
+## Testing
+
+Frontend only. Vitest + Testing Library, jsdom environment. Tests live beside the code they cover as `*.test.ts(x)`.
+
+Test the things that are easy to get silently wrong, not the framework:
+
+- Logic with rules a reader cannot verify by eye — plural category selection, date parsing, query serialisation, error mapping.
+- Behaviour the type system cannot express. `Dictionary` guarantees both locales have the same keys, but only a test catches an Arabic plural message missing its `few` form.
+- Contracts with the backend: which query parameter a field becomes, what an error body turns into.
+
+Query by accessible role (`getByRole('button', { name })`) rather than by test id where a real user-facing name exists — a test that cannot find an element by its accessible name is telling you about an accessibility bug.
+
+`src/test/setup.ts` shims `localStorage`; the comment there explains why both Node and jsdom fail to provide a working one.
 
 ## Privacy
 

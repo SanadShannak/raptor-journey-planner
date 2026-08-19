@@ -28,6 +28,32 @@ function buildUrl(path: string, params: QueryParams | undefined): string {
   return url.toString();
 }
 
+/**
+ * Combines abort signals.
+ *
+ * `AbortSignal.any` is the newest platform API this app relies on (Safari 17.4,
+ * March 2024), so it is feature-detected. The fallback wires the sources up by
+ * hand and behaves identically for our purposes.
+ */
+function anySignal(signals: AbortSignal[]): AbortSignal {
+  if (typeof AbortSignal.any === 'function') {
+    return AbortSignal.any(signals);
+  }
+
+  const controller = new AbortController();
+  for (const signal of signals) {
+    if (signal.aborted) {
+      controller.abort(signal.reason);
+      break;
+    }
+    signal.addEventListener('abort', () => controller.abort(signal.reason), {
+      once: true,
+      signal: controller.signal,
+    });
+  }
+  return controller.signal;
+}
+
 /** Reads the body as JSON, tolerating servers that reply with HTML or nothing. */
 async function readJsonBody(response: Response): Promise<unknown> {
   const text = await response.text();
@@ -48,9 +74,7 @@ async function readJsonBody(response: Response): Promise<unknown> {
 export async function getJson(path: string, options: RequestOptions = {}): Promise<unknown> {
   const url = buildUrl(path, options.params);
   const timeout = AbortSignal.timeout(env.apiTimeoutMs);
-  const signal = options.signal
-    ? AbortSignal.any([options.signal, timeout])
-    : timeout;
+  const signal = options.signal ? anySignal([options.signal, timeout]) : timeout;
 
   let response: Response;
   try {

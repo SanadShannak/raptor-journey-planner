@@ -76,9 +76,64 @@
 }
 
 /*
+ * sRGB fallbacks for browsers without oklch() — roughly pre-2023 Safari and
+ * Firefox. Tailwind compiles every utility to `var(--color-*)`, so overriding
+ * the variables here is enough; no utility needs duplicating and the cost is
+ * a few hundred bytes that modern browsers never download the benefit of.
+ *
+ * These hex values are the sRGB conversions of the oklch values above and are
+ * verified by `npm run check:contrast`, which fails if they drift apart or
+ * stop meeting AA.
+ */
+@supports not (color: oklch(0 0 0)) {
+  :root {
+    --color-brand-50: #ebf7ff;
+    --color-brand-100: #cfebff;
+    --color-brand-500: #0076d8;
+    --color-brand-600: #0060c0;
+    --color-brand-700: #004c9f;
+    --color-surface: #ffffff;
+    --color-surface-muted: #f3f5f8;
+    --color-surface-raised: #ffffff;
+    --color-content: #182029;
+    --color-content-muted: #636d77;
+    --color-border: #d9dfe5;
+    --color-border-strong: #8e9398;
+    --color-danger: #d73337;
+    --color-success: #05893e;
+    --shadow-card:
+      0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.06);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-surface: #0d151c;
+      --color-surface-muted: #182029;
+      --color-surface-raised: #1d252d;
+      --color-content: #edf2f8;
+      --color-content-muted: #9ba6b1;
+      --color-border: #303942;
+      --color-border-strong: #66707a;
+      --color-danger: #f3625d;
+      --color-success: #53be70;
+    }
+  }
+}
+
+/*
+ * Full viewport height that survives mobile browser chrome. The `dvh`
+ * declaration is simply ignored by browsers that do not know the unit, which
+ * then keep the `vh` value above it.
+ */
+@utility min-h-viewport {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/*
  * Base element styles. `dir` is set on <html> so the document flips wholesale
- * when Arabic is added; Tailwind's logical properties (ms-*, pe-*, text-start)
- * should be preferred over left/right ones in components from the start.
+ * between English and Arabic; components must use logical properties
+ * (ms-*, pe-*, text-start) rather than left/right ones.
  */
 @layer base {
   html {

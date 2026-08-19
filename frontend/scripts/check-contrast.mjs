@@ -51,8 +51,27 @@ function oklchToLinearRgb(lightness, chroma, hue) {
   ].map((channel) => Math.min(Math.max(channel, 0), 1));
 }
 
-function relativeLuminance([l, c, h]) {
-  const [r, g, b] = oklchToLinearRgb(l, c, h);
+const toSrgb = (channel) =>
+  channel <= 0.0031308 ? 12.92 * channel : 1.055 * channel ** (1 / 2.4) - 0.055;
+
+const fromSrgb = (channel) =>
+  channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+
+/** A token value is either parsed oklch coordinates or parsed sRGB channels. */
+function toLinearRgb(value) {
+  return value.kind === 'oklch'
+    ? oklchToLinearRgb(...value.coords)
+    : value.channels.map((channel) => fromSrgb(channel / 255));
+}
+
+function oklchToHex(l, c, h) {
+  return oklchToLinearRgb(l, c, h)
+    .map((channel) => Math.round(Math.min(Math.max(toSrgb(channel), 0), 1) * 255))
+    .reduce((hex, channel) => hex + channel.toString(16).padStart(2, '0'), '#');
+}
+
+function relativeLuminance(value) {
+  const [r, g, b] = toLinearRgb(value);
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
@@ -63,24 +82,25 @@ function contrastRatio(foreground, background) {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
+const WHITE_OKLCH = { kind: 'oklch', coords: [1, 0, 0] };
+const WHITE_HEX = { kind: 'srgb', channels: [255, 255, 255] };
+
 /**
- * Collects `--color-*: oklch(...)` declarations. The stylesheet declares the
- * light scheme first and then redeclares a subset inside the dark media query,
- * so parsing in source order and letting later values win reproduces exactly
- * what the browser resolves for each scheme.
+ * Collects token declarations from one region of the stylesheet.
+ *
+ * Within a region the light scheme is declared first and a subset is
+ * redeclared inside the dark media query, so parsing in source order and
+ * letting later values win reproduces exactly what a browser resolves.
  */
-function parseTokens(css) {
+function parseRegion(css, pattern, toValue, white) {
   const darkBlockStart = css.indexOf('@media (prefers-color-scheme: dark)');
-  const declaration = /--color-([\w-]+):\s*oklch\(([\d.]+)\s+([\d.]+)\s+([\d.]+)\)/g;
+  const light = { white };
+  const dark = { white };
 
-  const light = { white: [1, 0, 0] };
-  const dark = { white: [1, 0, 0] };
-
-  for (const match of css.matchAll(declaration)) {
-    const [, name, l, c, h] = match;
-    const value = [Number(l), Number(c), Number(h)];
-    if (match.index < darkBlockStart) light[name] = value;
-    dark[name] = value;
+  for (const match of css.matchAll(pattern)) {
+    const value = toValue(match);
+    if (match.index < darkBlockStart) light[match[1]] = value;
+    dark[match[1]] = value;
   }
   return { light, dark };
 }
@@ -89,37 +109,99 @@ const stylesheet = join(
   dirname(fileURLToPath(import.meta.url)),
   '../src/styles/index.css',
 );
-const { light, dark } = parseTokens(readFileSync(stylesheet, 'utf8'));
+const css = readFileSync(stylesheet, 'utf8');
+
+/*
+ * The oklch tokens and the sRGB fallbacks live in separate regions of the
+ * file, so each is parsed from its own slice. Splitting at the @supports rule
+ * keeps the two palettes from contaminating each other.
+ */
+const fallbackStart = css.indexOf('@supports not (color: oklch');
+if (fallbackStart === -1) {
+  console.error('Could not find the @supports fallback block in index.css.');
+  process.exit(1);
+}
+
+const modern = parseRegion(
+  css.slice(0, fallbackStart),
+  /--color-([\w-]+):\s*oklch\(([\d.]+)\s+([\d.]+)\s+([\d.]+)\)/g,
+  (m) => ({ kind: 'oklch', coords: [Number(m[2]), Number(m[3]), Number(m[4])] }),
+  WHITE_OKLCH,
+);
+
+const fallback = parseRegion(
+  css.slice(fallbackStart),
+  /--color-([\w-]+):\s*#([0-9a-f]{6})\b/gi,
+  (m) => ({
+    kind: 'srgb',
+    channels: [0, 2, 4].map((i) => parseInt(m[2].slice(i, i + 2), 16)),
+  }),
+  WHITE_HEX,
+);
 
 let failures = 0;
 
-for (const [schemeName, tokens] of [
-  ['light', light],
-  ['dark', dark],
-]) {
-  console.log(`\n${schemeName}`);
-  for (const [foreground, background, required] of PAIRS) {
-    const fg = tokens[foreground];
-    const bg = tokens[background];
+function checkPalette(label, palettes) {
+  for (const [schemeName, tokens] of Object.entries(palettes)) {
+    console.log(`\n${label} · ${schemeName}`);
+    for (const [foreground, background, required] of PAIRS) {
+      const fg = tokens[foreground];
+      const bg = tokens[background];
 
-    if (!fg || !bg) {
-      console.log(`  MISSING TOKEN  ${foreground} on ${background}`);
-      failures += 1;
-      continue;
+      if (!fg || !bg) {
+        console.log(`  MISSING TOKEN  ${foreground} on ${background}`);
+        failures += 1;
+        continue;
+      }
+
+      const ratio = contrastRatio(fg, bg);
+      const passed = ratio >= required;
+      if (!passed) failures += 1;
+      console.log(
+        `  ${passed ? 'pass' : 'FAIL'}  ${ratio.toFixed(2).padStart(5)}:1  ` +
+          `(need ${required.toFixed(1)})  ${foreground} on ${background}`,
+      );
     }
-
-    const ratio = contrastRatio(fg, bg);
-    const passed = ratio >= required;
-    if (!passed) failures += 1;
-    console.log(
-      `  ${passed ? 'pass' : 'FAIL'}  ${ratio.toFixed(2).padStart(5)}:1  ` +
-        `(need ${required.toFixed(1)})  ${foreground} on ${background}`,
-    );
   }
 }
 
+checkPalette('oklch', modern);
+checkPalette('sRGB fallback', fallback);
+
+/*
+ * The fallbacks are meant to be the same colours, not merely colours that also
+ * pass. Anything further than a rounding step apart means one palette was
+ * edited without the other.
+ */
+console.log('\nfallback fidelity');
+for (const scheme of ['light', 'dark']) {
+  for (const [name, value] of Object.entries(modern[scheme])) {
+    if (name === 'white') continue;
+    const actual = fallback[scheme][name];
+    if (!actual) {
+      console.log(`  MISSING  ${scheme} --color-${name} has no sRGB fallback`);
+      failures += 1;
+      continue;
+    }
+    const expected = oklchToHex(...value.coords);
+    const drift = Math.max(
+      ...actual.channels.map((channel, i) =>
+        Math.abs(channel - parseInt(expected.slice(1 + i * 2, 3 + i * 2), 16)),
+      ),
+    );
+    if (drift > 2) {
+      console.log(
+        `  DRIFT  ${scheme} --color-${name}: expected ${expected}, found #` +
+          actual.channels.map((c) => c.toString(16).padStart(2, '0')).join(''),
+      );
+      failures += 1;
+    }
+  }
+}
+if (failures === 0) console.log('  all fallbacks match their oklch source');
+
 if (failures > 0) {
-  console.error(`\n${failures} contrast check(s) failed.`);
+  console.error(`\n${failures} check(s) failed.`);
   process.exit(1);
 }
 console.log('\nAll contrast checks passed.');

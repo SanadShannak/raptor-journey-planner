@@ -35,7 +35,7 @@ export default function App() {
   }, []);
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-xl flex-col justify-center gap-4 p-6">
+    <main className="min-h-viewport mx-auto flex max-w-xl flex-col justify-center gap-4 p-6">
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold">{t(strings.app.title)}</h1>
 
