@@ -1003,14 +1003,14 @@ function raptorEngine(
 //   { depth: null },
 // );
 
-console.dir(
-  raptorEngine(
-    { type: "coordinate", lat: -33.866996978263366, lon: 151.20638698339462 },
-    { type: "coordinate", lat: -33.86711947020288, lon: 151.20672762393954 },
-    "2026-09-14",
-    "02:00:00",
-  ),
-  { depth: null },
-);
+// console.dir(
+//   raptorEngine(
+//     { type: "coordinate", lat: -33.866996978263366, lon: 151.20638698339462 },
+//     { type: "coordinate", lat: -33.86711947020288, lon: 151.20672762393954 },
+//     "2026-09-14",
+//     "02:00:00",
+//   ),
+//   { depth: null },
+// );
 
 module.exports = raptorEngine;

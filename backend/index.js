@@ -171,6 +171,3 @@ app.get("/api/valid-dates", (req, res) => {
 app.listen(PORT, () => {
   console.log(`Listening on Port ${PORT}`);
 });
-
-// Test query (from Kumpula Campus Library to Suomenlinna Museum):
-// http://localhost:3000/api/route?originLat=60.20507633764775&originLon=24.962304855335976&destLat=60.14540472941492&destLon=24.987795623893412&date=2026-09-13&time=18:00:00
