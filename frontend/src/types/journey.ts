@@ -2,8 +2,9 @@
  * Domain types for the journey-planning API.
  *
  * These mirror the responses of `GET /api/route` and `GET /api/valid-dates`
- * exactly as the backend returns them today. No field is invented here: every
- * property below was observed on a live response.
+ * exactly as the backend returns them. No field is invented here: every
+ * property below was observed on a live response and confirmed against
+ * `backend/utils/formatItinerary.js`.
  */
 
 /** Calendar date in `YYYY-MM-DD` form, e.g. `"2026-09-13"`. */
@@ -22,6 +23,15 @@ export type ClockTimeWithSeconds = string;
 export type Coordinates = [latitude: number, longitude: number];
 
 /**
+ * GTFS `route_type`. The backend passes the feed's value through unchanged and
+ * uses only the standard set — no extended (three-digit) codes.
+ *
+ * 0 tram · 1 metro · 2 rail · 3 bus · 4 ferry · 5 cable tram
+ * 6 aerial lift · 7 funicular · 11 trolleybus · 12 monorail
+ */
+export type GtfsRouteType = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 11 | 12;
+
+/**
  * A boarding/alighting point of a leg.
  *
  * The first and last legs of a journey use synthetic stops representing the
@@ -38,25 +48,32 @@ export interface Stop {
 /**
  * A stop a transit leg passes through without the traveller changing vehicle.
  *
- * Note the different property names and the absence of coordinates compared to
- * {@link Stop} — this is the shape the API returns.
+ * Note the `stop`-prefixed property names — this is a different shape from
+ * {@link Stop}, not the same type reused.
  */
 export interface IntermediateStop {
   stopName: string;
   stopCode: string;
+  stopLat: number;
+  stopLon: number;
   stopArrivalTime: ClockTime;
 }
 
 /** Discriminator for the leg union. */
 export type LegMode = 'WALK' | 'TRANSIT';
 
-/**
- * Fields present on every leg regardless of mode.
- */
+/** Fields present on every leg regardless of mode. */
 interface LegBase {
   mode: LegMode;
-  /** Minutes spent waiting at `fromStop` before this leg departs at `startTime`. */
+  /**
+   * Minutes spent waiting at `fromStop` *before* this leg departs at
+   * `startTime`. It sits between the previous leg's `endTime` and this leg's
+   * `startTime`, and is excluded from this leg's own walk/transit durations.
+   * Because `totalDurationMinutes` is measured start-to-end in wall-clock
+   * time, waiting is still counted there.
+   */
   waitDurationMinutes: number;
+  /** Departure, i.e. after any `waitDurationMinutes` has elapsed. */
   startDate: IsoDate;
   startTime: ClockTime;
   endDate: IsoDate;
@@ -70,7 +87,9 @@ interface LegBase {
 /** A leg travelled on foot. */
 export interface WalkLeg extends LegBase {
   mode: 'WALK';
+  /** Rounded to whole minutes, with a floor of 1 for any non-zero duration. */
   walkDurationMinutes: number;
+  /** Rounded to the nearest 50 m, with a floor of 50 for any non-zero distance. */
   walkDistanceMeters: number;
 
   /* Always null on a walking leg — kept so the union stays exhaustive. */
@@ -87,21 +106,21 @@ export interface TransitLeg extends LegBase {
   mode: 'TRANSIT';
   /** Public-facing line designation, e.g. `"6"`, `"M2"`, `"K"`. */
   routeShortName: string;
-  /**
-   * GTFS `route_type`. Observed so far: 0 (tram), 1 (metro), 2 (rail),
-   * 4 (ferry). Left as `number` rather than a closed union so an unexpected
-   * value from the data does not become a type error.
-   */
-  routeType: number;
+  routeType: GtfsRouteType;
   /** Stops passed through between `fromStop` and `toStop`; may be empty. */
   intermediateStops: IntermediateStop[];
   tripId: string;
   transitDurationMinutes: number;
-  transitDistanceMeters: number;
+  /**
+   * Null when the source GTFS feed omits the optional `shape_dist_traveled`
+   * column, in which case the pipeline disables distance tracking entirely.
+   * The HSL feed provides it; other networks may not.
+   */
+  transitDistanceMeters: number | null;
 
-  /* Observed as 0 and null respectively on every transit leg. */
-  walkDurationMinutes: number;
-  walkDistanceMeters: number | null;
+  /* Always null on a transit leg. */
+  walkDurationMinutes: null;
+  walkDistanceMeters: null;
 }
 
 /**
@@ -121,20 +140,31 @@ export interface Journey {
   startTime: ClockTime;
   endDate: IsoDate;
   endTime: ClockTime;
+  /**
+   * Wall-clock minutes from `startTime` to `endTime`. May span midnight, in
+   * which case `endDate` is later than `startDate`.
+   */
   totalDurationMinutes: number;
   legs: JourneyLeg[];
 }
 
-/** A geographic point used as a journey endpoint. */
-export interface LatLon {
-  lat: number;
-  lon: number;
-}
+/**
+ * Either end of a journey. The backend accepts a dropped map pin or a known
+ * stop; the `type` names mirror the backend's own internal vocabulary.
+ */
+export type JourneyEndpoint =
+  | { type: 'coordinate'; lat: number; lon: number }
+  | { type: 'stop'; stopId: string };
 
 /** Parameters accepted by `GET /api/route`. */
 export interface JourneyQuery {
-  origin: LatLon;
-  destination: LatLon;
+  origin: JourneyEndpoint;
+  destination: JourneyEndpoint;
   date: IsoDate;
   time: ClockTimeWithSeconds;
+  /**
+   * Walking pace in metres per second. Omit to let the engine apply its own
+   * default; see `DEFAULT_WALKING_SPEED_MPS` for the value to show in the UI.
+   */
+  walkingSpeedMps?: number | undefined;
 }

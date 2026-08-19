@@ -5,8 +5,13 @@
  * response parsing.
  */
 
-import type { IsoDate, Journey, JourneyQuery } from '../types/journey';
-import { getJson } from './client';
+import type {
+  IsoDate,
+  Journey,
+  JourneyEndpoint,
+  JourneyQuery,
+} from '../types/journey';
+import { getJson, type QueryParams } from './client';
 import { ApiError } from './errors';
 
 interface CallOptions {
@@ -45,7 +50,24 @@ export async function getValidDates(options: CallOptions = {}): Promise<IsoDate[
 }
 
 /**
- * `GET /api/route` — plans a door-to-door journey between two coordinates,
+ * Each endpoint is sent either as a coordinate pair or as a stop id, under
+ * `origin`/`dest`-prefixed parameter names.
+ */
+function endpointParams(
+  prefix: 'origin' | 'dest',
+  endpoint: JourneyEndpoint,
+): QueryParams {
+  if (endpoint.type === 'stop') {
+    return { [`${prefix}StopId`]: endpoint.stopId };
+  }
+  return {
+    [`${prefix}Lat`]: endpoint.lat,
+    [`${prefix}Lon`]: endpoint.lon,
+  };
+}
+
+/**
+ * `GET /api/route` — plans a door-to-door journey between two endpoints,
  * departing at the given local date and time.
  *
  * Throws an {@link ApiError} with `kind: 'http'` when no journey exists; the
@@ -58,12 +80,11 @@ export async function planJourney(
   const body = await getJson('/api/route', {
     signal: options.signal,
     params: {
-      originLat: query.origin.lat,
-      originLon: query.origin.lon,
-      destLat: query.destination.lat,
-      destLon: query.destination.lon,
+      ...endpointParams('origin', query.origin),
+      ...endpointParams('dest', query.destination),
       date: query.date,
       time: query.time,
+      WALKING_SPEED_MPS: query.walkingSpeedMps,
     },
   });
   return assertJourney(body);

@@ -647,6 +647,8 @@ function raptorEngine(
           intermediateStops.push({
             stopName: stops[intermediateStopInternalId]["name"],
             stopCode: stops[intermediateStopInternalId]["stop_code"],
+            stopLat: stops[intermediateStopInternalId]["lat"],
+            stopLon: stops[intermediateStopInternalId]["lon"],
             stopArrivalTimeSeconds: scheduledStopArrivalTimeSeconds,
           });
         }
@@ -722,7 +724,7 @@ function raptorEngine(
               (timetables[tripUsed][previousStopOrderInRoute]["departure"] +
                 tripOffset),
         transitDistanceMeters: distanceTraveledMeters,
-        walkDurationSeconds: tripUsed === -1 ? routeUsed : 0,
+        walkDurationSeconds: tripUsed === -1 ? routeUsed : null,
         walkDistanceMeters: tripUsed === -1 ? walkDistance : null,
         shape:
           tripUsed === -1
