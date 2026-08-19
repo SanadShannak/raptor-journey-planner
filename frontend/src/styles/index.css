@@ -16,24 +16,39 @@
     'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
     'Helvetica Neue', Arial, 'Noto Sans Arabic', sans-serif;
 
-  /* Brand */
+  /*
+   * Contrast is verified, not assumed. Every foreground/background pair below
+   * meets WCAG 2.1 AA in both colour schemes: 4.5:1 for text, 3:1 for UI
+   * boundaries. Re-check when changing any of these values.
+   */
+
+  /* Brand. `brand-500` is capped at the lightness where white text on it still
+   * reaches 4.5:1, so it is safe as a filled-button background. */
   --color-brand-50: oklch(0.97 0.02 250);
   --color-brand-100: oklch(0.93 0.05 250);
-  --color-brand-500: oklch(0.58 0.18 250);
-  --color-brand-600: oklch(0.51 0.18 250);
-  --color-brand-700: oklch(0.44 0.16 250);
+  --color-brand-500: oklch(0.56 0.18 250);
+  --color-brand-600: oklch(0.49 0.18 250);
+  --color-brand-700: oklch(0.42 0.16 250);
 
   /* Semantic surfaces and text. Overridden per colour scheme below. */
   --color-surface: oklch(1 0 0);
   --color-surface-muted: oklch(0.97 0.005 250);
   --color-surface-raised: oklch(1 0 0);
-  --color-border: oklch(0.9 0.01 250);
   --color-content: oklch(0.24 0.02 250);
   --color-content-muted: oklch(0.53 0.02 250);
 
+  /*
+   * Two border tokens on purpose. `border` is decorative (card edges,
+   * dividers) and is deliberately subtle — WCAG does not require 3:1 there.
+   * `border-strong` is for boundaries that identify an interactive control,
+   * such as a text input, where 3:1 *is* required.
+   */
+  --color-border: oklch(0.9 0.01 250);
+  --color-border-strong: oklch(0.66 0.01 250);
+
   /* Feedback */
   --color-danger: oklch(0.58 0.2 25);
-  --color-success: oklch(0.62 0.15 150);
+  --color-success: oklch(0.55 0.15 150);
 
   /* Radii */
   --radius-card: 0.75rem;
@@ -48,9 +63,15 @@
     --color-surface: oklch(0.19 0.02 250);
     --color-surface-muted: oklch(0.24 0.02 250);
     --color-surface-raised: oklch(0.26 0.02 250);
-    --color-border: oklch(0.34 0.02 250);
     --color-content: oklch(0.96 0.01 250);
     --color-content-muted: oklch(0.72 0.02 250);
+
+    --color-border: oklch(0.34 0.02 250);
+    --color-border-strong: oklch(0.54 0.02 250);
+
+    /* Lightened so they still clear 4.5:1 against the dark surface. */
+    --color-danger: oklch(0.68 0.18 25);
+    --color-success: oklch(0.72 0.15 150);
   }
 }
 
@@ -68,5 +89,21 @@
   body {
     background-color: var(--color-surface);
     color: var(--color-content);
+  }
+
+  /*
+   * Visitors who ask for reduced motion get essentially none. Animations are
+   * not removed outright — that can break code relying on transitionend — but
+   * are collapsed to a duration short enough to be imperceptible.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }

@@ -1,0 +1,89 @@
+/**
+ * Message resolution and locale-aware value formatting.
+ *
+ * All of this is built on the platform's `Intl` APIs. No i18n library is used:
+ * `Intl.PluralRules` already implements CLDR plural selection (including
+ * Arabic's six categories), and `Intl.NumberFormat` / `Intl.DateTimeFormat`
+ * cover the value formatting. A library would add weight without adding
+ * capability at this scale.
+ */
+
+import { INTL_LOCALE, type Locale, type Message } from './dictionary';
+
+export type MessageValues = Record<string, string | number>;
+
+/** `Intl` constructors are expensive enough to be worth reusing. */
+const pluralRulesCache = new Map<Locale, Intl.PluralRules>();
+
+function pluralRulesFor(locale: Locale): Intl.PluralRules {
+  let rules = pluralRulesCache.get(locale);
+  if (!rules) {
+    rules = new Intl.PluralRules(INTL_LOCALE[locale]);
+    pluralRulesCache.set(locale, rules);
+  }
+  return rules;
+}
+
+/** Substitutes `{name}` placeholders, leaving unknown ones untouched. */
+function interpolate(template: string, values: MessageValues): string {
+  return template.replace(/\{(\w+)\}/g, (match, key: string) =>
+    key in values ? String(values[key]) : match,
+  );
+}
+
+/**
+ * Resolves a message to a string for the given locale.
+ *
+ * Plural messages select their form from `values.count`. A message missing the
+ * form for its category falls back to `other`, which every dictionary must
+ * define.
+ */
+export function translate(
+  message: Message,
+  locale: Locale,
+  values: MessageValues = {},
+): string {
+  if (typeof message === 'string') {
+    return interpolate(message, values);
+  }
+
+  const count = values['count'];
+  const category =
+    typeof count === 'number' ? pluralRulesFor(locale).select(count) : 'other';
+
+  return interpolate(message[category] ?? message.other, values);
+}
+
+/** Formats a number using the locale's numbering system and grouping. */
+export function formatNumber(
+  value: number,
+  locale: Locale,
+  options?: Intl.NumberFormatOptions,
+): string {
+  return new Intl.NumberFormat(INTL_LOCALE[locale], options).format(value);
+}
+
+/**
+ * Parses an API `YYYY-MM-DD` string into a Date in the *local* timezone.
+ *
+ * `new Date('2026-09-13')` would parse as UTC midnight, which lands on the
+ * previous day for anyone west of Greenwich. The API's dates are calendar
+ * dates in the network's local time, so they are built from parts instead.
+ */
+export function parseIsoDate(isoDate: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
+  if (!match) return null;
+  const [, year, month, day] = match;
+  return new Date(Number(year), Number(month) - 1, Number(day));
+}
+
+/** Formats an API `YYYY-MM-DD` string for display, or returns it unchanged. */
+export function formatDate(
+  isoDate: string,
+  locale: Locale,
+  options: Intl.DateTimeFormatOptions = { dateStyle: 'medium' },
+): string {
+  const date = parseIsoDate(isoDate);
+  if (!date) return isoDate;
+  return new Intl.DateTimeFormat(INTL_LOCALE[locale], options).format(date);
+}

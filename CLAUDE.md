@@ -32,6 +32,7 @@ cd frontend && npm install
 cd frontend && npm run dev                     # Vite dev server
 cd frontend && npm run build                   # tsc -b && vite build
 cd frontend && npm run lint                    # oxlint
+cd frontend && npm run check:contrast          # WCAG AA check on design tokens
 ```
 
 There is no test suite anywhere in the repo — `npm test` is an unimplemented stub in both `package.json` files. Verify changes by running the app.
@@ -79,5 +80,39 @@ Deliberately small dependency footprint. Before adding any package, justify it: 
 - **No `any`** without a documented, unavoidable reason. `tsconfig.app.json` runs `strict` plus `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` — optional properties therefore need an explicit `| undefined`.
 - **Environment config only via `src/config/env.ts`**, which validates at startup. The backend URL is `VITE_API_BASE_URL`; it has no fallback and will throw if unset.
 - **No literal colours, radii, or shadows in components.** Use the design tokens declared in the `@theme` block of `src/styles/index.css` (Tailwind v4 — tokens become both CSS variables and utilities). Add a token rather than an arbitrary value.
-- **No user-facing strings inline in components.** They belong in `src/i18n/en.ts`. Arabic and RTL are planned, so prefer logical CSS properties (`ms-*`, `pe-*`, `text-start`) over `left`/`right` ones from the start.
+- **Every async surface needs three states** — loading, empty, and error — designed together with the success state, not bolted on. A journey search that legitimately returns nothing (`NO_ROUTE_FOUND`) is an empty state, not an error.
+- **Never show the API's `error` string to a user.** It is developer-facing English. Map `errorCode` to a localised message; fall back to a generic one for unrecognised codes.
 - Avoid premature abstraction. Don't create an abstraction, or split out a tiny component, without a present need.
+
+## Localisation
+
+English and Arabic are both first-class from the start; Arabic is not a later retrofit.
+
+- **No user-facing string inline in a component.** Strings live in `src/i18n/en.ts` and `src/i18n/ar.ts`, both typed against the explicit `Dictionary` interface, so a new key fails to compile until every locale defines it.
+- **Use `useLocale()`** for `t`, `strings`, `locale`, and `direction`. `t` handles interpolation and plural selection.
+- **Plurals go through plural forms, never `if (n === 1)`.** Arabic has six CLDR categories (zero/one/two/few/many/other) where English has two; `Intl.PluralRules` picks the right one.
+- **Never concatenate translated fragments** or build a sentence from pieces — word order differs between languages. Use one message with placeholders.
+- **Format every number, date, time, and duration through `Intl`** (`src/i18n/translate.ts`), never by hand. Parse API `YYYY-MM-DD` values with `parseIsoDate`, never `new Date(string)`, which reads them as UTC and shifts the day.
+- **Logical CSS properties only** — `ms-*`/`me-*`, `ps-*`/`pe-*`, `text-start`/`text-end`, `border-s`/`border-e`. Never `ml-*`, `pr-*`, `text-left`, `left-0`. The document `dir` flips wholesale, and physical properties do not flip with it.
+- Directional *icons* (arrows, chevrons, back buttons) must mirror in RTL; logos and mode icons must not.
+- Arabic strings are stored in logical order — sentence-final punctuation is the last character of the string even though it renders on the left. Do not "fix" it to match what an editor displays.
+- Verify changes in both directions. Most RTL bugs are invisible in LTR.
+
+## Accessibility
+
+The target is **WCAG 2.1 AA**. For a public-transport planner in the EU this is the standard public-sector bodies are held to (EN 301 549 / Directive 2016/2102), so treat it as a requirement, not a preference.
+
+- **Semantic HTML first.** A real `<button>`, `<nav>`, `<ul>`, `<label>`. Reach for ARIA only when no native element expresses the meaning — a wrong ARIA role is worse than none.
+- **The map is never the only route to information.** Every journey, leg, and stop must be readable as structured text by a screen reader. Treat the map as an enhancement over an accessible itinerary list.
+- **Never encode meaning in colour alone.** Transit mode needs an icon and a text label, not just a coloured line — this covers colour-blind users and greyscale printing.
+- **Everything reachable and operable by keyboard**, in a sensible order, with a visible focus indicator. That includes map controls; if the map cannot be driven by keyboard, the equivalent action must exist outside it.
+- **Announce async results** via a live region so screen-reader users learn that a search finished.
+- **Respect `prefers-reduced-motion`** for transitions and map animations.
+- Text contrast ≥ 4.5:1, large text and UI boundaries ≥ 3:1, in both colour schemes. `npm run check:contrast` verifies this against the tokens in `src/styles/index.css`; when you add a foreground/background combination, add the pair to `scripts/check-contrast.mjs` and run it. Use `border-strong`, not `border`, for anything that outlines a control.
+- Every input needs a real associated `<label>`; placeholder text is not a label.
+- Never disable focus outlines without replacing them with something at least as visible.
+
+## Privacy
+
+- Request geolocation only in response to an explicit user action, never on page load, and keep the app fully usable when it is denied.
+- Coordinates are personal data. Do not log them to third parties or put them in analytics.
