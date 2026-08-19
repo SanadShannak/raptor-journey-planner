@@ -1,0 +1,72 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens.
+ *
+ * Everything declared in `@theme` becomes both a CSS custom property and a
+ * Tailwind utility (`--color-surface` → `bg-surface`, `text-surface`, …), so
+ * components reference token names and never literal colour or radius values.
+ * Re-theming is a matter of editing this block.
+ *
+ * This is a deliberately small starting set; it will grow as the visual design
+ * is built out.
+ */
+@theme {
+  --font-sans:
+    'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, 'Noto Sans Arabic', sans-serif;
+
+  /* Brand */
+  --color-brand-50: oklch(0.97 0.02 250);
+  --color-brand-100: oklch(0.93 0.05 250);
+  --color-brand-500: oklch(0.58 0.18 250);
+  --color-brand-600: oklch(0.51 0.18 250);
+  --color-brand-700: oklch(0.44 0.16 250);
+
+  /* Semantic surfaces and text. Overridden per colour scheme below. */
+  --color-surface: oklch(1 0 0);
+  --color-surface-muted: oklch(0.97 0.005 250);
+  --color-surface-raised: oklch(1 0 0);
+  --color-border: oklch(0.9 0.01 250);
+  --color-content: oklch(0.24 0.02 250);
+  --color-content-muted: oklch(0.53 0.02 250);
+
+  /* Feedback */
+  --color-danger: oklch(0.58 0.2 25);
+  --color-success: oklch(0.62 0.15 150);
+
+  /* Radii */
+  --radius-card: 0.75rem;
+  --radius-control: 0.5rem;
+
+  /* Elevation */
+  --shadow-card: 0 1px 2px oklch(0 0 0 / 0.06), 0 4px 12px oklch(0 0 0 / 0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  @theme {
+    --color-surface: oklch(0.19 0.02 250);
+    --color-surface-muted: oklch(0.24 0.02 250);
+    --color-surface-raised: oklch(0.26 0.02 250);
+    --color-border: oklch(0.34 0.02 250);
+    --color-content: oklch(0.96 0.01 250);
+    --color-content-muted: oklch(0.72 0.02 250);
+  }
+}
+
+/*
+ * Base element styles. `dir` is set on <html> so the document flips wholesale
+ * when Arabic is added; Tailwind's logical properties (ms-*, pe-*, text-start)
+ * should be preferred over left/right ones in components from the start.
+ */
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    color-scheme: light dark;
+  }
+
+  body {
+    background-color: var(--color-surface);
+    color: var(--color-content);
+  }
+}

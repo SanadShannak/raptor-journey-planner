@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Env: the repo root ignores all .env.* files. Re-include the two that carry
+# non-secret, committed configuration; real secrets go in .env*.local.
+!.env.example
+!.env.development
+.env.local
+.env.*.local
