@@ -55,7 +55,7 @@ export default function App() {
                 lang={option}
                 onClick={() => setLocale(option)}
                 aria-current={option === locale}
-                className="rounded-control border-border-strong focus-visible:outline-brand-500 aria-[current=true]:bg-brand-500 aria-[current=true]:border-brand-500 border px-3 py-1 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 aria-[current=true]:text-white"
+                className="rounded-control border-border-strong focus-visible:outline-brand-500 aria-[current=true]:bg-brand-fill aria-[current=true]:border-brand-fill border px-3 py-1 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 aria-[current=true]:text-on-brand"
               >
                 {LOCALE_NAMES[option]}
               </button>

@@ -29,8 +29,20 @@ const PAIRS = [
   ['danger', 'surface-raised', AA_TEXT],
   ['success', 'surface', AA_TEXT],
   ['success', 'surface-raised', AA_TEXT],
-  ['brand-500', 'surface', AA_UI],
-  ['white', 'brand-500', AA_TEXT],
+  ['brand-500', 'surface', AA_TEXT],
+  ['brand-500', 'surface-raised', AA_TEXT],
+  ['content', 'brand-50', AA_TEXT],
+  ['content', 'brand-100', AA_TEXT],
+  // The filled control, and the label on it. Both schemes fill with a
+  // different lightness, so this is checked through the tokens rather than
+  // against a hardcoded white.
+  ['brand-fill', 'surface', AA_UI],
+  ['on-brand', 'brand-fill', AA_TEXT],
+  // The orange is a fill, never text: `accent` is only ever checked with
+  // `on-accent` written on it, and `accent-strong` is the one allowed on a
+  // surface.
+  ['on-accent', 'accent', AA_TEXT],
+  ['accent-strong', 'surface', AA_TEXT],
   ['border-strong', 'surface', AA_UI],
   ['border-strong', 'surface-raised', AA_UI],
 ];

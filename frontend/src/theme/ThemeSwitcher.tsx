@@ -36,7 +36,7 @@ export function ThemeSwitcher() {
             onChange={() => setTheme(option)}
             className="peer sr-only"
           />
-          <span className="rounded-control border-border-strong text-content peer-checked:bg-brand-500 peer-checked:border-brand-500 peer-focus-visible:outline-brand-500 block border px-3 py-1 text-sm peer-checked:text-white peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2">
+          <span className="rounded-control border-border-strong text-content peer-checked:bg-brand-fill peer-checked:border-brand-fill peer-focus-visible:outline-brand-500 block border px-3 py-1 text-sm peer-checked:text-on-brand peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2">
             {labels[option]}
           </span>
         </label>

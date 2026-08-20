@@ -36,20 +36,49 @@
    * these values.
    */
 
-  /* Brand. `brand-500` is capped at the lightness where white text on it still
-   * reaches 4.5:1, so it is safe as a filled-button background. */
-  --color-brand-50: oklch(0.97 0.02 250);
-  --color-brand-100: oklch(0.93 0.05 250);
-  --color-brand-500: oklch(0.56 0.18 250);
-  --color-brand-600: oklch(0.49 0.18 250);
-  --color-brand-700: oklch(0.42 0.16 250);
+  /*
+   * Brand: Vision City Bus. The wine `brand-500` is the operator's own colour,
+   * lifted from their app icon (#851C45) and reproduced exactly here; the
+   * orange accent is the swoosh in their logo (#F78F3B). Their website uses a
+   * lighter brick red (#AC3631) for buttons, but the wine is the identity that
+   * carries across the app, the icon, and the vehicles, so that is what the
+   * ramp is built on.
+   */
+  --color-brand-50: oklch(0.972 0.014 2.5);
+  --color-brand-100: oklch(0.93 0.038 2.5);
+  --color-brand-500: oklch(0.415 0.143 2.5);
+  --color-brand-600: oklch(0.36 0.135 2.5);
+  --color-brand-700: oklch(0.3 0.12 2.5);
 
-  /* Semantic surfaces and text. Remapped for dark below. */
+  /*
+   * A filled brand control and the text on it. Separate from `brand-500`
+   * because the two schemes solve it differently: light mode fills with the
+   * true wine, dark mode has to lighten the fill to stay visible against the
+   * page while still carrying white text.
+   */
+  --color-brand-fill: oklch(0.415 0.143 2.5);
+  --color-on-brand: oklch(1 0 0);
+
+  /*
+   * The logo orange. `accent` is a *fill* — it is too light to be text on a
+   * surface, so anything written on it uses `on-accent`. `accent-strong` is
+   * the same hue darkened until it can be text or an icon on a surface. Using
+   * `accent` where `accent-strong` belongs is the easy mistake here.
+   */
+  --color-accent: oklch(0.748 0.157 55.6);
+  --color-accent-strong: oklch(0.57 0.141 55.6);
+  --color-on-accent: oklch(0.24 0.014 350);
+
+  /*
+   * Semantic surfaces and text. The neutrals carry a trace of the brand hue
+   * rather than the usual blue-grey, so greys sit under the wine instead of
+   * fighting it. Remapped for dark below.
+   */
   --color-surface: oklch(1 0 0);
-  --color-surface-muted: oklch(0.97 0.005 250);
+  --color-surface-muted: oklch(0.972 0.006 350);
   --color-surface-raised: oklch(1 0 0);
-  --color-content: oklch(0.24 0.02 250);
-  --color-content-muted: oklch(0.53 0.02 250);
+  --color-content: oklch(0.24 0.014 350);
+  --color-content-muted: oklch(0.505 0.014 350);
 
   /*
    * Two border tokens on purpose. `border` is decorative (card edges,
@@ -57,8 +86,8 @@
    * `border-strong` is for boundaries that identify an interactive control,
    * such as a text input, where 3:1 *is* required.
    */
-  --color-border: oklch(0.9 0.01 250);
-  --color-border-strong: oklch(0.66 0.01 250);
+  --color-border: oklch(0.9 0.008 350);
+  --color-border-strong: oklch(0.655 0.01 350);
 
   /* Feedback */
   --color-danger: oklch(0.58 0.2 25);
@@ -80,14 +109,33 @@
  * light value in both schemes.
  */
 :root {
-  --dark-surface: oklch(0.19 0.02 250);
-  --dark-surface-muted: oklch(0.24 0.02 250);
-  --dark-surface-raised: oklch(0.26 0.02 250);
-  --dark-content: oklch(0.96 0.01 250);
-  --dark-content-muted: oklch(0.72 0.02 250);
+  /*
+   * The wine is too dark to read against a dark page, so the dark scheme
+   * lifts the whole brand ramp rather than reusing it. `brand-fill` stays
+   * darker than `brand-500` because it still has to carry white text.
+   */
+  --dark-brand-50: oklch(0.255 0.045 2.5);
+  --dark-brand-100: oklch(0.31 0.06 2.5);
+  --dark-brand-500: oklch(0.66 0.143 2.5);
+  --dark-brand-600: oklch(0.71 0.14 2.5);
+  --dark-brand-700: oklch(0.76 0.13 2.5);
+  --dark-brand-fill: oklch(0.56 0.143 2.5);
 
-  --dark-border: oklch(0.34 0.02 250);
-  --dark-border-strong: oklch(0.54 0.02 250);
+  /*
+   * `accent` and `on-accent` are absent on purpose: the orange is already
+   * light enough to read on a dark page, and the dark text written on it
+   * stays dark in both schemes.
+   */
+  --dark-accent-strong: oklch(0.7 0.157 55.6);
+
+  --dark-surface: oklch(0.19 0.012 350);
+  --dark-surface-muted: oklch(0.235 0.014 350);
+  --dark-surface-raised: oklch(0.26 0.014 350);
+  --dark-content: oklch(0.96 0.008 350);
+  --dark-content-muted: oklch(0.72 0.014 350);
+
+  --dark-border: oklch(0.34 0.014 350);
+  --dark-border-strong: oklch(0.54 0.014 350);
 
   /* Lightened so they still clear 4.5:1 against the dark surface. */
   --dark-danger: oklch(0.68 0.18 25);
@@ -113,6 +161,13 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
+    --color-brand-50: var(--dark-brand-50);
+    --color-brand-100: var(--dark-brand-100);
+    --color-brand-500: var(--dark-brand-500);
+    --color-brand-600: var(--dark-brand-600);
+    --color-brand-700: var(--dark-brand-700);
+    --color-brand-fill: var(--dark-brand-fill);
+    --color-accent-strong: var(--dark-accent-strong);
     --color-surface: var(--dark-surface);
     --color-surface-muted: var(--dark-surface-muted);
     --color-surface-raised: var(--dark-surface-raised);
@@ -127,6 +182,13 @@
 
 :root[data-theme='dark'] {
   color-scheme: dark;
+  --color-brand-50: var(--dark-brand-50);
+  --color-brand-100: var(--dark-brand-100);
+  --color-brand-500: var(--dark-brand-500);
+  --color-brand-600: var(--dark-brand-600);
+  --color-brand-700: var(--dark-brand-700);
+  --color-brand-fill: var(--dark-brand-fill);
+  --color-accent-strong: var(--dark-accent-strong);
   --color-surface: var(--dark-surface);
   --color-surface-muted: var(--dark-surface-muted);
   --color-surface-raised: var(--dark-surface-raised);
@@ -153,30 +215,42 @@
  */
 @supports not (color: oklch(0 0 0)) {
   :root {
-    --color-brand-50: #ebf7ff;
-    --color-brand-100: #cfebff;
-    --color-brand-500: #0076d8;
-    --color-brand-600: #0060c0;
-    --color-brand-700: #004c9f;
+    --color-brand-50: #fff2f5;
+    --color-brand-100: #ffdee5;
+    --color-brand-500: #851c45;
+    --color-brand-600: #710c37;
+    --color-brand-700: #590129;
+    --color-brand-fill: #851c45;
+    --color-on-brand: #ffffff;
+    --color-accent: #f78f3c;
+    --color-accent-strong: #b45c00;
+    --color-on-accent: #251d20;
     --color-surface: #ffffff;
-    --color-surface-muted: #f3f5f8;
+    --color-surface-muted: #f9f4f6;
     --color-surface-raised: #ffffff;
-    --color-content: #182029;
-    --color-content-muted: #636d77;
-    --color-border: #d9dfe5;
-    --color-border-strong: #8e9398;
+    --color-content: #251d20;
+    --color-content-muted: #6b6266;
+    --color-border: #e2dcdf;
+    --color-border-strong: #968e91;
     --color-danger: #d73337;
     --color-success: #05893e;
     --shadow-card:
       0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.06);
 
-    --dark-surface: #0d151c;
-    --dark-surface-muted: #182029;
-    --dark-surface-raised: #1d252d;
-    --dark-content: #edf2f8;
-    --dark-content-muted: #9ba6b1;
-    --dark-border: #303942;
-    --dark-border-strong: #66707a;
+    --dark-brand-50: #341921;
+    --dark-brand-100: #49222e;
+    --dark-brand-500: #d8698a;
+    --dark-brand-600: #e8799a;
+    --dark-brand-700: #f58caa;
+    --dark-brand-fill: #b54a6d;
+    --dark-accent-strong: #e68028;
+    --dark-surface: #181215;
+    --dark-surface-muted: #231b1f;
+    --dark-surface-raised: #2a2125;
+    --dark-content: #f6f0f2;
+    --dark-content-muted: #aca1a6;
+    --dark-border: #3e3539;
+    --dark-border-strong: #756b70;
     --dark-danger: #f3625d;
     --dark-success: #53be70;
   }
