@@ -43,6 +43,10 @@ const PAIRS = [
   // surface.
   ['on-accent', 'accent', AA_TEXT],
   ['accent-strong', 'surface', AA_TEXT],
+  // App chrome is its own surface, so anything placed on a bar is checked
+  // against the bar rather than against the page.
+  ['on-chrome', 'chrome', AA_TEXT],
+  ['accent', 'chrome', AA_TEXT],
   ['border-strong', 'surface', AA_UI],
   ['border-strong', 'surface-raised', AA_UI],
 ];

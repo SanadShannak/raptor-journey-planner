@@ -60,6 +60,18 @@
   --color-on-brand: oklch(1 0 0);
 
   /*
+   * App chrome — the header, nav, and any persistent bar. Deep wine in both
+   * schemes, so the brand is where the eye lands first while itineraries and
+   * the map stay on a calm neutral ground. Light mode sits one step darker
+   * than `brand-500` because the orange accent has to stay legible on it.
+   *
+   * Chrome is a *surface*, not the brand ramp: use `brand-500` for brand
+   * coloured text on a normal page, and `chrome` only for a bar.
+   */
+  --color-chrome: oklch(0.36 0.135 2.5);
+  --color-on-chrome: oklch(1 0 0);
+
+  /*
    * The logo orange. `accent` is a *fill* — it is too light to be text on a
    * surface, so anything written on it uses `on-accent`. `accent-strong` is
    * the same hue darkened until it can be text or an icon on a surface. Using
@@ -121,6 +133,10 @@
   --dark-brand-700: oklch(0.76 0.13 2.5);
   --dark-brand-fill: oklch(0.56 0.143 2.5);
 
+  /* Deepened so a wine bar does not glare against a dark page at night. */
+  --dark-chrome: oklch(0.3 0.12 2.5);
+  --dark-on-chrome: oklch(0.97 0.014 2.5);
+
   /*
    * `accent` and `on-accent` are absent on purpose: the orange is already
    * light enough to read on a dark page, and the dark text written on it
@@ -167,6 +183,8 @@
     --color-brand-600: var(--dark-brand-600);
     --color-brand-700: var(--dark-brand-700);
     --color-brand-fill: var(--dark-brand-fill);
+    --color-chrome: var(--dark-chrome);
+    --color-on-chrome: var(--dark-on-chrome);
     --color-accent-strong: var(--dark-accent-strong);
     --color-surface: var(--dark-surface);
     --color-surface-muted: var(--dark-surface-muted);
@@ -188,6 +206,8 @@
   --color-brand-600: var(--dark-brand-600);
   --color-brand-700: var(--dark-brand-700);
   --color-brand-fill: var(--dark-brand-fill);
+  --color-chrome: var(--dark-chrome);
+  --color-on-chrome: var(--dark-on-chrome);
   --color-accent-strong: var(--dark-accent-strong);
   --color-surface: var(--dark-surface);
   --color-surface-muted: var(--dark-surface-muted);
@@ -222,6 +242,8 @@
     --color-brand-700: #590129;
     --color-brand-fill: #851c45;
     --color-on-brand: #ffffff;
+    --color-chrome: #710c37;
+    --color-on-chrome: #ffffff;
     --color-accent: #f78f3c;
     --color-accent-strong: #b45c00;
     --color-on-accent: #251d20;
@@ -243,6 +265,8 @@
     --dark-brand-600: #e8799a;
     --dark-brand-700: #f58caa;
     --dark-brand-fill: #b54a6d;
+    --dark-chrome: #590129;
+    --dark-on-chrome: #fef1f4;
     --dark-accent-strong: #e68028;
     --dark-surface: #181215;
     --dark-surface-muted: #231b1f;
