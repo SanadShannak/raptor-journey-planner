@@ -35,7 +35,7 @@ cd frontend && npm run lint                    # oxlint
 cd frontend && npm test                        # vitest, single run
 cd frontend && npm run test:watch              # vitest, watch mode
 cd frontend && npx vitest run path/to/x.test.ts   # a single test file
-cd frontend && npm run check:contrast          # WCAG AA check on design tokens
+cd frontend && npm run check:contrast          # WCAG AA check on design tokens, both schemes
 ```
 
 The frontend has a Vitest suite. **The pipeline and backend have no tests and are not to get any** — `npm test` there is an unimplemented stub. Verify backend behaviour by calling the running server.
@@ -83,6 +83,9 @@ Deliberately small dependency footprint. Before adding any package, justify it: 
 - **No `any`** without a documented, unavoidable reason. `tsconfig.app.json` runs `strict` plus `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` — optional properties therefore need an explicit `| undefined`.
 - **Environment config only via `src/config/env.ts`**, which validates at startup. The backend URL is `VITE_API_BASE_URL`; it has no fallback and will throw if unset.
 - **No literal colours, radii, or shadows in components.** Use the design tokens declared in the `@theme` block of `src/styles/index.css` (Tailwind v4 — tokens become both CSS variables and utilities). Add a token rather than an arbitrary value.
+- **Light is the base palette; dark is an override.** Dark values are declared once as `--dark-*` and mapped onto the semantic tokens by two rules — a `prefers-color-scheme` query that paints the first frame before any JavaScript runs, and a `:root[data-theme='dark']` rule for the in-app choice. Add a token to *both* mapping blocks or `check:contrast` will fail.
+- **Colour scheme is a three-way choice** (`light` / `dark` / `system`) in `src/theme/`. "System" removes `data-theme` entirely and hands the decision back to the media query; it must never be stored as a resolved value, or the app stops tracking the OS.
+- **Fonts are self-hosted** and declared in `src/styles/fonts.css`: IBM Plex Sans for Latin, IBM Plex Sans Arabic for Arabic, split by `unicode-range` so neither locale downloads the other's files. No font CDN — it would leak every visitor's IP to a third party. Regenerate the `@font-face` rules from the Fontsource packages when adding a weight or a script; do not import their stylesheets wholesale.
 - **Every async surface needs three states** — loading, empty, and error — designed together with the success state, not bolted on. A journey search that legitimately returns nothing (`NO_ROUTE_FOUND`) is an empty state, not an error.
 - **Never show the API's `error` string to a user.** It is developer-facing English. Map `errorCode` to a localised message; fall back to a generic one for unrecognised codes.
 - **Stay inside the declared browser baseline** (`build.target` in `vite.config.ts`: Chrome/Edge 111, Firefox 113, Safari 15.4). Anything newer needs a feature-detected fallback — see `anySignal()` in `src/api/client.ts` for the pattern, and the `@supports not (color: oklch(...))` block for the CSS one. Widening or narrowing the baseline is a deliberate decision, not a side effect.

@@ -65,6 +65,14 @@ export interface Dictionary {
     /** Accessible label for the language switcher. */
     switcherLabel: string;
   };
+  theme: {
+    /** Accessible label for the colour-scheme switcher. */
+    switcherLabel: string;
+    light: string;
+    dark: string;
+    /** Follow the operating system's colour scheme. */
+    system: string;
+  };
   status: {
     checkingBackend: string;
     backendReachable: string;

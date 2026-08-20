@@ -18,6 +18,12 @@ export const ar: Dictionary = {
   language: {
     switcherLabel: 'اللغة',
   },
+  theme: {
+    switcherLabel: 'المظهر',
+    light: 'فاتح',
+    dark: 'داكن',
+    system: 'النظام',
+  },
   status: {
     checkingBackend: 'جارٍ الاتصال بخدمة تخطيط الرحلات…',
     backendReachable: 'خدمة تخطيط الرحلات متاحة.',

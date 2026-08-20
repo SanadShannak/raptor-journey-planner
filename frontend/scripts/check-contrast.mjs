@@ -88,20 +88,22 @@ const WHITE_HEX = { kind: 'srgb', channels: [255, 255, 255] };
 /**
  * Collects token declarations from one region of the stylesheet.
  *
- * Within a region the light scheme is declared first and a subset is
- * redeclared inside the dark media query, so parsing in source order and
- * letting later values win reproduces exactly what a browser resolves.
+ * The stylesheet declares the light palette as `--color-*` and the dark
+ * palette as `--dark-*`, each exactly once. Dark only names the tokens that
+ * actually differ, so the dark palette is the light one with those applied on
+ * top — the same thing the cascade does at runtime.
  */
-function parseRegion(css, pattern, toValue, white) {
-  const darkBlockStart = css.indexOf('@media (prefers-color-scheme: dark)');
+function parseRegion(css, colorPattern, darkPattern, toValue, white) {
   const light = { white };
-  const dark = { white };
-
-  for (const match of css.matchAll(pattern)) {
-    const value = toValue(match);
-    if (match.index < darkBlockStart) light[match[1]] = value;
-    dark[match[1]] = value;
+  for (const match of css.matchAll(colorPattern)) {
+    light[match[1]] = toValue(match);
   }
+
+  const dark = { ...light };
+  for (const match of css.matchAll(darkPattern)) {
+    dark[match[1]] = toValue(match);
+  }
+
   return { light, dark };
 }
 
@@ -122,20 +124,29 @@ if (fallbackStart === -1) {
   process.exit(1);
 }
 
+const oklchValue = (m) => ({
+  kind: 'oklch',
+  coords: [Number(m[2]), Number(m[3]), Number(m[4])],
+});
+
+const hexValue = (m) => ({
+  kind: 'srgb',
+  channels: [0, 2, 4].map((i) => parseInt(m[2].slice(i, i + 2), 16)),
+});
+
 const modern = parseRegion(
   css.slice(0, fallbackStart),
   /--color-([\w-]+):\s*oklch\(([\d.]+)\s+([\d.]+)\s+([\d.]+)\)/g,
-  (m) => ({ kind: 'oklch', coords: [Number(m[2]), Number(m[3]), Number(m[4])] }),
+  /--dark-([\w-]+):\s*oklch\(([\d.]+)\s+([\d.]+)\s+([\d.]+)\)/g,
+  oklchValue,
   WHITE_OKLCH,
 );
 
 const fallback = parseRegion(
   css.slice(fallbackStart),
   /--color-([\w-]+):\s*#([0-9a-f]{6})\b/gi,
-  (m) => ({
-    kind: 'srgb',
-    channels: [0, 2, 4].map((i) => parseInt(m[2].slice(i, i + 2), 16)),
-  }),
+  /--dark-([\w-]+):\s*#([0-9a-f]{6})\b/gi,
+  hexValue,
   WHITE_HEX,
 );
 
@@ -199,6 +210,33 @@ for (const scheme of ['light', 'dark']) {
   }
 }
 if (failures === 0) console.log('  all fallbacks match their oklch source');
+
+/*
+ * Dark mode is reachable through the media query and through the
+ * `data-theme` attribute, so the stylesheet maps the dark palette onto the
+ * semantic tokens twice. The values are single-source, but the two mapping
+ * blocks still have to list the same tokens — a token added to one and not the
+ * other produces a theme that differs depending on how it was entered.
+ */
+console.log('\ndark mapping blocks');
+const mappings = [
+  ...css.matchAll(/(?::root:not\(\[data-theme='light'\]\)|:root\[data-theme='dark'\])\s*\{([^}]*)\}/g),
+].map(([, body]) => [...body.matchAll(/--color-([\w-]+):\s*var\(--dark-[\w-]+\)/g)].map((m) => m[1]));
+
+if (mappings.length !== 2) {
+  console.log(`  MISSING  expected 2 dark mapping blocks, found ${mappings.length}`);
+  failures += 1;
+} else if (mappings[0].join() !== mappings[1].join()) {
+  const [viaMedia, viaAttribute] = mappings;
+  const only = (a, b) => a.filter((token) => !b.includes(token));
+  console.log(
+    `  MISMATCH  media query only: [${only(viaMedia, viaAttribute)}], ` +
+      `data-theme only: [${only(viaAttribute, viaMedia)}]`,
+  );
+  failures += 1;
+} else {
+  console.log(`  both blocks map the same ${mappings[0].length} tokens`);
+}
 
 if (failures > 0) {
   console.error(`\n${failures} check(s) failed.`);

@@ -1,0 +1,154 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { LocaleProvider } from '../i18n';
+import { ThemeProvider } from './ThemeProvider';
+import { ThemeSwitcher } from './ThemeSwitcher';
+import { THEME_STORAGE_KEY } from './theme';
+import { useTheme } from './themeContext';
+
+/** Change listeners registered by the provider, so tests can fire the OS flip. */
+let listeners: Array<() => void> = [];
+let prefersDark = false;
+
+function stubMatchMedia() {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    writable: true,
+    value: vi.fn((query: string) => ({
+      get matches() {
+        return prefersDark;
+      },
+      media: query,
+      addEventListener: (_: string, handler: () => void) => listeners.push(handler),
+      removeEventListener: (_: string, handler: () => void) => {
+        listeners = listeners.filter((existing) => existing !== handler);
+      },
+    })),
+  });
+}
+
+function Probe() {
+  const { choice, resolved } = useTheme();
+  return (
+    <>
+      <span data-testid="choice">{choice}</span>
+      <span data-testid="resolved">{resolved}</span>
+      <ThemeSwitcher />
+    </>
+  );
+}
+
+function renderApp() {
+  return render(
+    <LocaleProvider>
+      <ThemeProvider>
+        <Probe />
+      </ThemeProvider>
+    </LocaleProvider>,
+  );
+}
+
+beforeEach(() => {
+  localStorage.clear();
+  document.documentElement.removeAttribute('data-theme');
+  listeners = [];
+  prefersDark = false;
+  stubMatchMedia();
+});
+
+afterEach(() => {
+  localStorage.clear();
+  Reflect.deleteProperty(window, 'matchMedia');
+});
+
+describe('ThemeProvider', () => {
+  it('starts on "system" and reports what the OS currently paints', () => {
+    prefersDark = true;
+    renderApp();
+
+    expect(screen.getByTestId('choice').textContent).toBe('system');
+    expect(screen.getByTestId('resolved').textContent).toBe('dark');
+    expect(document.documentElement.hasAttribute('data-theme')).toBe(false);
+  });
+
+  it('applies and persists an explicit choice', () => {
+    renderApp();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Dark' }));
+
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('dark');
+    expect(screen.getByTestId('resolved').textContent).toBe('dark');
+  });
+
+  it('restores a stored choice on the next visit', () => {
+    localStorage.setItem(THEME_STORAGE_KEY, 'light');
+    prefersDark = true;
+    renderApp();
+
+    expect(screen.getByTestId('choice').textContent).toBe('light');
+    expect(screen.getByTestId('resolved').textContent).toBe('light');
+  });
+
+  /*
+   * Returning to "system" has to clear the attribute, otherwise the previous
+   * explicit choice keeps overriding the media query and the setting appears
+   * to do nothing.
+   */
+  it('hands control back to the OS when "system" is chosen again', () => {
+    renderApp();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Dark' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'System' }));
+
+    expect(document.documentElement.hasAttribute('data-theme')).toBe(false);
+    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('system');
+  });
+
+  it('tracks the OS flipping while the page is open on "system"', () => {
+    renderApp();
+    expect(screen.getByTestId('resolved').textContent).toBe('light');
+
+    prefersDark = true;
+    act(() => {
+      for (const notify of listeners) notify();
+    });
+
+    expect(screen.getByTestId('resolved').textContent).toBe('dark');
+  });
+
+  it('ignores the OS flipping once a choice has been made', () => {
+    renderApp();
+    fireEvent.click(screen.getByRole('radio', { name: 'Light' }));
+
+    prefersDark = true;
+    act(() => {
+      for (const notify of listeners) notify();
+    });
+
+    expect(screen.getByTestId('resolved').textContent).toBe('light');
+  });
+});
+
+describe('ThemeSwitcher', () => {
+  /*
+   * Mutually exclusive options, so they must expose themselves as a radio
+   * group: that is what gives arrow-key navigation and an "n of 3" reading
+   * without any ARIA of our own.
+   */
+  it('exposes one checked radio per choice, named by the active locale', () => {
+    renderApp();
+
+    const radios = screen.getAllByRole('radio');
+    expect(radios.map((radio) => radio.getAttribute('value'))).toEqual([
+      'light',
+      'dark',
+      'system',
+    ]);
+    const checked = radios.filter((radio) => (radio as HTMLInputElement).checked);
+    expect(checked.map((radio) => radio.getAttribute('value'))).toEqual(['system']);
+
+    // The legend names the group, so the whole control is announced together.
+    expect(screen.getByRole('group', { name: 'Appearance' })).toBeTruthy();
+  });
+});

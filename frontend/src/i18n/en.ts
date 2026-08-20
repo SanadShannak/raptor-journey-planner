@@ -7,6 +7,12 @@ export const en: Dictionary = {
   language: {
     switcherLabel: 'Language',
   },
+  theme: {
+    switcherLabel: 'Appearance',
+    light: 'Light',
+    dark: 'Dark',
+    system: 'System',
+  },
   status: {
     checkingBackend: 'Contacting the routing service…',
     backendReachable: 'Routing service reachable.',

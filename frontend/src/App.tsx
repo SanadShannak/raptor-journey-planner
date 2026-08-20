@@ -3,6 +3,7 @@ import { getValidDates } from './api/journey';
 import { isApiError } from './api/errors';
 import type { IsoDate } from './types/journey';
 import { LOCALES, LOCALE_NAMES, formatDate, useLocale } from './i18n';
+import { ThemeSwitcher } from './theme';
 
 type LoadState =
   | { status: 'loading' }
@@ -36,22 +37,30 @@ export default function App() {
 
   return (
     <main className="min-h-viewport mx-auto flex max-w-xl flex-col justify-center gap-4 p-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold">{t(strings.app.title)}</h1>
 
-        <div className="flex gap-1" role="group" aria-label={t(strings.language.switcherLabel)}>
-          {LOCALES.map((option) => (
-            <button
-              key={option}
-              type="button"
-              lang={option}
-              onClick={() => setLocale(option)}
-              aria-current={option === locale}
-              className="rounded-control border-border focus-visible:outline-brand-500 aria-[current=true]:bg-brand-500 border px-3 py-1 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 aria-[current=true]:text-white"
-            >
-              {LOCALE_NAMES[option]}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-4">
+          <ThemeSwitcher />
+
+          <div
+            className="flex gap-1"
+            role="group"
+            aria-label={t(strings.language.switcherLabel)}
+          >
+            {LOCALES.map((option) => (
+              <button
+                key={option}
+                type="button"
+                lang={option}
+                onClick={() => setLocale(option)}
+                aria-current={option === locale}
+                className="rounded-control border-border-strong focus-visible:outline-brand-500 aria-[current=true]:bg-brand-500 aria-[current=true]:border-brand-500 border px-3 py-1 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 aria-[current=true]:text-white"
+              >
+                {LOCALE_NAMES[option]}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

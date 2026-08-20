@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import './fonts.css';
 
 /*
  * Design tokens.
@@ -6,20 +7,33 @@
  * Everything declared in `@theme` becomes both a CSS custom property and a
  * Tailwind utility (`--color-surface` → `bg-surface`, `text-surface`, …), so
  * components reference token names and never literal colour or radius values.
- * Re-theming is a matter of editing this block.
+ * Re-theming is a matter of editing this file.
+ *
+ * The light palette is the base. Dark values are declared once as `--dark-*`
+ * further down and mapped onto the semantic tokens by the two rules below it —
+ * so each colour has exactly one definition per scheme, not one per selector.
  *
  * This is a deliberately small starting set; it will grow as the visual design
  * is built out.
  */
 @theme {
+  /*
+   * Both families are listed in one stack. Their `unicode-range` declarations
+   * do not overlap, so the browser picks per character: Arabic text gets IBM
+   * Plex Sans Arabic and Latin text gets IBM Plex Sans, in either locale. That
+   * matters in both directions — the language switcher renders "العربية"
+   * inside the English UI, and route designations arrive from GTFS in Latin
+   * script ("M2", "550") and must stay legible inside Arabic sentences.
+   */
   --font-sans:
-    'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
-    'Helvetica Neue', Arial, 'Noto Sans Arabic', sans-serif;
+    'IBM Plex Sans Variable', 'IBM Plex Sans Arabic', ui-sans-serif, system-ui,
+    -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 
   /*
    * Contrast is verified, not assumed. Every foreground/background pair below
    * meets WCAG 2.1 AA in both colour schemes: 4.5:1 for text, 3:1 for UI
-   * boundaries. Re-check when changing any of these values.
+   * boundaries. Re-check with `npm run check:contrast` when changing any of
+   * these values.
    */
 
   /* Brand. `brand-500` is capped at the lightness where white text on it still
@@ -30,7 +44,7 @@
   --color-brand-600: oklch(0.49 0.18 250);
   --color-brand-700: oklch(0.42 0.16 250);
 
-  /* Semantic surfaces and text. Overridden per colour scheme below. */
+  /* Semantic surfaces and text. Remapped for dark below. */
   --color-surface: oklch(1 0 0);
   --color-surface-muted: oklch(0.97 0.005 250);
   --color-surface-raised: oklch(1 0 0);
@@ -58,21 +72,70 @@
   --shadow-card: 0 1px 2px oklch(0 0 0 / 0.06), 0 4px 12px oklch(0 0 0 / 0.06);
 }
 
+/*
+ * The dark palette, declared once. These are plain custom properties rather
+ * than `@theme` entries on purpose: they are raw values, not part of the
+ * design vocabulary components use, so they must not generate utilities. Only
+ * tokens that actually differ from light are listed; anything absent keeps its
+ * light value in both schemes.
+ */
+:root {
+  --dark-surface: oklch(0.19 0.02 250);
+  --dark-surface-muted: oklch(0.24 0.02 250);
+  --dark-surface-raised: oklch(0.26 0.02 250);
+  --dark-content: oklch(0.96 0.01 250);
+  --dark-content-muted: oklch(0.72 0.02 250);
+
+  --dark-border: oklch(0.34 0.02 250);
+  --dark-border-strong: oklch(0.54 0.02 250);
+
+  /* Lightened so they still clear 4.5:1 against the dark surface. */
+  --dark-danger: oklch(0.68 0.18 25);
+  --dark-success: oklch(0.72 0.15 150);
+}
+
+/*
+ * Dark mode is reachable two ways, which is why the mapping appears twice.
+ *
+ * The media query is what paints the very first frame: the stylesheet is
+ * parsed before any JavaScript runs, so a visitor whose system is dark never
+ * sees a white flash while the bundle loads. `:not([data-theme='light'])`
+ * lets an explicit light choice opt back out of it.
+ *
+ * The attribute rule is the in-app toggle (see src/theme/). It is written
+ * second and has equal specificity, so an explicit choice always beats the
+ * system preference. Choosing "system" removes the attribute entirely and
+ * hands control back to the media query above.
+ *
+ * The two blocks must stay identical; `npm run check:contrast` fails if they
+ * drift apart.
+ */
 @media (prefers-color-scheme: dark) {
-  @theme {
-    --color-surface: oklch(0.19 0.02 250);
-    --color-surface-muted: oklch(0.24 0.02 250);
-    --color-surface-raised: oklch(0.26 0.02 250);
-    --color-content: oklch(0.96 0.01 250);
-    --color-content-muted: oklch(0.72 0.02 250);
-
-    --color-border: oklch(0.34 0.02 250);
-    --color-border-strong: oklch(0.54 0.02 250);
-
-    /* Lightened so they still clear 4.5:1 against the dark surface. */
-    --color-danger: oklch(0.68 0.18 25);
-    --color-success: oklch(0.72 0.15 150);
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --color-surface: var(--dark-surface);
+    --color-surface-muted: var(--dark-surface-muted);
+    --color-surface-raised: var(--dark-surface-raised);
+    --color-content: var(--dark-content);
+    --color-content-muted: var(--dark-content-muted);
+    --color-border: var(--dark-border);
+    --color-border-strong: var(--dark-border-strong);
+    --color-danger: var(--dark-danger);
+    --color-success: var(--dark-success);
   }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-surface: var(--dark-surface);
+  --color-surface-muted: var(--dark-surface-muted);
+  --color-surface-raised: var(--dark-surface-raised);
+  --color-content: var(--dark-content);
+  --color-content-muted: var(--dark-content-muted);
+  --color-border: var(--dark-border);
+  --color-border-strong: var(--dark-border-strong);
+  --color-danger: var(--dark-danger);
+  --color-success: var(--dark-success);
 }
 
 /*
@@ -80,6 +143,9 @@
  * Firefox. Tailwind compiles every utility to `var(--color-*)`, so overriding
  * the variables here is enough; no utility needs duplicating and the cost is
  * a few hundred bytes that modern browsers never download the benefit of.
+ *
+ * Only values are redefined. The scheme-switching rules above resolve
+ * `var(--dark-*)` at use time, so they pick these up without being repeated.
  *
  * These hex values are the sRGB conversions of the oklch values above and are
  * verified by `npm run check:contrast`, which fails if they drift apart or
@@ -103,20 +169,16 @@
     --color-success: #05893e;
     --shadow-card:
       0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.06);
-  }
 
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --color-surface: #0d151c;
-      --color-surface-muted: #182029;
-      --color-surface-raised: #1d252d;
-      --color-content: #edf2f8;
-      --color-content-muted: #9ba6b1;
-      --color-border: #303942;
-      --color-border-strong: #66707a;
-      --color-danger: #f3625d;
-      --color-success: #53be70;
-    }
+    --dark-surface: #0d151c;
+    --dark-surface-muted: #182029;
+    --dark-surface-raised: #1d252d;
+    --dark-content: #edf2f8;
+    --dark-content-muted: #9ba6b1;
+    --dark-border: #303942;
+    --dark-border-strong: #66707a;
+    --dark-danger: #f3625d;
+    --dark-success: #53be70;
   }
 }
 
@@ -138,7 +200,12 @@
 @layer base {
   html {
     font-family: var(--font-sans);
-    color-scheme: light dark;
+    /*
+     * Light is the base scheme; the rules above switch this to `dark` when the
+     * dark palette is active, which is what recolours form controls,
+     * scrollbars, and the space outside the page.
+     */
+    color-scheme: light;
   }
 
   body {
