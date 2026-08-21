@@ -11,6 +11,11 @@ import { useTheme } from './themeContext';
  * under their labels; the ring is drawn on the sibling span via `peer-*`.
  * `:has()` would express this more directly but lands after the Firefox
  * version in the browser baseline, so the peer pattern is used instead.
+ *
+ * Styled for the wine app bar, which is the only place it renders. The
+ * selected state inverts to `bg-on-chrome text-chrome`: `brand-fill` on
+ * `chrome` would be wine on wine, and it would break the rule that anything
+ * placed on a bar is contrast-checked against the bar.
  */
 export function ThemeSwitcher() {
   const { strings, t } = useLocale();
@@ -36,7 +41,7 @@ export function ThemeSwitcher() {
             onChange={() => setTheme(option)}
             className="peer sr-only"
           />
-          <span className="rounded-control border-border-strong text-content peer-checked:bg-brand-fill peer-checked:border-brand-fill peer-focus-visible:outline-brand-500 block border px-3 py-1 text-sm peer-checked:text-on-brand peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2">
+          <span className="rounded-control border-chrome-border text-on-chrome peer-checked:bg-on-chrome peer-checked:border-on-chrome peer-focus-visible:outline-on-chrome block border px-2.5 py-1 text-sm peer-checked:text-chrome peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2">
             {labels[option]}
           </span>
         </label>

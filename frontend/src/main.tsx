@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import App from './App';
+import { App } from './app/App';
 import { LocaleProvider, applyDocumentLocale, resolveInitialLocale } from './i18n';
 import { ThemeProvider, applyDocumentTheme, resolveInitialThemeChoice } from './theme';
 import './styles/index.css';

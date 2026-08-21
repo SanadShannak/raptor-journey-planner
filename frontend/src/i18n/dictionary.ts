@@ -65,6 +65,66 @@ export interface Dictionary {
     /** Accessible label for the language switcher. */
     switcherLabel: string;
   };
+
+  nav: {
+    /** Names the primary navigation landmark for a screen reader. */
+    primaryLabel: string;
+    /** First focusable control on the page; jumps past the header. */
+    skipToContent: string;
+    /** Toggle for the navigation panel on narrow screens. */
+    openMenu: string;
+    closeMenu: string;
+    home: string;
+    plan: string;
+    routes: string;
+    stops: string;
+    card: string;
+  };
+
+  /** One entry per page: the `<h1>` and, where useful, its supporting copy. */
+  pages: {
+    home: {
+      title: string;
+      tagline: string;
+      planCard: string;
+      planCardBody: string;
+      routesCard: string;
+      routesCardBody: string;
+      stopsCard: string;
+      stopsCardBody: string;
+      cardCard: string;
+      cardCardBody: string;
+    };
+    plan: { title: string; comingSoon: string };
+    routes: { title: string; comingSoon: string };
+    stops: { title: string; comingSoon: string };
+    card: { title: string; needsAccount: string };
+    notFound: { title: string; body: string; backHome: string };
+  };
+
+  /**
+   * Sign-in is never a gate: these open a dialog over whatever the visitor was
+   * doing, and nothing on the site requires them.
+   */
+  auth: {
+    logIn: string;
+    signUp: string;
+    close: string;
+    name: string;
+    email: string;
+    password: string;
+    submitLogIn: string;
+    submitSignUp: string;
+    switchToSignUp: string;
+    switchToLogIn: string;
+    /** Shown on submit — accounts do not exist yet, and pretending is worse. */
+    unavailable: string;
+    nameRequired: string;
+    emailRequired: string;
+    emailInvalid: string;
+    passwordRequired: string;
+    passwordTooShort: string;
+  };
   theme: {
     /** Accessible label for the colour-scheme switcher. */
     switcherLabel: string;

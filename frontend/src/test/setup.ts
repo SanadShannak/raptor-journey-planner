@@ -50,5 +50,39 @@ for (const target of new Set<object>([globalThis, window])) {
   });
 }
 
+/*
+ * jsdom implements <dialog> as an element but not its modal behaviour, so
+ * showModal() and close() are simply missing. Same reasoning as the storage
+ * shim above: the environment is made to behave like a browser rather than the
+ * application being written around a gap in the test runtime.
+ *
+ * Only the parts under test are modelled — the `open` state, which is what
+ * makes the dialog visible to queries, and the `close` event React listens for.
+ * Focus trapping and inertness are real browser behaviour that cannot be
+ * meaningfully faked here, and are not what these tests assert.
+ */
+if (typeof HTMLDialogElement !== 'undefined') {
+  if (!HTMLDialogElement.prototype.showModal) {
+    HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) {
+      this.open = true;
+    };
+  }
+  if (!HTMLDialogElement.prototype.show) {
+    HTMLDialogElement.prototype.show = function show(this: HTMLDialogElement) {
+      this.open = true;
+    };
+  }
+  if (!HTMLDialogElement.prototype.close) {
+    HTMLDialogElement.prototype.close = function close(
+      this: HTMLDialogElement,
+      returnValue?: string,
+    ) {
+      this.open = false;
+      if (returnValue !== undefined) this.returnValue = returnValue;
+      this.dispatchEvent(new Event('close'));
+    };
+  }
+}
+
 // jsdom is reused across tests in a file, so mounted trees must be torn down.
 afterEach(cleanup);

@@ -9,6 +9,7 @@ export {
   type PluralForms,
 } from './dictionary';
 export { LocaleProvider } from './LocaleProvider';
+export { LanguageSwitcher } from './LanguageSwitcher';
 export { useLocale, type LocaleContextValue } from './localeContext';
 export { applyDocumentLocale, resolveInitialLocale } from './documentLocale';
 export {
