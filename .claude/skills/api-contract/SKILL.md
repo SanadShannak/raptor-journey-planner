@@ -13,12 +13,12 @@ The authoritative sources, in order: a live response, then `backend/utils/format
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| GET | `/api/route` | Plan a journey (**singular**) |
+| GET | `/api/planner` | Plan a journey |
 | GET | `/api/valid-dates` | Dates the loaded timetable covers |
 | GET | `/api/network` | Network identity, clock, and capability manifest |
 | GET | `/api/stop/:gtfsId` | Live departure board |
 | GET | `/api/stop/:gtfsId/timetable?date=` | Whole-day timetable |
-| GET | `/api/routes` | Line index (**plural** — inspection, not planning) |
+| GET | `/api/routes` | Line index — inspection, not planning |
 | GET | `/api/routes/:lineId` | One line and its variants |
 | GET | `/api/routes/:lineId/:patternId` | One variant, with stops and geometry |
 | GET | `/api/health` | `{ status, message }` liveness probe |
@@ -61,7 +61,7 @@ alone cannot express that.
 
 `/api/valid-dates` returns a plain ascending array of `YYYY-MM-DD` strings. It is computed once at boot from `active-services.processed.json` and cached, so it is cheap to call.
 
-## `/api/route` query parameters
+## `/api/planner` query parameters
 
 | Parameter | Required | Notes |
 | --- | --- | --- |
@@ -105,13 +105,18 @@ Common to both modes: `mode`, `waitDurationMinutes`, `startDate`, `startTime`, `
 | `transitDistanceMeters` | `null` | `number \| null` — see below |
 | `walkDurationMinutes` | `number` | `null` |
 | `walkDistanceMeters` | `number` | `null` |
-| `lineId` | `null` | `` `${routeType}-${routeShortName}` `` — the key `/api/routes/:lineId` takes |
+| `lineId` | `null` | `` `${modeSlug}-${routeShortName}` `` — e.g. `bus-550`, `tram-1`. The key `/api/routes/:lineId` takes |
 | `routeLongName` | `null` | `string \| null` — null when the feed omits it |
 | `directionId` | `null` | `0 \| 1 \| null` — null when the feed omits it |
 | `destination` | `null` | `string \| null` — see below |
 
 `lineId` exists because designations collide across modes: HSL has `"H"` as
-both a tram (`route_type` 0) and a train (`route_type` 2).
+both a tram and a train, which become `tram-H` and `train-H`. The mode is
+written as a word rather than the raw `route_type` so the identifier is legible
+in a URL. Slugs: `tram` `metro` `train` `bus` `ferry` `cable-tram` `cable-car`
+`funicular` `trolleybus` `monorail`, falling back to `mode<N>` for a type the
+table does not name. Split on the first hyphen — no designation in the feed
+contains one.
 
 `destination` is the trip's own headsign when the feed carries one, falling
 back to the pattern's last stop name when it does not. It is deliberately
@@ -130,7 +135,7 @@ Time spent waiting at `fromStop` **before** the leg departs at `startTime`. It o
 ### Stops
 
 `fromStop` / `toStop` are `{ id, name, code, lat, lon }`. `id` is the GTFS stop
-id — the same value `/api/route` accepts as `originStopId`, which is what makes
+id — the same value `/api/planner` accepts as `originStopId`, which is what makes
 "plan onward from this stop" a link rather than a lookup.
 
 Journeys that begin or end at a dropped pin use synthetic stops: `name` `"ORIGIN"` / `"TARGET"`, `code` `"ORIGIN_PIN"` / `"TARGET_PIN"`. Treat these as pins in the UI, not as real stations.

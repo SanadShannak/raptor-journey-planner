@@ -4,7 +4,7 @@ const serverConfig = require("./serverConfig");
 
 // Import Route Handlers
 const validDatesApi = require("./routes/validDatesApi");
-const routingApi = require("./routes/routingApi");
+const plannerApi = require("./routes/plannerApi");
 const stopsApi = require("./routes/stopsApi");
 const networkApi = require("./routes/networkApi");
 const routesApi = require("./routes/routesApi");
@@ -23,10 +23,9 @@ app.get("/api/health", (req, res) => {
 
 // Mount modular routers
 app.use("/api/valid-dates", validDatesApi);
-app.use("/api/route", routingApi);
+app.use("/api/planner", plannerApi);
 app.use("/api/stop", stopsApi);
 app.use("/api/network", networkApi);
-// Note: /api/route (singular) plans a journey; /api/routes inspects lines.
 app.use("/api/routes", routesApi);
 
 // Bind the server

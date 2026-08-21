@@ -82,7 +82,7 @@ Times are 24-hour everywhere, in both languages: the API returns 24-hour values,
 
 ### API contract
 
-Endpoints are `GET /api/route`, `GET /api/valid-dates`, `GET /api/health`. Non-2xx responses carry `{ errorCode, error }`, split 400 (validation, from `index.js`) / 404 (engine, from `raptorEngine.js`) / 500.
+Endpoints are `GET /api/planner` (journey planning), `GET /api/stop/:id`, `GET /api/routes`, `GET /api/network`, `GET /api/valid-dates`, and `GET /api/health`. Non-2xx responses carry `{ errorCode, error }`, split 400 (validation, from `index.js`) / 404 (engine, from `raptorEngine.js`) / 500.
 
 **The full contract — every parameter, field, nullability rule, error code, and rounding behaviour — lives in the `api-contract` skill.** Load it before touching `frontend/src/api` or `frontend/src/types`, or when interpreting any response field.
 

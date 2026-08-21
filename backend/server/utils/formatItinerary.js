@@ -3,6 +3,7 @@ const formatDuration = require("./formatDuration");
 const calculateTotalDurationFromStartToEnd = require("./calculateTotalDurationFromStartToEnd");
 const formatDistance = require("./formatDistance");
 const { getCache, getTripHeadsign } = require("../../memoryCache");
+const { lineIdFor } = require("./lineIdentity");
 
 /*
  * Presenter for a raw itinerary: seconds become clock strings, distances get
@@ -14,12 +15,6 @@ const { getCache, getTripHeadsign } = require("../../memoryCache");
  * places — never a missing key, so a consumer can read every field
  * unconditionally and decide what to render.
  */
-
-/** The stable identifier for a line. Designations collide across modes. */
-function lineIdFor(route) {
-  if (!route) return null;
-  return `${route.route_type}-${route.short_name}`;
-}
 
 /**
  * Where a transit leg's vehicle is ultimately heading.

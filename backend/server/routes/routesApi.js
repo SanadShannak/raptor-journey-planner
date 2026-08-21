@@ -3,6 +3,7 @@ const router = express.Router();
 
 const { getCache, getCapabilities } = require("../../memoryCache");
 const convertSecondsToTimeOfDay = require("../utils/convertSecondsToTimeOfDay");
+const { lineIdFor } = require("../utils/lineIdentity");
 
 const cache = getCache();
 const capabilities = getCapabilities();
@@ -20,11 +21,6 @@ const capabilities = getCapabilities();
  * variants are still listed and labelled by their end points; nothing here
  * invents a direction it cannot prove.
  */
-
-/** Designations collide across modes: "H" is both a tram and a train here. */
-function lineIdFor(route) {
-  return `${route.route_type}-${route.short_name}`;
-}
 
 /**
  * Case- and diacritic-insensitive matching, so "hameentie" finds "Hämeentie".
@@ -321,6 +317,10 @@ module.exports = router;
 /* example usages:
 http://localhost:3000/api/routes
 http://localhost:3000/api/routes?q=kamppi&mode=3
-http://localhost:3000/api/routes/0-4T
-http://localhost:3000/api/routes/0-4T/12
+http://localhost:3000/api/routes/tram-4T
+
+Variant URLs take a patternId belonging to that line — read one from the
+line's own `variants`, do not guess. tram-4T owns patterns 51 and 52; pattern 12
+belongs to tram-1T, so asking for it under 0-4T is correctly a 404:
+http://localhost:3000/api/routes/tram-4T/51
 */

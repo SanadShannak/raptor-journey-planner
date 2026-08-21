@@ -67,7 +67,7 @@ function endpointParams(
 }
 
 /**
- * `GET /api/route` — plans a door-to-door journey between two endpoints,
+ * `GET /api/planner` — plans a door-to-door journey between two endpoints,
  * departing at the given local date and time.
  *
  * Throws an {@link ApiError} with `kind: 'http'` when no journey exists; the
@@ -77,7 +77,7 @@ export async function planJourney(
   query: JourneyQuery,
   options: CallOptions = {},
 ): Promise<Journey> {
-  const body = await getJson('/api/route', {
+  const body = await getJson('/api/planner', {
     signal: options.signal,
     params: {
       ...endpointParams('origin', query.origin),

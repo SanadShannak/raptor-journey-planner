@@ -1,7 +1,7 @@
 /**
  * Domain types for the journey-planning API.
  *
- * These mirror the responses of `GET /api/route` and `GET /api/valid-dates`
+ * These mirror the responses of `GET /api/planner` and `GET /api/valid-dates`
  * exactly as the backend returns them. No field is invented here: every
  * property below was observed on a live response and confirmed against
  * `backend/utils/formatItinerary.js`.
@@ -39,8 +39,14 @@ export type GtfsRouteType = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 11 | 12;
  * `"TARGET_PIN"` and `name` is `"ORIGIN"` or `"TARGET"`.
  */
 export interface Stop {
+  /**
+   * GTFS stop id — the same value `/api/planner` accepts as `originStopId`,
+   * so a leg's stop can be linked to or planned onward from. Null on the
+   * synthetic origin/target pins, which are not real stops.
+   */
+  id: string | null;
   name: string;
-  code: string;
+  code: string | null;
   lat: number;
   lon: number;
 }
@@ -52,8 +58,10 @@ export interface Stop {
  * {@link Stop}, not the same type reused.
  */
 export interface IntermediateStop {
+  /** GTFS stop id, for linking through to the stop. */
+  stopId: string;
   stopName: string;
-  stopCode: string;
+  stopCode: string | null;
   stopLat: number;
   stopLon: number;
   stopArrivalTime: ClockTime;
@@ -95,6 +103,10 @@ export interface WalkLeg extends LegBase {
   /* Always null on a walking leg — kept so the union stays exhaustive. */
   routeShortName: null;
   routeType: null;
+  lineId: null;
+  routeLongName: null;
+  directionId: null;
+  destination: null;
   intermediateStops: null;
   tripId: null;
   transitDurationMinutes: null;
@@ -107,6 +119,32 @@ export interface TransitLeg extends LegBase {
   /** Public-facing line designation, e.g. `"6"`, `"M2"`, `"K"`. */
   routeShortName: string;
   routeType: GtfsRouteType;
+  /**
+   * Identifier for the line, `${modeSlug}-${routeShortName}` — `"bus-550"`,
+   * `"tram-1"`. The designation alone is not unique: HSL runs an `"H"` that is
+   * a tram and an `"H"` that is a train. This is the key `/api/routes/:lineId`
+   * takes.
+   */
+  lineId: string;
+  /**
+   * Descriptive name, e.g. `"Eira - Lasipalatsi - Ooppera - Käpylä"`.
+   * Null when the feed omits the optional `route_long_name` column.
+   */
+  routeLongName: string | null;
+  /**
+   * Which way along the line this leg travels. Null when the feed omits the
+   * optional `direction_id` column — check `capabilities.routeDirection` from
+   * `/api/network` before building UI that depends on it.
+   */
+  directionId: 0 | 1 | null;
+  /**
+   * Where the vehicle is heading: the trip's own destination sign when the
+   * feed carries one, otherwise the pattern's last stop name. Deliberately not
+   * called `headsign` — on a feed without headsigns it is derived, and naming
+   * it after the GTFS field would invite treating a derivation as the
+   * operator's own sign text.
+   */
+  destination: string | null;
   /** Stops passed through between `fromStop` and `toStop`; may be empty. */
   intermediateStops: IntermediateStop[];
   tripId: string;
@@ -134,7 +172,7 @@ export interface TransitLeg extends LegBase {
  */
 export type JourneyLeg = WalkLeg | TransitLeg;
 
-/** A complete door-to-door itinerary returned by `GET /api/route`. */
+/** A complete door-to-door itinerary returned by `GET /api/planner`. */
 export interface Journey {
   startDate: IsoDate;
   startTime: ClockTime;
@@ -156,7 +194,7 @@ export type JourneyEndpoint =
   | { type: 'coordinate'; lat: number; lon: number }
   | { type: 'stop'; stopId: string };
 
-/** Parameters accepted by `GET /api/route`. */
+/** Parameters accepted by `GET /api/planner`. */
 export interface JourneyQuery {
   origin: JourneyEndpoint;
   destination: JourneyEndpoint;

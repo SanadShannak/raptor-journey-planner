@@ -127,5 +127,5 @@ router.get("/", (req, res) => {
 module.exports = router;
 
 /* example usage:
-http://localhost:3000/api/route?originLat=60.20507633764775&originLon=24.962304855335976&destLat=60.14540472&destLon=24.987795623893412&date=2026-09-13&time=18:00:00
+http://localhost:3000/api/planner?originLat=60.20507633764775&originLon=24.962304855335976&destLat=60.14540472&destLon=24.987795623893412&date=2026-09-13&time=18:00:00
 */

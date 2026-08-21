@@ -20,6 +20,7 @@ const {
   getCapabilities,
   getTripHeadsign,
 } = require("../../memoryCache");
+const { lineIdFor } = require("../utils/lineIdentity");
 
 const cache = getCache();
 const capabilities = getCapabilities();
@@ -91,11 +92,6 @@ function describeDestination(route, flatTripId, stopIndex) {
 
   const lastStop = cache.stops[route.stop_ids[route.stop_ids.length - 1]];
   return { destination: lastStop?.name ?? null, terminatesHere: false };
-}
-
-/** Identifies a line, including mode — designations collide across modes. */
-function lineIdFor(route) {
-  return `${route.route_type}-${route.short_name}`;
 }
 
 /** The services running on a given date, as a Set for cheap membership tests. */
