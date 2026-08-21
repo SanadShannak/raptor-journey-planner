@@ -77,6 +77,32 @@ export function parseIsoDate(isoDate: string): Date | null {
   return new Date(Number(year), Number(month) - 1, Number(day));
 }
 
+/**
+ * Formats an API `HH:mm` (or `HH:mm:ss`) string for display.
+ *
+ * 24-hour in every locale, via `hourCycle: 'h23'`. This is a product decision,
+ * not a default: the API returns 24-hour values, printed timetables and stop
+ * poles are 24-hour, and a 12-hour clock makes an after-midnight departure —
+ * "12:40 AM" — easy to read as the wrong end of the day.
+ *
+ * The time is placed on a fixed reference day rather than parsed from a
+ * string, for the same reason `parseIsoDate` builds from parts: a bare time
+ * has no date, and letting `Date` invent one invites a timezone shift.
+ */
+export function formatClockTime(time: string, locale: Locale): string {
+  const match = /^(\d{2}):(\d{2})(?::\d{2})?$/.exec(time);
+  if (!match) return time;
+
+  const [, hours, minutes] = match;
+  const reference = new Date(2000, 0, 1, Number(hours), Number(minutes));
+
+  return new Intl.DateTimeFormat(INTL_LOCALE[locale], {
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(reference);
+}
+
 /** Formats an API `YYYY-MM-DD` string for display, or returns it unchanged. */
 export function formatDate(
   isoDate: string,

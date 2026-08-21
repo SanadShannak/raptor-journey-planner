@@ -66,6 +66,20 @@ The parsers compact relational GTFS text into zero-indexed contiguous arrays: a 
 
 The engine loads *yesterday, today, and tomorrow* schedules with offsets, so itineraries can legitimately cross midnight — `endDate` may be later than `startDate`.
 
+### Time is always the network's clock
+
+**Every timestamp in this system is wall-clock time in the active network's timezone** — never the server's, never the browser's. A Helsinki timetable reads the same whether the server runs in Frankfurt or Virginia and whether the visitor is in Amman or Toronto.
+
+The authoritative source is the feed's own `agency_timezone` (`Europe/Helsinki` for HSL, `Asia/Amman` for an Amman feed). Like `ACTIVE_NETWORK`, it is one value that everything derives from; never hardcode a zone or reach for the host's.
+
+Three rules follow, and the third is the one that gets broken:
+
+1. **Computing "now" or "today" uses the network zone.** Any default date, any "next departures" cutoff, any is-this-in-the-past check. `new Date()` alone is a bug — it answers in the host's zone.
+2. **Date arithmetic builds from parts.** `new Date("2026-09-10")` parses as UTC midnight and lands on the previous day for anyone west of Greenwich, which silently shifts a whole service day. See `convertDateIdToDateObject`.
+3. **Values coming *out* of the API are already network-local — do not convert them again.** `startTime`, `endTime`, and every departure are wall-clock strings in the network's zone. Formatting them with a `timeZone` option would shift them a second time. The zone is only for answering "what time is it there now", never for re-interpreting a value the API already resolved.
+
+Times are 24-hour everywhere, in both languages: the API returns 24-hour values, stop poles and printed timetables are 24-hour, and a 12-hour clock makes an after-midnight departure easy to read as the wrong end of the day.
+
 ### API contract
 
 Endpoints are `GET /api/route`, `GET /api/valid-dates`, `GET /api/health`. Non-2xx responses carry `{ errorCode, error }`, split 400 (validation, from `index.js`) / 404 (engine, from `raptorEngine.js`) / 500.
@@ -81,6 +95,7 @@ Deliberately small dependency footprint. Before adding any package, justify it: 
 - **No `fetch` in components.** All API access goes through `src/api/`; components import `getValidDates()` / `planJourney()` and receive domain types.
 - **Domain types live in `src/types/`**, derived from real API responses. Never invent a field. Nullable in the API means nullable in TypeScript. Legs are a `WALK | TRANSIT` discriminated union on `mode`. When the backend contract changes, verify against a live response and update the `api-contract` skill in the same commit.
 - **No `any`** without a documented, unavoidable reason. `tsconfig.app.json` runs `strict` plus `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` — optional properties therefore need an explicit `| undefined`.
+- **Never call `new Date()` for "now" or "today".** Those come from the network's clock (see *Time is always the network's clock*); the browser's zone is not the network's. Parse API dates with `parseIsoDate` and format API times with `formatClockTime`, neither of which applies a timezone conversion.
 - **Environment config only via `src/config/env.ts`**, which validates at startup. The backend URL is `VITE_API_BASE_URL`; it has no fallback and will throw if unset.
 - **No literal colours, radii, or shadows in components.** Use the design tokens declared in the `@theme` block of `src/styles/index.css` (Tailwind v4 — tokens become both CSS variables and utilities). Add a token rather than an arbitrary value.
 - **`chrome` is a surface, not a brand shade.** The wine header/nav bar uses `bg-chrome text-on-chrome`; brand-coloured text on a normal page uses `brand-500`. Anything placed on a bar is contrast-checked against `chrome`, not against `surface`.

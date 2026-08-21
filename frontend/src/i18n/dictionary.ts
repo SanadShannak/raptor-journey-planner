@@ -79,4 +79,66 @@ export interface Dictionary {
     backendUnreachable: string;
     availableDates: PluralForms;
   };
+
+  /*
+   * Abbreviated units, deliberately.
+   *
+   * "1 hour 25 minutes" needs plural agreement on two independent counts in
+   * one message, which `PluralForms` cannot express (it selects on a single
+   * `count`) and which must not be assembled from two translated fragments.
+   * Abbreviations do not inflect, so the problem disappears rather than being
+   * faked — and they are what transit UIs use anyway.
+   */
+  units: {
+    minutes: string;
+    hours: string;
+    hoursMinutes: string;
+    meters: string;
+    kilometers: string;
+  };
+
+  /**
+   * Transit mode names, one per standard GTFS `route_type`, plus a fallback
+   * for a feed that sends a code outside the standard set.
+   */
+  modes: {
+    tram: string;
+    metro: string;
+    rail: string;
+    bus: string;
+    ferry: string;
+    cableTram: string;
+    aerialLift: string;
+    funicular: string;
+    trolleybus: string;
+    monorail: string;
+    unknown: string;
+  };
+
+  /**
+   * User-facing failure messages, mapped from the API's `errorCode` by
+   * `apiError.ts`. The API's own `error` string is developer-facing English
+   * and is never shown.
+   *
+   * Note there is no message for `NO_ROUTE_FOUND`: a search that legitimately
+   * finds nothing is an empty state, not a failure, and callers branch on it
+   * before reaching this table.
+   */
+  errors: {
+    generic: string;
+    network: string;
+    timeout: string;
+    malformed: string;
+    serverError: string;
+    missingOrigin: string;
+    missingDestination: string;
+    badDate: string;
+    badTime: string;
+    sameOriginTarget: string;
+    noActiveServices: string;
+    originOutOfBounds: string;
+    originStopNotFound: string;
+    destinationOutOfBounds: string;
+    destinationStopNotFound: string;
+  };
 }

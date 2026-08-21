@@ -72,6 +72,14 @@
   --color-on-chrome: oklch(1 0 0);
 
   /*
+   * Outlines for controls sitting *on* the bar. `border-strong` is verified
+   * against `surface` and is invisible here; this is the same job one layer
+   * up. One value serves both schemes — it clears 3:1 on the light chrome and
+   * on the deeper dark one — so it needs no dark override.
+   */
+  --color-chrome-border: oklch(0.64 0.06 2.5);
+
+  /*
    * The logo orange. `accent` is a *fill* — it is too light to be text on a
    * surface, so anything written on it uses `on-accent`. `accent-strong` is
    * the same hue darkened until it can be text or an icon on a surface. Using
@@ -244,6 +252,7 @@
     --color-on-brand: #ffffff;
     --color-chrome: #710c37;
     --color-on-chrome: #ffffff;
+    --color-chrome-border: #ac7d89;
     --color-accent: #f78f3c;
     --color-accent-strong: #b45c00;
     --color-on-accent: #251d20;

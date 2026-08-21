@@ -47,6 +47,7 @@ const PAIRS = [
   // against the bar rather than against the page.
   ['on-chrome', 'chrome', AA_TEXT],
   ['accent', 'chrome', AA_TEXT],
+  ['chrome-border', 'chrome', AA_UI],
   ['border-strong', 'surface', AA_UI],
   ['border-strong', 'surface-raised', AA_UI],
 ];
