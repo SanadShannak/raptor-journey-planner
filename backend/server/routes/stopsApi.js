@@ -2,172 +2,321 @@ const express = require("express");
 const router = express.Router();
 const serverConfig = require("../serverConfig");
 
-const { isValidDate, isValidTime } = require("../utils/inputValidator");
-const convertSecondsToTimeOfDay = require("../utils/convertSecondsToTimeOfDay");
-const convertTimeOfDayToSeconds = require("../utils/convertTimeOfDayToSeconds");
+const { isValidDate } = require("../utils/inputValidator");
+const {
+  nowInNetwork,
+  shiftIsoDate,
+  toDateId,
+  resolveDateAndTime,
+} = require("../utils/networkTime");
 
-const activeNetwork = serverConfig.ACTIVE_NETWORK;
-const localTimezone = serverConfig.NETWORK_TIMEZONES[activeNetwork] || "UTC";
+/*
+ * Everything is read from the shared RAM cache rather than require()d here.
+ * These files are hundreds of megabytes; loading a second copy costs ~450 MB
+ * of heap for data the process already holds.
+ */
+const {
+  getCache,
+  getCapabilities,
+  getTripHeadsign,
+} = require("../../memoryCache");
 
-const activeServices = require(
-  `../../../processed-data/${activeNetwork}-processed-data/active-services.processed.json`,
-);
-const stopMapping = require(
-  `../../../processed-data/${activeNetwork}-processed-data/stop-mapping.json`,
-);
-const stops = require(
-  `../../../processed-data/${activeNetwork}-processed-data/stops.processed.json`,
-);
-const stopToRoutes = require(
-  `../../../processed-data/${activeNetwork}-processed-data/stop-to-routes.json`,
-);
-const routes = require(
-  `../../../processed-data/${activeNetwork}-processed-data/routes.processed.json`,
-);
-const timetables = require(
-  `../../../processed-data/${activeNetwork}-processed-data/timetables.processed.json`,
-);
+const cache = getCache();
+const capabilities = getCapabilities();
 
+const SECONDS_PER_DAY = 86400;
+
+/**
+ * How far past midnight a service day is still considered to be running, for
+ * deciding whether yesterday's late trips belong on tonight's board.
+ */
+const LATE_NIGHT_CUTOFF_SECONDS = 4 * 3600;
+
+/**
+ * Builds the public shape of a stop.
+ *
+ * Field names match `fromStop`/`toStop` on a journey leg so the frontend has
+ * one stop type rather than two, with `id` added because a stop reached
+ * directly can be linked to and planned from. The optional fields are only
+ * attached when this network's feed supplied them — see `available` in
+ * network-meta.
+ */
+function describeStop(internalStopId, fallbackGtfsId) {
+  const stop = cache.stops[internalStopId];
+  if (!stop) {
+    return { id: fallbackGtfsId, name: null, code: null, lat: null, lon: null };
+  }
+
+  const described = {
+    id: stop.gtfs_id,
+    name: stop.name,
+    code: stop.stop_code ?? null,
+    lat: stop.lat,
+    lon: stop.lon,
+  };
+
+  if (stop.desc !== undefined) described.description = stop.desc;
+  if (stop.zone !== undefined) described.fareZone = stop.zone;
+  if (stop.wheelchair !== undefined) {
+    // GTFS: 1 accessible, 2 not accessible. Absent means no information.
+    described.wheelchairAccessible = stop.wheelchair === 1;
+  }
+
+  return described;
+}
+
+/**
+ * Where a trip is heading, and how confidently we know.
+ *
+ * The trip's own destination sign is the truth when the feed carries one — a
+ * pattern's trips do not always share it. Without headsigns the last stop of
+ * the pattern is the honest approximation, which is why the field is called
+ * `destination` rather than `headsign`.
+ *
+ * A trip that ends at the stop being viewed has no onward destination at all;
+ * saying "towards <this stop>" would be nonsense, so that case is flagged.
+ */
+function describeDestination(route, flatTripId, stopIndex) {
+  const terminatesHere = stopIndex === route.stop_ids.length - 1;
+  if (terminatesHere) {
+    return { destination: null, terminatesHere: true };
+  }
+
+  const headsign = getTripHeadsign(flatTripId) ?? route.headsign ?? null;
+  if (headsign !== null) {
+    return { destination: headsign, terminatesHere: false };
+  }
+
+  const lastStop = cache.stops[route.stop_ids[route.stop_ids.length - 1]];
+  return { destination: lastStop?.name ?? null, terminatesHere: false };
+}
+
+/** Identifies a line, including mode — designations collide across modes. */
+function lineIdFor(route) {
+  return `${route.route_type}-${route.short_name}`;
+}
+
+/** The services running on a given date, as a Set for cheap membership tests. */
+function servicesOn(isoDate) {
+  return new Set(cache.activeServices[toDateId(isoDate)] ?? []);
+}
+
+/**
+ * Walks every trip calling at a stop on a given service date.
+ *
+ * Yesterday's services are always considered: a trip that departs at 25:10 on
+ * yesterday's service is the 01:10 departure of the requested date, and
+ * omitting it would leave a hole in the small hours of every board.
+ *
+ * @param {number} internalStopId
+ * @param {string} isoDate Service date being asked about.
+ * @param {(visit: object) => void} visit Called per departure.
+ */
+function forEachDeparture(internalStopId, isoDate, visit) {
+  const servingRoutes = cache.stopToRoutes[internalStopId] ?? [];
+  const today = servicesOn(isoDate);
+  const yesterday = servicesOn(shiftIsoDate(isoDate, -1));
+
+  for (const routeId of servingRoutes) {
+    const route = cache.routes[routeId];
+    if (!route?.stop_ids) continue;
+
+    /*
+     * `indexOf` rather than `stop_order_map`: the map keeps only the last
+     * position when a pattern calls at a stop twice, which a loop route does.
+     */
+    const stopIndex = route.stop_ids.indexOf(internalStopId);
+    if (stopIndex === -1) continue;
+
+    for (const [serviceKey, bucket] of Object.entries(
+      route.service_buckets ?? {},
+    )) {
+      const serviceId = Number.parseInt(serviceKey, 10);
+
+      // Offset converts the trip's own clock onto the requested date's clock.
+      let offset = null;
+      if (today.has(serviceId)) offset = 0;
+      else if (yesterday.has(serviceId)) offset = SECONDS_PER_DAY;
+      if (offset === null) continue;
+
+      const tripIds = Array.isArray(bucket) ? bucket : bucket?.trip_ids;
+      if (!Array.isArray(tripIds)) continue;
+
+      for (const flatTripId of tripIds) {
+        const stopTimes = cache.timetables[flatTripId];
+        const stopTime = stopTimes?.[stopIndex];
+        if (!stopTime) continue;
+
+        visit({
+          route,
+          routeId,
+          flatTripId,
+          stopIndex,
+          departureSeconds: stopTime.departure - offset,
+          arrivalSeconds: stopTime.arrival - offset,
+        });
+      }
+    }
+  }
+}
+
+/** Turns an internal visit into the public departure shape. */
+function describeDeparture(visit, baseIsoDate) {
+  const { route, flatTripId, stopIndex, departureSeconds, arrivalSeconds } =
+    visit;
+
+  const departure = resolveDateAndTime(baseIsoDate, departureSeconds);
+  const arrival = resolveDateAndTime(baseIsoDate, arrivalSeconds);
+  const { destination, terminatesHere } = describeDestination(
+    route,
+    flatTripId,
+    stopIndex,
+  );
+
+  const described = {
+    // Its own date, so an after-midnight departure is never mistaken for this
+    // morning's. Times alone wrap at 24:00 and lose the distinction.
+    date: departure.date,
+    time: departure.time,
+    arrivalDate: arrival.date,
+    arrivalTime: arrival.time,
+    lineId: lineIdFor(route),
+    routeShortName: route.short_name,
+    routeType: route.route_type,
+    destination,
+    terminatesHere,
+    tripId: cache.reverseTripMapping[flatTripId] ?? null,
+  };
+
+  if (route.direction_id !== undefined) {
+    described.directionId = route.direction_id;
+  }
+  if (route.long_name !== undefined) {
+    described.routeLongName = route.long_name;
+  }
+
+  return described;
+}
+
+/** The distinct lines calling at a stop, with where each one goes. */
+function describeServingLines(internalStopId) {
+  const byLine = new Map();
+
+  for (const routeId of cache.stopToRoutes[internalStopId] ?? []) {
+    const route = cache.routes[routeId];
+    if (!route?.stop_ids) continue;
+
+    const stopIndex = route.stop_ids.indexOf(internalStopId);
+    if (stopIndex === -1) continue;
+
+    // Keyed by mode as well as designation: "H" is both a tram and a train.
+    const lineId = lineIdFor(route);
+    if (!byLine.has(lineId)) {
+      const line = {
+        lineId,
+        routeShortName: route.short_name,
+        routeType: route.route_type,
+        destinations: [],
+      };
+      if (route.long_name !== undefined) line.routeLongName = route.long_name;
+      byLine.set(lineId, line);
+    }
+
+    const { destination, terminatesHere } = describeDestination(
+      route,
+      route.service_buckets?.[Object.keys(route.service_buckets)[0]]
+        ?.trip_ids?.[0],
+      stopIndex,
+    );
+    const line = byLine.get(lineId);
+    if (
+      !terminatesHere &&
+      destination !== null &&
+      !line.destinations.includes(destination)
+    ) {
+      line.destinations.push(destination);
+    }
+  }
+
+  return [...byLine.values()].sort((a, b) =>
+    a.routeShortName.localeCompare(b.routeShortName, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    }),
+  );
+}
+
+function resolveStop(gtfsId, res) {
+  const internalStopId = cache.stopMapping[gtfsId];
+  if (internalStopId === undefined) {
+    res
+      .status(404)
+      .json({ errorCode: "STOP_NOT_FOUND", error: "Stop ID not found." });
+    return null;
+  }
+  return internalStopId;
+}
+
+/*
+ * Full timetable for one service date.
+ * GET /api/stop/:id/timetable?date=YYYY-MM-DD
+ */
 router.get("/:id/timetable", (req, res) => {
   try {
     const { id } = req.params;
     const { date } = req.query;
 
-    const internalStopId = stopMapping[id];
-    if (internalStopId === undefined) {
-      return res
-        .status(404)
-        .json({ errorCode: "STOP_NOT_FOUND", error: "Stop ID not found." });
-    }
+    const internalStopId = resolveStop(id, res);
+    if (internalStopId === null) return;
+
     if (!date || !isValidDate(date)) {
-      return res
-        .status(400)
-        .json({ error: "Missing or invalid date (YYYY-MM-DD)" });
+      return res.status(400).json({
+        errorCode: "BAD_DATE",
+        error: "Missing or invalid date (YYYY-MM-DD).",
+      });
     }
 
-    const stopMeta = stops[internalStopId] || {};
-    const stopDetails = {
-      gtfs_id: stopMeta.gtfs_id || id,
-      stop_code: stopMeta.stop_code || null,
-      name: stopMeta.name || "Unknown Stop",
-    };
-
-    const activeRoutes = stopToRoutes[internalStopId] || [];
-    const dateId = date.replace(/-/g, "");
-
-    const queryDate = new Date(date);
-    queryDate.setDate(queryDate.getDate() - 1);
-    const y = queryDate.getFullYear();
-    const m = String(queryDate.getMonth() + 1).padStart(2, "0");
-    const d = String(queryDate.getDate()).padStart(2, "0");
-    const yesterdayId = `${y}${m}${d}`;
-
-    const servicesToday = activeServices[dateId] || [];
-    const servicesYesterday = activeServices[yesterdayId] || [];
-    const rawResults = [];
-    const routesMap = new Map();
-
-    for (const rId of activeRoutes) {
-      const route = routes[rId];
-      if (!route || !route.stop_ids) continue;
-
-      const stopIndex = route.stop_ids.indexOf(internalStopId);
-      if (stopIndex === -1) continue;
-
-      const routeName = route.short_name || "Transit";
-      const routeType = route.route_type;
-
-      if (!routesMap.has(routeName)) {
-        routesMap.set(routeName, { routeShortName: routeName, routeType });
+    const departures = [];
+    forEachDeparture(internalStopId, date, (visit) => {
+      // Only what actually falls on the requested date; a trip running past
+      // midnight belongs to the following day's board, where it will appear
+      // through that day's yesterday-offset pass.
+      if (visit.departureSeconds < 0 || visit.departureSeconds >= SECONDS_PER_DAY) {
+        return;
       }
+      departures.push(visit);
+    });
 
-      for (const [serviceIdStr, bucketData] of Object.entries(
-        route.service_buckets || {},
-      )) {
-        const serviceInt = parseInt(serviceIdStr, 10);
-        let activeOffset = null;
+    departures.sort((a, b) => a.departureSeconds - b.departureSeconds);
 
-        if (servicesToday.includes(serviceInt)) {
-          activeOffset = 0;
-        } else if (servicesYesterday.includes(serviceInt)) {
-          activeOffset = 86400;
-        }
-
-        if (activeOffset !== null) {
-          const tripArray = Array.isArray(bucketData)
-            ? bucketData
-            : bucketData.trip_ids;
-          if (!Array.isArray(tripArray)) continue;
-
-          for (const tripId of tripArray) {
-            const tripStopTimes = timetables[tripId];
-            if (!tripStopTimes || !tripStopTimes[stopIndex]) continue;
-
-            const rawDeparture = tripStopTimes[stopIndex].departure;
-            const rawArrival = tripStopTimes[stopIndex].arrival;
-            const normalizedDeparture = rawDeparture - activeOffset;
-            const normalizedArrival = rawArrival - activeOffset;
-
-            if (normalizedDeparture >= 0 && normalizedDeparture < 86400) {
-              rawResults.push({
-                routeId: rId,
-                routeShortName: routeName,
-                routeType: routeType,
-                tripId: tripId,
-                formattedDeparture:
-                  convertSecondsToTimeOfDay(normalizedDeparture),
-                formattedArrival: convertSecondsToTimeOfDay(normalizedArrival),
-                departureSeconds: normalizedDeparture,
-              });
-            }
-          }
-        }
-      }
-    }
-
-    rawResults.sort((a, b) => a.departureSeconds - b.departureSeconds);
-
-    const scheduleByHour = {};
-    for (const trip of rawResults) {
-      const hourStr = String(Math.floor(trip.departureSeconds / 3600)).padStart(
+    // Grouped as an array, not an object: object keys reorder "07" after "23"
+    // because integer-like keys are hoisted, which silently scrambles a board.
+    const byHour = new Map();
+    for (const visit of departures) {
+      const hour = String(Math.floor(visit.departureSeconds / 3600)).padStart(
         2,
         "0",
       );
-      const minStr = String(
-        Math.floor((trip.departureSeconds % 3600) / 60),
-      ).padStart(2, "0");
-
-      if (!scheduleByHour[hourStr]) {
-        scheduleByHour[hourStr] = [];
-      }
-
-      scheduleByHour[hourStr].push({
-        minute: minStr,
-        route: trip.routeShortName,
-        routeType: trip.routeType,
-        formattedDeparture: trip.formattedDeparture,
-        formattedArrival: trip.formattedArrival,
-      });
+      if (!byHour.has(hour)) byHour.set(hour, []);
+      byHour.get(hour).push(describeDeparture(visit, date));
     }
 
-    const sortedScheduleArray = Object.keys(scheduleByHour)
-      .sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
-      .map((hour) => ({
-        hour: hour,
-        departures: scheduleByHour[hour],
-      }));
-
-    const availableRoutes = Array.from(routesMap.values()).sort((a, b) => {
-      return a.routeShortName.localeCompare(b.routeShortName, undefined, {
-        numeric: true,
-        sensitivity: "base",
-      });
-    });
-
     res.json({
-      stop: stopDetails,
-      availableRoutes,
-      schedule: sortedScheduleArray,
+      stop: describeStop(internalStopId, id),
+      date,
+      servingLines: describeServingLines(internalStopId),
+      schedule: [...byHour.entries()]
+        .sort(([a], [b]) => Number(a) - Number(b))
+        .map(([hour, hourDepartures]) => ({
+          hour,
+          departures: hourDepartures,
+        })),
+      totalDepartures: departures.length,
+      // Empty is a legitimate answer — a date outside the feed's calendar has
+      // no services rather than being an error.
+      outsideTimetableRange:
+        cache.activeServices[toDateId(date)] === undefined,
+      capabilities,
     });
   } catch (error) {
     console.error("[Timetable Endpoint Error]:", error);
@@ -178,122 +327,53 @@ router.get("/:id/timetable", (req, res) => {
   }
 });
 
-router.get("/:id/", (req, res) => {
+/*
+ * Live departure board — what leaves next, from now.
+ * GET /api/stop/:id?limit=n
+ */
+router.get("/:id", (req, res) => {
   try {
     const { id } = req.params;
-    const { limit = serverConfig.DEFAULT_DEPARTURES_LIMIT } = req.query;
+    const limit = Math.max(
+      1,
+      Math.min(
+        200,
+        Number.parseInt(req.query.limit, 10) ||
+          serverConfig.DEFAULT_DEPARTURES_LIMIT,
+      ),
+    );
 
-    const internalStopId = stopMapping[id];
-    if (internalStopId === undefined)
-      return res
-        .status(404)
-        .json({ errorCode: "STOP_NOT_FOUND", error: "Stop ID not found." });
+    const internalStopId = resolveStop(id, res);
+    if (internalStopId === null) return;
 
-    const stopMeta = stops[internalStopId] || {};
-    const stopDetails = {
-      gtfs_id: stopMeta.gtfs_id || id,
-      stop_code: stopMeta.stop_code || null,
-      name: stopMeta.name || "Unknown Stop",
-    };
+    // "Now" is the network's clock, never the host's.
+    const now = nowInNetwork();
 
-    const now = new Date();
-    const formatter = new Intl.DateTimeFormat("en-US", {
-      timeZone: localTimezone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
+    const upcoming = [];
+    forEachDeparture(internalStopId, now.date, (visit) => {
+      if (visit.departureSeconds < now.seconds) return;
+      // Yesterday's trips are only relevant while the small hours are still
+      // running; past that they are yesterday's news.
+      if (
+        visit.departureSeconds < 0 &&
+        now.seconds > LATE_NIGHT_CUTOFF_SECONDS
+      ) {
+        return;
+      }
+      upcoming.push(visit);
     });
 
-    const parts = formatter.formatToParts(now);
-    const tzDate = {};
-    parts.forEach((p) => (tzDate[p.type] = p.value));
+    upcoming.sort((a, b) => a.departureSeconds - b.departureSeconds);
 
-    const currentDate = `${tzDate.year}-${tzDate.month}-${tzDate.day}`;
-    const currentTime = `${tzDate.hour === "24" ? "00" : tzDate.hour}:${tzDate.minute}:${tzDate.second}`;
-
-    const currentSeconds = convertTimeOfDayToSeconds(currentTime);
-    const dateId = currentDate.replace(/-/g, "");
-
-    let isLateNightQuery = false;
-    let yesterdayId = null;
-
-    if (currentSeconds >= 0 && currentSeconds <= 14400) {
-      isLateNightQuery = true;
-      const yesterday = new Date(
-        now.toLocaleString("en-US", { timeZone: localTimezone }),
-      );
-      yesterday.setDate(yesterday.getDate() - 1);
-      const y = yesterday.getFullYear();
-      const m = String(yesterday.getMonth() + 1).padStart(2, "0");
-      const d = String(yesterday.getDate()).padStart(2, "0");
-      yesterdayId = `${y}${m}${d}`;
-    }
-
-    const activeRoutes = stopToRoutes[internalStopId] || [];
-    const servicesToday = activeServices[dateId] || [];
-    const servicesYesterday = yesterdayId
-      ? activeServices[yesterdayId] || []
-      : [];
-    const results = [];
-
-    for (const rId of activeRoutes) {
-      const route = routes[rId];
-      if (!route || !route.stop_ids) continue;
-
-      const stopIndex = route.stop_ids.indexOf(internalStopId);
-      if (stopIndex === -1) continue;
-
-      for (const [serviceIdStr, bucketData] of Object.entries(
-        route.service_buckets || {},
-      )) {
-        const serviceInt = parseInt(serviceIdStr, 10);
-        let activeOffset = null;
-
-        if (servicesToday.includes(serviceInt)) {
-          activeOffset = 0;
-        } else if (isLateNightQuery && servicesYesterday.includes(serviceInt)) {
-          activeOffset = 86400;
-        }
-
-        if (activeOffset !== null) {
-          const tripArray = Array.isArray(bucketData)
-            ? bucketData
-            : bucketData.trip_ids;
-
-          for (const tripId of tripArray) {
-            const tripStopTimes = timetables[tripId];
-            if (!tripStopTimes || !tripStopTimes[stopIndex]) continue;
-
-            const rawDeparture = tripStopTimes[stopIndex].departure;
-            const rawArrival = tripStopTimes[stopIndex].arrival;
-            const targetTime = currentSeconds + activeOffset;
-
-            if (rawDeparture < targetTime) continue;
-
-            results.push({
-              routeShortName: route.short_name,
-              routeType: route.route_type,
-              formattedDeparture: convertSecondsToTimeOfDay(
-                rawDeparture,
-                "floor",
-              ),
-              departureSeconds: rawDeparture,
-              formattedArrival: convertSecondsToTimeOfDay(rawArrival, "ceil"),
-              arrivalSeconds: rawArrival,
-            });
-          }
-        }
-      }
-    }
-
-    results.sort((a, b) => a.departureSeconds - b.departureSeconds);
     res.json({
-      stop: stopDetails,
-      departures: results.slice(0, parseInt(limit, 10)),
+      stop: describeStop(internalStopId, id),
+      // The moment the board was resolved, so a stale tab is detectable.
+      asOf: { date: now.date, time: resolveDateAndTime(now.date, now.seconds).time },
+      servingLines: describeServingLines(internalStopId),
+      departures: upcoming
+        .slice(0, limit)
+        .map((visit) => describeDeparture(visit, now.date)),
+      capabilities,
     });
   } catch (error) {
     console.error("[Departures Endpoint Error]:", error);
@@ -306,7 +386,7 @@ router.get("/:id/", (req, res) => {
 
 module.exports = router;
 
-/* example usages: 
-http://localhost:3000/api/stop/2611502/
+/* example usages:
+http://localhost:3000/api/stop/2611502
 http://localhost:3000/api/stop/2611502/timetable?date=2026-09-10
 */

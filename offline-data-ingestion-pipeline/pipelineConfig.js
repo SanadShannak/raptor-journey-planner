@@ -12,9 +12,14 @@ module.exports = {
       "calendar.txt",
       "calendar_dates.txt",
     ],
-    optionalFiles: ["shapes.txt"],
+    optionalFiles: ["shapes.txt", "agency.txt", "feed_info.txt"],
     requiredStopHeaders: ["stop_id", "stop_name", "stop_lat", "stop_lon"],
-    optionalStopHeaders: ["stop_code"],
+    optionalStopHeaders: [
+      "stop_code",
+      "stop_desc",
+      "zone_id",
+      "wheelchair_boarding",
+    ],
     requiredRouteHeaders: [
       "route_id",
       "route_short_name" || "route_long_name",
@@ -48,7 +53,14 @@ module.exports = {
       "shape_dist_traveled",
       "shape_pt_sequence",
     ],
-    optionalTripHeaders: ["shape_id"],
+    /*
+     * Everything below is optional in GTFS. The pipeline detects each column,
+     * compiles it when the feed supplies it, and records what it found in
+     * network-meta.processed.json so consumers can degrade instead of
+     * rendering blanks. A feed missing any of them still compiles.
+     */
+    optionalRouteHeaders: ["route_long_name"],
+    optionalTripHeaders: ["shape_id", "direction_id", "trip_headsign"],
     optionalStopTimesHeaders: ["shape_dist_traveled", "stop_sequence"],
   },
 };

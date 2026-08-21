@@ -40,6 +40,12 @@ const parsingComponents = [
     name: "Component 8: Build Trip Shapes",
     scriptPath: path.join(allParsersFolderPath, "generateShapes.js"),
   },
+  {
+    // Last on purpose: it reports which optional data the earlier components
+    // actually produced, which it can only know once they have run.
+    name: "Component 9: Compile Network Metadata",
+    scriptPath: path.join(allParsersFolderPath, "parseNetworkMeta.js"),
+  },
 ];
 
 console.log("\x1b[32m%s\x1b[0m", "Offline Pipeline Execution Starting...\n");

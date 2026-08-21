@@ -6,6 +6,7 @@ const serverConfig = require("./serverConfig");
 const validDatesApi = require("./routes/validDatesApi");
 const routingApi = require("./routes/routingApi");
 const stopsApi = require("./routes/stopsApi");
+const networkApi = require("./routes/networkApi");
 
 // Initialize the express app
 const app = express();
@@ -23,6 +24,7 @@ app.get("/api/health", (req, res) => {
 app.use("/api/valid-dates", validDatesApi);
 app.use("/api/route", routingApi);
 app.use("/api/stop", stopsApi);
+app.use("/api/network", networkApi);
 
 // Bind the server
 app.listen(serverConfig.PORT, () => {

@@ -1,19 +1,22 @@
 const express = require("express");
 const router = express.Router();
-const serverConfig = require("../serverConfig");
-
-const activeServices = require(
-  `../../../processed-data/${serverConfig.ACTIVE_NETWORK}-processed-data/active-services.processed.json`,
-);
+// Read from the shared RAM cache rather than a second parse of the same file.
+const { getCache } = require("../../memoryCache");
 const convertDateIdToDateObject = require("../utils/convertDateIdToDateObject");
 
-const validDatesCache = Object.keys(activeServices).map((serviceDateId) => {
+const activeServices = getCache().activeServices;
+
+// Computed once at boot and sorted, so the response is a cheap, stable
+// ascending list rather than whatever order the object happened to be keyed in.
+const validDatesCache = Object.keys(activeServices)
+  .sort()
+  .map((serviceDateId) => {
   const dateObject = convertDateIdToDateObject(serviceDateId);
   const year = dateObject.getFullYear();
   const month = String(dateObject.getMonth() + 1).padStart(2, "0");
   const day = String(dateObject.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
-});
+  });
 
 router.get("/", (req, res) => {
   res.json(validDatesCache);
