@@ -82,16 +82,20 @@ function describeStop(internalStopId, fallbackGtfsId) {
 function describeDestination(route, flatTripId, stopIndex) {
   const terminatesHere = stopIndex === route.stop_ids.length - 1;
   if (terminatesHere) {
-    return { destination: null, terminatesHere: true };
+    return { headsign: null, destination: null, terminatesHere: true };
   }
 
   const headsign = getTripHeadsign(flatTripId) ?? route.headsign ?? null;
   if (headsign !== null) {
-    return { destination: headsign, terminatesHere: false };
+    return { headsign, destination: headsign, terminatesHere: false };
   }
 
   const lastStop = cache.stops[route.stop_ids[route.stop_ids.length - 1]];
-  return { destination: lastStop?.name ?? null, terminatesHere: false };
+  return {
+    headsign: null,
+    destination: lastStop?.name ?? null,
+    terminatesHere: false,
+  };
 }
 
 /** The services running on a given date, as a Set for cheap membership tests. */
@@ -177,7 +181,7 @@ function describeDeparture(visit, baseIsoDate) {
 
   const departure = resolveDateAndTime(baseIsoDate, departureSeconds);
   const arrival = resolveDateAndTime(baseIsoDate, arrivalSeconds);
-  const { destination, terminatesHere } = describeDestination(
+  const { headsign, destination, terminatesHere } = describeDestination(
     route,
     flatTripId,
     stopIndex,
@@ -193,6 +197,7 @@ function describeDeparture(visit, baseIsoDate) {
     lineId: lineIdFor(route),
     routeShortName: route.short_name,
     routeType: route.route_type,
+    headsign,
     destination,
     terminatesHere,
     tripId: cache.reverseTripMapping[flatTripId] ?? null,

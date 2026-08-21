@@ -106,6 +106,7 @@ export interface WalkLeg extends LegBase {
   lineId: null;
   routeLongName: null;
   directionId: null;
+  headsign: null;
   destination: null;
   intermediateStops: null;
   tripId: null;
@@ -138,11 +139,16 @@ export interface TransitLeg extends LegBase {
    */
   directionId: 0 | 1 | null;
   /**
-   * Where the vehicle is heading: the trip's own destination sign when the
-   * feed carries one, otherwise the pattern's last stop name. Deliberately not
-   * called `headsign` — on a feed without headsigns it is derived, and naming
-   * it after the GTFS field would invite treating a derivation as the
-   * operator's own sign text.
+   * The operator's own destination sign, verbatim — what is displayed on the
+   * front of the vehicle, so it can be printed as-is for a rider to match.
+   * Null when the feed carries no sign for this trip.
+   */
+  headsign: string | null;
+  /**
+   * Always populated: {@link headsign} when there is one, the line's last stop
+   * name otherwise. When `headsign` is null this is an inference and the
+   * vehicle may be signed something else, so phrase it as "towards X" rather
+   * than presenting it as the sign itself.
    */
   destination: string | null;
   /** Stops passed through between `fromStop` and `toStop`; may be empty. */

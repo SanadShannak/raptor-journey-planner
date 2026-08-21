@@ -91,7 +91,7 @@ startDate  startTime  endDate  endTime  totalDurationMinutes  legs[]
 
 ## Legs
 
-Every leg carries the same **21 keys**; mode decides which are populated. Model this as a discriminated union on `mode` — this is verified behaviour, not a guess (60 live journeys checked, zero violations).
+Every leg carries the same **22 keys**; mode decides which are populated. Model this as a discriminated union on `mode` — this is verified behaviour, not a guess (60 live journeys checked, zero violations).
 
 Common to both modes: `mode`, `waitDurationMinutes`, `startDate`, `startTime`, `endDate`, `endTime`, `fromStop`, `toStop`, `shape`.
 
@@ -108,7 +108,8 @@ Common to both modes: `mode`, `waitDurationMinutes`, `startDate`, `startTime`, `
 | `lineId` | `null` | `` `${modeSlug}-${routeShortName}` `` — e.g. `bus-550`, `tram-1`. The key `/api/routes/:lineId` takes |
 | `routeLongName` | `null` | `string \| null` — null when the feed omits it |
 | `directionId` | `null` | `0 \| 1 \| null` — null when the feed omits it |
-| `destination` | `null` | `string \| null` — see below |
+| `headsign` | `null` | `string \| null` — the operator's own sign, verbatim |
+| `destination` | `null` | `string \| null` — always populated; see below |
 
 `lineId` exists because designations collide across modes: HSL has `"H"` as
 both a tram and a train, which become `tram-H` and `train-H`. The mode is
@@ -118,11 +119,25 @@ in a URL. Slugs: `tram` `metro` `train` `bus` `ferry` `cable-tram` `cable-car`
 table does not name. Split on the first hyphen — no designation in the feed
 contains one.
 
-`destination` is the trip's own headsign when the feed carries one, falling
-back to the pattern's last stop name when it does not. It is deliberately
-**not** called `headsign` — on a feed without headsigns it is derived, and
-naming it after the GTFS field would invite treating a derivation as the
-operator's own sign text.
+**`headsign` and `destination` are a pair, and the difference licenses
+different wording.**
+
+`headsign` is the operator's destination sign verbatim, or null when the feed
+carries none for that trip. It is what is displayed on the front of the
+vehicle, so a UI may print it as-is and a rider can match it.
+
+`destination` always has a value: the headsign when there is one, the pattern's
+last stop name otherwise. When `headsign` is null the value is *our inference* —
+the vehicle may be signed something else entirely — so it should read
+"towards X" rather than be presented as the sign itself.
+
+The trip's own sign wins over the pattern's, because a pattern's trips do not
+always share one: HSL's rail `H` runs a single Helsinki–Siuntio pattern where
+some trips are signed `"Siuntio-Hanko"` and others `"Siuntio"`. Reading the
+pattern would show every one of them as the same destination.
+
+`capabilities.tripHeadsign` answers this feed-wide; the per-leg `headsign` is
+what you need for a feed that carries signs on only some trips.
 
 `transitDistanceMeters` is `null` when the source GTFS feed omits the optional `shape_dist_traveled` column — the pipeline then disables distance tracking entirely. HSL provides it; another network may not. Always handle the null.
 
@@ -197,7 +212,7 @@ A departure is:
 
 ```
 { date, time, arrivalDate, arrivalTime, lineId, routeShortName, routeType,
-  destination, terminatesHere, tripId, directionId, routeLongName }
+  headsign, destination, terminatesHere, tripId, directionId, routeLongName }
 ```
 
 `terminatesHere` is true when the trip ends at the stop being viewed; its

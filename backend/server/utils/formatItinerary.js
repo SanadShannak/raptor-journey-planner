@@ -17,15 +17,24 @@ const { lineIdFor } = require("./lineIdentity");
  */
 
 /**
- * Where a transit leg's vehicle is ultimately heading.
+ * Where a transit leg's vehicle is heading, in two forms.
  *
- * The trip's own destination sign is preferred, because a pattern's trips do
- * not always share one. Without headsigns in the feed, the pattern's last stop
- * is the honest approximation — which is why this is called `destination`
- * rather than `headsign`.
+ * `headsign` is the operator's own destination sign, verbatim, or null when
+ * the feed carries none for this trip. `destination` always has a value: the
+ * headsign when there is one, the pattern's last stop otherwise.
+ *
+ * Both exist because they license different wording. A real headsign is what
+ * is displayed on the front of the vehicle, so a UI can print it as-is and a
+ * rider can match it. A terminus fallback is our inference — the vehicle may
+ * well be signed something else — so it should read "towards X", not be
+ * presented as the sign itself.
+ *
+ * The trip's own sign is preferred over the pattern's, because a pattern's
+ * trips do not always share one: HSL's rail H runs one Helsinki-Siuntio
+ * pattern where some trips are signed "Siuntio-Hanko" and others "Siuntio".
  */
 function resolveDestination(route, internalTripId, cache) {
-  if (!route) return null;
+  if (!route) return { headsign: null, destination: null };
 
   const headsign =
     (internalTripId !== null && internalTripId !== undefined
@@ -33,10 +42,10 @@ function resolveDestination(route, internalTripId, cache) {
       : null) ??
     route.headsign ??
     null;
-  if (headsign !== null) return headsign;
+  if (headsign !== null) return { headsign, destination: headsign };
 
   const lastStop = cache.stops[route.stop_ids[route.stop_ids.length - 1]];
-  return lastStop?.name ?? null;
+  return { headsign: null, destination: lastStop?.name ?? null };
 }
 
 function formatItinerary(rawItinerary) {
@@ -141,6 +150,11 @@ function formatItinerary(rawItinerary) {
     const internalTripId = leg["internalTripId"] ?? null;
     const route =
       internalRouteId !== null ? cache.routes[internalRouteId] : null;
+    const { headsign, destination } = resolveDestination(
+      route,
+      internalTripId,
+      cache,
+    );
 
     itinerary.legs.push({
       mode: legMode,
@@ -153,8 +167,8 @@ function formatItinerary(rawItinerary) {
       lineId: lineIdFor(route),
       routeLongName: route?.long_name ?? null,
       directionId: route?.direction_id ?? null,
-      destination:
-        route !== null ? resolveDestination(route, internalTripId, cache) : null,
+      headsign,
+      destination,
       intermediateStops: legIntermediateStops,
       toStop: legToStop,
       endDate: legEndDate,
