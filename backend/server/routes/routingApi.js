@@ -1,44 +1,20 @@
 const express = require("express");
-const cors = require("cors");
-
-// Custom dynamic configuration
-const config = require("../offline-data-ingestion-pipeline/pipelineConfig");
-// Dynamic directory paths based on whatever network is active (hsl, amman, etc..)
-const activeNetwork = config.ACTIVE_NETWORK;
+const router = express.Router();
+const serverConfig = require("../serverConfig");
 
 // Import the core RAPTOR engine
-const raptorEngine = require("./raptor-engines/raptorEngine");
+const raptorEngine = require("../../raptor-engines/raptorEngine");
 
-// Import the processed files
-const activeServices = require(
-  `../processed-data/${activeNetwork}-processed-data/active-services.processed.json`,
-);
-
-// Import the input validators
+// Import the input validators and formatters
 const {
   isValidDate,
   isValidTime,
   isValidWalkingSpeed,
-} = require("./utils/inputValidator");
-// Import the itinerary formatter
-const formatItinerary = require("./utils/formatItinerary");
-const convertDateIdToDateObject = require("./utils/convertDateIdToDateObject");
-
-// Initialize the express app
-const app = express();
-const PORT = 3000;
-
-// Apply global middleware configuration
-app.use(cors());
-app.use(express.json());
-
-// System health probe to make sure Express server is active and reachable
-app.get("/api/health", (req, res) => {
-  res.json({ status: "active", message: "Core infrastructure active" });
-});
+} = require("../utils/inputValidator");
+const formatItinerary = require("../utils/formatItinerary");
 
 // Main RAPTOR routing endpoint
-app.get("/api/route", (req, res) => {
+router.get("/", (req, res) => {
   try {
     // Extract RAPTOR engine arguments
     const {
@@ -148,26 +124,8 @@ app.get("/api/route", (req, res) => {
   }
 });
 
-const dayOfWeekFormatter = new Intl.DateTimeFormat("en-US", {
-  weekday: "short",
-});
-// Loop through the JSON once and cache the result in memory
-const validDatesCache = Object.keys(activeServices).map((serviceDateId) => {
-  const dateObject = convertDateIdToDateObject(serviceDateId);
+module.exports = router;
 
-  const year = dateObject.getFullYear();
-  const month = String(dateObject.getMonth() + 1).padStart(2, "0");
-  const day = String(dateObject.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
-});
-
-// Active Service Dates endpoint
-app.get("/api/valid-dates", (req, res) => {
-  res.json(validDatesCache);
-});
-
-// Bind the server to the designated local port
-app.listen(PORT, () => {
-  console.log(`Listening on Port ${PORT}`);
-});
+/* example usage:
+http://localhost:3000/api/route?originLat=60.20507633764775&originLon=24.962304855335976&destLat=60.14540472&destLon=24.987795623893412&date=2026-09-13&time=18:00:00
+*/
