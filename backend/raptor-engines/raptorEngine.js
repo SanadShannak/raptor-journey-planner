@@ -646,6 +646,7 @@ function raptorEngine(
 
           intermediateStops.push({
             stopName: stops[intermediateStopInternalId]["name"],
+            stopId: stops[intermediateStopInternalId]["gtfs_id"],
             stopCode: stops[intermediateStopInternalId]["stop_code"],
             stopLat: stops[intermediateStopInternalId]["lat"],
             stopLon: stops[intermediateStopInternalId]["lon"],
@@ -696,6 +697,7 @@ function raptorEngine(
         ).toLocaleDateString("en-CA"),
         startTime: legStartTime,
         fromStop: {
+          id: stops[previousStop]["gtfs_id"],
           name: stops[previousStop]["name"],
           code: stops[previousStop]["stop_code"],
           lat: stops[previousStop]["lat"],
@@ -704,8 +706,20 @@ function raptorEngine(
         routeShortName:
           tripUsed === -1 ? null : routes[routeUsed]["short_name"],
         routeType: tripUsed === -1 ? null : routes[routeUsed]["route_type"],
+        /*
+         * Internal handles for the presenter, which needs them to look up the
+         * line's direction, long name, and destination sign. They are stripped
+         * in formatItinerary and never reach a response: a pattern index is
+         * only meaningful until the next pipeline run.
+         *
+         * Emitted here because this is the only scope that has them. Nothing
+         * about the routing itself reads them back.
+         */
+        internalRouteId: tripUsed === -1 ? null : routeUsed,
+        internalTripId: tripUsed === -1 ? null : tripUsed,
         intermediateStops: tripUsed === -1 ? null : intermediateStops,
         toStop: {
+          id: stops[stopPointer]["gtfs_id"],
           name: stops[stopPointer]["name"],
           code: stops[stopPointer]["stop_code"],
           lat: stops[stopPointer]["lat"],
@@ -769,7 +783,8 @@ function raptorEngine(
         startTime: shiftedDepartureSeconds,
         fromStop: {
           name: "ORIGIN",
-          code: "ORIGIN_PIN",
+          id: null,
+            code: "ORIGIN_PIN",
           lat: sourceNode.lat,
           lon: sourceNode.lon,
         },
@@ -778,6 +793,7 @@ function raptorEngine(
 
         intermediateStops: null,
         toStop: {
+          id: stops[stopPointer]["gtfs_id"],
           name: stops[stopPointer]["name"],
           code: stops[stopPointer]["stop_code"],
           lat: stops[stopPointer]["lat"],
@@ -827,6 +843,7 @@ function raptorEngine(
         startTime: finalStationArrivalSeconds,
 
         fromStop: {
+          id: stops[targetStop]["gtfs_id"],
           name: stops[targetStop]["name"],
           code: stops[targetStop]["stop_code"],
           lat: stops[targetStop]["lat"],
@@ -838,7 +855,8 @@ function raptorEngine(
         intermediateStops: null,
         toStop: {
           name: "TARGET",
-          code: "TARGET_PIN",
+          id: null,
+            code: "TARGET_PIN",
           lat: targetNode.lat,
           lon: targetNode.lon,
         },
@@ -957,6 +975,7 @@ function raptorEngine(
           startTime: departureSeconds,
           fromStop: {
             name: "ORIGIN",
+            id: null,
             code: "ORIGIN_PIN",
             lat: sourceNode.lat,
             lon: sourceNode.lon,
@@ -966,6 +985,7 @@ function raptorEngine(
           intermediateStops: null,
           toStop: {
             name: "TARGET",
+            id: null,
             code: "TARGET_PIN",
             lat: targetNode.lat,
             lon: targetNode.lon,

@@ -1,10 +1,52 @@
-const { raw } = require("express");
 const convertSecondsToTimeOfDay = require("./convertSecondsToTimeOfDay");
 const formatDuration = require("./formatDuration");
 const calculateTotalDurationFromStartToEnd = require("./calculateTotalDurationFromStartToEnd");
 const formatDistance = require("./formatDistance");
+const { getCache, getTripHeadsign } = require("../../memoryCache");
+
+/*
+ * Presenter for a raw itinerary: seconds become clock strings, distances get
+ * rounded, and the internal handles the engine hands over are resolved into
+ * the fields a client can actually use.
+ *
+ * Everything resolved here is optional in GTFS. A feed without headsigns,
+ * directions, or long names produces the same leg shape with nulls in those
+ * places — never a missing key, so a consumer can read every field
+ * unconditionally and decide what to render.
+ */
+
+/** The stable identifier for a line. Designations collide across modes. */
+function lineIdFor(route) {
+  if (!route) return null;
+  return `${route.route_type}-${route.short_name}`;
+}
+
+/**
+ * Where a transit leg's vehicle is ultimately heading.
+ *
+ * The trip's own destination sign is preferred, because a pattern's trips do
+ * not always share one. Without headsigns in the feed, the pattern's last stop
+ * is the honest approximation — which is why this is called `destination`
+ * rather than `headsign`.
+ */
+function resolveDestination(route, internalTripId, cache) {
+  if (!route) return null;
+
+  const headsign =
+    (internalTripId !== null && internalTripId !== undefined
+      ? getTripHeadsign(internalTripId)
+      : null) ??
+    route.headsign ??
+    null;
+  if (headsign !== null) return headsign;
+
+  const lastStop = cache.stops[route.stop_ids[route.stop_ids.length - 1]];
+  return lastStop?.name ?? null;
+}
 
 function formatItinerary(rawItinerary) {
+  const cache = getCache();
+
   const itinerary = {
     startDate: null,
     startTime: null,
@@ -95,6 +137,16 @@ function formatItinerary(rawItinerary) {
 
     const legShape = leg.shape;
 
+    /*
+     * The engine's internal handles are resolved here and go no further. Every
+     * derived field is null on a walking leg and on any feed that lacks the
+     * source column, so the key set is identical for every leg.
+     */
+    const internalRouteId = leg["internalRouteId"] ?? null;
+    const internalTripId = leg["internalTripId"] ?? null;
+    const route =
+      internalRouteId !== null ? cache.routes[internalRouteId] : null;
+
     itinerary.legs.push({
       mode: legMode,
       waitDurationMinutes: formattedLegWaitDuration,
@@ -103,6 +155,11 @@ function formatItinerary(rawItinerary) {
       fromStop: legFromStop,
       routeShortName: legRouteShortName,
       routeType: legRouteType,
+      lineId: lineIdFor(route),
+      routeLongName: route?.long_name ?? null,
+      directionId: route?.direction_id ?? null,
+      destination:
+        route !== null ? resolveDestination(route, internalTripId, cache) : null,
       intermediateStops: legIntermediateStops,
       toStop: legToStop,
       endDate: legEndDate,

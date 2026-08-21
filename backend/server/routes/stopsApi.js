@@ -27,12 +27,6 @@ const capabilities = getCapabilities();
 const SECONDS_PER_DAY = 86400;
 
 /**
- * How far past midnight a service day is still considered to be running, for
- * deciding whether yesterday's late trips belong on tonight's board.
- */
-const LATE_NIGHT_CUTOFF_SECONDS = 4 * 3600;
-
-/**
  * Builds the public shape of a stop.
  *
  * Field names match `fromStop`/`toStop` on a journey leg so the frontend has
@@ -55,12 +49,20 @@ function describeStop(internalStopId, fallbackGtfsId) {
     lon: stop.lon,
   };
 
-  if (stop.desc !== undefined) described.description = stop.desc;
-  if (stop.zone !== undefined) described.fareZone = stop.zone;
-  if (stop.wheelchair !== undefined) {
-    // GTFS: 1 accessible, 2 not accessible. Absent means no information.
-    described.wheelchairAccessible = stop.wheelchair === 1;
-  }
+  /*
+   * Always present, null when this feed does not carry them. A missing key and
+   * a null both mean "no value", but only one of them lets a consumer read the
+   * field without guarding first.
+   *
+   * Accessibility is deliberately tri-state: GTFS 1 is accessible and 2 is not
+   * accessible, but absent means nobody said. Collapsing "unknown" into false
+   * would tell a wheelchair user a stop is unusable when the truth is that the
+   * agency never published it.
+   */
+  described.description = stop.desc ?? null;
+  described.fareZone = stop.zone ?? null;
+  described.wheelchairAccessible =
+    stop.wheelchair === undefined ? null : stop.wheelchair === 1;
 
   return described;
 }
@@ -133,28 +135,40 @@ function forEachDeparture(internalStopId, isoDate, visit) {
     )) {
       const serviceId = Number.parseInt(serviceKey, 10);
 
-      // Offset converts the trip's own clock onto the requested date's clock.
-      let offset = null;
-      if (today.has(serviceId)) offset = 0;
-      else if (yesterday.has(serviceId)) offset = SECONDS_PER_DAY;
-      if (offset === null) continue;
+      /*
+       * Offsets convert a trip's own clock onto the requested date's clock.
+       *
+       * A service can qualify under both, and then it must be walked twice.
+       * GTFS counts past midnight, so a service running every day supplies
+       * both today's ordinary trips (offset 0) and yesterday's small-hours
+       * spillover — the 25:10 trip that is really this date's 01:10. Treating
+       * these as mutually exclusive silently drops every after-midnight
+       * departure for any service that runs on consecutive days, which is
+       * most of them.
+       */
+      const offsets = [];
+      if (today.has(serviceId)) offsets.push(0);
+      if (yesterday.has(serviceId)) offsets.push(SECONDS_PER_DAY);
+      if (offsets.length === 0) continue;
 
       const tripIds = Array.isArray(bucket) ? bucket : bucket?.trip_ids;
       if (!Array.isArray(tripIds)) continue;
 
-      for (const flatTripId of tripIds) {
-        const stopTimes = cache.timetables[flatTripId];
-        const stopTime = stopTimes?.[stopIndex];
-        if (!stopTime) continue;
+      for (const offset of offsets) {
+        for (const flatTripId of tripIds) {
+          const stopTimes = cache.timetables[flatTripId];
+          const stopTime = stopTimes?.[stopIndex];
+          if (!stopTime) continue;
 
-        visit({
-          route,
-          routeId,
-          flatTripId,
-          stopIndex,
-          departureSeconds: stopTime.departure - offset,
-          arrivalSeconds: stopTime.arrival - offset,
-        });
+          visit({
+            route,
+            routeId,
+            flatTripId,
+            stopIndex,
+            departureSeconds: stopTime.departure - offset,
+            arrivalSeconds: stopTime.arrival - offset,
+          });
+        }
       }
     }
   }
@@ -188,12 +202,8 @@ function describeDeparture(visit, baseIsoDate) {
     tripId: cache.reverseTripMapping[flatTripId] ?? null,
   };
 
-  if (route.direction_id !== undefined) {
-    described.directionId = route.direction_id;
-  }
-  if (route.long_name !== undefined) {
-    described.routeLongName = route.long_name;
-  }
+  described.directionId = route.direction_id ?? null;
+  described.routeLongName = route.long_name ?? null;
 
   return described;
 }
@@ -212,14 +222,14 @@ function describeServingLines(internalStopId) {
     // Keyed by mode as well as designation: "H" is both a tram and a train.
     const lineId = lineIdFor(route);
     if (!byLine.has(lineId)) {
-      const line = {
+      byLine.set(lineId, {
         lineId,
         routeShortName: route.short_name,
         routeType: route.route_type,
+        routeLongName: route.long_name ?? null,
+        directionId: route.direction_id ?? null,
         destinations: [],
-      };
-      if (route.long_name !== undefined) line.routeLongName = route.long_name;
-      byLine.set(lineId, line);
+      });
     }
 
     const { destination, terminatesHere } = describeDestination(
@@ -351,15 +361,13 @@ router.get("/:id", (req, res) => {
 
     const upcoming = [];
     forEachDeparture(internalStopId, now.date, (visit) => {
+      /*
+       * Anything already gone is not upcoming. This also disposes of
+       * yesterday's spillover once it has passed: those resolve to small
+       * positive seconds early in the morning and to negatives later, both of
+       * which fall out here without a separate cutoff.
+       */
       if (visit.departureSeconds < now.seconds) return;
-      // Yesterday's trips are only relevant while the small hours are still
-      // running; past that they are yesterday's news.
-      if (
-        visit.departureSeconds < 0 &&
-        now.seconds > LATE_NIGHT_CUTOFF_SECONDS
-      ) {
-        return;
-      }
       upcoming.push(visit);
     });
 

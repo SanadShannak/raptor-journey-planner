@@ -52,17 +52,6 @@ const processedDataFiles = [
       "spatial-grid.processed.json",
     ),
   },
-  {
-    name: "tripToShapeIdMap",
-    filePath: path.join(
-      allProcessedDataFolderPath,
-      "trip-to-shape-mapping.json",
-    ),
-  },
-  {
-    name: "shapes",
-    filePath: path.join(allProcessedDataFolderPath, "shapes.processed.json"),
-  },
 ];
 
 /*
@@ -75,6 +64,23 @@ const processedDataFiles = [
  * decide once at startup instead of null-checking everywhere.
  */
 const optionalProcessedDataFiles = [
+  /*
+   * shapes.txt is optional in GTFS and pipelineConfig lists it as such, so a
+   * feed without it must still serve. Journey legs then fall back to a
+   * straight line between stops, which is what injectTransitShape already
+   * does for any trip it cannot resolve.
+   */
+  {
+    name: "tripToShapeIdMap",
+    filePath: path.join(
+      allProcessedDataFolderPath,
+      "trip-to-shape-mapping.json",
+    ),
+  },
+  {
+    name: "shapes",
+    filePath: path.join(allProcessedDataFolderPath, "shapes.processed.json"),
+  },
   {
     name: "networkMeta",
     filePath: path.join(
@@ -108,6 +114,8 @@ const cachedData = {
   activeServices: null,
   reverseTripMapping: null,
   spatialGrid: null,
+  tripToShapeIdMap: null,
+  shapes: null,
   networkMeta: null,
   tripHeadsigns: null,
 };

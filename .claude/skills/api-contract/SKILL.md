@@ -13,9 +13,51 @@ The authoritative sources, in order: a live response, then `backend/utils/format
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| GET | `/api/route` | Plan a journey |
+| GET | `/api/route` | Plan a journey (**singular**) |
 | GET | `/api/valid-dates` | Dates the loaded timetable covers |
+| GET | `/api/network` | Network identity, clock, and capability manifest |
+| GET | `/api/stop/:gtfsId` | Live departure board |
+| GET | `/api/stop/:gtfsId/timetable?date=` | Whole-day timetable |
+| GET | `/api/routes` | Line index (**plural** — inspection, not planning) |
+| GET | `/api/routes/:lineId` | One line and its variants |
+| GET | `/api/routes/:lineId/:patternId` | One variant, with stops and geometry |
 | GET | `/api/health` | `{ status, message }` liveness probe |
+
+## Optional data is a manifest, not a guess
+
+Almost everything beyond the GTFS required columns is optional in the spec, so
+none of it can be assumed. `GET /api/network` reports what the loaded feed
+actually supplied:
+
+```
+{ network, timezone, language, agencyName, agencyUrl, publisherName,
+  publisherUrl, feedStartDate, feedEndDate, feedVersion, compiledAt,
+  capabilities: { stopCode, stopDescription, fareZones,
+                  wheelchairAccessibility, routeLongName, routeDirection,
+                  routeHeadsign, tripHeadsign, routeShape, transitDistance } }
+```
+
+Every capability key is present and boolean even when the feed carries no
+metadata at all. Fetch this once at startup and branch on it, rather than
+null-checking each field at every call site — that keeps *"this network has no
+wheelchair data"* distinct from *"this stop is missing it"*.
+
+**Optional fields are always present as `null`, never omitted.** A missing key
+and a null both mean "no value", but only one lets you read the field without
+guarding first.
+
+## Time
+
+Every date and time this API returns is **wall-clock in the network's own
+timezone** — never the server's, never the browser's. The zone comes from the
+feed's `agency_timezone` and is reported by `/api/network`.
+
+Do not re-apply that zone when formatting a returned value; it is already
+resolved. Use it only to work out what "now" or "today" is on the network.
+
+Times are 24-hour. Departures carry their **own `date`**, because GTFS counts
+past midnight — a 25:10 trip is the 01:10 service of the next day, and a time
+alone cannot express that.
 
 `/api/valid-dates` returns a plain ascending array of `YYYY-MM-DD` strings. It is computed once at boot from `active-services.processed.json` and cached, so it is cheap to call.
 
@@ -49,7 +91,7 @@ startDate  startTime  endDate  endTime  totalDurationMinutes  legs[]
 
 ## Legs
 
-Every leg carries the same 17 keys; mode decides which are populated. Model this as a discriminated union on `mode` — this is verified behaviour, not a guess (60 live journeys checked, zero violations).
+Every leg carries the same **21 keys**; mode decides which are populated. Model this as a discriminated union on `mode` — this is verified behaviour, not a guess (60 live journeys checked, zero violations).
 
 Common to both modes: `mode`, `waitDurationMinutes`, `startDate`, `startTime`, `endDate`, `endTime`, `fromStop`, `toStop`, `shape`.
 
@@ -63,6 +105,19 @@ Common to both modes: `mode`, `waitDurationMinutes`, `startDate`, `startTime`, `
 | `transitDistanceMeters` | `null` | `number \| null` — see below |
 | `walkDurationMinutes` | `number` | `null` |
 | `walkDistanceMeters` | `number` | `null` |
+| `lineId` | `null` | `` `${routeType}-${routeShortName}` `` — the key `/api/routes/:lineId` takes |
+| `routeLongName` | `null` | `string \| null` — null when the feed omits it |
+| `directionId` | `null` | `0 \| 1 \| null` — null when the feed omits it |
+| `destination` | `null` | `string \| null` — see below |
+
+`lineId` exists because designations collide across modes: HSL has `"H"` as
+both a tram (`route_type` 0) and a train (`route_type` 2).
+
+`destination` is the trip's own headsign when the feed carries one, falling
+back to the pattern's last stop name when it does not. It is deliberately
+**not** called `headsign` — on a feed without headsigns it is derived, and
+naming it after the GTFS field would invite treating a derivation as the
+operator's own sign text.
 
 `transitDistanceMeters` is `null` when the source GTFS feed omits the optional `shape_dist_traveled` column — the pipeline then disables distance tracking entirely. HSL provides it; another network may not. Always handle the null.
 
@@ -74,11 +129,13 @@ Time spent waiting at `fromStop` **before** the leg departs at `startTime`. It o
 
 ### Stops
 
-`fromStop` / `toStop` are `{ name, code, lat, lon }`.
+`fromStop` / `toStop` are `{ id, name, code, lat, lon }`. `id` is the GTFS stop
+id — the same value `/api/route` accepts as `originStopId`, which is what makes
+"plan onward from this stop" a link rather than a lookup.
 
 Journeys that begin or end at a dropped pin use synthetic stops: `name` `"ORIGIN"` / `"TARGET"`, `code` `"ORIGIN_PIN"` / `"TARGET_PIN"`. Treat these as pins in the UI, not as real stations.
 
-`intermediateStops` entries use different key names and are **not** the same shape: `{ stopName, stopCode, stopLat, stopLon, stopArrivalTime }`.
+`intermediateStops` entries use different key names and are **not** the same shape: `{ stopId, stopName, stopCode, stopLat, stopLon, stopArrivalTime }`.
 
 ### `shape`
 
@@ -120,3 +177,67 @@ Documented in the README's "Known Limitations" section. Surface these in the UI;
 - All access goes through `frontend/src/api/`. No `fetch` in components.
 - Types live in `frontend/src/types/journey.ts`. Nullable in the API means nullable in TypeScript.
 - Failures surface as `ApiError` with `kind` (`network` / `timeout` / `http` / `malformed`), `status`, and `code`. Branch on `error.code`, never on message text.
+
+## Stop endpoints
+
+`GET /api/stop/:gtfsId` — live board. `{ stop, asOf: { date, time }, servingLines[], departures[], capabilities }`
+
+`GET /api/stop/:gtfsId/timetable?date=` — whole day. `{ stop, date, servingLines[], schedule[], totalDepartures, outsideTimetableRange, capabilities }`
+
+`schedule` is an **array** of `{ hour, departures[] }`, not an object keyed by
+hour. Object keys would reorder: `"10"`–`"23"` are canonical integer strings and
+get hoisted ahead of `"07"`, silently scrambling the board.
+
+A departure is:
+
+```
+{ date, time, arrivalDate, arrivalTime, lineId, routeShortName, routeType,
+  destination, terminatesHere, tripId, directionId, routeLongName }
+```
+
+`terminatesHere` is true when the trip ends at the stop being viewed; its
+`destination` is then `null`, because "towards <the stop you are standing at>"
+is nonsense.
+
+A stop is `{ id, name, code, lat, lon, description, fareZone, wheelchairAccessible }`.
+`wheelchairAccessible` is **tri-state**: `true`, `false`, or `null` for "the
+agency never said". Do not collapse null into false — that tells a wheelchair
+user a stop is unusable when the truth is unknown.
+
+## Route inspection
+
+The compiled data holds stop-sequence **patterns**, not lines: HSL has 1,179
+patterns for 464 lines, because every variant and direction is its own record.
+`/api/routes` lists lines; the patterns behind them appear as `variants`.
+
+`GET /api/routes?q=&mode=` → `{ lines[], totalLines, capabilities }`, where a
+line is `{ lineId, routeShortName, routeType, routeLongName, variantCount, directions[] }`.
+
+`directions` is `[0, 1]` when the feed carries `direction_id` — that is what
+lets a client offer a direction flip. It is `[]` for a feed without it, and the
+client should then label variants by their end points instead.
+
+`GET /api/routes/:lineId` → the line plus `variants[]`, ordered busiest first:
+
+```
+{ patternId, directionId, headsign, originStopName, terminusStopName,
+  stopCount, tripCount, firstDeparture, lastDeparture }
+```
+
+`patternId` indexes the compiled patterns. It is stable for the life of a
+dataset but **not across a pipeline re-run**, so a client holding one across a
+data refresh should fall back to the line's first variant rather than error.
+
+`GET /api/routes/:lineId/:patternId` adds `stops[]` and `shape`. `shape` is the
+pattern's *representative* geometry — trips on one pattern can use different
+shapes, so the most-used is stored; it is `null` for a feed without shapes.txt.
+Journey legs do not use it, slicing the trip's own shape instead.
+
+Errors: `LINE_NOT_FOUND`, `PATTERN_NOT_FOUND`, `STOP_NOT_FOUND` (404).
+
+## Verifying feed-agnosticism
+
+`offline-data-ingestion-pipeline/fixtures/makeMinimalFeed.js` writes a GTFS
+feed carrying only the required columns. Compile it and run the server against
+it to confirm every optional field degrades rather than breaks — a real feed
+supplies almost everything and so cannot exercise the fallbacks.

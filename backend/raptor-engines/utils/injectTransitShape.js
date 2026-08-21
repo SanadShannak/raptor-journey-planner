@@ -5,10 +5,14 @@ const tripToShapeIdMap = cachedData.tripToShapeIdMap;
 const shapes = cachedData.shapes;
 
 function injectTransitShape(tripId, startStop, endStop, stops) {
-  // Safety Check: Does this trip have mapped shape data?
-  const tripShapeData = tripToShapeIdMap[tripId];
+  /*
+   * Safety Check: does this network have shape data at all? shapes.txt is
+   * optional in GTFS, so both of these are null for a feed without it and
+   * every leg takes the straight-line fallback below.
+   */
+  const tripShapeData = tripToShapeIdMap?.[tripId];
 
-  if (tripShapeData && tripShapeData.shape_id) {
+  if (tripShapeData && tripShapeData.shape_id && shapes) {
     const shapeId = tripShapeData.shape_id;
     const stopIndexMap = tripShapeData.stop_index_in_shape_map;
     const startStopIndexInShape = stopIndexMap[startStop];
