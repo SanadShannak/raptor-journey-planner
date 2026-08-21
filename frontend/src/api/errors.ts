@@ -41,6 +41,21 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Backend `errorCode` for a search that ran fine and found nothing.
+ *
+ * This is an **empty state, not a failure**, and it arrives as a 404 only
+ * because that is how the engine reports it. Callers must branch on this
+ * before reaching any error path — a rider who asked for an impossible
+ * journey has not encountered a problem with the app.
+ */
+export const NO_ROUTE_FOUND = 'NO_ROUTE_FOUND';
+
+/** True when a rejection is the "no journey exists" empty state. */
+export function isNoRouteFound(value: unknown): boolean {
+  return isApiError(value) && value.code === NO_ROUTE_FOUND;
+}
+
 /** Narrows an unknown caught value to {@link ApiError}. */
 export function isApiError(value: unknown): value is ApiError {
   return value instanceof ApiError;

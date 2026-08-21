@@ -11,4 +11,17 @@ export {
 export { LocaleProvider } from './LocaleProvider';
 export { useLocale, type LocaleContextValue } from './localeContext';
 export { applyDocumentLocale, resolveInitialLocale } from './documentLocale';
-export { formatDate, formatNumber, type MessageValues } from './translate';
+export {
+  formatClockTime,
+  formatDate,
+  formatNumber,
+  parseIsoDate,
+  type MessageValues,
+} from './translate';
+export {
+  formatDistance,
+  formatDuration,
+  type UnitFormatContext,
+} from './units';
+export { modeLabel } from './modes';
+export { messageForApiError } from './apiError';
