@@ -1,11 +1,4 @@
-import { useId } from 'react';
-import { Tooltip } from '../components/Tooltip';
-import {
-  LOCALES,
-  LOCALE_NAMES,
-  SWITCH_TO_LOCALE,
-  type Locale,
-} from './dictionary';
+import { LOCALES, SWITCH_TO_LOCALE, type Locale } from './dictionary';
 import { useLocale } from './localeContext';
 
 /**
@@ -44,32 +37,27 @@ const GlobeIcon = () => (
  * mispronounced in the surrounding one.
  */
 export function LanguageToggle() {
-  const { locale, strings, t, setLocale } = useLocale();
+  const { locale, setLocale } = useLocale();
 
   const other = LOCALES.find((candidate) => candidate !== locale) as Locale;
   const face = SWITCH_TO_LOCALE[other];
-  const description = t(strings.language.switchTo, {
-    value: LOCALE_NAMES[other],
-  });
-  const descriptionId = useId();
 
   /*
-   * No `aria-label`. The accessible name stays the visible text, so what a
-   * voice-control user reads on the button is what activates it; the tooltip
-   * supplies the "switch to" context as a description instead of replacing
-   * the name with it.
+   * Deliberately no `aria-label`: the visible text is the accessible name.
+   *
+   * A name that differs from what is written on a control leaves voice control
+   * unable to activate something its user can plainly read, and here the
+   * visible text is already the clearest possible label — it is written in the
+   * language it switches to, so the person who needs it can read it.
    */
   return (
-    <Tooltip text={description} describedById={descriptionId}>
-      <button
-        type="button"
-        onClick={() => setLocale(other)}
-        aria-describedby={descriptionId}
-        className="rounded-control border-chrome-border text-on-chrome focus-visible:outline-on-chrome inline-flex h-9 cursor-pointer items-center gap-1.5 border px-2.5 text-sm leading-none focus-visible:outline-2 focus-visible:outline-offset-2"
-      >
-        <GlobeIcon />
-        <span lang={other}>{face}</span>
-      </button>
-    </Tooltip>
+    <button
+      type="button"
+      onClick={() => setLocale(other)}
+      className="rounded-control border-chrome-border text-on-chrome focus-visible:outline-on-chrome inline-flex h-9 cursor-pointer items-center gap-1.5 border px-2.5 text-sm leading-none focus-visible:outline-2 focus-visible:outline-offset-2"
+    >
+      <GlobeIcon />
+      <span lang={other}>{face}</span>
+    </button>
   );
 }

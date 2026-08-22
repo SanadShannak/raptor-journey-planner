@@ -76,13 +76,6 @@ export interface Dictionary {
   language: {
     /** Accessible label for the language switcher. */
     switcherLabel: string;
-    /**
-     * Describes what the language toggle does, named after the language it
-     * switches to. Used as both the tooltip and the control's description —
-     * not its name, which stays the visible text so that what a voice-control
-     * user reads aloud is what activates the control.
-     */
-    switchTo: string;
   };
 
   nav: {
