@@ -114,6 +114,13 @@ export function createDigitransitGeocoder(subscriptionKey: string): Geocoder {
       url.searchParams.set('text', query);
       url.searchParams.set('size', String(options.limit ?? 6));
       if (options.language) url.searchParams.set('lang', options.language);
+      if (options.bounds) {
+        const { minLat, minLon, maxLat, maxLon } = options.bounds;
+        url.searchParams.set('boundary.rect.min_lat', String(minLat));
+        url.searchParams.set('boundary.rect.min_lon', String(minLon));
+        url.searchParams.set('boundary.rect.max_lat', String(maxLat));
+        url.searchParams.set('boundary.rect.max_lon', String(maxLon));
+      }
 
       const response = await fetch(url, {
         signal: options.signal ?? null,

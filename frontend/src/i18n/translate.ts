@@ -80,10 +80,16 @@ export function parseIsoDate(isoDate: string): Date | null {
 /**
  * Formats an API `HH:mm` (or `HH:mm:ss`) string for display.
  *
- * 24-hour in every locale, via `hourCycle: 'h23'`. This is a product decision,
- * not a default: the API returns 24-hour values, printed timetables and stop
- * poles are 24-hour, and a 12-hour clock makes an after-midnight departure —
- * "12:40 AM" — easy to read as the wrong end of the day.
+ * Twelve-hour with a meridiem, in whichever form the locale writes it — "6:03
+ * PM" in English, "٦:٠٣ م" in Arabic. A product decision: it is how most
+ * people read a departure time, even where timetables are printed in 24-hour.
+ *
+ * The risk it carries is that "12:40 AM" reads as the wrong end of the day.
+ * That is answered elsewhere rather than by the clock: an itinerary whose
+ * arrival falls on the next day says so with the date, and every departure the
+ * API returns carries its own date for exactly this reason.
+ *
+ * Only the display changes. Values on the wire stay 24-hour throughout.
  *
  * The time is placed on a fixed reference day rather than parsed from a
  * string, for the same reason `parseIsoDate` builds from parts: a bare time
@@ -97,9 +103,9 @@ export function formatClockTime(time: string, locale: Locale): string {
   const reference = new Date(2000, 0, 1, Number(hours), Number(minutes));
 
   return new Intl.DateTimeFormat(INTL_LOCALE[locale], {
-    hour: '2-digit',
+    hour: 'numeric',
     minute: '2-digit',
-    hourCycle: 'h23',
+    hour12: true,
   }).format(reference);
 }
 

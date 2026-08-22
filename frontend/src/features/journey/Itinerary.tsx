@@ -7,46 +7,59 @@ import {
   modeLabel,
   useLocale,
 } from '../../i18n';
-import type { Journey, JourneyLeg, TransitLeg } from '../../types/journey';
+import type { Journey, JourneyLeg, TransitLeg, WalkLeg } from '../../types/journey';
+import { ModeIcon, WalkIcon } from './modeIcons';
+import { modeVisual } from './modeVisuals';
 
 /**
- * One itinerary, start to finish.
+ * One itinerary, drawn as a line diagram.
  *
- * Everything here is readable as text without a map. The map, when it lands,
- * is an enhancement over this list rather than the only way to understand a
- * journey.
+ * Transit's own way of showing a journey is a strip map: a continuous line
+ * down the page, changing colour where you change vehicle, with a node at
+ * every point you get on or off. That is the form used here rather than a
+ * stack of cards, because it carries real information — the line is unbroken
+ * because the journey is, it is dashed while you walk and solid while you ride,
+ * and it takes the colour of whatever you are on.
+ *
+ * Every one of those signals is duplicated in text and icon. Colour tells a
+ * rider who already knows the network which line they want at a glance; it is
+ * never the only thing saying so.
  */
 export function Itinerary({ journey }: { journey: Journey }) {
   const locale = useLocale();
   const { strings, t } = locale;
 
-  const changes = journey.legs.filter((leg) => leg.mode === 'TRANSIT').length;
-  const transferCount = Math.max(0, changes - 1);
+  const rides = journey.legs.filter((leg) => leg.mode === 'TRANSIT');
+  const transfers = Math.max(0, rides.length - 1);
   const crossesMidnight = journey.endDate !== journey.startDate;
-  const walkOnly = changes === 0;
 
   return (
-    <article className="rounded-card border-border bg-surface-raised flex flex-col gap-4 border p-5">
-      <header className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <p className="text-2xl font-semibold tabular-nums tracking-tight">
+    <article className="rounded-card border-border bg-surface-raised shadow-card overflow-hidden border">
+      <header className="border-border flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b px-4 py-3">
+        <p className="text-xl font-semibold tabular-nums tracking-tight">
           {formatClockTime(journey.startTime, locale.locale)}
-          {/* An arrow that must mirror with the text direction. */}
-          <span aria-hidden="true" className="text-content-muted mx-2 rtl:-scale-x-100 inline-block">
+          <span aria-hidden="true" className="text-content-muted mx-1.5 inline-block rtl:-scale-x-100">
             →
           </span>
           {formatClockTime(journey.endTime, locale.locale)}
         </p>
-        <p className="text-content-muted text-sm">
+
+        {/* The number people compare itineraries by, so it gets its own weight. */}
+        <p className="bg-brand-50 text-brand-700 rounded-control px-2 py-0.5 text-sm font-semibold">
           {formatDuration(journey.totalDurationMinutes, locale)}
-          <span aria-hidden="true"> · </span>
-          {t(strings.planner.changes, { count: transferCount })}
         </p>
+
+        <p className="text-content-muted text-sm">
+          {t(strings.planner.changes, { count: transfers })}
+        </p>
+
         {/*
-          A journey can legitimately end on the following day. Without saying
-          so, an 01:10 arrival reads as thirteen hours earlier than it is.
+          An arrival on the following day, said plainly. With a 12-hour clock
+          this is what stops "12:40 AM" reading as thirteen hours earlier than
+          it is.
         */}
         {crossesMidnight && (
-          <p className="text-accent-strong text-sm font-medium">
+          <p className="text-accent-strong text-sm font-semibold">
             {t(strings.planner.arrivesNextDay, {
               date: formatDate(journey.endDate, locale.locale),
             })}
@@ -54,21 +67,18 @@ export function Itinerary({ journey }: { journey: Journey }) {
         )}
       </header>
 
-      {/*
-        Documented engine behaviour, not a failure: when walking beats waiting,
-        or nothing runs in the window, the answer is a walk.
-      */}
-      {walkOnly && (
-        <p className="text-content-muted rounded-control bg-surface-muted px-3 py-2 text-sm">
+      {rides.length === 0 && (
+        <p className="text-content-muted bg-surface-muted border-border border-b px-4 py-2.5 text-sm">
           {t(strings.planner.walkOnly)}
         </p>
       )}
 
-      <ol className="flex flex-col gap-3">
+      <ol className="flex flex-col px-4 py-3">
         {journey.legs.map((leg, index) => (
-          <Leg
+          <LegRow
             key={`${leg.startTime}-${index}`}
             leg={leg}
+            isFirst={index === 0}
             isLast={index === journey.legs.length - 1}
           />
         ))}
@@ -77,23 +87,57 @@ export function Itinerary({ journey }: { journey: Journey }) {
   );
 }
 
-function Leg({ leg, isLast }: { leg: JourneyLeg; isLast: boolean }) {
+/**
+ * One leg: a node, the line beneath it, and what happens along the way.
+ *
+ * The spine is drawn per row rather than as one background element so each
+ * segment can take its own colour and dash without the rows having to know
+ * their own height.
+ */
+function LegRow({
+  leg,
+  isFirst,
+  isLast,
+}: {
+  leg: JourneyLeg;
+  isFirst: boolean;
+  isLast: boolean;
+}) {
   const locale = useLocale();
   const { strings, t } = locale;
 
+  const visual = leg.mode === 'TRANSIT' ? modeVisual(leg.routeType) : null;
+
   return (
     <li className="flex gap-3">
-      <span aria-hidden="true" className="text-content-muted mt-0.5 flex-none">
-        {leg.mode === 'WALK' ? <WalkIcon /> : <ModeIcon routeType={leg.routeType} />}
-      </span>
+      {/* The spine. Decorative: everything it says is also written. */}
+      <div aria-hidden="true" className="flex w-5 flex-none flex-col items-center">
+        <span
+          className={`h-2 w-0.5 ${isFirst ? 'bg-transparent' : leg.mode === 'TRANSIT' ? 'bg-current' : 'bg-border-strong'} ${visual?.ink ?? ''}`}
+        />
+        <span
+          className={
+            leg.mode === 'TRANSIT'
+              ? `border-current ${visual?.ink ?? ''} bg-surface-raised h-3 w-3 flex-none rounded-full border-[3px]`
+              : 'border-border-strong bg-surface-raised h-2.5 w-2.5 flex-none rounded-full border-2'
+          }
+        />
+        <span
+          className={`w-0.5 flex-1 ${
+            isLast
+              ? 'bg-transparent'
+              : leg.mode === 'TRANSIT'
+                ? `bg-current ${visual?.ink ?? ''}`
+                : 'border-border-strong border-s-2 border-dashed bg-transparent'
+          }`}
+        />
+      </div>
 
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        {/*
-          Waiting sits before the leg departs and is excluded from the leg's own
-          duration, so it is shown as its own line rather than folded in.
-        */}
+      <div className="flex min-w-0 flex-1 flex-col gap-1 pb-4">
+        {/* Waiting sits before the leg departs and is excluded from its own
+            duration, so it is its own line rather than folded in. */}
         {leg.waitDurationMinutes > 0 && (
-          <p className="text-content-muted text-sm">
+          <p className="text-content-muted text-xs">
             {t(strings.planner.wait, {
               duration: formatDuration(leg.waitDurationMinutes, locale),
             })}
@@ -101,40 +145,34 @@ function Leg({ leg, isLast }: { leg: JourneyLeg; isLast: boolean }) {
         )}
 
         {leg.mode === 'WALK' ? (
-          <WalkLegBody leg={leg} isLast={isLast} />
+          <WalkBody leg={leg} isLast={isLast} />
         ) : (
-          <TransitLegBody leg={leg} />
+          <TransitBody leg={leg} />
         )}
       </div>
 
-      <p className="text-content-muted flex-none text-sm tabular-nums">
+      <p className="text-content-muted w-16 flex-none text-end text-sm font-medium tabular-nums">
         {formatClockTime(leg.startTime, locale.locale)}
       </p>
     </li>
   );
 }
 
-function WalkLegBody({
-  leg,
-  isLast,
-}: {
-  leg: Extract<JourneyLeg, { mode: 'WALK' }>;
-  isLast: boolean;
-}) {
+function WalkBody({ leg, isLast }: { leg: WalkLeg; isLast: boolean }) {
   const locale = useLocale();
   const { strings, t } = locale;
 
-  // The final walk ends at a dropped pin, which has no name worth printing.
-  const destination = isLast
-    ? t(strings.planner.walkToDestination)
-    : t(strings.planner.walkLeg, { place: leg.toStop.name });
-
   return (
     <>
-      <p className="text-sm font-medium" dir="auto">
-        {destination}
+      <p className="flex items-center gap-2 text-sm font-medium" dir="auto">
+        <span className="text-content-muted flex-none">
+          <WalkIcon size={16} />
+        </span>
+        {isLast
+          ? t(strings.planner.walkToDestination)
+          : t(strings.planner.walkLeg, { place: leg.toStop.name })}
       </p>
-      <p className="text-content-muted text-sm">
+      <p className="text-content-muted ps-6 text-sm">
         {formatDuration(leg.walkDurationMinutes, locale)}
         <span aria-hidden="true"> · </span>
         {formatDistance(leg.walkDistanceMeters, locale)}
@@ -143,25 +181,31 @@ function WalkLegBody({
   );
 }
 
-function TransitLegBody({ leg }: { leg: TransitLeg }) {
+function TransitBody({ leg }: { leg: TransitLeg }) {
   const locale = useLocale();
   const { strings, t } = locale;
   const [showStops, setShowStops] = useState(false);
-
+  const visual = modeVisual(leg.routeType);
   const stops = leg.intermediateStops;
 
   return (
     <>
-      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-        {/* Mode as text as well as icon — never colour or shape alone. */}
-        <span className="bg-brand-fill text-on-brand rounded-control px-1.5 py-0.5 text-xs font-semibold">
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        {/* The route bullet: transit's own way of naming a line. */}
+        <span
+          className={`${visual.fill} text-on-mode rounded-control inline-flex items-center gap-1.5 px-2 py-1 text-sm font-bold tabular-nums`}
+        >
+          <ModeIcon routeType={leg.routeType} size={15} />
           {leg.routeShortName}
         </span>
-        <span className="text-content-muted">
+
+        {/* Named as well as coloured, always. */}
+        <span className="text-content-muted text-xs">
           {modeLabel(leg.routeType, strings)}
         </span>
+
         {leg.destination !== null && (
-          <span dir="auto" className="font-medium">
+          <span dir="auto" className="text-sm font-medium">
             {t(strings.planner.towards, { destination: leg.destination })}
           </span>
         )}
@@ -175,7 +219,7 @@ function TransitLegBody({ leg }: { leg: TransitLeg }) {
 
       <p className="text-content-muted text-sm">
         {formatDuration(leg.transitDurationMinutes, locale)}
-        {/* Null whenever the feed omits shape_dist_traveled — expected, not a gap. */}
+        {/* Null whenever the feed omits shape_dist_traveled — expected. */}
         {leg.transitDistanceMeters !== null && (
           <>
             <span aria-hidden="true"> · </span>
@@ -190,7 +234,7 @@ function TransitLegBody({ leg }: { leg: TransitLeg }) {
             type="button"
             onClick={() => setShowStops((shown) => !shown)}
             aria-expanded={showStops}
-            className="text-brand-500 focus-visible:outline-brand-500 rounded-control cursor-pointer text-sm underline focus-visible:outline-2 focus-visible:outline-offset-2"
+            className={`${visual.ink} focus-visible:outline-brand-500 rounded-control cursor-pointer text-sm font-medium underline decoration-dotted underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2`}
           >
             {showStops
               ? t(strings.planner.hideStops)
@@ -198,10 +242,16 @@ function TransitLegBody({ leg }: { leg: TransitLeg }) {
           </button>
 
           {showStops && (
-            <ol className="border-border text-content-muted mt-2 flex flex-col gap-1 border-s ps-3 text-sm">
+            <ol className="text-content-muted mt-1.5 flex flex-col gap-1 text-sm">
               {stops.map((stop) => (
-                <li key={stop.stopId} className="flex justify-between gap-3">
-                  <span dir="auto">{stop.stopName}</span>
+                <li key={stop.stopId} className="flex items-center gap-2">
+                  <span
+                    aria-hidden="true"
+                    className={`${visual.ink} h-1.5 w-1.5 flex-none rounded-full bg-current opacity-60`}
+                  />
+                  <span dir="auto" className="flex-1 truncate">
+                    {stop.stopName}
+                  </span>
                   <span className="tabular-nums">
                     {formatClockTime(stop.stopArrivalTime, locale.locale)}
                   </span>
@@ -212,52 +262,5 @@ function TransitLegBody({ leg }: { leg: TransitLeg }) {
         </div>
       )}
     </>
-  );
-}
-
-const iconProps = {
-  viewBox: '0 0 24 24',
-  width: 18,
-  height: 18,
-  fill: 'none',
-  stroke: 'currentColor',
-  strokeWidth: 2,
-  strokeLinecap: 'round',
-  strokeLinejoin: 'round',
-} as const;
-
-const WalkIcon = () => (
-  <svg {...iconProps}>
-    <circle cx="13" cy="4" r="2" />
-    <path d="M11 21l1-6-3-2V9l4-2 3 3 3 1M9 21l2-5" />
-  </svg>
-);
-
-/** One shape per mode family, so the icon is not merely decorative. */
-function ModeIcon({ routeType }: { routeType: number }) {
-  if (routeType === 4) {
-    return (
-      <svg {...iconProps}>
-        <path d="M3 17c2 0 2 1.5 4 1.5S9 17 11 17s2 1.5 4 1.5S17 17 19 17M5 17V9h14v8M8 9V6h8v3" />
-      </svg>
-    );
-  }
-  if (routeType === 0 || routeType === 1 || routeType === 2) {
-    return (
-      <svg {...iconProps}>
-        <rect x="5" y="3" width="14" height="13" rx="2" />
-        <path d="M5 10h14M8 21l2-3M16 21l-2-3" />
-        <circle cx="9" cy="13" r="1" />
-        <circle cx="15" cy="13" r="1" />
-      </svg>
-    );
-  }
-  return (
-    <svg {...iconProps}>
-      <rect x="4" y="3" width="16" height="14" rx="2" />
-      <path d="M4 10h16M7 21v-2M17 21v-2" />
-      <circle cx="8" cy="14" r="1" />
-      <circle cx="16" cy="14" r="1" />
-    </svg>
   );
 }

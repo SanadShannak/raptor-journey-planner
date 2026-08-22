@@ -128,12 +128,17 @@ export interface Dictionary {
     myLocation: string;
     date: string;
     time: string;
+    today: string;
+    tomorrow: string;
+    yesterday: string;
+    chooseTime: string;
     walkingSpeed: string;
     speedSlow: string;
     speedCalm: string;
     speedAverage: string;
     speedFast: string;
     submit: string;
+    kmh: string;
     searching: string;
     suggestionsAvailable: PluralForms;
     searchUnavailable: string;
@@ -163,6 +168,7 @@ export interface Dictionary {
     arrivesNextDay: string;
     /** The engine can legitimately answer with no transit at all. */
     walkOnly: string;
+    mapComingSoon: string;
   };
 
   /**

@@ -2,12 +2,17 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { useLocale } from '../../i18n';
 import { geocoder } from '../../geocoding';
 import type { Place } from '../../types/place';
+import type { GeoBounds } from '../../config/geocoding';
 
 interface Props {
   label: string;
+  /** Which end this is. Only the marker differs; behaviour is identical. */
+  role: 'origin' | 'destination';
   /** The chosen place, or null while the field is empty or still being typed. */
   value: Place | null;
   onChange: (place: Place | null) => void;
+  /** Restricts suggestions to the network's area. */
+  bounds?: GeoBounds | null | undefined;
   /** Rendered beside the field — "use my location" on the origin. */
   action?: React.ReactNode;
 }
@@ -32,7 +37,7 @@ const MIN_QUERY_LENGTH = 2;
  * chosen suggestion has them — so picking is mandatory, and the form says so
  * rather than guessing at what was typed.
  */
-export function PlaceInput({ label, value, onChange, action }: Props) {
+export function PlaceInput({ label, role, value, onChange, bounds, action }: Props) {
   const { locale, strings, t } = useLocale();
 
   const [query, setQuery] = useState(value?.label ?? '');
@@ -73,7 +78,11 @@ export function PlaceInput({ label, value, onChange, action }: Props) {
     const timer = setTimeout(() => {
       setStatus('loading');
       geocoder
-        .search(trimmed, { signal: controller.signal, language: locale })
+        .search(trimmed, {
+          signal: controller.signal,
+          language: locale,
+          ...(bounds ? { bounds } : {}),
+        })
         .then((places) => {
           if (controller.signal.aborted) return;
           setSuggestions(places);
@@ -95,7 +104,7 @@ export function PlaceInput({ label, value, onChange, action }: Props) {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [trimmed, locale, dormant]);
+  }, [trimmed, locale, dormant, bounds]);
 
   useEffect(() => {
     if (!open) return;
@@ -148,11 +157,17 @@ export function PlaceInput({ label, value, onChange, action }: Props) {
 
   return (
     <div ref={containerRef} className="relative flex flex-col gap-1.5">
-      <label htmlFor={inputId} className="text-sm font-medium">
+      <label
+        htmlFor={inputId}
+        className="text-content-muted text-xs font-medium tracking-wide uppercase"
+      >
         {label}
       </label>
 
-      <div className="flex items-center gap-2">
+      <div className="rounded-control border-border-strong bg-surface focus-within:border-brand-500 flex items-center gap-2 border ps-3 pe-1">
+        <span aria-hidden="true" className="flex-none">
+          {role === 'origin' ? <OriginMarker /> : <DestinationMarker />}
+        </span>
         <input
           id={inputId}
           type="text"
@@ -179,7 +194,7 @@ export function PlaceInput({ label, value, onChange, action }: Props) {
           /* Finnish and Arabic place names in one field; let the browser
              decide which way each entry runs. */
           dir="auto"
-          className="rounded-control border-border-strong bg-surface text-content focus-visible:outline-brand-500 min-w-0 flex-1 border px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2"
+          className="min-w-0 flex-1 bg-transparent py-2.5 text-sm font-medium focus-visible:outline-none"
         />
         {action}
       </div>
@@ -226,7 +241,7 @@ export function PlaceInput({ label, value, onChange, action }: Props) {
                   onMouseEnter={() => setActiveIndex(index)}
                   className="rounded-control hover:bg-surface-muted aria-selected:bg-surface-muted flex w-full cursor-pointer items-center gap-2.5 px-2.5 py-2 text-start"
                 >
-                  <span aria-hidden="true" className="text-content-muted">
+                  <span aria-hidden="true" className="flex-none">
                     {place.kind === 'stop' ? <StopIcon /> : <PinIcon />}
                   </span>
                   <span className="min-w-0 flex-1">
@@ -263,21 +278,40 @@ const iconProps = {
   height: 16,
   fill: 'none',
   stroke: 'currentColor',
-  strokeWidth: 2,
+  strokeWidth: 1.75,
   strokeLinecap: 'round',
   strokeLinejoin: 'round',
 } as const;
 
+/*
+ * The two ends of a journey read as the two ends of a line: an open ring where
+ * you start, a filled marker where you finish. Borrowed from transit maps,
+ * where the same pair distinguishes a terminus from a through station.
+ */
+const OriginMarker = () => (
+  <svg {...iconProps} className="text-mode-tram">
+    <circle cx="12" cy="12" r="6" strokeWidth="2.5" />
+  </svg>
+);
+
+const DestinationMarker = () => (
+  <svg {...iconProps} className="text-brand-500">
+    <path d="M12 21.5s6.5-6 6.5-10.5a6.5 6.5 0 10-13 0c0 4.5 6.5 10.5 6.5 10.5z" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="10.7" r="2.3" className="fill-surface" stroke="none" />
+  </svg>
+);
+
 const PinIcon = () => (
-  <svg {...iconProps}>
+  <svg {...iconProps} className="text-content-muted">
     <path d="M12 21s7-5.5 7-11a7 7 0 10-14 0c0 5.5 7 11 7 11z" />
     <circle cx="12" cy="10" r="2.5" />
   </svg>
 );
 
+/** Suggestions the geocoder identified as stops get the transit marker. */
 const StopIcon = () => (
-  <svg {...iconProps}>
-    <rect x="4" y="3" width="16" height="14" rx="2" />
-    <path d="M4 10h16M7 21v-2M17 21v-2" />
+  <svg {...iconProps} className="text-mode-bus">
+    <rect x="4" y="4" width="16" height="12" rx="2.5" />
+    <path d="M4 11h16M7.5 20v-2M16.5 20v-2" />
   </svg>
 );

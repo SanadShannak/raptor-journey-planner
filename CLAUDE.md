@@ -78,7 +78,9 @@ Three rules follow, and the third is the one that gets broken:
 2. **Date arithmetic builds from parts.** `new Date("2026-09-10")` parses as UTC midnight and lands on the previous day for anyone west of Greenwich, which silently shifts a whole service day. See `convertDateIdToDateObject`.
 3. **Values coming *out* of the API are already network-local — do not convert them again.** `startTime`, `endTime`, and every departure are wall-clock strings in the network's zone. Formatting them with a `timeZone` option would shift them a second time. The zone is only for answering "what time is it there now", never for re-interpreting a value the API already resolved.
 
-Times are 24-hour everywhere, in both languages: the API returns 24-hour values, stop poles and printed timetables are 24-hour, and a 12-hour clock makes an after-midnight departure easy to read as the wrong end of the day.
+**On the wire, times are always 24-hour**; only the *display* is localised. The API returns and accepts `HH:mm`, every value stored in a URL or in state is `HH:mm`, and `formatClockTime` is the single place that turns one into something a person reads — currently 12-hour with a meridiem, in whichever form the locale writes it.
+
+The risk a 12-hour clock carries is that "12:40 AM" reads as the wrong end of the day. That is answered by the date rather than by the clock: an itinerary whose arrival falls on the next day says so, and every departure the API returns carries its own date for exactly this reason. Never render a time that could fall after midnight without the date beside it.
 
 ### API contract
 

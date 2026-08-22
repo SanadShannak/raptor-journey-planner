@@ -50,6 +50,15 @@ export interface PlaceSearchOptions {
   language?: string | undefined;
   /** How many suggestions to ask for. */
   limit?: number | undefined;
+  /**
+   * Restricts results to the network's area.
+   *
+   * Not a nicety: unbounded, a search for a district name can return a café on
+   * the other side of the country, and the planner will dutifully route to it.
+   */
+  bounds?:
+    | { minLat: number; minLon: number; maxLat: number; maxLon: number }
+    | undefined;
 }
 
 /**

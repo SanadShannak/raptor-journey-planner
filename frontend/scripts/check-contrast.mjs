@@ -48,6 +48,18 @@ const PAIRS = [
   ['on-chrome', 'chrome', AA_TEXT],
   ['accent', 'chrome', AA_TEXT],
   ['chrome-border', 'chrome', AA_UI],
+  // Mode colours are read as filled bullets carrying a label, and as a line
+  // drawn against the page. Both are checked.
+  ['on-mode', 'mode-bus', AA_TEXT],
+  ['on-mode', 'mode-tram', AA_TEXT],
+  ['on-mode', 'mode-metro', AA_TEXT],
+  ['on-mode', 'mode-train', AA_TEXT],
+  ['on-mode', 'mode-ferry', AA_TEXT],
+  ['mode-bus', 'surface-raised', AA_UI],
+  ['mode-tram', 'surface-raised', AA_UI],
+  ['mode-metro', 'surface-raised', AA_UI],
+  ['mode-train', 'surface-raised', AA_UI],
+  ['mode-ferry', 'surface-raised', AA_UI],
   ['border-strong', 'surface', AA_UI],
   ['border-strong', 'surface-raised', AA_UI],
 ];

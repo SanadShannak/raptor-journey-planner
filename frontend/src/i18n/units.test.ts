@@ -59,18 +59,28 @@ describe('formatDistance', () => {
 
 describe('formatClockTime', () => {
   /*
-   * 24-hour in both languages is a product decision, not a default: the API
-   * returns 24-hour values and a 12-hour clock makes 00:40 easy to misread as
-   * the wrong end of the day.
+   * Twelve-hour with a meridiem, written the way each locale writes it. Only
+   * the display: everything on the wire stays 24-hour.
    */
-  it('is 24-hour in both locales', () => {
-    expect(formatClockTime('18:03', 'en')).toBe('18:03');
-    expect(formatClockTime('18:03', 'ar')).toBe('18:03');
-    expect(formatClockTime('00:40', 'en')).toBe('00:40');
+  it('shows a meridiem in both locales', () => {
+    expect(formatClockTime('18:03', 'en')).toBe('6:03 PM');
+    // Arabic uses its own marker, and Latin digits because INTL_LOCALE asks
+    // for them — route designations arrive in Latin script.
+    expect(formatClockTime('18:03', 'ar')).toBe('6:03 م');
+  });
+
+  /*
+   * The hours either side of midnight are where a 12-hour clock is easiest to
+   * misread, so they are pinned rather than assumed.
+   */
+  it('distinguishes midnight from noon', () => {
+    expect(formatClockTime('00:40', 'en')).toBe('12:40 AM');
+    expect(formatClockTime('12:40', 'en')).toBe('12:40 PM');
+    expect(formatClockTime('00:00', 'en')).toBe('12:00 AM');
   });
 
   it('accepts the seconds form the API takes on input', () => {
-    expect(formatClockTime('18:03:00', 'en')).toBe('18:03');
+    expect(formatClockTime('18:03:00', 'en')).toBe('6:03 PM');
   });
 
   it('returns anything unparseable unchanged rather than inventing a time', () => {

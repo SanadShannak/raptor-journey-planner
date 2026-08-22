@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { messageForApiError, nowInZone, useLocale } from '../i18n';
-import { PageContainer } from '../components/PageContainer';
-import { SectionLinks } from '../components/SectionLinks';
 import { usePageTitle } from '../app/usePageTitle';
 import { getValidDates, planJourney } from '../api/journey';
 import { getNetwork } from '../api/network';
+import { boundsForNetwork, type GeoBounds } from '../config/geocoding';
 import {
   DEFAULT_WALKING_PACE,
   WALKING_PACES,
@@ -57,6 +56,8 @@ export default function PlanPage() {
 
   const [searchParams, setSearchParams] = useSearchParams();
   const [validDates, setValidDates] = useState<string[]>([]);
+  const [networkToday, setNetworkToday] = useState<string | null>(null);
+  const [bounds, setBounds] = useState<GeoBounds | null>(null);
 
   const [values, setValues] = useState<JourneyFormValues>(() => {
     const pace = searchParams.get('pace');
@@ -97,17 +98,26 @@ export default function PlanPage() {
         datesResult.status === 'fulfilled' ? datesResult.value : [];
       setValidDates(dates);
 
+      /*
+       * "Now" on the network's clock, never the browser's — they differ for
+       * part of every day, and the timetable belongs to the network.
+       */
+      const now =
+        networkResult.status === 'fulfilled'
+          ? nowInZone(networkResult.value.timezone)
+          : null;
+
+      // Resolved out here rather than inside the updater below: a state
+      // updater must be pure, and one that returns early would skip these
+      // entirely — which is exactly what happened when a shared link supplied
+      // the date and the relative labels silently stopped appearing.
+      if (now !== null) setNetworkToday(now.date);
+      if (networkResult.status === 'fulfilled') {
+        setBounds(boundsForNetwork(networkResult.value.network));
+      }
+
       setValues((current) => {
         if (current.date !== '' && current.time !== '') return current;
-
-        /*
-         * "Now" on the network's clock, never the browser's — they differ for
-         * part of every day, and the timetable belongs to the network.
-         */
-        const now =
-          networkResult.status === 'fulfilled'
-            ? nowInZone(networkResult.value.timezone)
-            : null;
 
         // Today when the feed covers it; otherwise the first day it does, so
         // the form never opens on a date the engine will refuse.
@@ -199,7 +209,7 @@ export default function PlanPage() {
     }
   }
 
-  function submit() {
+  function runSearch() {
     const next = new URLSearchParams();
     if (values.origin) next.set('from', encodePlace(values.origin));
     if (values.destination) next.set('to', encodePlace(values.destination));
@@ -231,80 +241,132 @@ export default function PlanPage() {
   const showEmpty = searched && state === 'idle' && journeys.length === 0;
 
   return (
-    <PageContainer>
-      <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-        {t(strings.pages.plan.title)}
-      </h1>
+    /*
+     * Sidebar and map, not a page of stacked sections.
+     *
+     * A journey is two things at once — a list of instructions and a shape on
+     * the ground — and a rider reads both together. Side by side they stay in
+     * view of each other; stacked, checking the map means losing your place in
+     * the itinerary.
+     *
+     * The sidebar scrolls on its own so the map never leaves the screen. Below
+     * `lg` that inverts: on a phone there is no room for two panes, so the
+     * itinerary takes the width and the map sits above it at a fixed height.
+     */
+    <div className="lg:min-h-viewport flex flex-col lg:h-[calc(100vh-3.75rem)] lg:flex-row">
+      <div className="border-border flex w-full flex-none flex-col gap-5 overflow-y-auto border-e p-5 lg:w-[26rem] xl:w-[30rem]">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-balance">
+            {t(strings.pages.plan.title)}
+          </h1>
+        </div>
 
-      <JourneyForm
-        values={values}
-        onChange={setValues}
-        onSubmit={submit}
-        validDates={validDates}
-        busy={state === 'searching'}
-      />
-
-      {/*
-        Announced politely so a screen-reader user learns the search finished
-        without focus being moved out from under them.
-      */}
-      <section aria-live="polite" aria-busy={state === 'searching'} className="flex flex-col gap-4">
-        <p className="sr-only">
-          {state === 'searching'
-            ? t(strings.planner.searching)
-            : journeys.length > 0
-              ? t(strings.planner.resultsFound, { count: journeys.length })
-              : ''}
-        </p>
-
-        {state === 'failed' && errorMessage !== null && (
-          <p className="rounded-card border-danger text-danger border px-4 py-3">
-            {errorMessage}
-          </p>
-        )}
+        <JourneyForm
+          values={values}
+          onChange={setValues}
+          onSearch={runSearch}
+          validDates={validDates}
+          today={networkToday}
+          bounds={bounds}
+        />
 
         {/*
-          Nothing found is an empty state, not a failure: the search ran, and
-          the honest answer is that nothing connects these places then.
+          Announced politely so a screen-reader user learns the search finished
+          without focus being moved out from under them.
         */}
-        {showEmpty && (
-          <div className="rounded-card border-border bg-surface-muted flex flex-col gap-1 border px-4 py-5">
-            <p className="font-medium">{t(strings.planner.noJourney)}</p>
-            <p className="text-content-muted text-sm">
-              {t(strings.planner.noJourneyHint)}
+        <section
+          aria-live="polite"
+          aria-busy={state === 'searching'}
+          className="flex flex-col gap-3"
+        >
+          <p className="sr-only">
+            {state === 'searching'
+              ? t(strings.planner.searching)
+              : journeys.length > 0
+                ? t(strings.planner.resultsFound, { count: journeys.length })
+                : ''}
+          </p>
+
+          {state === 'searching' && journeys.length === 0 && <ItinerarySkeleton />}
+
+          {state === 'failed' && errorMessage !== null && (
+            <p className="rounded-card border-danger text-danger border px-4 py-3 text-sm">
+              {errorMessage}
             </p>
-          </div>
-        )}
+          )}
 
-        {journeys.length > 0 && (
-          <>
-            <ExtendButton
-              direction="earlier"
-              onClick={() => extend('earlier')}
-              busy={extending === 'earlier'}
-            />
-            {journeys.map((journey, index) => (
-              <Itinerary
-                key={`${journey.startDate}-${journey.startTime}-${index}`}
-                journey={journey}
-              />
-            ))}
-            <ExtendButton
-              direction="later"
-              onClick={() => extend('later')}
-              busy={extending === 'later'}
-            />
-            {exhausted !== null && (
-              <p role="status" className="text-content-muted text-sm">
-                {exhausted}
+          {/*
+            Nothing found is an empty state, not a failure: the search ran, and
+            the honest answer is that nothing connects these places then.
+          */}
+          {showEmpty && (
+            <div className="rounded-card border-border bg-surface-muted flex flex-col gap-1 border px-4 py-5">
+              <p className="font-medium">{t(strings.planner.noJourney)}</p>
+              <p className="text-content-muted text-sm">
+                {t(strings.planner.noJourneyHint)}
               </p>
-            )}
-          </>
-        )}
-      </section>
+            </div>
+          )}
 
-      <SectionLinks />
-    </PageContainer>
+          {journeys.length > 0 && (
+            <>
+              <ExtendButton
+                direction="earlier"
+                onClick={() => extend('earlier')}
+                busy={extending === 'earlier'}
+              />
+              {journeys.map((journey, index) => (
+                <Itinerary
+                  key={`${journey.startDate}-${journey.startTime}-${index}`}
+                  journey={journey}
+                />
+              ))}
+              <ExtendButton
+                direction="later"
+                onClick={() => extend('later')}
+                busy={extending === 'later'}
+              />
+              {exhausted !== null && (
+                <p role="status" className="text-content-muted text-center text-sm">
+                  {exhausted}
+                </p>
+              )}
+            </>
+          )}
+        </section>
+      </div>
+
+      {/*
+        The map's place, held open so the layout is the real one before the map
+        exists. Ordered first on a phone and second on a desktop.
+      */}
+      <div className="bg-surface-muted relative order-first h-56 flex-1 lg:order-none lg:h-auto">
+        <div className="text-content-muted absolute inset-0 flex items-center justify-center text-sm">
+          {t(strings.planner.mapComingSoon)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A placeholder shaped like the result it is waiting for.
+ *
+ * Sized to a typical itinerary so the sidebar does not jump when the real one
+ * arrives. Hidden from assistive technology, which is told about the search by
+ * the live region instead.
+ */
+function ItinerarySkeleton() {
+  return (
+    <div
+      aria-hidden="true"
+      className="rounded-card border-border bg-surface-raised flex flex-col gap-3 border p-4"
+    >
+      <div className="bg-surface-muted h-6 w-40 rounded motion-safe:animate-pulse" />
+      <div className="bg-surface-muted h-4 w-full rounded motion-safe:animate-pulse" />
+      <div className="bg-surface-muted h-4 w-3/4 rounded motion-safe:animate-pulse" />
+      <div className="bg-surface-muted h-4 w-2/3 rounded motion-safe:animate-pulse" />
+    </div>
   );
 }
 

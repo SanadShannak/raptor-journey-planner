@@ -109,6 +109,29 @@
   --color-border: oklch(0.9 0.008 350);
   --color-border-strong: oklch(0.655 0.01 350);
 
+  /*
+   * Transit modes.
+   *
+   * Data colours, not brand ones: every network colour-codes its modes, and a
+   * rider reads the colour before the label. They are deliberately unrelated
+   * to the wine, which identifies the product rather than the vehicle.
+   *
+   * Hues follow the convention HSL and most networks share — bus blue, tram
+   * green, metro orange, train purple, ferry teal — so someone who knows the
+   * city recognises them without learning anything.
+   *
+   * Never the only signal: every mode carries an icon and a text label too.
+   * `on-mode` is the text drawn on a filled bullet, and it inverts between
+   * schemes for the same reason `on-brand` does — a fill light enough to read
+   * against a dark page cannot also carry white text.
+   */
+  --color-mode-bus: oklch(0.56 0.16 250);
+  --color-mode-tram: oklch(0.545 0.151 150);
+  --color-mode-metro: oklch(0.57 0.142 55);
+  --color-mode-train: oklch(0.585 0.2 310);
+  --color-mode-ferry: oklch(0.55 0.095 205);
+  --color-on-mode: oklch(1 0 0);
+
   /* Feedback */
   --color-danger: oklch(0.58 0.2 25);
   --color-success: oklch(0.55 0.15 150);
@@ -140,6 +163,14 @@
   --dark-brand-600: oklch(0.71 0.14 2.5);
   --dark-brand-700: oklch(0.76 0.13 2.5);
   --dark-brand-fill: oklch(0.56 0.143 2.5);
+
+  /* Lifted, and the text on them darkens to match — see `on-mode`. */
+  --dark-mode-bus: oklch(0.68 0.176 250);
+  --dark-mode-tram: oklch(0.68 0.18 150);
+  --dark-mode-metro: oklch(0.68 0.169 55);
+  --dark-mode-train: oklch(0.68 0.18 310);
+  --dark-mode-ferry: oklch(0.68 0.117 205);
+  --dark-on-mode: oklch(0.19 0.012 350);
 
   /* Deepened so a wine bar does not glare against a dark page at night. */
   --dark-chrome: oklch(0.3 0.12 2.5);
@@ -191,6 +222,12 @@
     --color-brand-600: var(--dark-brand-600);
     --color-brand-700: var(--dark-brand-700);
     --color-brand-fill: var(--dark-brand-fill);
+    --color-mode-bus: var(--dark-mode-bus);
+    --color-mode-tram: var(--dark-mode-tram);
+    --color-mode-metro: var(--dark-mode-metro);
+    --color-mode-train: var(--dark-mode-train);
+    --color-mode-ferry: var(--dark-mode-ferry);
+    --color-on-mode: var(--dark-on-mode);
     --color-chrome: var(--dark-chrome);
     --color-on-chrome: var(--dark-on-chrome);
     --color-accent-strong: var(--dark-accent-strong);
@@ -214,6 +251,12 @@
   --color-brand-600: var(--dark-brand-600);
   --color-brand-700: var(--dark-brand-700);
   --color-brand-fill: var(--dark-brand-fill);
+  --color-mode-bus: var(--dark-mode-bus);
+  --color-mode-tram: var(--dark-mode-tram);
+  --color-mode-metro: var(--dark-mode-metro);
+  --color-mode-train: var(--dark-mode-train);
+  --color-mode-ferry: var(--dark-mode-ferry);
+  --color-on-mode: var(--dark-on-mode);
   --color-chrome: var(--dark-chrome);
   --color-on-chrome: var(--dark-on-chrome);
   --color-accent-strong: var(--dark-accent-strong);
@@ -250,6 +293,12 @@
     --color-brand-700: #590129;
     --color-brand-fill: #851c45;
     --color-on-brand: #ffffff;
+    --color-mode-bus: #0077cd;
+    --color-mode-tram: #00873c;
+    --color-mode-metro: #b55c00;
+    --color-mode-train: #a04fd2;
+    --color-mode-ferry: #00818c;
+    --color-on-mode: #ffffff;
     --color-chrome: #710c37;
     --color-on-chrome: #ffffff;
     --color-chrome-border: #ac7d89;
@@ -274,6 +323,12 @@
     --dark-brand-600: #e8799a;
     --dark-brand-700: #f58caa;
     --dark-brand-fill: #b54a6d;
+    --dark-mode-bus: #299cff;
+    --dark-mode-tram: #1cb657;
+    --dark-mode-metro: #e57600;
+    --dark-mode-train: #ba73ea;
+    --dark-mode-ferry: #00acba;
+    --dark-on-mode: #181215;
     --dark-chrome: #590129;
     --dark-on-chrome: #fef1f4;
     --dark-accent-strong: #e68028;

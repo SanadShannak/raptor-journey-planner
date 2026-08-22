@@ -111,6 +111,11 @@ export function createPhotonGeocoder(): Geocoder {
       url.searchParams.set('q', query);
       url.searchParams.set('limit', String(options.limit ?? 6));
       if (options.language) url.searchParams.set('lang', options.language);
+      if (options.bounds) {
+        // Photon takes the box corner-first as lon,lat pairs.
+        const { minLon, maxLat, maxLon, minLat } = options.bounds;
+        url.searchParams.set('bbox', `${minLon},${maxLat},${maxLon},${minLat}`);
+      }
 
       const response = await fetch(url, {
         signal: options.signal ?? null,
