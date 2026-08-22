@@ -64,11 +64,15 @@ export interface Dictionary {
   language: {
     /** Accessible label for the language switcher. */
     switcherLabel: string;
+    /** Names the menu button and states the current language. */
+    menuLabel: string;
   };
 
   nav: {
     /** Names the primary navigation landmark for a screen reader. */
     primaryLabel: string;
+    /** Names the secondary section links below the planner. */
+    sectionsLabel: string;
     /** First focusable control on the page; jumps past the header. */
     skipToContent: string;
     /** Toggle for the navigation panel on narrow screens. */
@@ -128,6 +132,8 @@ export interface Dictionary {
   theme: {
     /** Accessible label for the colour-scheme switcher. */
     switcherLabel: string;
+    /** Names the menu button and states the current setting. */
+    menuLabel: string;
     light: string;
     dark: string;
     /** Follow the operating system's colour scheme. */

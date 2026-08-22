@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { LocaleProvider } from '../i18n';
 import { ThemeProvider } from './ThemeProvider';
-import { ThemeSwitcher } from './ThemeSwitcher';
+import { ThemeMenu } from './ThemeMenu';
 import { THEME_STORAGE_KEY } from './theme';
 import { useTheme } from './themeContext';
 
@@ -33,7 +33,7 @@ function Probe() {
     <>
       <span data-testid="choice">{choice}</span>
       <span data-testid="resolved">{resolved}</span>
-      <ThemeSwitcher />
+      <ThemeMenu />
     </>
   );
 }
@@ -74,7 +74,8 @@ describe('ThemeProvider', () => {
   it('applies and persists an explicit choice', () => {
     renderApp();
 
-    fireEvent.click(screen.getByRole('radio', { name: 'Dark' }));
+    fireEvent.click(screen.getByRole('button', { name: /Appearance/ }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Dark' }));
 
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('dark');
@@ -98,8 +99,10 @@ describe('ThemeProvider', () => {
   it('hands control back to the OS when "system" is chosen again', () => {
     renderApp();
 
-    fireEvent.click(screen.getByRole('radio', { name: 'Dark' }));
-    fireEvent.click(screen.getByRole('radio', { name: 'System' }));
+    fireEvent.click(screen.getByRole('button', { name: /Appearance/ }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Dark' }));
+    fireEvent.click(screen.getByRole('button', { name: /Appearance/ }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'System' }));
 
     expect(document.documentElement.hasAttribute('data-theme')).toBe(false);
     expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('system');
@@ -119,7 +122,8 @@ describe('ThemeProvider', () => {
 
   it('ignores the OS flipping once a choice has been made', () => {
     renderApp();
-    fireEvent.click(screen.getByRole('radio', { name: 'Light' }));
+    fireEvent.click(screen.getByRole('button', { name: /Appearance/ }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Light' }));
 
     prefersDark = true;
     act(() => {
@@ -130,25 +134,33 @@ describe('ThemeProvider', () => {
   });
 });
 
-describe('ThemeSwitcher', () => {
+describe('ThemeMenu', () => {
   /*
-   * Mutually exclusive options, so they must expose themselves as a radio
-   * group: that is what gives arrow-key navigation and an "n of 3" reading
-   * without any ARIA of our own.
+   * These are settings, not actions: exactly one is always chosen. That is why
+   * the items are `menuitemradio` with `aria-checked` — a plain `menuitem`
+   * would announce them as commands and never say which is active.
    */
-  it('exposes one checked radio per choice, named by the active locale', () => {
+  it('exposes the choices as checkable menu items', () => {
     renderApp();
+    fireEvent.click(screen.getByRole('button', { name: /Appearance/ }));
 
-    const radios = screen.getAllByRole('radio');
-    expect(radios.map((radio) => radio.getAttribute('value'))).toEqual([
-      'light',
-      'dark',
-      'system',
+    const items = screen.getAllByRole('menuitemradio');
+    expect(items.map((item) => item.textContent)).toEqual([
+      'Light',
+      'Dark',
+      'System',
     ]);
-    const checked = radios.filter((radio) => (radio as HTMLInputElement).checked);
-    expect(checked.map((radio) => radio.getAttribute('value'))).toEqual(['system']);
+    expect(
+      items.filter((item) => item.getAttribute('aria-checked') === 'true'),
+    ).toHaveLength(1);
+  });
 
-    // The legend names the group, so the whole control is announced together.
-    expect(screen.getByRole('group', { name: 'Appearance' })).toBeTruthy();
+  /* The button's name has to carry the current value, or a screen-reader user
+   * has to open the menu to find out what the setting is. */
+  it('states the current setting in the button name', () => {
+    renderApp();
+    expect(
+      screen.getByRole('button', { name: 'Appearance, currently System' }),
+    ).toBeTruthy();
   });
 });

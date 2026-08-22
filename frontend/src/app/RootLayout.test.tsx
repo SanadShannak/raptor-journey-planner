@@ -4,7 +4,6 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { LocaleProvider } from '../i18n';
 import { ThemeProvider } from '../theme';
 import { RootLayout } from './RootLayout';
-import HomePage from '../pages/HomePage';
 import PlanPage from '../pages/PlanPage';
 import NotFoundPage from '../pages/NotFoundPage';
 import { paths } from './routes';
@@ -30,8 +29,7 @@ function renderAt(initialPath: string) {
         <MemoryRouter initialEntries={[initialPath]}>
           <Routes>
             <Route element={<RootLayout />}>
-              <Route path={paths.home} element={<HomePage />} />
-              <Route path={paths.plan} element={<PlanPage />} />
+              <Route path={paths.home} element={<PlanPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Route>
           </Routes>
@@ -60,7 +58,7 @@ describe('app shell', () => {
   });
 
   it('gives every page exactly one h1, first inside main', () => {
-    for (const path of ['/', '/plan', '/nonsense']) {
+    for (const path of ['/', '/nonsense']) {
       const { unmount } = renderAt(path);
       const main = screen.getByRole('main');
       const headings = within(main).getAllByRole('heading', { level: 1 });
@@ -70,7 +68,7 @@ describe('app shell', () => {
   });
 
   it('marks the current page in the navigation', () => {
-    renderAt('/plan');
+    renderAt('/');
     const nav = screen.getByRole('navigation', { name: 'Main' });
     const current = within(nav).getAllByRole('link', { current: 'page' });
     expect(current.map((link) => link.textContent)).toEqual(['Plan a journey']);
@@ -86,7 +84,9 @@ describe('app shell', () => {
 
   it('translates the whole shell, not just the page', () => {
     renderAt('/');
-    fireEvent.click(screen.getByRole('button', { name: 'العربية' }));
+    // Language now lives behind a menu, so it takes two steps to change.
+    fireEvent.click(screen.getByRole('button', { name: /Language/ }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'العربية' }));
 
     expect(screen.getByRole('navigation', { name: 'الرئيسية' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'تسجيل الدخول' })).toBeTruthy();

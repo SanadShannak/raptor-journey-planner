@@ -1,6 +1,5 @@
-import { BrowserRouter, Route, Routes } from 'react-router';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { RootLayout } from './RootLayout';
-import HomePage from '../pages/HomePage';
 import PlanPage from '../pages/PlanPage';
 import RoutesPage from '../pages/RoutesPage';
 import StopsPage from '../pages/StopsPage';
@@ -24,8 +23,11 @@ export function App() {
     <BrowserRouter>
       <Routes>
         <Route element={<RootLayout />}>
-          <Route path={paths.home} element={<HomePage />} />
-          <Route path={paths.plan} element={<PlanPage />} />
+          {/* The planner is the root: it is what nearly everyone comes for.
+              `/plan` redirects rather than 404ing, so an existing link still
+              lands somewhere sensible. */}
+          <Route path={paths.home} element={<PlanPage />} />
+          <Route path={paths.plan} element={<Navigate to={paths.home} replace />} />
           {/* Detail routes arrive with their stages; the index answers both
               for now so a deep link lands somewhere real rather than on 404. */}
           <Route path={paths.routes} element={<RoutesPage />} />

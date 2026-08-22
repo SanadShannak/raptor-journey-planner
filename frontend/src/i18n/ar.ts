@@ -17,9 +17,11 @@ export const ar: Dictionary = {
   },
   language: {
     switcherLabel: 'اللغة',
+    menuLabel: 'اللغة، المحددة حاليًا {value}',
   },
   theme: {
     switcherLabel: 'المظهر',
+    menuLabel: 'المظهر، المحدد حاليًا {value}',
     light: 'فاتح',
     dark: 'داكن',
     system: 'النظام',
@@ -77,6 +79,7 @@ export const ar: Dictionary = {
   },
 
   nav: {
+    sectionsLabel: 'الأقسام',
     primaryLabel: 'الرئيسية',
     skipToContent: 'تخطي إلى المحتوى',
     openMenu: 'القائمة',

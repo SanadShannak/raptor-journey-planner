@@ -13,7 +13,13 @@ import { paths } from './routes';
  * background, and restore-on-close. It owes only Escape and close-on-navigate,
  * both of which are a few lines here.
  */
-export function PrimaryNav() {
+interface Props {
+  /** Opens the auth dialog. The panel is the only place these controls exist
+   * on a narrow screen, where the header has no room to spell them out. */
+  onAuth: (mode: 'logIn' | 'signUp') => void;
+}
+
+export function PrimaryNav({ onAuth }: Props) {
   const { strings, t } = useLocale();
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
@@ -45,7 +51,7 @@ export function PrimaryNav() {
   }, [open]);
 
   const links = [
-    { to: paths.plan, label: t(strings.nav.plan) },
+    { to: paths.home, label: t(strings.nav.plan) },
     { to: paths.routes, label: t(strings.nav.routes) },
     { to: paths.stops, label: t(strings.nav.stops) },
     { to: paths.card, label: t(strings.nav.card) },
@@ -96,19 +102,38 @@ export function PrimaryNav() {
           ))}
         </ul>
 
-        <ul
+        <div
           id={panelId}
           hidden={!open}
           className="bg-chrome border-chrome-border absolute inset-x-0 top-full z-10 flex flex-col gap-1 border-t p-3 md:hidden"
         >
-          {links.map((link) => (
-            <li key={link.to}>
-              <NavLink to={link.to} className={linkClass}>
-                {link.label}
-              </NavLink>
-            </li>
-          ))}
-        </ul>
+          <ul className="flex flex-col gap-1">
+            {links.map((link) => (
+              <li key={link.to}>
+                <NavLink to={link.to} className={linkClass}>
+                  {link.label}
+                </NavLink>
+              </li>
+            ))}
+          </ul>
+
+          <span aria-hidden="true" className="bg-chrome-border my-1 h-px w-full" />
+
+          <button
+            type="button"
+            onClick={() => onAuth('logIn')}
+            className={`${linkClass} cursor-pointer text-start`}
+          >
+            {t(strings.auth.logIn)}
+          </button>
+          <button
+            type="button"
+            onClick={() => onAuth('signUp')}
+            className={`${linkClass} cursor-pointer text-start`}
+          >
+            {t(strings.auth.signUp)}
+          </button>
+        </div>
       </nav>
     </>
   );

@@ -6,9 +6,11 @@ export const en: Dictionary = {
   },
   language: {
     switcherLabel: 'Language',
+    menuLabel: 'Language, currently {value}',
   },
   theme: {
     switcherLabel: 'Appearance',
+    menuLabel: 'Appearance, currently {value}',
     light: 'Light',
     dark: 'Dark',
     system: 'System',
@@ -62,6 +64,7 @@ export const en: Dictionary = {
   },
 
   nav: {
+    sectionsLabel: 'Sections',
     primaryLabel: 'Main',
     skipToContent: 'Skip to content',
     openMenu: 'Menu',
