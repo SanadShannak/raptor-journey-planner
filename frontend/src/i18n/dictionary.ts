@@ -116,6 +116,55 @@ export interface Dictionary {
     notFound: { title: string; body: string; backHome: string };
   };
 
+  /** The journey planner: its form, its results, and its empty states. */
+  planner: {
+    origin: string;
+    destination: string;
+    swap: string;
+    useMyLocation: string;
+    locating: string;
+    locationDenied: string;
+    locationUnavailable: string;
+    myLocation: string;
+    date: string;
+    time: string;
+    walkingSpeed: string;
+    speedSlow: string;
+    speedCalm: string;
+    speedAverage: string;
+    speedFast: string;
+    submit: string;
+    searching: string;
+    suggestionsAvailable: PluralForms;
+    searchUnavailable: string;
+    isStop: string;
+    chooseOrigin: string;
+    chooseDestination: string;
+    /** Shown when the search worked and there is simply nothing to travel on. */
+    noJourney: string;
+    noJourneyHint: string;
+    resultsFound: PluralForms;
+    departAt: string;
+    arriveAt: string;
+    totalDuration: string;
+    changes: PluralForms;
+    earlier: string;
+    later: string;
+    noEarlier: string;
+    noLater: string;
+    walkLeg: string;
+    walkToDestination: string;
+    transitLeg: string;
+    towards: string;
+    wait: string;
+    intermediateStops: PluralForms;
+    showStops: string;
+    hideStops: string;
+    arrivesNextDay: string;
+    /** The engine can legitimately answer with no transit at all. */
+    walkOnly: string;
+  };
+
   /**
    * Sign-in is never a gate: these open a dialog over whatever the visitor was
    * doing, and nothing on the site requires them.

@@ -17,6 +17,12 @@ function required(name: string, value: string | undefined): string {
   return trimmed;
 }
 
+/** Reads a variable that is allowed to be absent. */
+function optional(value: string | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
 /** Strips any trailing slash so callers can always join with a leading `/`. */
 function normalizeBaseUrl(url: string): string {
   return url.replace(/\/+$/, '');
@@ -29,4 +35,16 @@ export const env = {
   ),
   /** How long a single API request may take before it is aborted. */
   apiTimeoutMs: 30_000,
+
+  /*
+   * Subscription key for Digitransit's geocoder. Optional on purpose: without
+   * one the app uses Photon, which needs no key and covers every network, so a
+   * missing key costs Helsinki its stop suggestions rather than breaking
+   * search. Free registration at https://portal-api.digitransit.fi.
+   *
+   * A key in a browser bundle is public. Digitransit's is issued for exactly
+   * that use and is rate-limited per key rather than kept secret, but it does
+   * mean the quota belongs to whoever deploys this.
+   */
+  digitransitKey: optional(import.meta.env.VITE_DIGITRANSIT_SUBSCRIPTION_KEY),
 } as const;

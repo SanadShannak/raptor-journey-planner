@@ -12,7 +12,7 @@ import type {
   JourneyQuery,
 } from '../types/journey';
 import { getJson, type QueryParams } from './client';
-import { ApiError } from './errors';
+import { ApiError, isNoRouteFound } from './errors';
 
 interface CallOptions {
   signal?: AbortSignal | undefined;
@@ -25,12 +25,51 @@ interface CallOptions {
  * from its cause. A schema validator would be the answer if the API grows
  * genuinely variable payloads.
  */
-function assertJourney(body: unknown): Journey {
-  const journey = body as Journey;
-  if (typeof journey !== 'object' || journey === null || !Array.isArray(journey.legs)) {
-    throw new ApiError('malformed', 'Journey response did not contain a list of legs.');
+function isJourney(value: unknown): value is Journey {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    Array.isArray((value as Journey).legs)
+  );
+}
+
+/**
+ * Normalises the response into a list, whatever shape the engine sends.
+ *
+ * Today it answers with a single itinerary. It is expected to grow into a list
+ * of alternatives, and absorbing both here means that change costs one branch
+ * in this function rather than a rewrite of everything that renders results.
+ */
+function assertJourneys(body: unknown): Journey[] {
+  if (Array.isArray(body)) {
+    if (!body.every(isJourney)) {
+      throw new ApiError(
+        'malformed',
+        'Journey list contained an entry without legs.',
+      );
+    }
+    return body;
   }
-  return journey;
+
+  // A wrapped list, should the engine ever prefer an envelope.
+  const wrapped = (body as { journeys?: unknown } | null)?.journeys;
+  if (Array.isArray(wrapped)) {
+    if (!wrapped.every(isJourney)) {
+      throw new ApiError(
+        'malformed',
+        'Journey list contained an entry without legs.',
+      );
+    }
+    return wrapped;
+  }
+
+  if (!isJourney(body)) {
+    throw new ApiError(
+      'malformed',
+      'Journey response did not contain a list of legs.',
+    );
+  }
+  return [body];
 }
 
 function assertIsoDateArray(body: unknown): IsoDate[] {
@@ -70,22 +109,34 @@ function endpointParams(
  * `GET /api/planner` — plans a door-to-door journey between two endpoints,
  * departing at the given local date and time.
  *
- * Throws an {@link ApiError} with `kind: 'http'` when no journey exists; the
- * backend's `errorCode` is carried on `error.code`.
+ * Returns a list, which is empty when nothing connects the two places at that
+ * time. **That case is not an error.** The engine reports it as a 404 with
+ * `NO_ROUTE_FOUND`, but a search that ran correctly and found nothing is an
+ * empty result, so it is turned into one here rather than left for every
+ * caller to remember to special-case. Genuine failures — a bad date, an origin
+ * outside the network, an unreachable server — still reject.
+ *
+ * This also means the day the engine returns `200` with an empty list instead,
+ * nothing downstream changes.
  */
 export async function planJourney(
   query: JourneyQuery,
   options: CallOptions = {},
-): Promise<Journey> {
-  const body = await getJson('/api/planner', {
-    signal: options.signal,
-    params: {
-      ...endpointParams('origin', query.origin),
-      ...endpointParams('dest', query.destination),
-      date: query.date,
-      time: query.time,
-      WALKING_SPEED_MPS: query.walkingSpeedMps,
-    },
-  });
-  return assertJourney(body);
+): Promise<Journey[]> {
+  try {
+    const body = await getJson('/api/planner', {
+      signal: options.signal,
+      params: {
+        ...endpointParams('origin', query.origin),
+        ...endpointParams('dest', query.destination),
+        date: query.date,
+        time: query.time,
+        WALKING_SPEED_MPS: query.walkingSpeedMps,
+      },
+    });
+    return assertJourneys(body);
+  } catch (error) {
+    if (isNoRouteFound(error)) return [];
+    throw error;
+  }
 }

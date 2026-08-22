@@ -16,6 +16,7 @@ export {
   formatClockTime,
   formatDate,
   formatNumber,
+  nowInZone,
   parseIsoDate,
   type MessageValues,
 } from './translate';

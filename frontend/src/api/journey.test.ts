@@ -111,3 +111,65 @@ describe('getValidDates', () => {
     expect((error as ApiError).kind).toBe('malformed');
   });
 });
+
+describe('planJourney result shapes', () => {
+  const query = {
+    origin: { type: 'coordinate' as const, lat: 60.2, lon: 24.9 },
+    destination: { type: 'coordinate' as const, lat: 60.3, lon: 25.0 },
+    date: '2026-09-10',
+    time: '08:00:00',
+  };
+  const journey = { startTime: '08:00', endTime: '08:30', legs: [] };
+
+  function respondWith(body: unknown, status = 200) {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(body), { status }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  /*
+   * The engine answers with one itinerary today and is expected to grow into a
+   * list. Both are absorbed here so that change costs nothing downstream.
+   */
+  it('wraps a single itinerary into a list', async () => {
+    respondWith(journey);
+    const result = await planJourney(query);
+    expect(result).toHaveLength(1);
+    expect(result[0]?.startTime).toBe('08:00');
+  });
+
+  it('passes a list through unchanged', async () => {
+    respondWith([journey, { ...journey, startTime: '08:30' }]);
+    const result = await planJourney(query);
+    expect(result.map((j) => j.startTime)).toEqual(['08:00', '08:30']);
+  });
+
+  it('unwraps an enveloped list', async () => {
+    respondWith({ journeys: [journey] });
+    expect(await planJourney(query)).toHaveLength(1);
+  });
+
+  /*
+   * The load-bearing one. A search that ran fine and found nothing is an empty
+   * result, not a failure — even though the engine reports it as a 404.
+   */
+  it('turns NO_ROUTE_FOUND into an empty list rather than rejecting', async () => {
+    respondWith({ errorCode: 'NO_ROUTE_FOUND', error: 'No route found.' }, 404);
+    await expect(planJourney(query)).resolves.toEqual([]);
+  });
+
+  it('still rejects for a real failure', async () => {
+    respondWith({ errorCode: 'BAD_DATE', error: 'Bad date.' }, 400);
+    const error = await planJourney(query).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).code).toBe('BAD_DATE');
+  });
+
+  it('rejects a list containing something that is not an itinerary', async () => {
+    respondWith([journey, { nope: true }]);
+    const error = await planJourney(query).catch((e: unknown) => e);
+    expect((error as ApiError).kind).toBe('malformed');
+  });
+});

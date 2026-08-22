@@ -113,3 +113,36 @@ export function formatDate(
   if (!date) return isoDate;
   return new Intl.DateTimeFormat(INTL_LOCALE[locale], options).format(date);
 }
+
+/**
+ * The current date and time on a given IANA clock.
+ *
+ * Every timestamp in this system is wall-clock time in the network's zone, so
+ * "today" and "now" have to be asked of that clock rather than the browser's.
+ * A visitor in Amman planning a Helsinki journey has a different today for part
+ * of every day, and a bare `new Date()` would quietly pick the wrong one.
+ *
+ * Formatted through `Intl` rather than by arithmetic on a timestamp so that
+ * daylight saving is the platform's problem, not ours.
+ */
+export function nowInZone(timeZone: string): { date: string; time: string } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  })
+    .formatToParts(new Date())
+    .reduce<Record<string, string>>((accumulator, part) => {
+      accumulator[part.type] = part.value;
+      return accumulator;
+    }, {});
+
+  return {
+    date: `${parts['year']}-${parts['month']}-${parts['day']}`,
+    time: `${parts['hour']}:${parts['minute']}`,
+  };
+}
