@@ -13,4 +13,4 @@ export {
 } from './theme';
 export { ThemeProvider } from './ThemeProvider';
 export { useTheme, type ThemeContextValue } from './themeContext';
-export { ThemeMenu } from './ThemeMenu';
+export { ThemeToggle } from './ThemeToggle';

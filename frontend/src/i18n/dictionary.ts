@@ -42,6 +42,18 @@ export const LOCALE_NAMES: Record<Locale, string> = {
 };
 
 /**
+ * How each locale invites a switch to itself, phrased in that locale.
+ *
+ * Shown on the toggle as the language you are *not* using, so it reads as an
+ * offer rather than a statement of the current setting — and it is legible to
+ * exactly the person who needs it.
+ */
+export const SWITCH_TO_LOCALE: Record<Locale, string> = {
+  en: 'In English',
+  ar: 'بالعربية',
+};
+
+/**
  * A message with one form per CLDR plural category. Only `other` is mandatory;
  * English uses `one`/`other`, while Arabic uses all six.
  */
@@ -64,8 +76,12 @@ export interface Dictionary {
   language: {
     /** Accessible label for the language switcher. */
     switcherLabel: string;
-    /** Names the menu button and states the current language. */
-    menuLabel: string;
+    /**
+     * Accessible name for the language toggle. Contains the visible text as a
+     * placeholder, because a visible label must be part of the accessible
+     * name — otherwise voice control cannot activate what it can read.
+     */
+    switchTo: string;
   };
 
   nav: {
@@ -132,8 +148,9 @@ export interface Dictionary {
   theme: {
     /** Accessible label for the colour-scheme switcher. */
     switcherLabel: string;
-    /** Names the menu button and states the current setting. */
-    menuLabel: string;
+    /** Accessible names for the theme toggle, describing what it will do. */
+    switchToLight: string;
+    switchToDark: string;
     light: string;
     dark: string;
     /** Follow the operating system's colour scheme. */

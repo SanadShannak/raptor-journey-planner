@@ -84,9 +84,12 @@ describe('app shell', () => {
 
   it('translates the whole shell, not just the page', () => {
     renderAt('/');
-    // Language now lives behind a menu, so it takes two steps to change.
-    fireEvent.click(screen.getByRole('button', { name: /Language/ }));
-    fireEvent.click(screen.getByRole('menuitemradio', { name: 'العربية' }));
+    /*
+     * The toggle offers the language you are *not* reading, so from English it
+     * is labelled in Arabic. Queried by that name deliberately: if it ever
+     * announces itself in the current language instead, this fails.
+     */
+    fireEvent.click(screen.getByRole('button', { name: /بالعربية/ }));
 
     expect(screen.getByRole('navigation', { name: 'الرئيسية' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'تسجيل الدخول' })).toBeTruthy();

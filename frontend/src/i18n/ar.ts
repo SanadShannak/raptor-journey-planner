@@ -17,11 +17,12 @@ export const ar: Dictionary = {
   },
   language: {
     switcherLabel: 'اللغة',
-    menuLabel: 'اللغة، المحددة حاليًا {value}',
+    switchTo: 'تغيير اللغة: {value}',
   },
   theme: {
     switcherLabel: 'المظهر',
-    menuLabel: 'المظهر، المحدد حاليًا {value}',
+    switchToLight: 'التبديل إلى المظهر الفاتح',
+    switchToDark: 'التبديل إلى المظهر الداكن',
     light: 'فاتح',
     dark: 'داكن',
     system: 'النظام',

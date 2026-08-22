@@ -6,11 +6,12 @@ export const en: Dictionary = {
   },
   language: {
     switcherLabel: 'Language',
-    menuLabel: 'Language, currently {value}',
+    switchTo: 'Switch language: {value}',
   },
   theme: {
     switcherLabel: 'Appearance',
-    menuLabel: 'Appearance, currently {value}',
+    switchToLight: 'Switch to light theme',
+    switchToDark: 'Switch to dark theme',
     light: 'Light',
     dark: 'Dark',
     system: 'System',

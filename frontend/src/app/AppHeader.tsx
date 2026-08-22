@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { useLocale, LanguageMenu } from '../i18n';
-import { ThemeMenu } from '../theme';
+import { useLocale, LanguageToggle } from '../i18n';
+import { ThemeToggle } from '../theme';
 import { AuthDialog, type AuthMode } from './AuthDialog';
 import { PrimaryNav } from './PrimaryNav';
 import { paths } from './routes';
@@ -29,15 +29,19 @@ export function AppHeader() {
   return (
     <header className="bg-chrome text-on-chrome relative">
       {/*
-        Three columns from `md` up, with the outer two sharing the leftover
-        space equally: that centres the navigation in the bar itself rather
-        than merely between its neighbours, which would drift as the brand and
-        the account controls change width across languages.
+        Full width, with gutters that grow with the viewport rather than a
+        capped column — the bar is chrome, and chrome that stops short of the
+        window edge reads as a panel sitting on the page instead of framing it.
+
+        Three columns from `md` up, the outer two sharing the leftover space
+        equally: that centres the navigation in the window itself rather than
+        merely between its neighbours, which would drift as the brand and the
+        account controls change width across languages.
 
         Below `md` it falls back to a row, because the middle cell collapses to
         a single toggle button and centring one button is not a layout.
       */}
-      <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3 md:grid md:grid-cols-[1fr_auto_1fr]">
+      <div className="flex items-center gap-3 px-4 py-3 sm:px-6 md:grid md:grid-cols-[1fr_auto_1fr] lg:px-8">
         <Link
           to={paths.home}
           className="rounded-control focus-visible:outline-on-chrome text-base font-semibold tracking-tight focus-visible:outline-2 focus-visible:outline-offset-2"
@@ -51,8 +55,8 @@ export function AppHeader() {
             one. Both are logical, so the group sits at the trailing edge —
             the left one in Arabic — without a second set of rules. */}
         <div className="ms-auto flex items-center gap-2 md:justify-self-end">
-          <ThemeMenu />
-          <LanguageMenu />
+          <ThemeToggle />
+          <LanguageToggle />
 
           {/* A hairline between settings and account, so the bar reads as two
               groups rather than four unrelated controls. Below `md` the auth

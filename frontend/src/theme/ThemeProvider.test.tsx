@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { LocaleProvider } from '../i18n';
 import { ThemeProvider } from './ThemeProvider';
-import { ThemeMenu } from './ThemeMenu';
+import { ThemeToggle } from './ThemeToggle';
 import { THEME_STORAGE_KEY } from './theme';
 import { useTheme } from './themeContext';
 
@@ -28,12 +28,20 @@ function stubMatchMedia() {
 }
 
 function Probe() {
-  const { choice, resolved } = useTheme();
+  const { choice, resolved, setTheme } = useTheme();
   return (
     <>
       <span data-testid="choice">{choice}</span>
       <span data-testid="resolved">{resolved}</span>
-      <ThemeMenu />
+      <ThemeToggle />
+      {/*
+        The toggle offers no way back to "system" by design — it moves between
+        two states. The provider still supports it, and first load still
+        depends on it, so it is exercised here rather than through the UI.
+      */}
+      <button type="button" onClick={() => setTheme('system')}>
+        follow system
+      </button>
     </>
   );
 }
@@ -74,8 +82,9 @@ describe('ThemeProvider', () => {
   it('applies and persists an explicit choice', () => {
     renderApp();
 
-    fireEvent.click(screen.getByRole('button', { name: /Appearance/ }));
-    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Dark' }));
+    // Starts on system, which the stub resolves to light, so one press means
+    // dark.
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to dark theme' }));
 
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('dark');
@@ -99,10 +108,10 @@ describe('ThemeProvider', () => {
   it('hands control back to the OS when "system" is chosen again', () => {
     renderApp();
 
-    fireEvent.click(screen.getByRole('button', { name: /Appearance/ }));
-    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Dark' }));
-    fireEvent.click(screen.getByRole('button', { name: /Appearance/ }));
-    fireEvent.click(screen.getByRole('menuitemradio', { name: 'System' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to dark theme' }));
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+
+    fireEvent.click(screen.getByRole('button', { name: 'follow system' }));
 
     expect(document.documentElement.hasAttribute('data-theme')).toBe(false);
     expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('system');
@@ -121,46 +130,54 @@ describe('ThemeProvider', () => {
   });
 
   it('ignores the OS flipping once a choice has been made', () => {
+    // The stub reports light, so the toggle's one press pins an explicit dark.
     renderApp();
-    fireEvent.click(screen.getByRole('button', { name: /Appearance/ }));
-    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Light' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to dark theme' }));
 
     prefersDark = true;
     act(() => {
       for (const notify of listeners) notify();
     });
 
-    expect(screen.getByTestId('resolved').textContent).toBe('light');
+    expect(screen.getByTestId('resolved').textContent).toBe('dark');
+    expect(screen.getByTestId('choice').textContent).toBe('dark');
   });
 });
 
-describe('ThemeMenu', () => {
+describe('ThemeToggle', () => {
   /*
-   * These are settings, not actions: exactly one is always chosen. That is why
-   * the items are `menuitemradio` with `aria-checked` — a plain `menuitem`
-   * would announce them as commands and never say which is active.
+   * The name says what pressing it will do, not what the setting currently is.
+   * "Dark theme" as a name leaves a screen-reader user unable to tell whether
+   * that describes the state or the outcome.
    */
-  it('exposes the choices as checkable menu items', () => {
+  it('names the outcome rather than the state', () => {
+    prefersDark = false;
     renderApp();
-    fireEvent.click(screen.getByRole('button', { name: /Appearance/ }));
-
-    const items = screen.getAllByRole('menuitemradio');
-    expect(items.map((item) => item.textContent)).toEqual([
-      'Light',
-      'Dark',
-      'System',
-    ]);
     expect(
-      items.filter((item) => item.getAttribute('aria-checked') === 'true'),
-    ).toHaveLength(1);
+      screen.getByRole('button', { name: 'Switch to dark theme' }),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to dark theme' }));
+    expect(
+      screen.getByRole('button', { name: 'Switch to light theme' }),
+    ).toBeTruthy();
   });
 
-  /* The button's name has to carry the current value, or a screen-reader user
-   * has to open the menu to find out what the setting is. */
-  it('states the current setting in the button name', () => {
+  /*
+   * "System" is not one of the two states the toggle moves between, but it is
+   * still where an untouched visitor starts — so the first press has to switch
+   * away from whatever the OS resolved to, not from a hardcoded default.
+   */
+  it('starts from the system setting and switches away from what it resolved to', () => {
+    prefersDark = true;
     renderApp();
+
+    expect(screen.getByTestId('choice').textContent).toBe('system');
     expect(
-      screen.getByRole('button', { name: 'Appearance, currently System' }),
+      screen.getByRole('button', { name: 'Switch to light theme' }),
     ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to light theme' }));
+    expect(screen.getByTestId('choice').textContent).toBe('light');
   });
 });
