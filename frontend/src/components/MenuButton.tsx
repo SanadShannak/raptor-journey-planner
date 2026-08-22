@@ -107,7 +107,12 @@ export function MenuButton<T extends string>({
             setOpen(true);
           }
         }}
-        className="rounded-control border-chrome-border text-on-chrome focus-visible:outline-on-chrome inline-flex cursor-pointer items-center gap-1.5 border px-2.5 py-1.5 text-sm focus-visible:outline-2 focus-visible:outline-offset-2"
+        /*
+         * Explicit height rather than padding: an icon-only trigger and an
+         * icon-plus-text one have different line boxes, and side by side the
+         * mismatch reads as misaligned borders.
+         */
+        className="rounded-control border-chrome-border text-on-chrome focus-visible:outline-on-chrome inline-flex h-9 cursor-pointer items-center gap-1.5 border px-2.5 text-sm leading-none focus-visible:outline-2 focus-visible:outline-offset-2"
       >
         {trigger}
       </button>

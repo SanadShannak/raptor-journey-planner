@@ -28,7 +28,16 @@ export function AppHeader() {
 
   return (
     <header className="bg-chrome text-on-chrome relative">
-      <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
+      {/*
+        Three columns from `md` up, with the outer two sharing the leftover
+        space equally: that centres the navigation in the bar itself rather
+        than merely between its neighbours, which would drift as the brand and
+        the account controls change width across languages.
+
+        Below `md` it falls back to a row, because the middle cell collapses to
+        a single toggle button and centring one button is not a layout.
+      */}
+      <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3 md:grid md:grid-cols-[1fr_auto_1fr]">
         <Link
           to={paths.home}
           className="rounded-control focus-visible:outline-on-chrome text-base font-semibold tracking-tight focus-visible:outline-2 focus-visible:outline-offset-2"
@@ -38,9 +47,10 @@ export function AppHeader() {
 
         <PrimaryNav onAuth={setAuthMode} />
 
-        {/* Pushes everything after it to the trailing edge, which flips with
-            the document direction because it is a flex rule, not a float. */}
-        <div className="ms-auto flex items-center gap-2">
+        {/* `ms-auto` handles the row layout and `justify-self-end` the grid
+            one. Both are logical, so the group sits at the trailing edge —
+            the left one in Arabic — without a second set of rules. */}
+        <div className="ms-auto flex items-center gap-2 md:justify-self-end">
           <ThemeMenu />
           <LanguageMenu />
 
@@ -51,20 +61,20 @@ export function AppHeader() {
               anyone on a phone with no way to reach an account. */}
           <span
             aria-hidden="true"
-            className="bg-chrome-border mx-1 hidden h-6 w-px md:block"
+            className="bg-chrome-border mx-1 hidden h-5 w-px md:block"
           />
 
           <button
             type="button"
             onClick={() => setAuthMode('logIn')}
-            className="rounded-control text-on-chrome focus-visible:outline-on-chrome hidden cursor-pointer px-3 py-1.5 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 md:block"
+            className="rounded-control text-on-chrome focus-visible:outline-on-chrome hidden h-9 cursor-pointer items-center px-3 text-sm font-medium leading-none focus-visible:outline-2 focus-visible:outline-offset-2 md:inline-flex"
           >
             {t(strings.auth.logIn)}
           </button>
           <button
             type="button"
             onClick={() => setAuthMode('signUp')}
-            className="rounded-control bg-on-chrome text-chrome focus-visible:outline-on-chrome hidden cursor-pointer px-3 py-1.5 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 md:block"
+            className="rounded-control bg-on-chrome text-chrome focus-visible:outline-on-chrome hidden h-9 cursor-pointer items-center px-3 text-sm font-semibold leading-none focus-visible:outline-2 focus-visible:outline-offset-2 md:inline-flex"
           >
             {t(strings.auth.signUp)}
           </button>
