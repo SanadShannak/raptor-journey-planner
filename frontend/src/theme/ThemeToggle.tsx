@@ -1,4 +1,5 @@
 import { useLocale } from '../i18n';
+import { Tooltip } from '../components/Tooltip';
 import { useTheme } from './themeContext';
 
 const iconProps = {
@@ -44,17 +45,20 @@ export function ThemeToggle() {
   const { resolved, setTheme } = useTheme();
 
   const goingToDark = resolved === 'light';
+  const label = t(
+    goingToDark ? strings.theme.switchToDark : strings.theme.switchToLight,
+  );
 
   return (
-    <button
-      type="button"
-      onClick={() => setTheme(goingToDark ? 'dark' : 'light')}
-      aria-label={t(
-        goingToDark ? strings.theme.switchToDark : strings.theme.switchToLight,
-      )}
-      className="rounded-control border-chrome-border text-on-chrome focus-visible:outline-on-chrome inline-flex h-9 cursor-pointer items-center gap-1.5 border px-2.5 text-sm leading-none focus-visible:outline-2 focus-visible:outline-offset-2"
-    >
-      {goingToDark ? <MoonIcon /> : <SunIcon />}
-    </button>
+    <Tooltip text={label}>
+      <button
+        type="button"
+        onClick={() => setTheme(goingToDark ? 'dark' : 'light')}
+        aria-label={label}
+        className="rounded-control border-chrome-border text-on-chrome focus-visible:outline-on-chrome inline-flex h-9 cursor-pointer items-center gap-1.5 border px-2.5 text-sm leading-none focus-visible:outline-2 focus-visible:outline-offset-2"
+      >
+        {goingToDark ? <MoonIcon /> : <SunIcon />}
+      </button>
+    </Tooltip>
   );
 }

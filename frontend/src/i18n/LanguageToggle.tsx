@@ -1,4 +1,11 @@
-import { LOCALES, SWITCH_TO_LOCALE, type Locale } from './dictionary';
+import { useId } from 'react';
+import { Tooltip } from '../components/Tooltip';
+import {
+  LOCALES,
+  LOCALE_NAMES,
+  SWITCH_TO_LOCALE,
+  type Locale,
+} from './dictionary';
 import { useLocale } from './localeContext';
 
 /**
@@ -40,22 +47,29 @@ export function LanguageToggle() {
   const { locale, strings, t, setLocale } = useLocale();
 
   const other = LOCALES.find((candidate) => candidate !== locale) as Locale;
-  const label = SWITCH_TO_LOCALE[other];
+  const face = SWITCH_TO_LOCALE[other];
+  const description = t(strings.language.switchTo, {
+    value: LOCALE_NAMES[other],
+  });
+  const descriptionId = useId();
 
+  /*
+   * No `aria-label`. The accessible name stays the visible text, so what a
+   * voice-control user reads on the button is what activates it; the tooltip
+   * supplies the "switch to" context as a description instead of replacing
+   * the name with it.
+   */
   return (
-    <button
-      type="button"
-      onClick={() => setLocale(other)}
-      /*
-       * The visible text is part of the accessible name, not replaced by it:
-       * a name that omits what is written on the control leaves voice control
-       * unable to activate something its user can plainly read.
-       */
-      aria-label={t(strings.language.switchTo, { value: label })}
-      className="rounded-control border-chrome-border text-on-chrome focus-visible:outline-on-chrome inline-flex h-9 cursor-pointer items-center gap-1.5 border px-2.5 text-sm leading-none focus-visible:outline-2 focus-visible:outline-offset-2"
-    >
-      <GlobeIcon />
-      <span lang={other}>{label}</span>
-    </button>
+    <Tooltip text={description} describedById={descriptionId}>
+      <button
+        type="button"
+        onClick={() => setLocale(other)}
+        aria-describedby={descriptionId}
+        className="rounded-control border-chrome-border text-on-chrome focus-visible:outline-on-chrome inline-flex h-9 cursor-pointer items-center gap-1.5 border px-2.5 text-sm leading-none focus-visible:outline-2 focus-visible:outline-offset-2"
+      >
+        <GlobeIcon />
+        <span lang={other}>{face}</span>
+      </button>
+    </Tooltip>
   );
 }

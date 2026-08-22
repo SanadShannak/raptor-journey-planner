@@ -17,7 +17,7 @@ export const ar: Dictionary = {
   },
   language: {
     switcherLabel: 'اللغة',
-    switchTo: 'تغيير اللغة: {value}',
+    switchTo: 'التبديل إلى {value}',
   },
   theme: {
     switcherLabel: 'المظهر',

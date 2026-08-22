@@ -77,9 +77,10 @@ export interface Dictionary {
     /** Accessible label for the language switcher. */
     switcherLabel: string;
     /**
-     * Accessible name for the language toggle. Contains the visible text as a
-     * placeholder, because a visible label must be part of the accessible
-     * name — otherwise voice control cannot activate what it can read.
+     * Describes what the language toggle does, named after the language it
+     * switches to. Used as both the tooltip and the control's description —
+     * not its name, which stays the visible text so that what a voice-control
+     * user reads aloud is what activates the control.
      */
     switchTo: string;
   };

@@ -6,7 +6,7 @@ export const en: Dictionary = {
   },
   language: {
     switcherLabel: 'Language',
-    switchTo: 'Switch language: {value}',
+    switchTo: 'Switch to {value}',
   },
   theme: {
     switcherLabel: 'Appearance',
