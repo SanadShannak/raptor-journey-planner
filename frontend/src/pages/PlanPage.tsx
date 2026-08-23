@@ -303,6 +303,13 @@ export default function PlanPage() {
    * to search — including the same search twice.
    */
   function runSearch() {
+    /*
+     * Cleared first, even when nothing changed. Pressing the button with the
+     * same inputs is still a request, and answering it by leaving the old
+     * cards in place — the engine returns in milliseconds — looked like the
+     * press had missed. Clearing lets the searching state be seen.
+     */
+    clearResults();
     void search(values, 'replace');
   }
 
@@ -376,17 +383,35 @@ export default function PlanPage() {
         Scrolling is confined to this pane only from `lg`, where the two-pane
         layout applies. On a phone the panes stack and the page scrolls.
       */}
-      <div className="border-border flex w-full flex-none flex-col gap-5 border-e p-5 lg:min-h-0 lg:w-[26rem] lg:overflow-y-auto xl:w-[30rem]">
+      <div className="border-border flex w-full flex-none flex-col border-e lg:min-h-0 lg:w-[26rem] lg:overflow-hidden xl:w-[30rem]">
+        {/*
+          Two panes rather than one long column.
+
+          The form keeps its natural height and the results take what is left,
+          so the question stays on screen while its answers scroll beneath it —
+          and with a filled-in form the split lands near half and half. Neither
+          is pinned to an exact fraction: the form shrinks only under real
+          pressure, which is what keeps a short laptop screen from clipping it.
+
+          Below `lg` this collapses back to one scrolling column, because a
+          phone has no second pane to scroll against.
+        */}
         {open !== null ? (
-          <ItineraryDetail
-            journey={open}
-            origin={endOf(values.origin)}
-            destination={endOf(values.destination)}
-            searchedDate={values.date}
-            onBack={() => setOpenIndex(null)}
-          />
+          <div className="flex flex-col gap-5 p-5 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+            <ItineraryDetail
+              journey={open}
+              origin={endOf(values.origin)}
+              destination={endOf(values.destination)}
+              searchedDate={values.date}
+              onBack={() => setOpenIndex(null)}
+            />
+          </div>
         ) : (
           <>
+            {/* The question. A light rule under it marks where the answers
+                begin, spanning the full width because the padding lives on
+                the panes rather than on the sidebar. */}
+            <div className="border-border flex flex-col gap-5 p-5 lg:min-h-0 lg:overflow-y-auto lg:border-b">
             <div>
               <h1 className="text-2xl font-semibold tracking-tight text-balance">
                 {t(strings.pages.plan.title)}
@@ -433,6 +458,7 @@ export default function PlanPage() {
               bounds={bounds}
               disabled={offline}
             />
+            </div>
 
             {/*
               Announced politely so a screen-reader user learns the search
@@ -441,7 +467,7 @@ export default function PlanPage() {
             <section
               aria-live="polite"
               aria-busy={state === 'searching'}
-              className="flex flex-col gap-3"
+              className="flex flex-col gap-3 p-5 lg:min-h-0 lg:flex-1 lg:overflow-y-auto"
             >
               <p className="sr-only">
                 {service === 'checking'
@@ -557,7 +583,7 @@ function Searching() {
   return (
     <div
       aria-hidden="true"
-      className="rounded-card border-border bg-surface-raised flex flex-col items-center gap-3 border px-4 py-8"
+      className="rounded-card border-border bg-surface-raised flex flex-col items-center gap-3 border px-4 py-8 motion-safe:animate-settle-in"
     >
       <span className="relative flex h-9 w-9 flex-none items-center justify-center">
         {/* The track, and the arc that runs around it. */}

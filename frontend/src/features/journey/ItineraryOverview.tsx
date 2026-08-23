@@ -54,7 +54,7 @@ export function ItineraryOverview({ journey, searchedDate, onOpen }: Props) {
   const totals = journeyTotals(journey);
 
   return (
-    <article>
+    <article className="motion-safe:animate-settle-in">
       <button
         type="button"
         onClick={onOpen}

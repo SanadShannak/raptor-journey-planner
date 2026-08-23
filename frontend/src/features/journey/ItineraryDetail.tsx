@@ -305,9 +305,25 @@ function NodeLine({ row }: { row: NodeRow }) {
 
   return (
     <li className="flex items-stretch gap-3.5">
+      {/*
+        The marker sits on the *name's* line rather than in the middle of the
+        row. Centred, it drifted below the name by half whatever the badge
+        underneath was tall, so a stop appeared to be written above its own
+        circle.
+
+        The first stretch of line is fixed at the distance from the top of the
+        row to the middle of that first line — the padding plus half a line —
+        and the marker then hangs in a zero-height box, which centres it
+        exactly on that point whatever size it happens to be. `relative` keeps
+        it drawn over the line running down behind it.
+      */}
       <span aria-hidden="true" className="flex w-7 flex-none flex-col items-center">
-        <SpineLine spine={row.above} />
-        <span className="flex flex-none items-center justify-center">{marker}</span>
+        <span className="flex h-[1.125rem] flex-none flex-col items-center">
+          <SpineLine spine={row.above} />
+        </span>
+        <span className="relative z-10 flex h-0 flex-none items-center justify-center">
+          {marker}
+        </span>
         <SpineLine spine={row.below} />
       </span>
 
@@ -318,7 +334,7 @@ function NodeLine({ row }: { row: NodeRow }) {
         the name at the far side of the row from the marker it belongs to, and
         the badge under it on the opposite side again.
       */}
-      <span className="flex min-w-0 flex-1 flex-col items-start justify-center py-1.5">
+      <span className="flex min-w-0 flex-1 flex-col items-start py-1.5">
         {/*
           The time shares a baseline with the name rather than being centred
           against the whole block. Two scripts do not put their glyphs at the

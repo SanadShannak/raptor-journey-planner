@@ -222,8 +222,8 @@ export function JourneyForm({
         </button>
       )}
 
-      <fieldset disabled={off} className="flex flex-col disabled:opacity-60">
-        <legend className="text-content-muted mb-2 flex items-center gap-1.5 text-xs font-medium tracking-wide uppercase">
+      <fieldset disabled={off} className="flex flex-col pt-1 pb-0.5 disabled:opacity-60">
+        <legend className="text-content-muted mb-2.5 flex items-center gap-1.5 text-xs font-medium tracking-wide uppercase">
           <WalkIcon size={15} />
           {t(strings.planner.walkingSpeed)}
         </legend>
@@ -241,7 +241,7 @@ export function JourneyForm({
           rule, because the state is right here; `peer-focus-visible` still
           comes off the input, which is the one thing CSS has to answer for.
         */}
-        <div className="-mx-2 grid grid-cols-2 gap-x-2 gap-y-1 sm:grid-cols-4">
+        <div className="-mx-2 grid grid-cols-2 gap-x-2 gap-y-1.5 sm:grid-cols-4">
           {WALKING_PACE_ORDER.map((pace) => {
             const chosen = values.pace === pace;
             return (
@@ -252,7 +252,7 @@ export function JourneyForm({
                   arm's length are hard to tell apart at a glance, and the
                   selection is worth seeing without looking for it.
                 */
-                className={`group rounded-control flex cursor-pointer items-center gap-2 px-2 py-1.5 transition-colors ${
+                className={`group rounded-control flex cursor-pointer items-center gap-2 px-2 py-2 transition-colors ${
                   chosen ? 'bg-action text-on-action' : 'hover:bg-surface-sunken'
                 }`}
               >

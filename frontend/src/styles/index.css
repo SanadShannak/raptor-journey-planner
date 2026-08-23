@@ -396,6 +396,31 @@
 }
 
 /*
+ * Results arriving.
+ *
+ * A card replaces a loader that was, at minimum, three quarters of a second
+ * long — so the swap is the one moment in the search where something visibly
+ * changes, and cutting straight to it reads as a flicker. Deliberately small:
+ * a sixth of a second and four pixels, enough to register as arriving rather
+ * than as having always been there. `motion-safe` drops it entirely for anyone
+ * who asked for less movement, and the card is simply there.
+ *
+ * Entry only. React removes a card the instant it is gone, so an exit would
+ * mean holding it mounted past its own life — a real amount of machinery for
+ * a frame nobody waits to see.
+ */
+@keyframes settle-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@theme {
+  --animate-settle-in: settle-in 160ms ease-out both;
+}
+
+/*
  * Full viewport height that survives mobile browser chrome. The `dvh`
  * declaration is simply ignored by browsers that do not know the unit, which
  * then keep the `vh` value above it.
