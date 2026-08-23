@@ -158,6 +158,7 @@ export const ar: Dictionary = {
     searchUnavailable: 'البحث عن الأماكن غير متاح الآن. حاول بعد قليل.',
     isStop: 'محطة نقل عام',
     platform: 'الرصيف {platform}',
+    track: 'المسار {platform}',
     chooseOrigin: 'اختر نقطة انطلاق من الاقتراحات.',
     chooseDestination: 'اختر وجهة من الاقتراحات.',
     noJourney: 'لم يُعثر على رحلة',

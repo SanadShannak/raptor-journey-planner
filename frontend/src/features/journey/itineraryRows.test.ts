@@ -10,10 +10,16 @@ import type { Journey, Stop, TransitLeg, WalkLeg } from '../../types/journey';
  * rather than as a lost fact.
  */
 
-const stop = (id: string, name: string, code: string | null = null): Stop => ({
+const stop = (
+  id: string,
+  name: string,
+  code: string | null = null,
+  platform: string | null = null,
+): Stop => ({
   id,
   name,
   code,
+  platform,
   lat: 60,
   lon: 24,
 });
@@ -22,6 +28,7 @@ const originPin: Stop = {
   id: null,
   name: 'ORIGIN',
   code: 'ORIGIN_PIN',
+  platform: null,
   lat: 60,
   lon: 24,
 };
@@ -29,6 +36,7 @@ const targetPin: Stop = {
   id: null,
   name: 'TARGET',
   code: 'TARGET_PIN',
+  platform: null,
   lat: 60,
   lon: 24,
 };

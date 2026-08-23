@@ -154,8 +154,18 @@ export interface Dictionary {
     suggestionsAvailable: PluralForms;
     searchUnavailable: string;
     isStop: string;
-    /** Platform or stand designation on a stop suggestion, e.g. "Platform 5". */
+    /**
+     * The designation printed on a stop, e.g. "Platform 5".
+     *
+     * GTFS carries the number and nothing else — it never says whether the
+     * thing is a platform, a track, or a stand — so the word is chosen from
+     * the mode of the vehicle involved. Rail gets {@link track}; everything
+     * else gets this. That mirrors how the networks themselves speak: HSL
+     * prints *raide* on a train and *laituri* on a bus stand.
+     */
     platform: string;
+    /** The rail form of {@link platform}, e.g. "Track 3". */
+    track: string;
     chooseOrigin: string;
     chooseDestination: string;
     /** Shown when the search worked and there is simply nothing to travel on. */

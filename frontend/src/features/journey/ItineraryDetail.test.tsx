@@ -1,21 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { LocaleProvider } from '../../i18n/LocaleProvider';
 import type { Journey, Stop, TransitLeg, WalkLeg } from '../../types/journey';
 import { ItineraryDetail } from './ItineraryDetail';
 import type { JourneyEnd } from './itineraryRows';
 
-const stop = (id: string, name: string, code: string | null = null): Stop => ({
+const stop = (
+  id: string,
+  name: string,
+  code: string | null = null,
+  platform: string | null = null,
+): Stop => ({
   id,
   name,
   code,
+  platform,
   lat: 60,
   lon: 24,
 });
 
 /* The engine's placeholders for a coordinate. Never shown to anyone. */
-const originPin: Stop = { id: null, name: 'ORIGIN', code: 'ORIGIN_PIN', lat: 60, lon: 24 };
-const targetPin: Stop = { id: null, name: 'TARGET', code: 'TARGET_PIN', lat: 60, lon: 24 };
+const originPin: Stop = { id: null, name: 'ORIGIN', code: 'ORIGIN_PIN', platform: null, lat: 60, lon: 24 };
+const targetPin: Stop = { id: null, name: 'TARGET', code: 'TARGET_PIN', platform: null, lat: 60, lon: 24 };
 
 function walk(from: Stop, to: Stop, start: string, end: string, wait = 0): WalkLeg {
   return {
@@ -228,5 +234,33 @@ describe('ItineraryDetail legs', () => {
   it('stays quiet when it leaves on the day that was searched', () => {
     show(journeyOf([walk(originPin, targetPin, '18:00', '18:20')]));
     expect(screen.queryByText(/Departs/)).toBeNull();
+  });
+
+});
+
+/*
+ * GTFS carries the designation and never its noun, so the word is chosen from
+ * the vehicle — and it is null across a whole feed rather than at odd stops,
+ * which is the case that has to stay quiet.
+ */
+describe('ItineraryDetail platforms', () => {
+  it('calls it a platform on a bus, and a track on a train', () => {
+    const busStop = stop('1', 'Kamppi', 'H0201', '16');
+    show(journeyOf([ride(originPin, busStop, '18:00', '18:20')]));
+    expect(screen.getByText('Platform 16')).toBeTruthy();
+    cleanup();
+
+    const railStop = stop('2', 'Pasila', 'H0085', '3');
+    const rail = { ...ride(originPin, railStop, '18:00', '18:20'), routeType: 2 as const };
+    show(journeyOf([rail]));
+    expect(screen.getByText('Track 3')).toBeTruthy();
+  });
+
+  it('says nothing at all when the feed publishes no designations', () => {
+    show(journeyOf([ride(originPin, stop('1', 'Kamppi', 'H0201'), '18:00', '18:20')]));
+    expect(screen.queryByText(/Platform/)).toBeNull();
+    expect(screen.queryByText(/Track/)).toBeNull();
+    // The stop code beside it is unaffected.
+    expect(screen.getByText('H0201')).toBeTruthy();
   });
 });

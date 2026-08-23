@@ -48,6 +48,8 @@ export interface NodeRow {
    * when they picked it out of the suggestions.
    */
   detail: string | null;
+  /** The stop's own platform or track designation, when the feed carries one. */
+  platform: string | null;
   time: ClockTime;
   role: 'origin' | 'via' | 'destination';
   /** The segment arriving at this node; null at the origin. */
@@ -130,8 +132,10 @@ interface Labels {
  * what the traveller chose instead.
  */
 function endOf(stop: Stop, end: JourneyEnd, fallback: string) {
-  if (!isPin(stop)) return { name: stop.name, detail: stop.code };
-  return { name: end.name ?? fallback, detail: end.context };
+  if (!isPin(stop)) {
+    return { name: stop.name, detail: stop.code, platform: stop.platform };
+  }
+  return { name: end.name ?? fallback, detail: end.context, platform: null };
 }
 
 export function itineraryRows(journey: Journey, labels: Labels): ItineraryRow[] {
@@ -175,6 +179,7 @@ export function itineraryRows(journey: Journey, labels: Labels): ItineraryRow[] 
         key: `depart-${index}-${leg.startTime}`,
         name: placeName(leg.fromStop, null),
         detail: isPin(leg.fromStop) ? null : leg.fromStop.code,
+        platform: leg.fromStop.platform,
         time: leg.startTime,
         role: 'via',
         above: null,
@@ -199,6 +204,7 @@ export function itineraryRows(journey: Journey, labels: Labels): ItineraryRow[] 
         : {
             name: placeName(leg.toStop, null),
             detail: isPin(leg.toStop) ? null : leg.toStop.code,
+            platform: leg.toStop.platform,
           }),
       time: leg.endTime,
       role: isLast ? 'destination' : 'via',

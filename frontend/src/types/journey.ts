@@ -47,6 +47,18 @@ export interface Stop {
   id: string | null;
   name: string;
   code: string | null;
+  /**
+   * The designation on the stop itself — a platform, track, or stand number.
+   *
+   * Null whenever the feed omits GTFS's optional `platform_code`, which is
+   * common: it is absent from the whole of a feed, not from odd stops, so
+   * treat null as "this network does not publish them" rather than as a gap.
+   *
+   * The *word* for it is not in the data — GTFS says what the designation is,
+   * never whether it is a platform or a track — so the noun is chosen from the
+   * mode at the point of display.
+   */
+  platform: string | null;
   lat: number;
   lon: number;
 }

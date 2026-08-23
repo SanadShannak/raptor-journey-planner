@@ -151,9 +151,22 @@ It is **measured from those two published times**, so it is exactly the gap a re
 
 ### Stops
 
-`fromStop` / `toStop` are `{ id, name, code, lat, lon }`. `id` is the GTFS stop
+`fromStop` / `toStop` are `{ id, name, code, platform, lat, lon }`. `id` is the GTFS stop
 id — the same value `/api/planner` accepts as `originStopId`, which is what makes
 "plan onward from this stop" a link rather than a lookup.
+
+`platform` is the designation printed on the stop — GTFS's optional
+`platform_code`. It is `null` when the feed omits the column, which is a
+property of the *whole feed* rather than of odd stops: `/api/network` reports
+`capabilities.platforms` so a client can tell "this network does not publish
+them" from "not known for this one". The synthetic pins carry `platform: null`
+like every other field, so it is always safe to read.
+
+**GTFS does not say what the designation *is*.** There is a number and nothing
+else — never whether it names a platform, a track, or a stand. Choosing the
+word is the client's job, and the frontend takes it from the mode: rail says
+"Track", everything else says "Platform", mirroring how the networks speak
+(HSL prints *raide* on a train and *laituri* on a bus stand).
 
 Journeys that begin or end at a dropped pin use synthetic stops: `name` `"ORIGIN"` / `"TARGET"`, `code` `"ORIGIN_PIN"` / `"TARGET_PIN"`. Treat these as pins in the UI, not as real stations.
 

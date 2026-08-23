@@ -37,6 +37,7 @@ const optionalFieldCounts = {
   desc: 0,
   zone: 0,
   wheelchair: 0,
+  platform: 0,
 };
 
 console.log("\x1b[34m%s\x1b[0m", "\nStop Parsing Started.\n", "\x1b[0m");
@@ -94,6 +95,25 @@ fs.createReadStream(inputPath)
     if (zoneId !== null) {
       stopRecord.zone = zoneId;
       optionalFieldCounts.zone++;
+    }
+
+    /*
+     * The designation on the stop itself — a platform, track, or stand number.
+     * In GTFS each of these is its own stop with its own `platform_code`, so
+     * this belongs to the record rather than to any trip calling at it.
+     *
+     * The column is optional in the spec and plenty of feeds omit it, which is
+     * why nothing downstream may assume it: absent means the field is simply
+     * left off the record, exactly as `stop_desc` and `zone_id` are.
+     *
+     * The *word* for it is not in the data. GTFS says only what the
+     * designation is, never whether it is a platform or a track, so choosing
+     * between those is the presenter's job and is done from the mode.
+     */
+    const platformCode = optionalValue(row.platform_code);
+    if (platformCode !== null) {
+      stopRecord.platform = platformCode;
+      optionalFieldCounts.platform++;
     }
 
     /*

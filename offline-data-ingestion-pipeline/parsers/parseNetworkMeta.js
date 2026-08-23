@@ -119,6 +119,7 @@ async function run() {
     stopDescription: anyRecordHas(stops, "desc"),
     fareZones: anyRecordHas(stops, "zone"),
     wheelchairAccessibility: anyRecordHas(stops, "wheelchair"),
+    platforms: anyRecordHas(stops, "platform"),
     routeLongName: anyRecordHas(routes, "long_name"),
     routeDirection: anyRecordHas(routes, "direction_id"),
     routeHeadsign: anyRecordHas(routes, "headsign") || hasHeadsignIndex,

@@ -139,6 +139,7 @@ export const en: Dictionary = {
     searchUnavailable: 'Place search is unavailable right now. Try again shortly.',
     isStop: 'Transit stop',
     platform: 'Platform {platform}',
+    track: 'Track {platform}',
     chooseOrigin: 'Choose a starting point from the suggestions.',
     chooseDestination: 'Choose a destination from the suggestions.',
     noJourney: 'No journey found',

@@ -7,6 +7,7 @@ import {
   modeLabel,
   useLocale,
 } from '../../i18n';
+import type { Dictionary, Message } from '../../i18n';
 import type { Journey, TransitLeg, WalkLeg } from '../../types/journey';
 import { ModeIcon, SeatedIcon, WalkIcon } from './modeIcons';
 import { modeVisual, visualForFamily } from './modeVisuals';
@@ -303,6 +304,25 @@ function nodeInk(row: NodeRow): string | null {
 }
 
 /**
+ * What to call the designation printed on a stop.
+ *
+ * GTFS gives the number and nothing more — it never says whether the thing is
+ * a platform, a track, or a stand — so the word has to come from the vehicle.
+ * Rail is the one that reliably speaks differently, and it is what the
+ * networks themselves do: HSL prints *raide* on a train and *laituri* on a bus
+ * stand. Everything else, including a node with no vehicle at all, takes the
+ * general word.
+ */
+function platformLabel(row: NodeRow, strings: Dictionary): Message {
+  for (const spine of [row.below, row.above]) {
+    if (spine?.kind === 'transit' && spine.family === 'train') {
+      return strings.planner.track;
+    }
+  }
+  return strings.planner.platform;
+}
+
+/**
  * A point on the journey: a circle, its name, and the time you are there.
  *
  * The `min-h` on each half of the spine is what stops a node from collapsing
@@ -414,13 +434,24 @@ function NodeLine({ row }: { row: NodeRow }) {
           kind of thing from the name above it — quiet, but its own object,
           not a continuation of the sentence.
         */}
-        {row.detail !== null && (
-          <span
-            /* Pulled back by its own padding, so the text inside starts on the
-               same edge as the name above it — not the box it sits in. */
-            className="bg-surface-muted text-content-muted rounded-control -ms-1.5 mt-1 px-1.5 py-0.5 text-xs font-medium"
-          >
-            <span dir="auto">{row.detail}</span>
+        {/*
+          Pulled back by its own padding, so the text inside starts on the same
+          edge as the name above it — not the box it sits in.
+        */}
+        {(row.detail !== null || row.platform !== null) && (
+          <span className="-ms-1.5 mt-1 flex flex-wrap items-center gap-1.5">
+            {row.detail !== null && (
+              <span className="bg-surface-muted text-content-muted rounded-control px-1.5 py-0.5 text-xs font-medium">
+                <span dir="auto">{row.detail}</span>
+              </span>
+            )}
+            {/* Null across a whole feed rather than at odd stops: plenty of
+                networks publish no designations at all. */}
+            {row.platform !== null && (
+              <span className="bg-surface-sunken text-content rounded-control px-1.5 py-0.5 text-xs font-semibold">
+                {t(platformLabel(row, strings), { platform: row.platform })}
+              </span>
+            )}
           </span>
         )}
       </span>

@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { journeyTotals } from './journeyTotals';
 import type { Journey, Stop, TransitLeg, WalkLeg } from '../../types/journey';
 
-const anywhere: Stop = { id: '1', name: 'A', code: null, lat: 60, lon: 24 };
+const anywhere: Stop = {
+  id: '1',
+  name: 'A',
+  code: null,
+  platform: null,
+  lat: 60,
+  lon: 24,
+};
 
 function walk(minutes: number, meters: number, wait = 0): WalkLeg {
   return {

@@ -19,6 +19,7 @@ module.exports = {
       "stop_desc",
       "zone_id",
       "wheelchair_boarding",
+      "platform_code",
     ],
     requiredRouteHeaders: [
       "route_id",
