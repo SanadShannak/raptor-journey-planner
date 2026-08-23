@@ -180,11 +180,11 @@ describe('JourneyMap', () => {
       journeyOf([walk(pin('ORIGIN', 60.0, 24.8), pin('TARGET', 60.2, 25.0))]),
     );
 
-    // A solid disc in the brand colour — deliberately not a ring, which is
-    // what every stop on this map is.
-    expect(container.querySelector('path.fill-brand-500')).toBeTruthy();
+    // The target, in the green this app has always started journeys in, and
+    // deliberately not the single ring that every stop on this map is.
+    expect(container.querySelector('.journey-marker svg.text-mode-tram')).toBeTruthy();
     // The destination pin, drawn from the path the form and strip map share.
-    expect(container.querySelector('.journey-marker svg')).toBeTruthy();
+    expect(container.querySelector('.journey-marker svg.text-brand-500')).toBeTruthy();
   });
 
   /*
@@ -244,8 +244,12 @@ describe('JourneyMap', () => {
     expect(container.querySelectorAll('path.stroke-mode-bus')).toHaveLength(4);
   });
 
-  // The mode's own silhouette and the line's own number, halfway along it.
-  it('badges each leg where its line runs', () => {
+  /*
+   * A ride is named by its line. A walk has no name, so it is named by what it
+   * costs — the thing you would want to know before taking this itinerary at
+   * all.
+   */
+  it('badges a ride with its line, and a walk with its length', () => {
     const { container } = show(
       journeyOf([
         walk(pin('ORIGIN', 60.0, 24.8), stop('A', 60.1, 24.9)),
@@ -256,7 +260,8 @@ describe('JourneyMap', () => {
     const badges = [...container.querySelectorAll('.journey-badge')];
     expect(badges).toHaveLength(2);
     // Trimmed: the silhouette's own markup carries the indentation it is
-    // written with, and `textContent` collects it.
-    expect(badges.map((b) => b.textContent?.trim())).toEqual(['Walk', '55']);
+    // written with, and `textContent` collects it. Sorted because the order
+    // they are placed in is the decluttering's business, not this test's.
+    expect(badges.map((b) => b.textContent?.trim()).sort()).toEqual(['5 min', '55']);
   });
 });

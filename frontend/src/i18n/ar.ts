@@ -206,6 +206,7 @@ export const ar: Dictionary = {
     zoomIn: 'تكبير',
     zoomOut: 'تصغير',
 
+    showOnMap: 'عرض هذه الرحلة على الخريطة',
     viewDetails: 'عرض هذه الرحلة خطوة بخطوة',
     backToResults: 'العودة إلى النتائج',
     journeyDetails: 'تفاصيل الرحلة',

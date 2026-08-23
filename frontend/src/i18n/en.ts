@@ -176,6 +176,7 @@ export const en: Dictionary = {
     zoomIn: 'Zoom in',
     zoomOut: 'Zoom out',
 
+    showOnMap: 'Show this journey on the map',
     viewDetails: 'Show this journey step by step',
     backToResults: 'Back to results',
     journeyDetails: 'Journey details',

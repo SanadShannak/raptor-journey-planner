@@ -213,7 +213,14 @@ export interface Dictionary {
     zoomOut: string;
 
     /* The overview list, and the detail panel one itinerary opens into. */
-    /** Accessible name of the button an overview card is built from. */
+    /**
+     * Accessible names for the button an overview card is built from.
+     *
+     * One button, two actions: a card that is not the one being shown puts
+     * itself on the map, and a card that already is opens step by step. The
+     * name changes with it, so it always says what pressing will do.
+     */
+    showOnMap: string;
     viewDetails: string;
     /** Leaves the detail panel and returns to the list of results. */
     backToResults: string;

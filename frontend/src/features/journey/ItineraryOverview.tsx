@@ -22,6 +22,8 @@ interface Props {
    * the list is the same intent as a mouse resting on it.
    */
   onHighlight?: ((highlighted: boolean) => void) | undefined;
+  /** Whether this is the journey the map is currently drawing. */
+  selected?: boolean | undefined;
 }
 
 /**
@@ -58,6 +60,7 @@ export function ItineraryOverview({
   searchedDate,
   onOpen,
   onHighlight,
+  selected = false,
 }: Props) {
   const locale = useLocale();
   const { strings, t } = locale;
@@ -73,7 +76,16 @@ export function ItineraryOverview({
         onPointerLeave={() => onHighlight?.(false)}
         onFocus={() => onHighlight?.(true)}
         onBlur={() => onHighlight?.(false)}
-        className="rounded-card border-border bg-surface-raised shadow-card hover:border-brand-500 focus-visible:outline-brand-500 flex w-full cursor-pointer flex-col gap-2.5 border p-4 text-start focus-visible:outline-2 focus-visible:outline-offset-2"
+        /*
+           `aria-current` rather than `aria-pressed`: this is not a control that
+           stays down, it is the one item of a set that the map is showing.
+        */
+        aria-current={selected}
+        className={`rounded-card bg-surface-raised shadow-card focus-visible:outline-brand-500 flex w-full cursor-pointer flex-col gap-2.5 border p-4 text-start transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 ${
+          selected
+            ? 'border-brand-500 ring-brand-500 ring-1'
+            : 'border-border hover:border-brand-500'
+        }`}
       >
         {/*
           Named for a screen reader as one sentence, because the visual
@@ -87,7 +99,7 @@ export function ItineraryOverview({
             duration: formatDuration(journey.totalDurationMinutes, locale),
           })}
           {' '}
-          {t(strings.planner.viewDetails)}
+          {t(selected ? strings.planner.viewDetails : strings.planner.showOnMap)}
         </span>
 
         <span aria-hidden="true" className="flex items-baseline gap-x-3 gap-y-1">

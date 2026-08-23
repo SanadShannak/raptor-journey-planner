@@ -105,6 +105,16 @@ export default function PlanPage() {
    * tabbing through the same list.
    */
   const [highlightIndex, setHighlightIndex] = useState<number | null>(null);
+  /**
+   * Which card the traveller has actually chosen, as opposed to grazed.
+   *
+   * Pressing a card that is not this one makes it this one, and shows it on the
+   * map. Pressing the one that already is opens it step by step. A journey is
+   * worth looking at on a map before committing to reading it, and there was no
+   * way to ask for that: pointing at a card showed it and moving away took it
+   * straight back.
+   */
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
   const requestId = useRef(0);
   /** Bumped to re-run the startup effect when the visitor retries. */
@@ -290,11 +300,12 @@ export default function PlanPage() {
     setSearched(false);
     setOpenIndex(null);
     /*
-     * The highlight is an index into a list that is about to be replaced, so it
-     * would otherwise point at whichever journey happened to land in that slot
-     * next — the same reason `openIndex` is cleared here.
+     * Both are indexes into a list that is about to be replaced, so they would
+     * otherwise point at whichever journey happened to land in that slot next
+     * — the same reason `openIndex` is cleared here.
      */
     setHighlightIndex(null);
+    setSelectedIndex(null);
     setExhausted(null);
     setErrorMessage(null);
     setState('idle');
@@ -373,14 +384,18 @@ export default function PlanPage() {
 
   /*
    * The open result wins, then whatever is being pointed at or focused, then
-   * the first — so the map is never blank while there is something to show, and
-   * the journey it falls back to is the soonest departure, which is the one
-   * most people take.
+   * the chosen one, then the first — so the map is never blank while there is
+   * something to show, and the journey it falls back to is the soonest
+   * departure, which is the one most people take.
+   *
+   * Pointing outranks choosing on purpose: a graze is a question, and the
+   * answer should be given back the moment the pointer leaves.
    */
+  const active = selectedIndex ?? 0;
   const shown =
     openIndex !== null
       ? (journeys[openIndex] ?? null)
-      : (journeys[highlightIndex ?? 0] ?? null);
+      : (journeys[highlightIndex ?? active] ?? null);
 
   const offline = service === 'down';
   const showEmpty = searched && state === 'idle' && journeys.length === 0;
@@ -537,7 +552,12 @@ export default function PlanPage() {
                       key={`${journey.startDate}-${journey.startTime}-${index}`}
                       journey={journey}
                       searchedDate={values.date}
-                      onOpen={() => setOpenIndex(index)}
+                      selected={index === active}
+                      onOpen={() =>
+                        index === active
+                          ? setOpenIndex(index)
+                          : setSelectedIndex(index)
+                      }
                       onHighlight={(on) =>
                         setHighlightIndex((current) =>
                           on ? index : current === index ? null : current,

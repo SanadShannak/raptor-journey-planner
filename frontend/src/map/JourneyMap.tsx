@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import L from 'leaflet';
 import {
   AttributionControl,
@@ -9,8 +9,9 @@ import {
   TileLayer,
   ZoomControl,
   useMap,
+  useMapEvent,
 } from 'react-leaflet';
-import { useLocale } from '../i18n';
+import { formatDuration, useLocale } from '../i18n';
 import { useTheme } from '../theme';
 import type { GeoBounds } from '../config/geocoding';
 import type { Journey } from '../types/journey';
@@ -20,7 +21,10 @@ import {
   WALK_ICON_MARKUP,
   modeIconMarkup,
 } from '../features/journey/modeIconMarkup';
-import { DESTINATION_PIN_PATH } from '../features/journey/placeMarkers';
+import {
+  destinationMarkerMarkup,
+  originMarkerMarkup,
+} from '../features/journey/placeMarkerMarkup';
 import {
   boxFromGeoBounds,
   journeyGeometry,
@@ -156,14 +160,26 @@ function ZoomButtonLabels({ zoomIn, zoomOut }: { zoomIn: string; zoomOut: string
  */
 function legBadge(family: string | null, label: string): L.DivIcon {
   const walking = family === null;
-  const tint = walking ? 'bg-surface text-content-muted' : `${visualForFamily(family).fill} text-on-mode`;
+  const tint = walking
+    ? 'bg-surface-raised text-content'
+    : `${visualForFamily(family).fill} text-on-mode`;
   const icon = walking ? WALK_ICON_MARKUP : modeIconMarkup(family);
 
   return L.divIcon({
     className: 'journey-badge',
-    html: `<span class="${tint} rounded-control shadow-card ring-surface flex w-max items-center gap-1 px-1.5 py-0.5 text-xs font-bold ring-2"><svg ${ICON_SVG_ATTRIBUTES} width="15" height="15">${icon}</svg>${label}</span>`,
-    // Sized by its own content; the anchor is what centres it on the line.
-    iconSize: undefined as unknown as L.PointExpression,
+    /*
+     * Pulled back by half its own size so the line runs through its middle.
+     * The width is whatever the label needs, which is why this is a transform
+     * and not an `iconAnchor`: Leaflet wants that in pixels, and nothing here
+     * knows how wide "Kehärata" is until the browser has laid it out.
+     *
+     * `left` rather than `start`, which is the one place in this app that is
+     * right. The anchor is a point on the ground, placed by projection in
+     * physical pixels; the map does not flip with the document, so neither can
+     * the offset that centres something on it.
+     */
+    html: `<span class="${tint} rounded-control shadow-card ring-surface absolute top-0 left-0 flex w-max -translate-x-1/2 -translate-y-1/2 items-center gap-1.5 px-2 py-1 text-sm font-bold ring-2"><svg ${ICON_SVG_ATTRIBUTES} width="18" height="18">${icon}</svg>${label}</span>`,
+    iconSize: [0, 0],
     iconAnchor: [0, 0],
   });
 }
@@ -171,14 +187,78 @@ function legBadge(family: string | null, label: string): L.DivIcon {
 /** The pin, built from the same path the form and the strip map draw. */
 const destinationIcon = L.divIcon({
   className: 'journey-marker',
-  html: `<svg viewBox="0 0 24 24" width="34" height="34" aria-hidden="true" class="text-brand-500 drop-shadow-sm"><path d="${DESTINATION_PIN_PATH}" fill="currentColor" stroke="currentColor" stroke-width="0.8"/><circle cx="12" cy="10.7" r="2.4" class="fill-surface"/></svg>`,
-  iconSize: [34, 34],
+  html: `<svg viewBox="0 0 24 24" width="38" height="38" aria-hidden="true" class="text-brand-500">${destinationMarkerMarkup('fill-surface')}</svg>`,
+  iconSize: [38, 38],
   // The point of a pin is its tip, which is the bottom of the box.
-  iconAnchor: [17, 34],
+  iconAnchor: [19, 38],
+});
+
+interface Badge {
+  key: string;
+  point: L.LatLngExpression;
+  icon: L.DivIcon;
+  /** Transit before walking, when only one of the two can be shown. */
+  rank: number;
+}
+
+/**
+ * The badges, thinned out so they do not sit on top of each other.
+ *
+ * Two short legs either side of a change put their midpoints within a few
+ * hundred metres, which at a city-wide zoom is a few pixels — and two badges in
+ * the same place are less legible than one. So they are measured in *screen*
+ * space at the current zoom and dropped where they would collide, which means
+ * the set changes as you zoom: the ones that vanish when you pull back are the
+ * ones that reappear when you go in.
+ *
+ * Ridden legs win the ties. Which line you are on is the thing a map is being
+ * asked, and a walk's own length is already in the itinerary beside it.
+ */
+function LegBadges({ badges }: { badges: Badge[] }) {
+  const map = useMap();
+  const [zoom, setZoom] = useState(() => map.getZoom());
+
+  useMapEvent('zoomend', () => setZoom(map.getZoom()));
+
+  const shown = useMemo(() => {
+    // `zoom` is not read here: it is the signal that every projection below
+    // has moved, which is exactly when this has to be worked out again.
+    void zoom;
+
+    const placed: L.Point[] = [];
+    const keep: Badge[] = [];
+    const MIN_GAP = 76;
+
+    for (const badge of [...badges].sort((a, b) => a.rank - b.rank)) {
+      const at = map.latLngToLayerPoint(badge.point);
+      if (placed.every((other) => at.distanceTo(other) >= MIN_GAP)) {
+        placed.push(at);
+        keep.push(badge);
+      }
+    }
+    return keep;
+  }, [badges, map, zoom]);
+
+  return (
+    <>
+      {shown.map((badge) => (
+        <Marker key={badge.key} position={badge.point} icon={badge.icon} interactive={false} />
+      ))}
+    </>
+  );
+}
+
+/** Where you start: the same three rings the form and the strip map draw. */
+const originIcon = L.divIcon({
+  className: 'journey-marker',
+  html: `<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true" class="text-mode-tram">${originMarkerMarkup('fill-surface')}</svg>`,
+  iconSize: [30, 30],
+  iconAnchor: [15, 15],
 });
 
 export function JourneyMap({ journey, network, area }: Props) {
-  const { strings, t, direction } = useLocale();
+  const locale = useLocale();
+  const { strings, t, direction } = locale;
   const { resolved } = useTheme();
   const reduceMotion = useReducedMotion();
 
@@ -214,15 +294,34 @@ export function JourneyMap({ journey, network, area }: Props) {
     return area === null ? null : boxFromGeoBounds(area);
   }, [geometry, area]);
 
-  /*
-   * A line's designation comes from the leg rather than from the geometry:
-   * geometry carries what is drawn, and "55" is a name, not a shape.
-   */
-  const designationFor = (legIndex: number): string | null => {
-    const leg = journey?.legs[legIndex];
-    if (leg === undefined || leg.mode !== 'TRANSIT') return null;
-    return leg.routeShortName;
-  };
+  const badges = useMemo<Badge[]>(() => {
+    if (geometry === null || journey === null) return [];
+
+    return geometry.segments.flatMap((segment) => {
+      if (segment.midpoint === null) return [];
+      const leg = journey.legs[segment.legIndex];
+      if (leg === undefined) return [];
+
+      /*
+       * A ride is named by its line; a walk has no name, so it is named by
+       * what it costs you — which is the thing you would want to know before
+       * deciding to take this itinerary at all.
+       */
+      const label =
+        leg.mode === 'TRANSIT'
+          ? (leg.routeShortName ?? '')
+          : formatDuration(leg.walkDurationMinutes, locale);
+
+      return [
+        {
+          key: `${scope}-badge-${segment.key}`,
+          point: segment.midpoint,
+          icon: legBadge(segment.family, label),
+          rank: segment.kind === 'transit' ? 0 : 1,
+        },
+      ];
+    });
+  }, [geometry, journey, scope, locale]);
 
   const rtl = direction === 'rtl';
 
@@ -327,35 +426,10 @@ export function JourneyMap({ journey, network, area }: Props) {
       ))}
 
       {/* The badge naming each leg, halfway along it by length. */}
-      {geometry?.segments.map((segment) =>
-        segment.midpoint === null ? null : (
-          <Marker
-            key={`${scope}-badge-${segment.key}`}
-            position={segment.midpoint}
-            icon={legBadge(
-              segment.family,
-              segment.kind === 'walk'
-                ? t(strings.planner.walk)
-                : (designationFor(segment.legIndex) ?? ''),
-            )}
-            interactive={false}
-          />
-        ),
-      )}
+      <LegBadges badges={badges} />
 
       {geometry?.origin && (
-        <CircleMarker
-          center={geometry.origin}
-          radius={9}
-          /*
-           * A solid disc with a surface-coloured halo, matching the form and
-           * the strip map. It was a thin ring in the tram green, which is
-           * precisely what a tram stop looks like on this map.
-           */
-          className="stroke-surface fill-brand-500"
-          pathOptions={{ weight: 3, opacity: 1, fillOpacity: 1 }}
-          interactive={false}
-        />
+        <Marker position={geometry.origin} icon={originIcon} interactive={false} />
       )}
 
       {geometry?.destination && (
