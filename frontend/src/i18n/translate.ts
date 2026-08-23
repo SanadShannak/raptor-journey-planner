@@ -109,6 +109,29 @@ export function formatClockTime(time: string, locale: Locale): string {
   }).format(reference);
 }
 
+/**
+ * The locale's own words for the two halves of the day.
+ *
+ * The time field shows what it displays — "4:54 PM" rather than the 16:54 that
+ * goes on the wire — so it has to be able to read back what it printed. Asked
+ * of `Intl` rather than kept in the dictionaries: Arabic writes "ص" and "م",
+ * and a hand-maintained copy would be free to drift from whatever
+ * {@link formatClockTime} actually prints.
+ */
+export function clockMeridiems(locale: Locale): { am: string; pm: string } {
+  const format = new Intl.DateTimeFormat(INTL_LOCALE[locale], {
+    hour: 'numeric',
+    hour12: true,
+  });
+
+  const at = (hour: number) =>
+    format
+      .formatToParts(new Date(2000, 0, 1, hour))
+      .find((part) => part.type === 'dayPeriod')?.value ?? '';
+
+  return { am: at(9), pm: at(21) };
+}
+
 /** Formats an API `YYYY-MM-DD` string for display, or returns it unchanged. */
 export function formatDate(
   isoDate: string,

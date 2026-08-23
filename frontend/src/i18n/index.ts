@@ -13,6 +13,7 @@ export { LanguageToggle } from './LanguageToggle';
 export { useLocale, type LocaleContextValue } from './localeContext';
 export { applyDocumentLocale, resolveInitialLocale } from './documentLocale';
 export {
+  clockMeridiems,
   formatClockTime,
   formatDate,
   formatNumber,

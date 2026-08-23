@@ -1,5 +1,5 @@
 import { useId, useLayoutEffect, useRef, useState } from 'react';
-import { formatClockTime, formatNumber, useLocale } from '../../i18n';
+import { clockMeridiems, formatClockTime, formatNumber, useLocale } from '../../i18n';
 import { Popover } from '../../components/Popover';
 import { Chevron } from './DateSelect';
 import { parseTypedTime } from './parseTypedTime';
@@ -76,6 +76,12 @@ function fromParts({ hour12, minute, pm }: ClockParts): string {
  * a time appeared to select it and then quietly put the old one back. Focus
  * stays on what was pressed; **Done** closes and hands focus to the trigger.
  *
+ * Nothing leaves the picker until it is closed. Three columns make one time
+ * between them, and reporting each column as it moves means the hour lands
+ * first and a search runs for 4:54 on the way to 5:30. The columns write to a
+ * pending time that the field shows immediately; **Done**, a click outside, or
+ * Escape are what hand it over.
+ *
  * The value is always 24-hour on the wire; only the display follows the
  * locale, and a chosen date is shown alongside a crossing-midnight arrival
  * elsewhere so a 12-hour clock cannot be read as the wrong end of the day.
@@ -84,14 +90,21 @@ export function TimeSelect({ label, value, onChange, disabled }: Props) {
   const { locale, strings, t } = useLocale();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<string | null>(null);
+  /** What the columns have chosen so far, before it is handed over. */
+  const [pending, setPending] = useState<ClockParts | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const hourListRef = useRef<HTMLDivElement>(null);
   const minuteListRef = useRef<HTMLDivElement>(null);
   const labelId = useId();
 
-  const display = value === '' ? '' : formatClockTime(value, locale);
-  const parts = toParts(value) ?? { hour12: 12, minute: 0, pm: false };
+  const parts = pending ?? toParts(value) ?? { hour12: 12, minute: 0, pm: false };
+  /*
+   * The pending time wins in the field, so moving a column still shows an
+   * immediate answer — what it does not do is start a search.
+   */
+  const shown = pending !== null ? fromParts(pending) : value;
+  const display = shown === '' ? '' : formatClockTime(shown, locale);
 
   const hourIndex = HOURS_12.indexOf(parts.hour12);
   /*
@@ -113,20 +126,40 @@ export function TimeSelect({ label, value, onChange, disabled }: Props) {
   }, [open, hourIndex, minuteIndex]);
 
   function commit(raw: string) {
-    const parsed = parseTypedTime(raw);
-    if (parsed !== null) onChange(parsed);
+    /*
+     * Unchanged text must never change the value. It matters because the field
+     * shows a formatted time rather than the one on the wire, so a focus and a
+     * blur with nothing typed round-trips through the parser — and any locale
+     * whose meridiem it could not read would quietly move the time by twelve
+     * hours for the crime of being clicked on.
+     */
+    if (raw !== display) {
+      const parsed = parseTypedTime(raw, clockMeridiems(locale));
+      if (parsed !== null) onChange(parsed);
+    }
+    // Typing wins over a half-made choice in the columns.
+    setPending(null);
     setDraft(null);
   }
 
   /** Applies one column's choice, leaving the other two as they are. */
   function setPart(change: Partial<ClockParts>) {
-    onChange(fromParts({ ...parts, ...change }));
+    setPending({ ...parts, ...change });
     // The typed draft is stale the moment the list is used; dropping it here
     // is what lets the field show the new value instead of the old one.
     setDraft(null);
   }
 
+  /** Hands over whatever the columns settled on, if it is anything new. */
+  function handOver() {
+    if (pending === null) return;
+    const next = fromParts(pending);
+    setPending(null);
+    if (next !== value) onChange(next);
+  }
+
   function close() {
+    handOver();
     setOpen(false);
     triggerRef.current?.focus();
   }
@@ -154,7 +187,13 @@ export function TimeSelect({ label, value, onChange, disabled }: Props) {
           disabled={disabled ?? false}
           value={draft ?? display}
           onChange={(event) => setDraft(event.target.value)}
-          onFocus={() => setDraft(value)}
+          /*
+           * Seeded with what the field was *showing*, not the 24-hour value
+           * behind it. Clicking into "4:54 PM" and being handed "16:54" is the
+           * one moment the wire format is allowed to surface, and it made the
+           * field look like it had changed on its own.
+           */
+          onFocus={() => setDraft(display)}
           onBlur={(event) => commit(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter') {
@@ -177,7 +216,13 @@ export function TimeSelect({ label, value, onChange, disabled }: Props) {
           aria-label={t(strings.planner.chooseTime)}
           disabled={disabled ?? false}
           onClick={() => setOpen((wasOpen) => !wasOpen)}
-          className="border-border-strong text-content-muted hover:text-content hover:bg-surface-muted focus-visible:outline-brand-500 flex w-9 flex-none cursor-pointer items-center justify-center self-stretch border-s focus-visible:-outline-offset-2 focus-visible:outline-2 disabled:cursor-not-allowed disabled:opacity-60"
+          /*
+             No divider before the caret: the date field beside this one is a
+             single button and cannot have one, and two fields sitting side by
+             side had two different ideas about what a disclosure arrow looks
+             like. The hover fill is what marks it as pressable.
+          */
+          className="text-content-muted hover:text-content hover:bg-surface-muted focus-visible:outline-brand-500 me-1 flex w-8 flex-none cursor-pointer items-center justify-center self-stretch focus-visible:-outline-offset-2 focus-visible:outline-2 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <Chevron open={open} />
         </button>
@@ -185,7 +230,10 @@ export function TimeSelect({ label, value, onChange, disabled }: Props) {
 
       <Popover
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={() => {
+          handOver();
+          setOpen(false);
+        }}
         triggerRef={triggerRef}
         labelledBy={labelId}
       >

@@ -42,3 +42,30 @@ describe('parseTypedTime', () => {
     expect(parseTypedTime('19pm')).toBeNull();
   });
 });
+
+/*
+ * The field shows what it displays rather than the 24-hour value on the wire,
+ * so whatever it printed has to come back in. English needs nothing extra;
+ * Arabic writes "م" for pm, and reading that as nothing at all turned a
+ * perfectly good afternoon into the small hours.
+ */
+describe('the locale’s own meridiem', () => {
+  const arabic = { am: 'ص', pm: 'م' };
+
+  it('reads back the Arabic afternoon', () => {
+    expect(parseTypedTime('4:54 م', arabic)).toBe('16:54');
+    expect(parseTypedTime('4:54 ص', arabic)).toBe('04:54');
+    expect(parseTypedTime('12:30 م', arabic)).toBe('12:30');
+    expect(parseTypedTime('12:30 ص', arabic)).toBe('00:30');
+  });
+
+  it('still reads English am and pm, whatever the locale', () => {
+    expect(parseTypedTime('4:54 pm', arabic)).toBe('16:54');
+    expect(parseTypedTime('4:54 PM', { am: 'AM', pm: 'PM' })).toBe('16:54');
+  });
+
+  it('leaves a bare time alone', () => {
+    expect(parseTypedTime('16:54', arabic)).toBe('16:54');
+    expect(parseTypedTime('454', arabic)).toBe('04:54');
+  });
+});
