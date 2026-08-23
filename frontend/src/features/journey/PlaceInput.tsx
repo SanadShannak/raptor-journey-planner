@@ -3,6 +3,7 @@ import { useLocale } from '../../i18n';
 import { geocoder } from '../../geocoding';
 import type { Place } from '../../types/place';
 import type { GeoBounds } from '../../config/geocoding';
+import { ModeIcon } from './modeIcons';
 
 interface Props {
   label: string;
@@ -13,8 +14,12 @@ interface Props {
   onChange: (place: Place | null) => void;
   /** Restricts suggestions to the network's area. */
   bounds?: GeoBounds | null | undefined;
-  /** Rendered beside the field — "use my location" on the origin. */
+  /** Rendered flush against the field's end — "use my location" on the origin. */
   action?: React.ReactNode;
+  /** Rendered under the field, where an {@link action} reports a problem. */
+  note?: React.ReactNode;
+  /** Turned off while the routing service is unreachable. */
+  disabled?: boolean | undefined;
 }
 
 /** How long typing must pause before a lookup is worth making. */
@@ -34,10 +39,20 @@ const MIN_QUERY_LENGTH = 2;
  * do.
  *
  * Nothing is submitted from free text. A journey needs coordinates, and only a
- * chosen suggestion has them — so picking is mandatory, and the form says so
- * rather than guessing at what was typed.
+ * chosen suggestion has them — so picking is mandatory. Enter picks: with no
+ * cursor moved it takes the first suggestion, which is what someone who typed
+ * a name and pressed Enter means, and it is the geocoder's own best answer.
  */
-export function PlaceInput({ label, role, value, onChange, bounds, action }: Props) {
+export function PlaceInput({
+  label,
+  role,
+  value,
+  onChange,
+  bounds,
+  action,
+  note,
+  disabled,
+}: Props) {
   const { locale, strings, t } = useLocale();
 
   const [query, setQuery] = useState(value?.label ?? '');
@@ -140,10 +155,14 @@ export function PlaceInput({ label, role, value, onChange, bounds, action }: Pro
       });
       return;
     }
-    if (event.key === 'Enter' && open && activeIndex >= 0) {
-      // Only swallow Enter when it is selecting something; otherwise it must
-      // still submit the form.
-      const place = suggestions[activeIndex];
+    if (event.key === 'Enter' && open && suggestions.length > 0) {
+      /*
+       * With a cursor moved, Enter takes what it is on. With no cursor moved it
+       * takes the first result: someone who typed a name and pressed Enter has
+       * named a place, and asking them to arrow down one step to confirm the
+       * geocoder's own top answer is a keystroke that buys nothing.
+       */
+      const place = suggestions[activeIndex >= 0 ? activeIndex : 0];
       if (place) {
         event.preventDefault();
         choose(place);
@@ -164,8 +183,13 @@ export function PlaceInput({ label, role, value, onChange, bounds, action }: Pro
         {label}
       </label>
 
-      <div className="rounded-control border-border-strong bg-surface focus-within:border-brand-500 flex items-center gap-2 border ps-3 pe-1">
-        <span aria-hidden="true" className="flex-none">
+      {/*
+        `items-stretch` and no end padding, so an action button can run the full
+        height of the field and share its border rather than floating inside it
+        with a sliver of background showing around the outside.
+      */}
+      <div className="rounded-control border-border-strong bg-surface focus-within:border-brand-500 flex items-stretch overflow-hidden border ps-3">
+        <span aria-hidden="true" className="me-2 flex flex-none items-center">
           {role === 'origin' ? <OriginMarker /> : <DestinationMarker />}
         </span>
         <input
@@ -173,6 +197,7 @@ export function PlaceInput({ label, role, value, onChange, bounds, action }: Pro
           type="text"
           role="combobox"
           autoComplete="off"
+          disabled={disabled ?? false}
           aria-expanded={showList}
           aria-controls={showList ? listId : undefined}
           aria-autocomplete="list"
@@ -194,10 +219,12 @@ export function PlaceInput({ label, role, value, onChange, bounds, action }: Pro
           /* Finnish and Arabic place names in one field; let the browser
              decide which way each entry runs. */
           dir="auto"
-          className="min-w-0 flex-1 bg-transparent py-2.5 text-sm font-medium focus-visible:outline-none"
+          className="min-w-0 flex-1 bg-transparent py-2.5 pe-2 text-sm font-medium focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
         />
         {action}
       </div>
+
+      {note}
 
       {/*
         Announced politely, because it is the answer to typing rather than to a
@@ -241,21 +268,12 @@ export function PlaceInput({ label, role, value, onChange, bounds, action }: Pro
                   onMouseEnter={() => setActiveIndex(index)}
                   className="rounded-control hover:bg-surface-muted aria-selected:bg-surface-muted flex w-full cursor-pointer items-center gap-2.5 px-2.5 py-2 text-start"
                 >
-                  <span aria-hidden="true" className="flex-none">
-                    {place.kind === 'stop' ? <StopIcon /> : <PinIcon />}
-                  </span>
+                  <SuggestionIcon place={place} />
                   <span className="min-w-0 flex-1">
                     <span dir="auto" className="block truncate text-sm font-medium">
                       {place.label}
                     </span>
-                    {place.context !== null && (
-                      <span
-                        dir="auto"
-                        className="text-content-muted block truncate text-xs"
-                      >
-                        {place.context}
-                      </span>
-                    )}
+                    <SuggestionDetail place={place} />
                   </span>
                   {/* Named as well as drawn: a marker that only differs by
                       shape is invisible to a screen reader. */}
@@ -272,10 +290,93 @@ export function PlaceInput({ label, role, value, onChange, bounds, action }: Pro
   );
 }
 
+/**
+ * The marker for one suggestion.
+ *
+ * A stop whose serving modes are known is drawn as that mode, using the same
+ * silhouettes the itinerary uses — so the rail platform and the bus stand that
+ * share the name "Pasilan asema" are told apart before either is chosen. A
+ * stop serving several modes takes the first, because the row has space for one
+ * icon and the second line names the rest.
+ *
+ * Anything unknown keeps the neutral pin. Guessing "bus" for every stop, which
+ * is what defaulting does, is worse than the generic marker: it is confidently
+ * wrong at the exact moment someone is choosing between platforms.
+ */
+function SuggestionIcon({ place }: { place: Place }) {
+  const mode = place.modes?.[0];
+
+  return (
+    <span aria-hidden="true" className="flex-none">
+      {place.kind !== 'stop' ? (
+        <PinIcon />
+      ) : mode === undefined ? (
+        <GenericStopIcon />
+      ) : (
+        <span className={`${modeInk(mode)} block`}>
+          <ModeIcon routeType={mode} size={20} />
+        </span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * The second line: where the place is, and — for a stop — how to identify it
+ * on the ground.
+ *
+ * Code and platform earn their space only on a stop, and only when the
+ * geocoder supplied them. Six results named "Pasila" are unusable without
+ * them; on an address they would be clutter.
+ */
+function SuggestionDetail({ place }: { place: Place }) {
+  const { strings, t } = useLocale();
+
+  const parts: string[] = [];
+  if (place.platform !== null) {
+    parts.push(t(strings.planner.platform, { platform: place.platform }));
+  }
+  if (place.stopCode !== null) parts.push(place.stopCode);
+  if (place.context !== null) parts.push(place.context);
+
+  if (parts.length === 0) return null;
+
+  return (
+    <span dir="auto" className="text-content-muted block truncate text-xs">
+      {/*
+        Joined with a separator rather than assembled into a sentence: these
+        are independent labels, not clauses, so no word order is being
+        implied and nothing needs translating as a whole.
+      */}
+      {parts.join(' · ')}
+    </span>
+  );
+}
+
+/** Mode colour for a suggestion marker, mirroring the itinerary's palette. */
+function modeInk(routeType: number): string {
+  switch (routeType) {
+    case 0:
+    case 5:
+      return 'text-mode-tram';
+    case 1:
+      return 'text-mode-metro';
+    case 2:
+    case 7:
+    case 12:
+      return 'text-mode-train';
+    case 4:
+    case 6:
+      return 'text-mode-ferry';
+    default:
+      return 'text-mode-bus';
+  }
+}
+
 const iconProps = {
   viewBox: '0 0 24 24',
-  width: 16,
-  height: 16,
+  width: 20,
+  height: 20,
   fill: 'none',
   stroke: 'currentColor',
   strokeWidth: 1.75,
@@ -290,13 +391,17 @@ const iconProps = {
  */
 const OriginMarker = () => (
   <svg {...iconProps} className="text-mode-tram">
-    <circle cx="12" cy="12" r="6" strokeWidth="2.5" />
+    <circle cx="12" cy="12" r="6.5" strokeWidth="3" />
   </svg>
 );
 
 const DestinationMarker = () => (
   <svg {...iconProps} className="text-brand-500">
-    <path d="M12 21.5s6.5-6 6.5-10.5a6.5 6.5 0 10-13 0c0 4.5 6.5 10.5 6.5 10.5z" fill="currentColor" stroke="none" />
+    <path
+      d="M12 21.5s6.5-6 6.5-10.5a6.5 6.5 0 10-13 0c0 4.5 6.5 10.5 6.5 10.5z"
+      fill="currentColor"
+      stroke="none"
+    />
     <circle cx="12" cy="10.7" r="2.3" className="fill-surface" stroke="none" />
   </svg>
 );
@@ -308,10 +413,10 @@ const PinIcon = () => (
   </svg>
 );
 
-/** Suggestions the geocoder identified as stops get the transit marker. */
-const StopIcon = () => (
-  <svg {...iconProps} className="text-mode-bus">
-    <rect x="4" y="4" width="16" height="12" rx="2.5" />
-    <path d="M4 11h16M7.5 20v-2M16.5 20v-2" />
+/** A stop the geocoder recognised but could not say anything more about. */
+const GenericStopIcon = () => (
+  <svg {...iconProps} className="text-content-muted">
+    <circle cx="12" cy="12" r="8.5" />
+    <circle cx="12" cy="12" r="3.5" fill="currentColor" stroke="none" />
   </svg>
 );

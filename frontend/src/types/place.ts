@@ -1,3 +1,5 @@
+import type { GtfsRouteType } from './journey';
+
 /**
  * A place someone can travel from or to.
  *
@@ -31,6 +33,30 @@ export interface Place {
    * the geocoder knows about but our feed does not.
    */
   stopId: string | null;
+  /**
+   * The stop's public code — the one printed on the pole, `"H0101"` on HSL.
+   * It is what distinguishes the six separate "Pasila" stops from each other,
+   * so it is shown rather than kept for lookups. Null unless the geocoder
+   * knows the transit network.
+   */
+  stopCode: string | null;
+  /**
+   * Platform or stand designation within a station, `"5"` or `"24"`. Distinct
+   * from {@link stopCode}: a code identifies the stop in the feed, a platform
+   * tells a traveller where to stand.
+   */
+  platform: string | null;
+  /**
+   * Which modes call here, as standard GTFS `route_type` values.
+   *
+   * Empty rather than null when the geocoder knows this is a stop but not what
+   * serves it, so a caller can tell "no modes reported" from "not a stop".
+   * Null on anything that is not a stop.
+   *
+   * Drives the icon: a rail platform gets the train silhouette rather than the
+   * bus one every stop used to default to.
+   */
+  modes: GtfsRouteType[] | null;
 }
 
 /**

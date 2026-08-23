@@ -12,7 +12,12 @@ import type {
   JourneyQuery,
 } from '../types/journey';
 import { getJson, type QueryParams } from './client';
-import { ApiError, isNoRouteFound } from './errors';
+import {
+  ApiError,
+  NO_ROUTE_FOUND,
+  isNoRouteFound,
+  parseApiErrorBody,
+} from './errors';
 
 interface CallOptions {
   signal?: AbortSignal | undefined;
@@ -110,21 +115,25 @@ function endpointParams(
  * departing at the given local date and time.
  *
  * Returns a list, which is empty when nothing connects the two places at that
- * time. **That case is not an error.** The engine reports it as a 404 with
- * `NO_ROUTE_FOUND`, but a search that ran correctly and found nothing is an
- * empty result, so it is turned into one here rather than left for every
- * caller to remember to special-case. Genuine failures — a bad date, an origin
- * outside the network, an unreachable server — still reject.
+ * time. **That case is not an error.** A search that ran correctly and found
+ * nothing is an empty result, so it is turned into one here rather than left
+ * for every caller to remember to special-case. Genuine failures — a bad date,
+ * an origin outside the network, an unreachable server — still reject.
  *
- * This also means the day the engine returns `200` with an empty list instead,
- * nothing downstream changes.
+ * The engine reports its own outcomes **inside a 200 body**: a response can be
+ * `{ errorCode, error }` rather than an itinerary, with the status saying only
+ * that the request was served. Validation failures from the route handler
+ * still arrive as a 4xx with the same envelope. Both are unwrapped here into
+ * the one shape callers already handle, so which of the two a given backend
+ * build uses is not something the UI has to know.
  */
 export async function planJourney(
   query: JourneyQuery,
   options: CallOptions = {},
 ): Promise<Journey[]> {
+  let body: unknown;
   try {
-    const body = await getJson('/api/planner', {
+    body = await getJson('/api/planner', {
       signal: options.signal,
       params: {
         ...endpointParams('origin', query.origin),
@@ -134,9 +143,26 @@ export async function planJourney(
         WALKING_SPEED_MPS: query.walkingSpeedMps,
       },
     });
-    return assertJourneys(body);
   } catch (error) {
+    // The same outcome, delivered as a status code instead.
     if (isNoRouteFound(error)) return [];
     throw error;
   }
+
+  /*
+   * An engine outcome carried in a successful response. Read before the shape
+   * is asserted, because `{ errorCode, error }` has no `legs` and would
+   * otherwise be reported as a malformed itinerary — which would tell the
+   * visitor the app is broken when the honest answer is "nothing runs then".
+   */
+  const outcome = parseApiErrorBody(body);
+  if (outcome !== null) {
+    if (outcome.errorCode === NO_ROUTE_FOUND) return [];
+    throw new ApiError('http', outcome.error, {
+      status: 200,
+      code: outcome.errorCode,
+    });
+  }
+
+  return assertJourneys(body);
 }

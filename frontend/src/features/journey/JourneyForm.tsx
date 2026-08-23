@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { formatNumber, useLocale } from '../../i18n';
 import {
   WALKING_PACES,
@@ -11,6 +11,7 @@ import { PlaceInput } from './PlaceInput';
 import { UseMyLocationButton } from './UseMyLocationButton';
 import { DateSelect } from './DateSelect';
 import { TimeSelect } from './TimeSelect';
+import { WalkIcon } from './modeIcons';
 
 export interface JourneyFormValues {
   origin: Place | null;
@@ -25,11 +26,19 @@ interface Props {
   onChange: (values: JourneyFormValues) => void;
   /** Runs whenever the form is complete and something in it changed. */
   onSearch: () => void;
+  /**
+   * Sets the date and time to the network's own clock. Null while the network
+   * has not said what that clock is — there is nothing honest to set it to,
+   * and the browser's own "now" is a different city's.
+   */
+  onLeaveNow: (() => void) | null;
   validDates: string[];
   /** Today on the network's clock, for the relative date labels. */
   today: string | null;
   /** Keeps place search inside the network's area. */
   bounds: GeoBounds | null;
+  /** Turned off while the routing service is unreachable. */
+  disabled?: boolean | undefined;
 }
 
 /** Complete enough to ask the engine about. */
@@ -68,14 +77,17 @@ export function JourneyForm({
   values,
   onChange,
   onSearch,
+  onLeaveNow,
   validDates,
   today,
   bounds,
+  disabled,
 }: Props) {
   const locale = useLocale();
   const { strings, t } = locale;
 
   const lastSearched = useRef<string | null>(null);
+  const [locationMessage, setLocationMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isReady(values)) return;
@@ -99,6 +111,8 @@ export function JourneyForm({
     onChange({ ...values, [key]: value });
   }
 
+  const off = disabled ?? false;
+
   return (
     /*
      * Still a <form>: it gives the fields a group, and Enter behaves. Submit is
@@ -117,14 +131,29 @@ export function JourneyForm({
             role="origin"
             bounds={bounds}
             value={values.origin}
+            disabled={off}
             onChange={(place) => set('origin', place)}
-            action={<UseMyLocationButton onLocated={(place) => set('origin', place)} />}
+            action={
+              <UseMyLocationButton
+                disabled={off}
+                onLocated={(place) => set('origin', place)}
+                onMessage={setLocationMessage}
+              />
+            }
+            note={
+              locationMessage !== null && (
+                <p role="status" className="text-danger text-sm">
+                  {locationMessage}
+                </p>
+              )
+            }
           />
           <PlaceInput
             label={t(strings.planner.destination)}
             role="destination"
             bounds={bounds}
             value={values.destination}
+            disabled={off}
             onChange={(place) => set('destination', place)}
           />
         </div>
@@ -136,6 +165,7 @@ export function JourneyForm({
         */}
         <button
           type="button"
+          disabled={off}
           onClick={() =>
             onChange({
               ...values,
@@ -144,12 +174,12 @@ export function JourneyForm({
             })
           }
           aria-label={t(strings.planner.swap)}
-          className="rounded-control border-border-strong bg-surface text-content-muted hover:text-brand-500 hover:border-brand-500 focus-visible:outline-brand-500 mt-5 flex h-9 w-9 flex-none cursor-pointer items-center justify-center self-center border focus-visible:outline-2 focus-visible:outline-offset-2"
+          className="rounded-control border-border-strong bg-surface text-content-muted hover:text-brand-500 hover:border-brand-500 focus-visible:outline-brand-500 mt-5 flex h-9 w-9 flex-none cursor-pointer items-center justify-center self-center border focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <svg
             viewBox="0 0 24 24"
-            width="15"
-            height="15"
+            width="16"
+            height="16"
             fill="none"
             stroke="currentColor"
             strokeWidth="2"
@@ -166,6 +196,7 @@ export function JourneyForm({
         <DateSelect
           label={t(strings.planner.date)}
           value={values.date}
+          disabled={off}
           onChange={(date) => set('date', date)}
           options={validDates}
           today={today}
@@ -173,25 +204,57 @@ export function JourneyForm({
         <TimeSelect
           label={t(strings.planner.time)}
           value={values.time}
+          disabled={off}
           onChange={(time) => set('time', time)}
         />
       </div>
 
-      <fieldset className="flex flex-col gap-1.5">
+      {/*
+        Setting both fields at once is the single most common thing anyone
+        wants from them, and doing it by hand means two dropdowns. Absent
+        rather than disabled while the network's clock is unknown: a control
+        that cannot answer honestly should not be offered.
+      */}
+      {onLeaveNow !== null && (
+        <button
+          type="button"
+          onClick={onLeaveNow}
+          disabled={off}
+          className="rounded-control border-border-strong text-content hover:border-brand-500 hover:text-brand-500 focus-visible:outline-brand-500 inline-flex cursor-pointer items-center gap-1.5 self-start border px-3 py-1.5 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="15"
+            height="15"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7.5V12l3 2" />
+          </svg>
+          {t(strings.planner.leaveNow)}
+        </button>
+      )}
+
+      <fieldset disabled={off} className="flex flex-col gap-1.5 disabled:opacity-60">
         <legend className="text-content-muted mb-1.5 text-xs font-medium tracking-wide uppercase">
           {t(strings.planner.walkingSpeed)}
         </legend>
         {/*
-          Four named paces as a segmented control rather than a menu: they are
-          few, mutually exclusive, and worth comparing side by side. Radios, so
-          arrow keys work and a screen reader says "2 of 4".
+          Four named paces as separate cards rather than one welded segmented
+          control. Same radios and the same keyboard behaviour — arrow keys
+          move, a screen reader says "2 of 4" — but each pace is its own
+          object, which is what a choice between four things looks like. The
+          segmented form read as a range slider that had been quantised, and
+          invited being dragged.
         */}
-        <div className="border-border-strong flex overflow-hidden rounded-control border">
+        <div className="grid grid-cols-4 gap-1.5">
           {WALKING_PACE_ORDER.map((pace) => (
-            <label
-              key={pace}
-              className="border-border-strong flex-1 cursor-pointer border-s first:border-s-0"
-            >
+            <label key={pace} className="cursor-pointer">
               <input
                 type="radio"
                 name="pace"
@@ -201,7 +264,8 @@ export function JourneyForm({
                 className="peer sr-only"
               />
               {/* Name over speed, so a longer word never reflows the row. */}
-              <span className="peer-checked:bg-brand-fill peer-checked:text-on-brand peer-focus-visible:outline-brand-500 hover:bg-surface-muted peer-checked:hover:bg-brand-fill flex flex-col items-center gap-0.5 px-1 py-1.5 peer-focus-visible:outline-2 peer-focus-visible:-outline-offset-2">
+              <span className="rounded-control border-border-strong peer-checked:bg-brand-fill peer-checked:text-on-brand peer-checked:border-brand-fill peer-focus-visible:outline-brand-500 hover:bg-surface-muted peer-checked:hover:bg-brand-fill flex flex-col items-center gap-0.5 border px-1 py-2 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2">
+                <WalkIcon size={16} />
                 <span className="text-xs font-semibold">{paceLabels[pace]}</span>
                 <span className="text-[0.65rem] opacity-75 tabular-nums">
                   {t(strings.planner.kmh, {

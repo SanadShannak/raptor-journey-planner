@@ -96,8 +96,13 @@ function toPlace(feature: PhotonFeature, index: number): Place | null {
     context: contextFor(properties),
     kind,
     // Photon knows OpenStreetMap, not our feed, so it cannot supply a stop id
-    // even when it has correctly identified a stop.
+    // even when it has correctly identified a stop — nor a stop code, a
+    // platform, or which modes call there. A stop it recognises therefore gets
+    // the generic stop marker; see `digitransit.ts` for the richer version.
     stopId: null,
+    stopCode: null,
+    platform: null,
+    modes: kind === 'stop' ? [] : null,
   };
 }
 

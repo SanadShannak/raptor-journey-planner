@@ -173,3 +173,64 @@ describe('planJourney result shapes', () => {
     expect((error as ApiError).kind).toBe('malformed');
   });
 });
+
+/*
+ * The engine reports its own outcomes inside a 200 body: the response is
+ * `{ errorCode, error }` where an itinerary would be, and the status says only
+ * that the request was served. That shape has no `legs`, so without this the
+ * "nothing runs then" answer surfaced as "this app cannot read the response".
+ */
+describe('planJourney with an outcome carried in a 200 body', () => {
+  const query = {
+    origin: { type: 'coordinate' as const, lat: 60.2, lon: 24.9 },
+    destination: { type: 'coordinate' as const, lat: 60.3, lon: 25.0 },
+    date: '2026-09-10',
+    time: '08:00:00',
+  };
+
+  function respondWith(body: unknown, status = 200) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status })),
+    );
+  }
+
+  it('reads NO_ROUTE_FOUND from a 200 as an empty list', async () => {
+    respondWith({ errorCode: 'NO_ROUTE_FOUND', error: 'No route found.' });
+    await expect(planJourney(query)).resolves.toEqual([]);
+  });
+
+  // 404 bodies carry extra fields alongside the envelope; a 200 may too.
+  it('ignores the extra fields an engine error body carries', async () => {
+    respondWith({
+      errorCode: 'NO_ROUTE_FOUND',
+      error: 'No route found.',
+      targetArrivalTime: null,
+      legs: [],
+    });
+    await expect(planJourney(query)).resolves.toEqual([]);
+  });
+
+  it('rejects a real engine failure carried in a 200', async () => {
+    respondWith({
+      errorCode: 'ORIGIN_OUT_OF_BOUNDS',
+      error: 'Origin is outside the network.',
+    });
+
+    const error = await planJourney(query).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).code).toBe('ORIGIN_OUT_OF_BOUNDS');
+    expect((error as ApiError).kind).toBe('http');
+  });
+
+  /*
+   * A journey is not an error envelope just because something is null. The
+   * check has to be for *both* fields being strings, or an itinerary would be
+   * swallowed the day the engine adds an `error: null` to a success.
+   */
+  it('does not mistake an itinerary for an error envelope', async () => {
+    respondWith({ startTime: '08:00', endTime: '08:30', legs: [], error: null });
+    await expect(planJourney(query)).resolves.toHaveLength(1);
+  });
+});

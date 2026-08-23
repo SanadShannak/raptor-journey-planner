@@ -132,6 +132,15 @@ export interface Dictionary {
     tomorrow: string;
     yesterday: string;
     chooseTime: string;
+    /** Sets the date and time to the network's own current clock. */
+    leaveNow: string;
+    hour: string;
+    minute: string;
+    meridiem: string;
+    am: string;
+    pm: string;
+    /** Closes the time picker; three columns cannot close on a single pick. */
+    done: string;
     walkingSpeed: string;
     speedSlow: string;
     speedCalm: string;
@@ -143,6 +152,8 @@ export interface Dictionary {
     suggestionsAvailable: PluralForms;
     searchUnavailable: string;
     isStop: string;
+    /** Platform or stand designation on a stop suggestion, e.g. "Platform 5". */
+    platform: string;
     chooseOrigin: string;
     chooseDestination: string;
     /** Shown when the search worked and there is simply nothing to travel on. */
@@ -153,15 +164,19 @@ export interface Dictionary {
     arriveAt: string;
     totalDuration: string;
     changes: PluralForms;
-    earlier: string;
     later: string;
-    noEarlier: string;
     noLater: string;
     walkLeg: string;
     walkToDestination: string;
+    /** The first leg, which starts at the visitor's own chosen point. */
+    walkFromOrigin: string;
+    /** A journey with no transit at all: their point to their point, on foot. */
+    walkWholeWay: string;
     transitLeg: string;
     towards: string;
     wait: string;
+    /** The wait drawn as its own segment, between an arrival and a departure. */
+    waitHere: string;
     intermediateStops: PluralForms;
     showStops: string;
     hideStops: string;
@@ -169,6 +184,30 @@ export interface Dictionary {
     /** The engine can legitimately answer with no transit at all. */
     walkOnly: string;
     mapComingSoon: string;
+
+    /* The overview list, and the detail panel one itinerary opens into. */
+    /** Accessible name of the button an overview card is built from. */
+    viewDetails: string;
+    /** Leaves the detail panel and returns to the list of results. */
+    backToResults: string;
+    /** Heading of the detail panel. */
+    journeyDetails: string;
+    /** Names the origin and destination nodes of the strip map. */
+    startPoint: string;
+    endPoint: string;
+    /** Totals shown with an itinerary. */
+    totalWalking: string;
+    totalWaiting: string;
+    totalRiding: string;
+    ridingDistance: string;
+    /** One overview card's summary line, read by a screen reader. */
+    journeySummary: string;
+
+    /* The planner depends on a backend that may not be running. */
+    serviceUnavailable: string;
+    serviceUnavailableHint: string;
+    retryConnection: string;
+    checkingService: string;
   };
 
   /**

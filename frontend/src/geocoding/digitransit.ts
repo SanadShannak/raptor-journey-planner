@@ -1,3 +1,4 @@
+import type { GtfsRouteType } from '../types/journey';
 import type {
   Geocoder,
   Place,
@@ -18,11 +19,11 @@ import type {
  * The service returns 401 without a key — registration is free at
  * https://portal-api.digitransit.fi. Without one, the app falls back to Photon.
  *
- * A caveat worth stating plainly: the response shape below follows the
- * published Pelias/Digitransit documentation but has not been exercised
- * against a live key here. Everything is therefore read defensively, so a
- * field that turns out to be shaped differently costs a result its stop
- * marker rather than breaking the search.
+ * The response shape below was read off live responses for `Lasipalatsi` and
+ * `Pasila`, which between them cover a venue, a station, and six rail
+ * platforms. Everything is still read defensively: a field that turns out to be
+ * shaped differently costs a result its stop detail rather than breaking the
+ * search.
  */
 
 const ENDPOINT = 'https://api.digitransit.fi/geocoding/v1/autocomplete';
@@ -30,9 +31,48 @@ const ENDPOINT = 'https://api.digitransit.fi/geocoding/v1/autocomplete';
 /** Pelias layers that mean "somewhere a vehicle calls". */
 const STOP_LAYERS = new Set(['stop', 'station']);
 
+/**
+ * The smallest `size` the service accepts.
+ *
+ * Anything below it is refused with an `out-of-range integer 'size'` warning
+ * and silently replaced by this value, so asking for six returns ten. Asked
+ * for honestly here and trimmed on our side, which is the only way the caller's
+ * `limit` actually means anything.
+ */
+const MIN_REQUEST_SIZE = 10;
+
+/**
+ * Digitransit's mode vocabulary, mapped to standard GTFS `route_type`.
+ *
+ * The names come from OTP rather than from GTFS, which is why `SUBWAY` and
+ * `RAIL` need translating at all. Qualified variants — HSL sends
+ * `"BUS-EXPRESS"` alongside `"BUS"` — are reduced to their family before the
+ * lookup, since the qualifier describes the service, not the vehicle.
+ */
+const MODE_TYPES: Record<string, GtfsRouteType> = {
+  TRAM: 0,
+  SUBWAY: 1,
+  METRO: 1,
+  RAIL: 2,
+  BUS: 3,
+  FERRY: 4,
+  CABLE_CAR: 5,
+  GONDOLA: 6,
+  FUNICULAR: 7,
+  TROLLEYBUS: 11,
+  MONORAIL: 12,
+};
+
 interface DigitransitFeature {
   geometry?: { coordinates?: [number, number] };
   properties?: Record<string, unknown>;
+}
+
+/** The transit block Digitransit hangs off a stop or station result. */
+interface GtfsAddendum {
+  modes?: unknown;
+  code?: unknown;
+  platform?: unknown;
 }
 
 const text = (value: unknown): string | null =>
@@ -42,15 +82,53 @@ const text = (value: unknown): string | null =>
  * Extracts the feed's own stop id from Digitransit's namespaced identifier.
  *
  * Ids arrive as `GTFS:HSL:1020444` — a source, a feed, then the id the feed
- * itself uses. Only the last part matches `gtfs_id` in our compiled data, and
- * it is the last part rather than the third because another feed may namespace
- * differently.
+ * itself uses. Only the last part matches the ids in our compiled data, and it
+ * is taken as "after the last colon" rather than "the third field" because
+ * another feed may namespace differently.
+ *
+ * A platform-level stop appends its code after a hash: `GTFS:HSL:1020444#H0101`
+ * is stop `1020444` at platform code `H0101`. That suffix is not part of the
+ * id — carrying it through produced `1020444#H0101`, which matches nothing in
+ * the feed, so every stop suggestion silently failed to resolve.
  */
 function toStopId(rawId: unknown): string | null {
   const id = text(rawId);
   if (id === null) return null;
-  const last = id.slice(id.lastIndexOf(':') + 1);
-  return last.length > 0 ? last : null;
+  const afterNamespace = id.slice(id.lastIndexOf(':') + 1);
+  const hash = afterNamespace.indexOf('#');
+  const bare = hash === -1 ? afterNamespace : afterNamespace.slice(0, hash);
+  return bare.length > 0 ? bare : null;
+}
+
+/** The `addendum.GTFS` block, if this result has one. */
+function gtfsAddendum(properties: Record<string, unknown>): GtfsAddendum {
+  const addendum = properties['addendum'];
+  if (typeof addendum !== 'object' || addendum === null) return {};
+  const gtfs = (addendum as Record<string, unknown>)['GTFS'];
+  if (typeof gtfs !== 'object' || gtfs === null) return {};
+  return gtfs as GtfsAddendum;
+}
+
+/**
+ * Reads `["BUS", "BUS-EXPRESS"]` into a de-duplicated list of route types.
+ *
+ * Unrecognised names are dropped rather than defaulted, because a wrong icon
+ * is worse than the generic one: telling someone a rail platform is a bus stop
+ * sends them to the wrong side of the station.
+ */
+function toRouteTypes(raw: unknown): GtfsRouteType[] {
+  if (!Array.isArray(raw)) return [];
+
+  const types: GtfsRouteType[] = [];
+  for (const entry of raw) {
+    const name = text(entry)?.toUpperCase();
+    if (name === undefined || name === null) continue;
+    // `BUS-EXPRESS` is a bus; the qualifier describes the service pattern.
+    const family = name.split('-')[0] ?? name;
+    const type = MODE_TYPES[family];
+    if (type !== undefined && !types.includes(type)) types.push(type);
+  }
+  return types;
 }
 
 /**
@@ -90,6 +168,7 @@ function toPlace(feature: DigitransitFeature, index: number): Place | null {
 
   const layer = text(properties['layer']) ?? '';
   const kind: PlaceKind = STOP_LAYERS.has(layer) ? 'stop' : 'place';
+  const gtfs = kind === 'stop' ? gtfsAddendum(properties) : {};
 
   return {
     key: text(properties['gid']) ?? text(properties['id']) ?? String(index),
@@ -101,6 +180,11 @@ function toPlace(feature: DigitransitFeature, index: number): Place | null {
     // Only claimed for a stop: an address has an id too, and it means nothing
     // to a timetable.
     stopId: kind === 'stop' ? toStopId(properties['id']) : null,
+    stopCode: kind === 'stop' ? text(gtfs.code) : null,
+    platform: kind === 'stop' ? text(gtfs.platform) : null,
+    // Empty rather than null on a stop whose modes were not reported — the
+    // difference is "we do not know what calls here" versus "not a stop".
+    modes: kind === 'stop' ? toRouteTypes(gtfs.modes) : null,
   };
 }
 
@@ -110,9 +194,10 @@ export function createDigitransitGeocoder(subscriptionKey: string): Geocoder {
     attribution: '© Digitransit · OpenStreetMap contributors',
 
     async search(query, options: PlaceSearchOptions = {}) {
+      const limit = options.limit ?? 6;
       const url = new URL(ENDPOINT);
       url.searchParams.set('text', query);
-      url.searchParams.set('size', String(options.limit ?? 6));
+      url.searchParams.set('size', String(Math.max(limit, MIN_REQUEST_SIZE)));
       if (options.language) url.searchParams.set('lang', options.language);
       if (options.bounds) {
         const { minLat, minLon, maxLat, maxLon } = options.bounds;
@@ -141,7 +226,8 @@ export function createDigitransitGeocoder(subscriptionKey: string): Geocoder {
 
       return features
         .map((feature, index) => toPlace(feature as DigitransitFeature, index))
-        .filter((place): place is Place => place !== null);
+        .filter((place): place is Place => place !== null)
+        .slice(0, limit);
     },
   };
 }

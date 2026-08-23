@@ -1,6 +1,7 @@
-import { useId, useRef, useState } from 'react';
+import { useId, useLayoutEffect, useRef, useState } from 'react';
 import { formatDate, useLocale } from '../../i18n';
 import { Popover } from '../../components/Popover';
+import { centerOnOption } from './centerOnOption';
 
 interface Props {
   label: string;
@@ -10,6 +11,7 @@ interface Props {
   options: string[];
   /** Today on the network's clock, so the relative labels are honest. */
   today: string | null;
+  disabled?: boolean | undefined;
 }
 
 /**
@@ -24,12 +26,32 @@ interface Props {
  * thinks about the trip they are planning; the date is there underneath for
  * when it matters.
  */
-export function DateSelect({ label, value, onChange, options, today }: Props) {
+export function DateSelect({
+  label,
+  value,
+  onChange,
+  options,
+  today,
+  disabled,
+}: Props) {
   const { locale, strings, t } = useLocale();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const labelId = useId();
+
+  const selectedIndex = options.indexOf(value);
+
+  /*
+   * Opened *at* the chosen date rather than at the start of the feed's sixty
+   * days. Sixty entries means a date two months out is otherwise off-screen
+   * with no indication it is even selected — and a layout effect puts it there
+   * before the first paint, so the list never appears to scroll itself.
+   */
+  useLayoutEffect(() => {
+    if (!open) return;
+    centerOnOption(listRef.current, selectedIndex);
+  }, [open, selectedIndex]);
 
   /**
    * Days either side of today, resolved from the network's clock rather than
@@ -78,8 +100,9 @@ export function DateSelect({ label, value, onChange, options, today }: Props) {
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-labelledby={`${labelId} ${labelId}-value`}
+        disabled={disabled ?? false}
         onClick={() => setOpen((wasOpen) => !wasOpen)}
-        className="rounded-control border-border-strong bg-surface hover:border-brand-500 focus-visible:outline-brand-500 flex items-center gap-2 border px-3 py-2.5 text-start focus-visible:outline-2 focus-visible:outline-offset-2"
+        className="rounded-control border-border-strong bg-surface hover:border-brand-500 focus-visible:outline-brand-500 flex cursor-pointer items-center gap-2 border px-3 py-2.5 text-start focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
       >
         <CalendarIcon />
         <span id={`${labelId}-value`} className="min-w-0 flex-1 truncate text-sm font-medium">
@@ -98,7 +121,8 @@ export function DateSelect({ label, value, onChange, options, today }: Props) {
           ref={listRef}
           role="listbox"
           aria-labelledby={labelId}
-          className="max-h-72 overflow-y-auto"
+          /* `relative` so the centring helper measures offsets from here. */
+          className="relative max-h-72 overflow-y-auto"
         >
           {options.map((date) => {
             const near = relativeLabel(date);
@@ -113,7 +137,7 @@ export function DateSelect({ label, value, onChange, options, today }: Props) {
                   setOpen(false);
                   triggerRef.current?.focus();
                 }}
-                className="rounded-control hover:bg-surface-muted aria-selected:bg-brand-50 aria-selected:text-brand-700 flex w-full items-baseline gap-2 px-3 py-2 text-start text-sm aria-selected:font-semibold"
+                className="rounded-control hover:bg-surface-muted aria-selected:bg-brand-50 aria-selected:text-brand-700 flex w-full cursor-pointer items-baseline gap-2 px-3 py-2 text-start text-sm aria-selected:font-semibold"
               >
                 <span className="flex-1">
                   {formatDate(date, locale, {
@@ -137,8 +161,8 @@ export function DateSelect({ label, value, onChange, options, today }: Props) {
 const CalendarIcon = () => (
   <svg
     viewBox="0 0 24 24"
-    width="16"
-    height="16"
+    width="20"
+    height="20"
     fill="none"
     stroke="currentColor"
     strokeWidth="1.75"

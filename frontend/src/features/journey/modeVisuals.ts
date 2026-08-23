@@ -59,6 +59,18 @@ export function familyFor(routeType: GtfsRouteType | number | null): string {
 }
 
 export function modeVisual(routeType: GtfsRouteType | number | null): ModeVisual {
-  return VISUALS[familyFor(routeType)] as ModeVisual;
+  return visualForFamily(familyFor(routeType));
+}
+
+/**
+ * The same lookup for a family already resolved.
+ *
+ * The strip map carries families rather than route types — a drawn segment
+ * knows it is "a tram" and has no reason to remember it was `route_type` 0 —
+ * so it needs the mapping without going back through {@link familyFor}. Falls
+ * back to bus for the same reason that function does.
+ */
+export function visualForFamily(family: string): ModeVisual {
+  return VISUALS[family] ?? (VISUALS['bus'] as ModeVisual);
 }
 
