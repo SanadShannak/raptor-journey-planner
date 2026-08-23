@@ -67,7 +67,19 @@ export function RootLayout() {
         silently does nothing in several browsers, and the focus move on
         navigation has nowhere to land.
       */}
-      <main id="main-content" ref={mainRef} tabIndex={-1} className="flex-1 focus:outline-none">
+      {/*
+        `lg:min-h-0` is the load-bearing half of this. A flex child refuses to
+        shrink below its content by default, so without it the pane below can
+        never be shorter than the itinerary inside it — which is exactly how a
+        sidebar ends up taller than the screen with its own scrollbar never
+        appearing, and the page scrolling instead.
+      */}
+      <main
+        id="main-content"
+        ref={mainRef}
+        tabIndex={-1}
+        className="flex-1 focus:outline-none lg:flex lg:min-h-0 lg:flex-col"
+      >
         <Outlet />
       </main>
 

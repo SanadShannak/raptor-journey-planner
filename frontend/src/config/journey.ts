@@ -47,8 +47,3 @@ export const WALKING_PACE_ORDER: readonly WalkingPace[] = [
 ];
 
 export const DEFAULT_WALKING_PACE: WalkingPace = 'average';
-
-/** Narrows an unknown string, so a hand-edited URL cannot inject a pace. */
-export function isWalkingPace(value: string | null): value is WalkingPace {
-  return value !== null && value in WALKING_PACES;
-}

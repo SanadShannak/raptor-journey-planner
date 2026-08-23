@@ -234,9 +234,16 @@ export function PlaceInput({
           onFocus={() => {
             if (suggestions.length > 0) setOpen(true);
           }}
-          /* Finnish and Arabic place names in one field; let the browser
-             decide which way each entry runs. */
-          dir="auto"
+          /*
+             No `dir="auto"` here, deliberately, and it is the one input where
+             that matters. Auto lets the *field* take the direction of what is
+             typed, so a Latin name in an Arabic page flipped the whole box to
+             LTR and the text sat against the far edge, away from the marker it
+             belongs beside. Inheriting the page's direction anchors the text
+             where the field starts, and bidi still renders a Latin name
+             left-to-right inside it — the box follows the page, the text
+             follows itself.
+          */
           /*
              Symmetric padding, deliberately, where everything else here is
              logical. `dir="auto"` means this input resolves its *own*

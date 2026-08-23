@@ -196,7 +196,7 @@ export function JourneyForm({
              rather than as a button, and an outline around a fill only adds a
              second edge to look at.
           */
-          className="rounded-control bg-brand-100 text-brand-700 hover:bg-brand-fill hover:text-on-brand focus-visible:outline-brand-500 inline-flex cursor-pointer items-center gap-1.5 self-start px-3 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-control bg-action text-on-action hover:bg-action-hover hover:text-on-action-hover focus-visible:outline-brand-500 inline-flex cursor-pointer items-center gap-1.5 self-start px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <svg
             viewBox="0 0 24 24"
@@ -246,8 +246,8 @@ export function JourneyForm({
                   arm's length are hard to tell apart at a glance, and the
                   selection is worth seeing without looking for it.
                 */
-                className={`group rounded-control flex cursor-pointer items-center gap-2 px-2 py-1.5 ${
-                  chosen ? 'bg-brand-100' : 'hover:bg-surface-muted'
+                className={`group rounded-control flex cursor-pointer items-center gap-2 px-2 py-1.5 transition-colors ${
+                  chosen ? 'bg-action text-on-action' : 'hover:bg-surface-muted'
                 }`}
               >
                 <input
@@ -262,23 +262,29 @@ export function JourneyForm({
                   aria-hidden="true"
                   className={`peer-focus-visible:outline-brand-500 flex h-4.5 w-4.5 flex-none items-center justify-center rounded-full border-2 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 ${
                     chosen
-                      ? 'border-brand-500'
+                      ? 'border-current'
                       : 'border-border-strong group-hover:border-brand-500'
                   }`}
                 >
-                  {chosen && <span className="bg-brand-500 h-2 w-2 rounded-full" />}
+                  {/* `currentColor` on the chosen one, so the dot and its ring
+                      are whatever reads on the fill in this scheme. */}
+                  {chosen && <span className="h-2 w-2 rounded-full bg-current" />}
                 </span>
 
                 {/* Name over speed, so a longer word never reflows the row. */}
                 <span className="min-w-0">
                   <span
                     className={`block text-sm leading-tight ${
-                      chosen ? 'text-brand-700 font-semibold' : 'font-medium'
+                      chosen ? 'font-semibold' : 'font-medium'
                     }`}
                   >
                     {paceLabels[pace]}
                   </span>
-                  <span className="text-content-muted block text-xs leading-tight tabular-nums">
+                  <span
+                    className={`block text-xs leading-tight tabular-nums ${
+                      chosen ? '' : 'text-content-muted'
+                    }`}
+                  >
                     {t(strings.planner.kmh, {
                       value: formatNumber(
                         Math.round(WALKING_PACES[pace] * 3.6 * 10) / 10,

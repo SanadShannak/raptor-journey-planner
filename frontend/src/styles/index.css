@@ -60,6 +60,21 @@
   --color-on-brand: oklch(1 0 0);
 
   /*
+   * The form's own pressable controls — "my location", "leave now", the chosen
+   * walking pace. They need their own tokens because the two schemes want
+   * opposite things from them: on a white page a tint reads as a panel, so the
+   * control is filled with the wine outright, while on a dark page that same
+   * wine is heavier than the surface it sits on and a soft tint is the one
+   * that reads as a control. `-hover` is the state under the pointer, and it
+   * moves in whichever direction the scheme has room for — darker on light,
+   * lighter on dark.
+   */
+  --color-action: oklch(0.415 0.143 2.5);
+  --color-on-action: oklch(1 0 0);
+  --color-action-hover: oklch(0.36 0.135 2.5);
+  --color-on-action-hover: oklch(1 0 0);
+
+  /*
    * App chrome — the header, nav, and any persistent bar. Deep wine in both
    * schemes, so the brand is where the eye lands first while itineraries and
    * the map stay on a calm neutral ground. Light mode sits one step darker
@@ -171,6 +186,11 @@
   --dark-brand-600: oklch(0.71 0.14 2.5);
   --dark-brand-700: oklch(0.76 0.13 2.5);
   --dark-brand-fill: oklch(0.56 0.143 2.5);
+  /* The soft tint at rest, the fill on hover — the reverse of light. */
+  --dark-action: oklch(0.31 0.06 2.5);
+  --dark-on-action: oklch(0.76 0.13 2.5);
+  --dark-action-hover: oklch(0.56 0.143 2.5);
+  --dark-on-action-hover: oklch(1 0 0);
 
   /* Lifted, and the text on them darkens to match — see `on-mode`. */
   --dark-mode-bus: oklch(0.68 0.176 250);
@@ -233,6 +253,10 @@
     --color-brand-600: var(--dark-brand-600);
     --color-brand-700: var(--dark-brand-700);
     --color-brand-fill: var(--dark-brand-fill);
+    --color-action: var(--dark-action);
+    --color-on-action: var(--dark-on-action);
+    --color-action-hover: var(--dark-action-hover);
+    --color-on-action-hover: var(--dark-on-action-hover);
     --color-mode-bus: var(--dark-mode-bus);
     --color-mode-tram: var(--dark-mode-tram);
     --color-mode-metro: var(--dark-mode-metro);
@@ -263,6 +287,10 @@
   --color-brand-600: var(--dark-brand-600);
   --color-brand-700: var(--dark-brand-700);
   --color-brand-fill: var(--dark-brand-fill);
+  --color-action: var(--dark-action);
+  --color-on-action: var(--dark-on-action);
+  --color-action-hover: var(--dark-action-hover);
+  --color-on-action-hover: var(--dark-on-action-hover);
   --color-mode-bus: var(--dark-mode-bus);
   --color-mode-tram: var(--dark-mode-tram);
   --color-mode-metro: var(--dark-mode-metro);
@@ -305,6 +333,10 @@
     --color-brand-600: #710c37;
     --color-brand-700: #590129;
     --color-brand-fill: #851c45;
+    --color-action: #851c45;
+    --color-on-action: #ffffff;
+    --color-action-hover: #710c37;
+    --color-on-action-hover: #ffffff;
     --color-on-brand: #ffffff;
     --color-mode-bus: #0077cd;
     --color-mode-tram: #00873c;
@@ -337,6 +369,10 @@
     --dark-brand-600: #e8799a;
     --dark-brand-700: #f58caa;
     --dark-brand-fill: #b54a6d;
+    --dark-action: #49222e;
+    --dark-on-action: #f58caa;
+    --dark-action-hover: #b54a6d;
+    --dark-on-action-hover: #ffffff;
     --dark-mode-bus: #299cff;
     --dark-mode-tram: #1cb657;
     --dark-mode-metro: #e57600;

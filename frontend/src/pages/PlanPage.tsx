@@ -1,16 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router';
 import { messageForApiError, nowInZone, useLocale } from '../i18n';
 import { usePageTitle } from '../app/usePageTitle';
 import { getValidDates, planJourney } from '../api/journey';
 import { getNetwork } from '../api/network';
 import { checkHealth } from '../api/health';
 import { boundsForNetwork, type GeoBounds } from '../config/geocoding';
-import {
-  DEFAULT_WALKING_PACE,
-  WALKING_PACES,
-  isWalkingPace,
-} from '../config/journey';
+import { DEFAULT_WALKING_PACE, WALKING_PACES } from '../config/journey';
 import type { Journey } from '../types/journey';
 import type { Place } from '../types/place';
 import { JourneyForm } from '../features/journey/JourneyForm';
@@ -21,33 +16,6 @@ import {
 import type { JourneyEnd } from '../features/journey/itineraryRows';
 import { ItineraryOverview } from '../features/journey/ItineraryOverview';
 import { ItineraryDetail } from '../features/journey/ItineraryDetail';
-
-/** A place packed into a single search param: `lat,lon,label`. */
-function encodePlace(place: Place): string {
-  return `${place.lat},${place.lon},${place.label}`;
-}
-
-function decodePlace(raw: string | null, key: string): Place | null {
-  if (raw === null) return null;
-  const [lat, lon, ...rest] = raw.split(',');
-  const latitude = Number(lat);
-  const longitude = Number(lon);
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
-  return {
-    key,
-    lat: latitude,
-    lon: longitude,
-    label: rest.join(',') || `${latitude}, ${longitude}`,
-    context: null,
-    // A restored link cannot know whether it was a stop; nothing depends on it
-    // beyond the icon, so claiming "place" is the honest default.
-    kind: 'place',
-    stopId: null,
-    stopCode: null,
-    platform: null,
-    modes: null,
-  };
-}
 
 /** Whether the routing service is answering at all. */
 type Service = 'checking' | 'up' | 'down';
@@ -78,9 +46,9 @@ function endOf(place: Place | null): JourneyEnd {
 /**
  * The journey planner, and the site's front door.
  *
- * The search lives in the URL so a journey can be shared, bookmarked, and
- * reached with the back button. `useRouteFocus` deliberately ignores
- * search-param changes, so submitting does not yank focus out of the form.
+ * The search is not in the URL — see the state below for what that trades
+ * away. `useRouteFocus` ignores search-param changes, which is what kept
+ * submitting from yanking focus out of the form back when there were any.
  *
  * Results arrive as a list of overview cards; opening one replaces the
  * sidebar's contents with that journey in full. A sidebar this narrow cannot
@@ -93,22 +61,30 @@ export default function PlanPage() {
   const { strings, t } = locale;
   usePageTitle(t(strings.pages.plan.title));
 
-  const [searchParams, setSearchParams] = useSearchParams();
   const [validDates, setValidDates] = useState<string[]>([]);
   const [networkToday, setNetworkToday] = useState<string | null>(null);
   const [timezone, setTimezone] = useState<string | null>(null);
   const [bounds, setBounds] = useState<GeoBounds | null>(null);
   const [service, setService] = useState<Service>('checking');
 
-  const [values, setValues] = useState<JourneyFormValues>(() => {
-    const pace = searchParams.get('pace');
-    return {
-      origin: decodePlace(searchParams.get('from'), 'from'),
-      destination: decodePlace(searchParams.get('to'), 'to'),
-      date: searchParams.get('date') ?? '',
-      time: searchParams.get('time') ?? '',
-      pace: isWalkingPace(pace) ? pace : DEFAULT_WALKING_PACE,
-    };
+  /*
+   * The search no longer lives in the URL.
+   *
+   * It used to, so a journey could be shared and reached with the back button
+   * — and the cost was a query string of coordinates and labels on screen for
+   * the whole session. That is the trade being made here, deliberately: no
+   * shareable link, and no bookmark that reopens a search.
+   *
+   * One thing falls out of it. A stale `pace` in an old link used to outlive
+   * the search that set it, so the form could open on a pace nobody had
+   * chosen this time. The form now always opens on its own default.
+   */
+  const [values, setValues] = useState<JourneyFormValues>({
+    origin: null,
+    destination: null,
+    date: '',
+    time: '',
+    pace: DEFAULT_WALKING_PACE,
   });
 
   const [journeys, setJourneys] = useState<Journey[]>([]);
@@ -348,13 +324,6 @@ export default function PlanPage() {
     if (query === lastSearched.current) return;
     lastSearched.current = query;
 
-    const next = new URLSearchParams();
-    if (values.origin) next.set('from', encodePlace(values.origin));
-    if (values.destination) next.set('to', encodePlace(values.destination));
-    next.set('date', values.date);
-    next.set('time', values.time);
-    next.set('pace', values.pace);
-    setSearchParams(next, { replace: true });
     void search(values, 'replace');
   }
 
@@ -416,8 +385,19 @@ export default function PlanPage() {
      * `lg` that inverts: on a phone there is no room for two panes, so the
      * itinerary takes the width and the map sits above it at a fixed height.
      */
-    <div className="lg:min-h-viewport flex flex-col lg:h-[calc(100vh-3.75rem)] lg:flex-row">
-      <div className="border-border flex w-full flex-none flex-col gap-5 overflow-y-auto border-e p-5 lg:w-[26rem] xl:w-[30rem]">
+    <div className="flex flex-col lg:min-h-0 lg:flex-1 lg:flex-row">
+      {/*
+        The height comes from the layout above rather than from
+        `calc(100vh - 3.75rem)`. Subtracting a header this pane cannot see
+        meant guessing at it: the guess was a little too tall, so the sidebar
+        overflowed the viewport, its own scrollbar never engaged — the content
+        fitted the box, the box just did not fit the screen — and "Later" sat
+        below the fold with the page scrolling to reach it.
+
+        Scrolling is confined to this pane only from `lg`, where the two-pane
+        layout applies. On a phone the panes stack and the page scrolls.
+      */}
+      <div className="border-border flex w-full flex-none flex-col gap-5 border-e p-5 lg:min-h-0 lg:w-[26rem] lg:overflow-y-auto xl:w-[30rem]">
         {open !== null ? (
           <ItineraryDetail
             journey={open}

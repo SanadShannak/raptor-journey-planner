@@ -41,6 +41,10 @@ const PAIRS = [
   // leave now, the chosen walking pace — which need to be visible as controls
   // against a white page rather than merely tinted.
   ['brand-700', 'brand-100', AA_TEXT],
+  // The form's pressable controls, at rest and under the pointer. Both schemes
+  // fill them differently, so this is checked through the tokens.
+  ['on-action', 'action', AA_TEXT],
+  ['on-action-hover', 'action-hover', AA_TEXT],
   ['content-muted', 'brand-100', AA_TEXT],
   // The second neutral chip, beside the first.
   ['content-muted', 'surface-sunken', AA_TEXT],

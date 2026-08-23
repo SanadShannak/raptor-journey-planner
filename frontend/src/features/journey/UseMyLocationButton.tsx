@@ -127,7 +127,7 @@ export function UseMyLocationButton({ onLocated, onMessage, disabled }: Props) {
           ? t(strings.planner.locating)
           : t(strings.planner.useMyLocation)
       }
-      className="bg-brand-100 text-brand-700 hover:bg-brand-fill hover:text-on-brand focus-visible:outline-brand-500 flex w-11 flex-none cursor-pointer items-center justify-center self-stretch focus-visible:-outline-offset-2 focus-visible:outline-2 disabled:cursor-not-allowed disabled:opacity-60"
+      className="bg-action text-on-action hover:bg-action-hover hover:text-on-action-hover focus-visible:outline-brand-500 flex w-11 flex-none cursor-pointer items-center justify-center self-stretch transition-colors focus-visible:-outline-offset-2 focus-visible:outline-2 disabled:cursor-not-allowed disabled:opacity-60"
     >
       <svg
         viewBox="0 0 24 24"
