@@ -318,12 +318,13 @@ describe('itineraryRows', () => {
 });
 
 /*
- * Durations come back rounded to whole minutes with a floor of one, so a
- * forty-second connection is reported as a whole minute of waiting while both
- * clock times land in the same minute. Drawn as two nodes, that reads as a
- * contradiction: arrive 01:49, wait a minute, leave 01:49.
+ * Every duration drawn here is measured between the two times it sits
+ * between, because the API's own figures are rounded to the nearest minute
+ * while its arrivals round up and its departures round down. The two disagree
+ * by up to two minutes in either direction, and only one of them is a number
+ * the reader can check against the clock beside it.
  */
-describe('a wait the clock cannot show', () => {
+describe('durations measured from the clock', () => {
   it('draws one node when arrival and departure share a minute', () => {
     const change = stop('2', 'Sörnäinen');
 
@@ -363,5 +364,77 @@ describe('a wait the clock cannot show', () => {
       'Kallio @ 02:10',
     ]);
     expect(rows.some((row) => row.type === 'wait')).toBe(true);
+  });
+
+  /*
+   * The general case, and the one that outlived the first fix: the reported
+   * wait is four minutes, the two times are two apart. Collapsing only when
+   * the times matched exactly left every other mismatch on the page.
+   */
+  it('says what the two times say, not what the leg reports', () => {
+    const change = stop('2', 'Sörnäinen');
+
+    const rows = itineraryRows(
+      journeyOf([
+        ride(originPin, change, '01:30', '01:50'),
+        ride(change, targetPin, '01:52', '02:10', 4),
+      ]),
+      labels,
+    );
+
+    const wait = rows.find((row) => row.type === 'wait');
+    expect(wait?.type === 'wait' && wait.minutes).toBe(2);
+  });
+
+  it('measures each leg between the nodes either side of it', () => {
+    const change = stop('2', 'Sörnäinen');
+
+    const rows = itineraryRows(
+      journeyOf([
+        // Reported as 19 minutes; the times say 20.
+        ride(originPin, change, '01:30', '01:50'),
+        ride(change, targetPin, '01:52', '02:10', 4),
+      ]),
+      labels,
+    );
+
+    const segments = rows.filter((row) => row.type === 'segment');
+    expect(segments.map((row) => row.minutes)).toEqual([20, 18]);
+  });
+
+  /*
+   * A ceiling can push an arrival past a floored departure. The stop is drawn
+   * once, and the leg after it starts at the time on the page rather than at
+   * one the reader was never shown.
+   */
+  it('measures from the visible node when the times run backwards', () => {
+    const change = stop('2', 'Sörnäinen');
+
+    const rows = itineraryRows(
+      journeyOf([
+        ride(originPin, change, '01:30', '01:50'),
+        ride(change, targetPin, '01:49', '02:10', 1),
+      ]),
+      labels,
+    );
+
+    expect(nodes(rows)).toEqual([
+      'Kamppi @ 01:30',
+      'Sörnäinen @ 01:50',
+      'Kallio @ 02:10',
+    ]);
+    const segments = rows.filter((row) => row.type === 'segment');
+    expect(segments.map((row) => row.minutes)).toEqual([20, 20]);
+  });
+
+  // Each node knows its service day, so a journey over midnight still adds up.
+  it('gives every node the date its time belongs to', () => {
+    const rows = itineraryRows(
+      journeyOf([ride(originPin, targetPin, '23:50', '00:12')]),
+      labels,
+    );
+
+    const nodeRows = rows.filter((row) => row.type === 'node');
+    expect(nodeRows.every((row) => row.date === '2026-08-24')).toBe(true);
   });
 });

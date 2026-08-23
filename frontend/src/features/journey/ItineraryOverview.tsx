@@ -10,6 +10,7 @@ import type { Journey } from '../../types/journey';
 import { ModeIcon, SeatedIcon, WalkIcon } from './modeIcons';
 import { modeVisual } from './modeVisuals';
 import { journeyTotals } from './journeyTotals';
+import { legTimings } from './journeyTiming';
 
 interface Props {
   journey: Journey;
@@ -67,7 +68,7 @@ export function ItineraryOverview({ journey, onOpen }: Props) {
           {t(strings.planner.journeySummary, {
             start: formatClockTime(journey.startTime, locale.locale),
             end: formatClockTime(journey.endTime, locale.locale),
-            duration: formatDuration(journey.totalDurationMinutes, locale),
+            duration: formatDuration(totals.totalMinutes, locale),
           })}
           {' '}
           {t(strings.planner.viewDetails)}
@@ -90,7 +91,7 @@ export function ItineraryOverview({ journey, onOpen }: Props) {
             happened to end at.
           */}
           <span className="bg-brand-50 text-brand-700 rounded-control ms-auto flex-none px-2 py-0.5 text-sm font-semibold">
-            {formatDuration(journey.totalDurationMinutes, locale)}
+            {formatDuration(totals.totalMinutes, locale)}
           </span>
         </span>
 
@@ -106,7 +107,7 @@ export function ItineraryOverview({ journey, onOpen }: Props) {
           actually choose by.
         */}
         <span aria-hidden="true" className="flex flex-wrap items-center gap-1.5">
-          {journey.legs.map((leg, index) => (
+          {legTimings(journey).map(({ leg, minutes, waitMinutes }, index) => (
             <span key={`${leg.startTime}-${index}`} className="flex items-center gap-1.5">
               {/*
                 No manual flip. `›` is a mirrored character, so the browser
@@ -124,11 +125,11 @@ export function ItineraryOverview({ journey, onOpen }: Props) {
                 It is drawn where it happens — the API attributes a wait to the
                 leg it precedes.
               */}
-              {index > 0 && leg.waitDurationMinutes >= WAIT_WORTH_SHOWING_MINUTES && (
+              {index > 0 && waitMinutes >= WAIT_WORTH_SHOWING_MINUTES && (
                 <>
                   <span className="bg-surface-sunken text-content-muted rounded-control flex items-center gap-1 px-2 py-1 text-sm font-medium tabular-nums">
                     <SeatedIcon size={17} />
-                    {leg.waitDurationMinutes}
+                    {waitMinutes}
                   </span>
                   <span className="text-content-muted text-sm">›</span>
                 </>
@@ -144,7 +145,7 @@ export function ItineraryOverview({ journey, onOpen }: Props) {
               {leg.mode === 'WALK' ? (
                 <span className="bg-surface-muted text-content-muted rounded-control flex items-center gap-1 px-2 py-1 text-sm font-medium tabular-nums">
                   <WalkIcon size={17} />
-                  {leg.walkDurationMinutes}
+                  {minutes}
                 </span>
               ) : (
                 <span

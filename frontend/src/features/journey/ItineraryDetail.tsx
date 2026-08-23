@@ -126,7 +126,7 @@ export function ItineraryDetail({
             </p>
 
             <p className="bg-brand-50 text-brand-700 rounded-control ms-auto flex-none px-2 py-0.5 text-sm font-semibold">
-              {formatDuration(journey.totalDurationMinutes, locale)}
+              {formatDuration(totals.totalMinutes, locale)}
             </p>
           </div>
 
@@ -451,9 +451,9 @@ function SegmentLine({ row }: { row: SegmentRow }) {
           instants that bracket it. */}
       <div className="flex min-w-0 flex-1 flex-col gap-1.5 py-5">
         {row.leg.mode === 'WALK' ? (
-          <WalkBody leg={row.leg} />
+          <WalkBody leg={row.leg} minutes={row.minutes} />
         ) : (
-          <TransitBody leg={row.leg} />
+          <TransitBody leg={row.leg} minutes={row.minutes} />
         )}
       </div>
 
@@ -471,7 +471,7 @@ function SegmentLine({ row }: { row: SegmentRow }) {
  * sentence was restating its own neighbours, in worse words, and it grew
  * longest exactly where the pin had no name to use.
  */
-function WalkBody({ leg }: { leg: WalkLeg }) {
+function WalkBody({ leg, minutes }: { leg: WalkLeg; minutes: number }) {
   const locale = useLocale();
   const { strings, t } = locale;
 
@@ -484,7 +484,9 @@ function WalkBody({ leg }: { leg: WalkLeg }) {
         {t(strings.planner.walk)}
       </p>
       <p className="text-content-muted ps-8.5 text-sm">
-        {formatDuration(leg.walkDurationMinutes, locale)}
+        {/* The gap between the nodes above and below, not the leg's own
+            rounded figure — see `journeyTiming`. */}
+        {formatDuration(minutes, locale)}
         <span aria-hidden="true"> · </span>
         {formatDistance(leg.walkDistanceMeters, locale)}
       </p>
@@ -492,7 +494,7 @@ function WalkBody({ leg }: { leg: WalkLeg }) {
   );
 }
 
-function TransitBody({ leg }: { leg: TransitLeg }) {
+function TransitBody({ leg, minutes }: { leg: TransitLeg; minutes: number }) {
   const locale = useLocale();
   const { strings, t } = locale;
   const [showStops, setShowStops] = useState(false);
@@ -523,7 +525,7 @@ function TransitBody({ leg }: { leg: TransitLeg }) {
       </p>
 
       <p className="text-content-muted text-sm">
-        {formatDuration(leg.transitDurationMinutes, locale)}
+        {formatDuration(minutes, locale)}
         {/* Null whenever the feed omits shape_dist_traveled — expected. */}
         {leg.transitDistanceMeters !== null && (
           <>
