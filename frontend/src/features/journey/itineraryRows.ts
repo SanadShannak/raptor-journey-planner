@@ -5,7 +5,6 @@ import type {
   Stop,
 } from '../../types/journey';
 import { familyFor } from './modeVisuals';
-import { legTimings } from './journeyTiming';
 
 /**
  * An itinerary rewritten as the alternating nodes and segments a strip map is
@@ -39,8 +38,6 @@ export interface NodeRow {
   type: 'node';
   key: string;
   name: string;
-  /** The service date this moment falls on; an itinerary may cross midnight. */
-  date: string;
   /**
    * The line under the name.
    *
@@ -64,15 +61,6 @@ export interface SegmentRow {
   key: string;
   spine: Spine;
   leg: JourneyLeg;
-  /**
-   * How long it takes, measured between the node above and the node below.
-   *
-   * Not the leg's own reported duration: that is rounded to the nearest minute
-   * while the two times either side of it are rounded outward, so printing it
-   * here put "9 min" between a pair of times ten minutes apart. See
-   * {@link legTimings}.
-   */
-  minutes: number;
   isFirst: boolean;
   isLast: boolean;
 }
@@ -81,7 +69,6 @@ export interface WaitRow {
   type: 'wait';
   key: string;
   spine: Spine;
-  /** The gap between the arrival above and the departure below, in minutes. */
   minutes: number;
   /** The stop being waited at, named so the row stands on its own. */
   place: string;
@@ -149,55 +136,46 @@ function endOf(stop: Stop, end: JourneyEnd, fallback: string) {
 
 export function itineraryRows(journey: Journey, labels: Labels): ItineraryRow[] {
   const rows: ItineraryRow[] = [];
-  /*
-   * Every duration below is measured between the times this puts on the page,
-   * rather than taken from the leg's own reported figure. The two are rounded
-   * for different purposes and can disagree by up to two minutes, which is
-   * what produced "arrive 01:49, wait 1 minute, leave 01:49".
-   */
-  const timings = legTimings(journey);
-  const lastIndex = timings.length - 1;
+  const lastIndex = journey.legs.length - 1;
 
-  timings.forEach((timing, index) => {
-    const { leg } = timing;
+  journey.legs.forEach((leg, index) => {
     const isFirst = index === 0;
     const isLast = index === lastIndex;
 
     if (isFirst) {
       rows.push({
         type: 'node',
-        key: `start-${timing.start.time}`,
+        key: `start-${leg.startTime}`,
         ...endOf(leg.fromStop, labels.origin, labels.fallback),
-        date: timing.start.date,
-        time: timing.start.time,
+        time: leg.startTime,
         role: 'origin',
         above: null,
         below: null,
       });
-    } else if (timing.waitMinutes > 0) {
+    } else if (leg.waitDurationMinutes > 0) {
       /*
        * The stop splits in two. The node already pushed carries the arrival;
        * this adds the wait and a second node for the departure, so both times
        * are on the page at the place they belong to.
        *
-       * A wait of zero leaves it as one node, which is the truth whenever the
-       * rounding closed the gap — and the only reading that does not
-       * contradict the clock printed beside it.
+       * A reported wait of zero leaves it as one node, and that is the whole
+       * test: the API measures a wait between the two times it publishes, so
+       * this number and the gap the reader can see are the same number. There
+       * was a spell where they were not, and this had to second-guess it.
        */
       rows.push({
         type: 'wait',
-        key: `wait-${index}-${timing.start.time}`,
+        key: `wait-${index}-${leg.startTime}`,
         spine: { kind: 'wait' },
-        minutes: timing.waitMinutes,
+        minutes: leg.waitDurationMinutes,
         place: placeName(leg.fromStop, null),
       });
       rows.push({
         type: 'node',
-        key: `depart-${index}-${timing.start.time}`,
+        key: `depart-${index}-${leg.startTime}`,
         name: placeName(leg.fromStop, null),
         detail: isPin(leg.fromStop) ? null : leg.fromStop.code,
-        date: timing.start.date,
-        time: timing.start.time,
+        time: leg.startTime,
         role: 'via',
         above: null,
         below: null,
@@ -206,25 +184,23 @@ export function itineraryRows(journey: Journey, labels: Labels): ItineraryRow[] 
 
     rows.push({
       type: 'segment',
-      key: `leg-${index}-${timing.start.time}`,
+      key: `leg-${index}-${leg.startTime}`,
       spine: spineFor(leg),
       leg,
-      minutes: timing.minutes,
       isFirst,
       isLast,
     });
 
     rows.push({
       type: 'node',
-      key: `arrive-${index}-${timing.end.time}`,
+      key: `arrive-${index}-${leg.endTime}`,
       ...(isLast
         ? endOf(leg.toStop, labels.destination, labels.fallback)
         : {
             name: placeName(leg.toStop, null),
             detail: isPin(leg.toStop) ? null : leg.toStop.code,
           }),
-      date: timing.end.date,
-      time: timing.end.time,
+      time: leg.endTime,
       role: isLast ? 'destination' : 'via',
       above: null,
       below: null,

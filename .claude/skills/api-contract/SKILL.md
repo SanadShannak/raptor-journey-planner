@@ -147,6 +147,8 @@ what you need for a feed that carries signs on only some trips.
 
 Time spent waiting at `fromStop` **before** the leg departs at `startTime`. It occupies the gap between the previous leg's `endTime` and this leg's `startTime`, and is **excluded** from that leg's own `walkDurationMinutes` / `transitDurationMinutes`. So `startTime` is a departure time, already past the wait.
 
+It is **measured from those two published times**, so it is exactly the gap a reader can see between them. Do not recompute it, and do not treat a disagreement as expected — there is none. `0` is a real answer and means the connection is immediate at minute resolution; it is not a missing value.
+
 ### Stops
 
 `fromStop` / `toStop` are `{ id, name, code, lat, lon }`. `id` is the GTFS stop
@@ -165,8 +167,23 @@ Array of `[latitude, longitude]` pairs — latitude first, matching Leaflet's `L
 
 Applied by the backend presenter, so values arrive pre-rounded — do not round again.
 
+- Times: whole minutes, and **asymmetrically** — an arrival rounds *up*, a departure rounds *down*, so nobody is told they arrive earlier or may leave later than they really can (`backend/server/utils/roundSecondsToMinute.js`).
 - Durations: whole minutes, with a floor of 1 for any non-zero duration (`backend/server/utils/formatDuration.js`).
 - Distances: nearest 50 m, with a floor of 50 for any non-zero distance (`backend/server/utils/formatDistance.js`).
+
+### Durations agree with the times beside them
+
+**Every duration is measured between the two rounded times the same response publishes**, never from the engine's exact seconds. This is a guarantee, and the reason it needs stating is that it was once untrue: rounding a duration from raw seconds while rounding the times asymmetrically let the two drift apart by up to two minutes, so a response could say `waitDurationMinutes: 4` between a `01:50` arrival and a `01:52` departure, or a nine-minute ride between times ten minutes apart.
+
+Three things follow, and a client should rely on all three rather than defending against them:
+
+- A leg's duration equals `endTime − startTime`.
+- A leg's `waitDurationMinutes` equals its `startTime` minus the previous leg's `endTime`, and is never negative.
+- The legs and the waits **tile the journey**: they sum to `totalDurationMinutes`, which is itself `endTime − startTime`.
+
+Dates move with the times. When rounding an arrival up crosses midnight, the published `endDate` advances with it, so a date and the clock beside it always describe the same moment.
+
+Verify with `node` against a running server rather than by reading the engine, which works in exact seconds and knows nothing about any of this.
 
 ## Errors
 

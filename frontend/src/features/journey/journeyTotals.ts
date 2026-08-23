@@ -1,5 +1,4 @@
 import type { Journey, TransitLeg } from '../../types/journey';
-import { legTimings } from './journeyTiming';
 
 /**
  * What an itinerary adds up to.
@@ -13,16 +12,6 @@ import { legTimings } from './journeyTiming';
  * is the sort of rule that is easy to get quietly wrong.
  */
 export interface JourneyTotals {
-  /**
-   * The whole journey, end to end.
-   *
-   * Summed from the parts rather than read off `totalDurationMinutes`, which
-   * is rounded on its own and so need not equal the times printed either side
-   * of it. Because every part below is measured between times the itinerary
-   * shows, this is exactly the gap between its first and its last — the
-   * arithmetic closes, which it could not do before.
-   */
-  totalMinutes: number;
   /** Vehicle changes, which is one fewer than the number of rides. */
   transfers: number;
   rides: TransitLeg[];
@@ -51,22 +40,17 @@ export function journeyTotals(journey: Journey): JourneyTotals {
   let transitMinutes = 0;
   let transitMeters: number | null = 0;
 
-  /*
-   * Durations come from the clock, distances from the API. A distance has no
-   * second reading to disagree with; a duration does, and the one the traveller
-   * can check is the gap between the two times printed either side of it.
-   */
-  for (const { leg, minutes, waitMinutes: waited } of legTimings(journey)) {
-    waitMinutes += waited;
+  for (const leg of journey.legs) {
+    waitMinutes += leg.waitDurationMinutes;
 
     if (leg.mode === 'WALK') {
-      walkMinutes += minutes;
+      walkMinutes += leg.walkDurationMinutes;
       walkMeters += leg.walkDistanceMeters;
       continue;
     }
 
     rides.push(leg);
-    transitMinutes += minutes;
+    transitMinutes += leg.transitDurationMinutes;
     if (leg.transitDistanceMeters === null) {
       transitMeters = null;
     } else if (transitMeters !== null) {
@@ -75,7 +59,6 @@ export function journeyTotals(journey: Journey): JourneyTotals {
   }
 
   return {
-    totalMinutes: walkMinutes + waitMinutes + transitMinutes,
     transfers: Math.max(0, rides.length - 1),
     rides,
     walkMinutes,

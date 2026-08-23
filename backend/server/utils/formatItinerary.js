@@ -1,6 +1,6 @@
 const convertSecondsToTimeOfDay = require("./convertSecondsToTimeOfDay");
+const roundSecondsToMinute = require("./roundSecondsToMinute");
 const formatDuration = require("./formatDuration");
-const calculateTotalDurationFromStartToEnd = require("./calculateTotalDurationFromStartToEnd");
 const formatDistance = require("./formatDistance");
 const { getCache, getTripHeadsign } = require("../../memoryCache");
 const { lineIdFor } = require("./lineIdentity");
@@ -14,7 +14,63 @@ const { lineIdFor } = require("./lineIdentity");
  * directions, or long names produces the same leg shape with nulls in those
  * places — never a missing key, so a consumer can read every field
  * unconditionally and decide what to render.
+ *
+ * ---------------------------------------------------------------------------
+ * Every duration below is measured between the rounded times this same
+ * function publishes, and never from the engine's raw seconds.
+ *
+ * The engine is exact and works in seconds. Rounding to the minute happens
+ * here, and it is deliberately asymmetric: an arrival rounds up and a
+ * departure rounds down, so nobody is told they arrive earlier or may leave
+ * later than they really can. Round a duration separately from those same raw
+ * seconds and the two answers drift apart — the asymmetry closes a gap between
+ * legs by up to two minutes and opens a leg by the same. That is how a
+ * response came to say "wait 4 minutes" between 01:50 and 01:52, and "ride 9
+ * minutes" between times ten minutes apart.
+ *
+ * Measuring between the published times settles it in the safe direction: a
+ * leg reads no shorter, and a connection no longer, than it truly is. It also
+ * makes the response add up — the legs and the waits between them now tile the
+ * journey exactly, which separately rounded figures cannot promise.
+ *
+ * `totalDurationMinutes` was always computed this way. The rule is simply
+ * applied to every duration now rather than to one of them.
+ * ---------------------------------------------------------------------------
  */
+
+const SECONDS_IN_DAY = 86400;
+
+/**
+ * Keeps a published date on the same day as the published time beside it.
+ *
+ * The engine dates a moment from its exact second, and rounding here can move
+ * that moment across midnight: an arrival at 23:59:20 is published as "00:00"
+ * while its date still reads the day before. The clock and the calendar then
+ * disagree about which day the traveller gets there, which is the one thing a
+ * twelve-hour display cannot survive — "12:00 AM" on the wrong date is a
+ * whole day out.
+ *
+ * Only a ceiling can do this, and only ever by one day; a floor never leaves
+ * the day it started in. The shift is computed rather than assumed so that
+ * both directions are covered whatever the rounding does later.
+ */
+function shiftDate(isoDate, days) {
+  if (days === 0 || typeof isoDate !== "string") return isoDate;
+
+  const [year, month, day] = isoDate.split("-").map(Number);
+  // Built from parts and in UTC: this only ever counts whole days, and a local
+  // Date would fold an hour of daylight saving into that count.
+  const shifted = new Date(Date.UTC(year, month - 1, day + days));
+  return shifted.toISOString().slice(0, 10);
+}
+
+/** How many days the rounding moved a moment: 0, or 1 across midnight. */
+function daysCrossed(rawSeconds, roundedSeconds) {
+  return (
+    Math.floor(roundedSeconds / SECONDS_IN_DAY) -
+    Math.floor(rawSeconds / SECONDS_IN_DAY)
+  );
+}
 
 /**
  * Where a transit leg's vehicle is heading, in two forms.
@@ -61,20 +117,34 @@ function formatItinerary(rawItinerary) {
   };
 
   const itineraryStartDate = rawItinerary.legs[0].startDate;
-  const formattedStartTime = convertSecondsToTimeOfDay(
+  /*
+   * Rounded once, then used for both the string and the arithmetic. The
+   * engine's seconds already carry the day offset, so the difference between
+   * two rounded values is the number of minutes between them even when the
+   * journey crosses midnight — no date handling required.
+   */
+  const itineraryStartSeconds = roundSecondsToMinute(
     rawItinerary.legs[0].startTime,
     "floor",
   );
-  const itineraryEndDate =
-    rawItinerary.legs[rawItinerary.legs.length - 1].endDate;
-
-  const formattedEndTime = convertSecondsToTimeOfDay(
+  const formattedStartTime = convertSecondsToTimeOfDay(
+    itineraryStartSeconds,
+    "floor",
+  );
+  const itineraryEndSeconds = roundSecondsToMinute(
     rawItinerary.targetArrivalTime,
     "ceil",
   );
-  const totalItineraryDurationMinutes = calculateTotalDurationFromStartToEnd(
-    formattedStartTime,
-    formattedEndTime,
+  const itineraryEndDate = shiftDate(
+    rawItinerary.legs[rawItinerary.legs.length - 1].endDate,
+    daysCrossed(rawItinerary.targetArrivalTime, itineraryEndSeconds),
+  );
+  const formattedEndTime = convertSecondsToTimeOfDay(
+    itineraryEndSeconds,
+    "ceil",
+  );
+  const totalItineraryDurationMinutes = formatDuration(
+    itineraryEndSeconds - itineraryStartSeconds,
   );
   itinerary.startDate = itineraryStartDate;
   itinerary.startTime = formattedStartTime;
@@ -82,15 +152,35 @@ function formatItinerary(rawItinerary) {
   itinerary.endTime = formattedEndTime;
   itinerary.totalDurationMinutes = totalItineraryDurationMinutes;
 
+  /* The previous leg's published arrival, which is where a wait is measured
+     from. Null before the first leg, which nobody waits for. */
+  let previousLegEndSeconds = null;
+
   rawItinerary.legs.forEach((leg) => {
     const legMode = leg["mode"];
 
-    const formattedLegWaitDuration = formatDuration(leg.waitDurationSeconds);
+    const legStartSeconds = roundSecondsToMinute(leg.startTime, "floor");
+    const legEndSeconds = roundSecondsToMinute(leg.endTime, "ceil");
 
-    const legStartDate = leg["startDate"];
+    /*
+     * Never negative. The rounding can in principle push an arrival past the
+     * departure it connects to — a sub-minute transfer — and a response that
+     * says a traveller waits for less than no time would be worse than one
+     * that says the connection is immediate, which at this resolution it is.
+     */
+    const legWaitSeconds =
+      previousLegEndSeconds === null
+        ? 0
+        : Math.max(0, legStartSeconds - previousLegEndSeconds);
+    const formattedLegWaitDuration = formatDuration(legWaitSeconds);
+
+    const legStartDate = shiftDate(
+      leg["startDate"],
+      daysCrossed(leg.startTime, legStartSeconds),
+    );
 
     const formattedLegStartTime = convertSecondsToTimeOfDay(
-      leg.startTime,
+      legStartSeconds,
       "floor",
     );
     const legFromStop = leg["fromStop"];
@@ -115,24 +205,38 @@ function formatItinerary(rawItinerary) {
 
     const legToStop = leg["toStop"];
 
-    const legEndDate = leg["endDate"];
+    const legEndDate = shiftDate(
+      leg["endDate"],
+      daysCrossed(leg.endTime, legEndSeconds),
+    );
 
-    const formattedLegEndTime = convertSecondsToTimeOfDay(leg.endTime, "ceil");
+    const formattedLegEndTime = convertSecondsToTimeOfDay(legEndSeconds, "ceil");
 
     const legTripId = leg["tripId"];
 
-    const formattedLegTransitDurationMinutes = formatDuration(
-      leg.transitDurationSeconds,
-    );
+    /*
+     * One measurement for the leg, reported under whichever key its mode owns.
+     * Which key that is still comes from the engine's own fields, so a leg
+     * keeps exactly the null shape it had before: a walking leg carries no
+     * transit duration and a ridden one carries no walking duration.
+     */
+    const legDurationMinutes = formatDuration(legEndSeconds - legStartSeconds);
+
+    const formattedLegTransitDurationMinutes =
+      leg.transitDurationSeconds !== null &&
+      leg.transitDurationSeconds !== undefined
+        ? legDurationMinutes
+        : null;
 
     const formattedLegTransitDistanceMeters =
       leg["transitDistanceMeters"] !== null
         ? formatDistance(leg["transitDistanceMeters"])
         : null;
 
-    const formattedLegWalkDurationMinutes = formatDuration(
-      leg.walkDurationSeconds,
-    );
+    const formattedLegWalkDurationMinutes =
+      leg.walkDurationSeconds !== null && leg.walkDurationSeconds !== undefined
+        ? legDurationMinutes
+        : null;
 
     const formattedWalkDistanceMeters =
       leg["walkDistanceMeters"] !== null
@@ -180,6 +284,8 @@ function formatItinerary(rawItinerary) {
       walkDistanceMeters: formattedWalkDistanceMeters,
       shape: legShape,
     });
+
+    previousLegEndSeconds = legEndSeconds;
   });
   return itinerary;
 }

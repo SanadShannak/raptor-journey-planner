@@ -1,14 +1,16 @@
+const roundSecondsToMinute = require("./roundSecondsToMinute");
+
+/*
+ * Seconds from the engine into the "HH:MM" a client displays.
+ *
+ * The rounding itself lives in `roundSecondsToMinute`, because the durations
+ * published alongside these strings have to be measured from exactly the same
+ * rounded values. Rounding a time here and a duration somewhere else from raw
+ * seconds is what let a response contradict itself.
+ */
 function convertSecondsToTimeOfDay(totalSeconds, roundMode = "floor") {
   // roundMode can be "floor" (for safe departures) or "ceil" (for safe arrivals)
-  let adjustedSeconds = totalSeconds;
-
-  if (roundMode === "ceil") {
-    // Round up to the next minute if there are leftover seconds
-    adjustedSeconds = Math.ceil(totalSeconds / 60) * 60;
-  } else {
-    // Round down (default floor)
-    adjustedSeconds = Math.floor(totalSeconds / 60) * 60;
-  }
+  const adjustedSeconds = roundSecondsToMinute(totalSeconds, roundMode);
 
   const hours = Math.floor(adjustedSeconds / 3600) % 24; // Handle day rollovers safely
   const minutes = Math.floor((adjustedSeconds % 3600) / 60);
