@@ -184,6 +184,29 @@ Non-2xx responses carry `{ errorCode, error }`. `error` is developer-facing Engl
 
 Unknown paths return an Express **HTML** 404, not JSON — the client must tolerate a non-JSON error body.
 
+### Engine outcomes may arrive inside a 200
+
+`backend/server/routes/plannerApi.js` is being changed so that an engine
+outcome — everything in the 404 list above, `NO_ROUTE_FOUND` included — comes
+back as the same `{ errorCode, error }` envelope but with a **200** status; the
+status then says only that the request was served, not that a journey was
+found. Route-handler validation failures (the 400 list) keep their status.
+
+**A client must therefore read `errorCode` on a successful response too.** An
+outcome body has no `legs`, so a client that goes straight to parsing an
+itinerary reports "unreadable response" for what is really "nothing runs then".
+
+`frontend/src/api/journey.ts` accepts both forms, so which one a given backend
+build uses is not something the UI has to know. Detection is "both `errorCode`
+and `error` are strings" — never `errorCode` alone, or an itinerary would be
+swallowed the day a success body gains an `error: null`.
+
+> **Caveat, as of this writing.** The working-tree edit that introduces this
+> returns the object from the Express handler (`return rawItinerary;`) instead
+> of sending it (`return res.json(rawItinerary);`). Returning from a handler
+> sends nothing, so the request hangs until the client times out. Verify
+> against a live response before relying on this section.
+
 ## Expected behaviours that look like bugs
 
 Documented in the README's "Known Limitations" section. Surface these in the UI; do not paper over them.

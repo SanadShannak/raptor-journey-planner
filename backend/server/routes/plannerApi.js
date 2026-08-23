@@ -106,9 +106,9 @@ router.get("/", (req, res) => {
     const raptorExecTime = (raptorExecEndTime - raptorExecStartTime).toFixed(2);
     console.log(`[API]: Route Calculated in ${raptorExecTime}ms`);
 
-    // If RAPTOR returned an internal error, propagate error object
+    // If RAPTOR returned an internal error, return error object
     if (rawItinerary.errorCode) {
-      return res.status(404).json(rawItinerary);
+      return res.json(rawItinerary);
     }
 
     // Format the successful itinerary
