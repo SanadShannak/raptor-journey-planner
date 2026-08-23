@@ -260,6 +260,18 @@ Documented in the README's "Known Limitations" section. Surface these in the UI;
 `GET /api/stop/:gtfsId` — live board. `{ stop, asOf: { date, time }, servingLines[], departures[], capabilities }`
 
 `GET /api/stop/:gtfsId/timetable?date=` — whole day. `{ stop, date, servingLines[], schedule[], totalDepartures, outsideTimetableRange, capabilities }`
+`GET /api/stops?minLat=&minLon=&maxLat=&maxLon=` → `{ stops[], total, truncated, capabilities }`
+
+The stops inside a bounding box, for a map. Same router as `/api/stop/:id`, mounted twice: the singular is one stop, the plural is the set of them in an area.
+
+Each entry is `describeStop` plus `modes` — the standard GTFS `route_type`s of everything calling there, de-duplicated and ascending. **`modes` may be empty**, which is a real state: a stop can outlive the routes that used it. Do not fall back to a default mode; a bus icon on a tram stop sends someone to the wrong side of the street.
+
+All four corners are required and must parse as numbers, and the minimum corner must not exceed the maximum — otherwise `400 BAD_DATE`-style `{ errorCode: "BAD_BOUNDS" }`. A box spanning more than **1.5 degrees** on a side is refused with `BOUNDS_TOO_LARGE`: that is a request for the whole network wearing a bounding box.
+
+The answer is **capped at 400 stops and never paged**. A map asks again on every pan, so an answer that arrives late is worth less than one that arrives small; a client wanting more detail asks for a smaller box, which is what zooming in is. `truncated` is `true` when the cap was reached — do not infer it from the count, and do not cache a truncated answer as covering its box.
+
+Answered from the spatial grid the routing engine already holds in memory, so the cost follows the size of the box rather than the size of the feed.
+
 
 `schedule` is an **array** of `{ hour, departures[] }`, not an object keyed by
 hour. Object keys would reorder: `"10"`–`"23"` are canonical integer strings and

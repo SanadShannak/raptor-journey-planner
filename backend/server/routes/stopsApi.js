@@ -272,6 +272,141 @@ function resolveStop(gtfsId, res) {
  * Full timetable for one service date.
  * GET /api/stop/:id/timetable?date=YYYY-MM-DD
  */
+/*
+ * The grid the routing engine already uses to find stops near a coordinate,
+ * read here to answer a different question: which stops are inside a box.
+ *
+ * Same constant as `getNearbyStops`, because it is the same index — cells are
+ * keyed `latIndex_lonIndex` at this size, so the cells a box covers are a
+ * plain range rather than a search.
+ */
+const GRID_SIZE_DEGREES = 0.005;
+
+/** The biggest box worth answering, in degrees. */
+const MAX_SPAN_DEGREES = 1.5;
+
+/**
+ * How many stops one request will return.
+ *
+ * A cap rather than a page. A map asks this question again on every pan, so an
+ * answer that arrives late is worth less than one that arrives small — and a
+ * client that wanted more detail can ask for a smaller box, which is what
+ * zooming in is. `truncated` says plainly when the answer was cut, so nothing
+ * has to infer it from the count.
+ */
+const MAX_STOPS = 400;
+
+/**
+ * Which vehicles call at a stop, as standard GTFS route types.
+ *
+ * De-duplicated and sorted so the same stop always answers the same way. An
+ * empty array means nothing serves it, which is a real state in a feed — a
+ * stop can outlive the routes that used it.
+ */
+function modesAt(internalStopId) {
+  const modes = new Set();
+  for (const routeId of cache.stopToRoutes[internalStopId] ?? []) {
+    const routeType = cache.routes[routeId]?.route_type;
+    if (typeof routeType === "number") modes.add(routeType);
+  }
+  return [...modes].sort((a, b) => a - b);
+}
+
+/**
+ * Stops inside a bounding box.
+ *
+ * Exists for the map, which cannot ask for a network's worth of stops and does
+ * not need to: it draws what is on screen. The engine's spatial grid makes this
+ * a walk over the cells the box covers rather than a scan of every stop, so the
+ * cost follows the size of the box and not the size of the feed.
+ *
+ * Coordinates are validated the same way the planner validates its own: a
+ * malformed box is a 400 from the router, never a guess.
+ */
+router.get("/", (req, res) => {
+  try {
+    const bounds = ["minLat", "minLon", "maxLat", "maxLon"].map((key) =>
+      Number.parseFloat(req.query[key]),
+    );
+
+    if (bounds.some((value) => !Number.isFinite(value))) {
+      return res.status(400).json({
+        errorCode: "BAD_BOUNDS",
+        error:
+          "minLat, minLon, maxLat and maxLon are all required, as numbers.",
+      });
+    }
+
+    const [minLat, minLon, maxLat, maxLon] = bounds;
+
+    if (minLat > maxLat || minLon > maxLon) {
+      return res.status(400).json({
+        errorCode: "BAD_BOUNDS",
+        error: "The minimum corner must not be greater than the maximum one.",
+      });
+    }
+
+    /*
+     * A box this large is a request for the whole network wearing a bounding
+     * box, and answering it would mean walking most of the grid to build a
+     * list the cap would then throw away.
+     */
+    if (maxLat - minLat > MAX_SPAN_DEGREES || maxLon - minLon > MAX_SPAN_DEGREES) {
+      return res.status(400).json({
+        errorCode: "BOUNDS_TOO_LARGE",
+        error: `A bounding box may span at most ${MAX_SPAN_DEGREES} degrees on a side.`,
+      });
+    }
+
+    const grid = cache.spatialGrid ?? {};
+    const stops = [];
+    let truncated = false;
+
+    const minLatCell = Math.floor(minLat / GRID_SIZE_DEGREES);
+    const maxLatCell = Math.floor(maxLat / GRID_SIZE_DEGREES);
+    const minLonCell = Math.floor(minLon / GRID_SIZE_DEGREES);
+    const maxLonCell = Math.floor(maxLon / GRID_SIZE_DEGREES);
+
+    outer: for (let latCell = minLatCell; latCell <= maxLatCell; latCell++) {
+      for (let lonCell = minLonCell; lonCell <= maxLonCell; lonCell++) {
+        const cell = grid[`${latCell}_${lonCell}`];
+        if (!cell) continue;
+
+        for (const entry of cell) {
+          // A cell is a square of the grid, not of the box: its edge cells
+          // reach past the corners, so each stop is checked again.
+          if (
+            entry.lat < minLat ||
+            entry.lat > maxLat ||
+            entry.lon < minLon ||
+            entry.lon > maxLon
+          ) {
+            continue;
+          }
+
+          if (stops.length >= MAX_STOPS) {
+            truncated = true;
+            break outer;
+          }
+
+          stops.push({
+            ...describeStop(entry.id, String(entry.id)),
+            modes: modesAt(entry.id),
+          });
+        }
+      }
+    }
+
+    return res.json({ stops, total: stops.length, truncated, capabilities });
+  } catch (error) {
+    console.error("[Stops In Bounds Error]:", error);
+    return res.status(500).json({
+      errorCode: "INTERNAL_SERVER_ERROR",
+      error: "Failed to resolve stops in the requested area.",
+    });
+  }
+});
+
 router.get("/:id/timetable", (req, res) => {
   try {
     const { id } = req.params;

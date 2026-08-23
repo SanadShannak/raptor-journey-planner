@@ -445,16 +445,6 @@
     height: auto;
   }
 
-  /*
-   * Leaflet paints a white box with a grey border behind every custom marker,
-   * which is a sensible default for a bare `divIcon` and wrong for every one of
-   * ours: they are a pin, a target, and a badge that brings its own fill.
-   */
-  .leaflet-div-icon {
-    background: transparent;
-    border: none;
-  }
-
   .leaflet-container {
     /* Seen while tiles load, and in the gutters when the map is over-panned. */
     background: var(--color-surface-muted);
@@ -476,6 +466,20 @@
   .leaflet-popup-tip {
     background: var(--color-surface-raised);
     color: var(--color-content);
+  }
+
+  .leaflet-tooltip {
+    background: var(--color-surface-raised);
+    color: var(--color-content);
+    border-color: var(--color-border);
+    box-shadow: var(--shadow-card);
+    font: inherit;
+    font-size: 0.8125rem;
+  }
+
+  /* The little arrow, which is drawn as a border and so needs its own say. */
+  .leaflet-tooltip-top::before {
+    border-top-color: var(--color-surface-raised);
   }
 
   .leaflet-popup-close-button {

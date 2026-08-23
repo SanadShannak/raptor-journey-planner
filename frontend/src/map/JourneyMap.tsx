@@ -33,6 +33,7 @@ import {
   journeyGeometry,
   type BoundingBox,
 } from '../features/journey/journeyGeometry';
+import { StopLayer } from './StopLayer';
 import { tileSourceFor } from './tileSource';
 import { useReducedMotion } from './useReducedMotion';
 
@@ -513,6 +514,9 @@ export function JourneyMap({ journey, network, area, onPick }: Props) {
         zoomIn={t(strings.planner.zoomIn)}
         zoomOut={t(strings.planner.zoomOut)}
       />
+
+      {/* Drawn under everything the journey puts on the map. */}
+      <StopLayer />
 
       <PickPoint onPick={onPick} />
       <KeepSized />
