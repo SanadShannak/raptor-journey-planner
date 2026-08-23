@@ -38,6 +38,29 @@ export function WalkIcon({ size = 20 }: { size?: number }) {
 }
 
 /**
+ * Waiting, as the same figure sitting down.
+ *
+ * It was an hourglass, which is a metaphor for time rather than a picture of
+ * what you are doing — and beside a walking figure and a vehicle it was the
+ * one icon in the set with nobody in it. Same build as {@link WalkIcon}, at
+ * rest on a bench.
+ */
+export function SeatedIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg {...base} width={size} height={size} aria-hidden="true" className="flex-none">
+      <circle cx="9" cy="4.4" r="2.1" fill="currentColor" stroke="none" />
+      {/* Torso down to the hip, then the thigh forward, then the shin. */}
+      <path d="M9 7.6v5.6h5.6" />
+      <path d="M14.6 13.2v5.4" />
+      {/* An arm resting on the knee. */}
+      <path d="M9 10l3.3 1.9" />
+      {/* The bench. */}
+      <path d="M4.6 13.2h4.4M6 13.2v5.4" />
+    </svg>
+  );
+}
+
+/**
  * One silhouette per family, so the shape alone distinguishes them.
  *
  * Every one is built on the same body-and-wheels proportion so they read as a

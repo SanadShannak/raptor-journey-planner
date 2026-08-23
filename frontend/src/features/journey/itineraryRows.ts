@@ -38,8 +38,16 @@ export interface NodeRow {
   type: 'node';
   key: string;
   name: string;
-  /** The stop's public code, or null for a dropped pin or a feed without one. */
-  code: string | null;
+  /**
+   * The line under the name.
+   *
+   * For a stop that is the code printed on the pole, which is what tells six
+   * stops called "Pasila" apart. The two ends of the journey are not stops at
+   * all but the traveller's own pins, so there it is where the place they
+   * chose actually is — the geocoder's own second line, the same one they read
+   * when they picked it out of the suggestions.
+   */
+  detail: string | null;
   time: ClockTime;
   role: 'origin' | 'via' | 'destination';
   /** The segment arriving at this node; null at the origin. */
@@ -87,19 +95,61 @@ function placeName(stop: Stop, chosenLabel: string | null): string {
   return chosenLabel ?? stop.name;
 }
 
+/**
+ * Whether the wait before this leg is one the clock cannot show.
+ *
+ * Durations arrive rounded to whole minutes with a floor of one, so a
+ * forty-second connection is reported as `waitDurationMinutes: 1` while the
+ * arrival and the departure are both, truthfully, 01:49. Split in two, that
+ * reads as a contradiction — the same stop, the same minute, twice, with a
+ * minute of waiting drawn between them.
+ *
+ * The API's times are the source of truth and are shown exactly as they are.
+ * What changes is only whether the stop is drawn as one event or two: when
+ * both times fall in the same minute, one is what a reader can verify.
+ */
+function arrivesAndLeavesTogether(rows: ItineraryRow[], leg: JourneyLeg): boolean {
+  const arrival = rows[rows.length - 1];
+  return arrival?.type === 'node' && arrival.time === leg.startTime;
+}
+
 function spineFor(leg: JourneyLeg): Spine {
   return leg.mode === 'TRANSIT'
     ? { kind: 'transit', family: familyFor(leg.routeType) }
     : { kind: 'walk' };
 }
 
+/**
+ * One end of the journey as the traveller chose it.
+ *
+ * Both halves come from the place they picked, not from the engine: it answers
+ * with `ORIGIN` and `TARGET`, which are placeholders for a coordinate rather
+ * than names of anywhere.
+ */
+export interface JourneyEnd {
+  /** What they called it. Null when they dropped a pin and named nothing. */
+  name: string | null;
+  /** Where it is, in the geocoder's words. Null when it offered none. */
+  context: string | null;
+}
+
 interface Labels {
-  /** What the visitor called their starting point, if they named one. */
-  origin: string | null;
-  destination: string | null;
-  /** Used when a pin has no label at all — "Start" / "Destination". */
-  originFallback: string;
-  destinationFallback: string;
+  origin: JourneyEnd;
+  destination: JourneyEnd;
+  /** Stands in for a pin nobody named — "Selected location". */
+  fallback: string;
+}
+
+/**
+ * The name and second line for a node.
+ *
+ * A real stop speaks for itself. A pin cannot — its name is a placeholder and
+ * its code is the tell that identifies it as one — so both lines come from
+ * what the traveller chose instead.
+ */
+function endOf(stop: Stop, end: JourneyEnd, fallback: string) {
+  if (!isPin(stop)) return { name: stop.name, detail: stop.code };
+  return { name: end.name ?? fallback, detail: end.context };
 }
 
 export function itineraryRows(journey: Journey, labels: Labels): ItineraryRow[] {
@@ -114,14 +164,13 @@ export function itineraryRows(journey: Journey, labels: Labels): ItineraryRow[] 
       rows.push({
         type: 'node',
         key: `start-${leg.startTime}`,
-        name: placeName(leg.fromStop, labels.origin ?? labels.originFallback),
-        code: isPin(leg.fromStop) ? null : leg.fromStop.code,
+        ...endOf(leg.fromStop, labels.origin, labels.fallback),
         time: leg.startTime,
         role: 'origin',
         above: null,
         below: null,
       });
-    } else if (leg.waitDurationMinutes > 0) {
+    } else if (leg.waitDurationMinutes > 0 && !arrivesAndLeavesTogether(rows, leg)) {
       /*
        * The stop splits in two. The node already pushed carries the arrival;
        * this adds the wait and a second node for the departure, so both times
@@ -138,7 +187,7 @@ export function itineraryRows(journey: Journey, labels: Labels): ItineraryRow[] 
         type: 'node',
         key: `depart-${index}-${leg.startTime}`,
         name: placeName(leg.fromStop, null),
-        code: isPin(leg.fromStop) ? null : leg.fromStop.code,
+        detail: isPin(leg.fromStop) ? null : leg.fromStop.code,
         time: leg.startTime,
         role: 'via',
         above: null,
@@ -158,11 +207,12 @@ export function itineraryRows(journey: Journey, labels: Labels): ItineraryRow[] 
     rows.push({
       type: 'node',
       key: `arrive-${index}-${leg.endTime}`,
-      name: placeName(
-        leg.toStop,
-        isLast ? (labels.destination ?? labels.destinationFallback) : null,
-      ),
-      code: isPin(leg.toStop) ? null : leg.toStop.code,
+      ...(isLast
+        ? endOf(leg.toStop, labels.destination, labels.fallback)
+        : {
+            name: placeName(leg.toStop, null),
+            detail: isPin(leg.toStop) ? null : leg.toStop.code,
+          }),
       time: leg.endTime,
       role: isLast ? 'destination' : 'via',
       above: null,

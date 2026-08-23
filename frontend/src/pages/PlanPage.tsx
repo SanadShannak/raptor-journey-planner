@@ -13,10 +13,12 @@ import {
 } from '../config/journey';
 import type { Journey } from '../types/journey';
 import type { Place } from '../types/place';
+import { JourneyForm } from '../features/journey/JourneyForm';
 import {
-  JourneyForm,
+  searchSignature,
   type JourneyFormValues,
-} from '../features/journey/JourneyForm';
+} from '../features/journey/journeySearch';
+import type { JourneyEnd } from '../features/journey/itineraryRows';
 import { ItineraryOverview } from '../features/journey/ItineraryOverview';
 import { ItineraryDetail } from '../features/journey/ItineraryDetail';
 
@@ -49,6 +51,29 @@ function decodePlace(raw: string | null, key: string): Place | null {
 
 /** Whether the routing service is answering at all. */
 type Service = 'checking' | 'up' | 'down';
+
+/**
+ * How long the searching state stays up, at the least.
+ *
+ * The engine holds the whole network in memory and usually answers in well
+ * under a tenth of a second, which sounds like a good problem to have and is
+ * not: the skeleton appears and vanishes inside a single frame or two, so what
+ * a visitor sees is the sidebar flickering and a different set of results
+ * already in place. Nothing marked the boundary between the old answer and the
+ * new one, and a search that fast reads as a glitch rather than as an answer.
+ *
+ * Long enough to register as a state, short enough that nobody waits on it.
+ * The hold runs *alongside* the request rather than after it, so a slow answer
+ * is never made slower.
+ */
+const MINIMUM_SEARCH_MS = 750;
+
+const hold = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** The two ends as the traveller chose them, for the strip map's end nodes. */
+function endOf(place: Place | null): JourneyEnd {
+  return { name: place?.label ?? null, context: place?.context ?? null };
+}
 
 /**
  * The journey planner, and the site's front door.
@@ -96,6 +121,18 @@ export default function PlanPage() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   const requestId = useRef(0);
+  /**
+   * The query the results on screen are an answer to.
+   *
+   * The form keeps its own copy of this to avoid repeating itself, but the
+   * form is unmounted while a result is open — so coming back from a detail
+   * panel remounted it with an empty memory, and it dutifully searched again
+   * for inputs that had not changed. The visible effect was that pages of
+   * results appended by "Later" survived the trip back for about a second and
+   * were then replaced by the first page. This copy outlives that, because it
+   * belongs to the same thing the results do.
+   */
+  const lastSearched = useRef<string | null>(null);
   /** Bumped to re-run the startup effect when the visitor retries. */
   const [attempt, setAttempt] = useState(0);
 
@@ -180,7 +217,7 @@ export default function PlanPage() {
     }
 
     try {
-      const result = await planJourney({
+      const pending = planJourney({
         origin: {
           type: 'coordinate',
           lat: from.origin.lat,
@@ -196,6 +233,17 @@ export default function PlanPage() {
         time: `${from.time}:00`,
         walkingSpeedMps: WALKING_PACES[from.pace],
       });
+
+      /*
+       * `allSettled` rather than a plain wait: it attaches a handler to the
+       * request immediately, so a rejection arriving mid-hold is caught below
+       * instead of surfacing as an unhandled rejection. The `await` after it
+       * is what actually rethrows.
+       */
+      if (mode === 'replace') {
+        await Promise.allSettled([pending, hold(MINIMUM_SEARCH_MS)]);
+      }
+      const result = await pending;
 
       if (id !== requestId.current) return;
 
@@ -236,9 +284,54 @@ export default function PlanPage() {
       if (id !== requestId.current) return;
       setState('failed');
       setErrorMessage(t(messageForApiError(error, strings)));
+      /*
+       * A failed search leaves nothing to show. The cards on screen answered
+       * the previous question, and leaving them under an error message that
+       * says the origin is outside the network invites reading them as the
+       * answer to the new one. "Later" is the exception: it failed to *add* to
+       * a list that is still perfectly good.
+       */
+      if (mode === 'replace') {
+        setJourneys([]);
+        setOpenIndex(null);
+      }
     } finally {
       if (id === requestId.current) setExtending(false);
     }
+  }
+
+  /**
+   * Drops everything on screen that belongs to a question no longer being
+   * asked.
+   *
+   * The request id moves with it. An answer already in flight belongs to the
+   * inputs as they were, and if the change leaves the form incomplete no new
+   * search follows to invalidate it — so without this the old results would
+   * arrive after the clear and quietly put themselves back.
+   */
+  function clearResults() {
+    requestId.current += 1;
+    lastSearched.current = null;
+    setJourneys([]);
+    setSearched(false);
+    setOpenIndex(null);
+    setExhausted(null);
+    setErrorMessage(null);
+    setState('idle');
+  }
+
+  /**
+   * Every change to the form goes through here.
+   *
+   * Changing an input makes the results stale at the moment of the change, not
+   * when the next answer arrives — and sometimes no answer follows at all,
+   * because the change emptied a field. Clearing on the way in is what keeps
+   * the sidebar from showing five itineraries beside an error saying the
+   * origin is outside the network.
+   */
+  function updateValues(next: JourneyFormValues) {
+    if (searchSignature(next) !== searchSignature(values)) clearResults();
+    setValues(next);
   }
 
   /*
@@ -251,6 +344,10 @@ export default function PlanPage() {
    * imagined saving.
    */
   function runSearch() {
+    const query = searchSignature(values);
+    if (query === lastSearched.current) return;
+    lastSearched.current = query;
+
     const next = new URLSearchParams();
     if (values.origin) next.set('from', encodePlace(values.origin));
     if (values.destination) next.set('to', encodePlace(values.destination));
@@ -290,13 +387,16 @@ export default function PlanPage() {
       ? null
       : () => {
           const now = nowInZone(timezone);
-          setValues((current) => ({
-            ...current,
+          // Through `updateValues` like every other change to the form: this
+          // moves the time, so whatever is on screen answered a different
+          // question and goes with it.
+          updateValues({
+            ...values,
             // Today when the feed covers it; otherwise leave the date alone,
             // because jumping to a day nothing runs on is not "now".
-            date: validDates.includes(now.date) ? now.date : current.date,
+            date: validDates.includes(now.date) ? now.date : values.date,
             time: now.time,
-          }));
+          });
         };
 
   const offline = service === 'down';
@@ -321,8 +421,8 @@ export default function PlanPage() {
         {open !== null ? (
           <ItineraryDetail
             journey={open}
-            originLabel={values.origin?.label ?? null}
-            destinationLabel={values.destination?.label ?? null}
+            origin={endOf(values.origin)}
+            destination={endOf(values.destination)}
             onBack={() => setOpenIndex(null)}
           />
         ) : (
@@ -365,7 +465,7 @@ export default function PlanPage() {
 
             <JourneyForm
               values={values}
-              onChange={setValues}
+              onChange={updateValues}
               onSearch={runSearch}
               onLeaveNow={leaveNow}
               validDates={validDates}
@@ -395,9 +495,7 @@ export default function PlanPage() {
                       : ''}
               </p>
 
-              {state === 'searching' && journeys.length === 0 && (
-                <ItinerarySkeleton />
-              )}
+              {state === 'searching' && journeys.length === 0 && <Searching />}
 
               {state === 'failed' && errorMessage !== null && (
                 <p className="rounded-card border-danger text-danger border px-4 py-3 text-sm">
@@ -476,21 +574,42 @@ export default function PlanPage() {
 }
 
 /**
- * A placeholder shaped like the result it is waiting for.
+ * The search, while it is running.
  *
- * Sized to a typical overview card so the sidebar does not jump when the real
- * one arrives. Hidden from assistive technology, which is told about the
- * search by the live region instead.
+ * A pulsing grey card was standing in for the answer, which is a shape that
+ * only works when the wait is long enough to read and the thing arriving
+ * really does look like the placeholder. Neither held here: the engine answers
+ * in milliseconds, so the card flashed, and five results arrived where one
+ * grey rectangle had been.
+ *
+ * Said outright instead. A ring turning in the brand colour, and a sentence
+ * that names what is happening — which is also the only version of this that
+ * works for someone who has turned motion off, since the text carries the
+ * message and the ring is decoration.
+ *
+ * Hidden from assistive technology, which is told about the search by the live
+ * region above rather than by a second, competing announcement.
  */
-function ItinerarySkeleton() {
+function Searching() {
+  const { strings, t } = useLocale();
+
   return (
     <div
       aria-hidden="true"
-      className="rounded-card border-border bg-surface-raised flex flex-col gap-3 border p-4"
+      className="rounded-card border-border bg-surface-raised flex flex-col items-center gap-3 border px-4 py-8"
     >
-      <div className="bg-surface-muted h-6 w-40 rounded motion-safe:animate-pulse" />
-      <div className="bg-surface-muted h-5 w-3/4 rounded motion-safe:animate-pulse" />
-      <div className="bg-surface-muted h-3 w-2/3 rounded motion-safe:animate-pulse" />
+      <span className="relative flex h-9 w-9 flex-none items-center justify-center">
+        {/* The track, and the arc that runs around it. */}
+        <span className="border-brand-100 absolute inset-0 rounded-full border-4" />
+        <span className="border-brand-500 absolute inset-0 rounded-full border-4 border-e-transparent border-b-transparent border-s-transparent motion-safe:animate-spin" />
+      </span>
+
+      <span className="flex flex-col items-center gap-1 text-center">
+        <span className="font-medium">{t(strings.planner.searching)}</span>
+        <span className="text-content-muted text-sm text-balance">
+          {t(strings.planner.searchingHint)}
+        </span>
+      </span>
     </div>
   );
 }

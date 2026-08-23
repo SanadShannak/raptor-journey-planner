@@ -33,6 +33,10 @@ const PAIRS = [
   ['brand-500', 'surface-raised', AA_TEXT],
   ['content', 'brand-50', AA_TEXT],
   ['content', 'brand-100', AA_TEXT],
+  // The duration badge, and the selected walking pace: both write brand ink
+  // on the palest brand tint rather than on a plain surface.
+  ['brand-700', 'brand-50', AA_TEXT],
+  ['content-muted', 'brand-50', AA_TEXT],
   // The filled control, and the label on it. Both schemes fill with a
   // different lightness, so this is checked through the tokens rather than
   // against a hardcoded white.

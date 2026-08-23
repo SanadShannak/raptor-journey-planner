@@ -112,10 +112,9 @@ function journeyOf(legs: Journey['legs']): Journey {
 }
 
 const labels = {
-  origin: 'Kamppi',
-  destination: 'Kallio',
-  originFallback: 'Start',
-  destinationFallback: 'Destination',
+  origin: { name: 'Kamppi', context: 'Helsinki' },
+  destination: { name: 'Kallio', context: null },
+  fallback: 'Selected location',
 };
 
 /** Node rows only, as `name @ time`, which is what the diagram shows. */
@@ -203,11 +202,49 @@ describe('itineraryRows', () => {
   it('falls back to a generic name when no place was chosen', () => {
     const rows = itineraryRows(journeyOf([walk(originPin, targetPin, '18:00', '18:20')]), {
       ...labels,
-      origin: null,
-      destination: null,
+      origin: { name: null, context: null },
+      destination: { name: null, context: null },
     });
 
-    expect(nodes(rows)).toEqual(['Start @ 18:00', 'Destination @ 18:20']);
+    expect(nodes(rows)).toEqual([
+      'Selected location @ 18:00',
+      'Selected location @ 18:20',
+    ]);
+  });
+
+  /*
+   * The line under a node. A pin is not a stop and has no code, so what goes
+   * there is where the traveller's own chosen place is — and the node used to
+   * print "Start" beneath a node already named "Start".
+   */
+  it('puts the chosen place\u2019s own context under an end node', () => {
+    const rows = itineraryRows(
+      journeyOf([walk(originPin, targetPin, '18:00', '18:20')]),
+      labels,
+    );
+
+    const nodeRows = rows.filter((row) => row.type === 'node');
+    expect(nodeRows[0]?.detail).toBe('Helsinki');
+    // Null rather than a placeholder: the geocoder offered nothing to say.
+    expect(nodeRows[1]?.detail).toBeNull();
+  });
+
+  it('puts a real stop\u2019s own code under it, at either end or in between', () => {
+    const rows = itineraryRows(
+      journeyOf([
+        ride(originPin, stop('2', 'Rautatientori', 'H0101'), '18:00', '18:24'),
+        ride(stop('2', 'Rautatientori', 'H0101'), stop('9', 'Kallio', 'H0202'), '18:30', '18:50', 6),
+      ]),
+      labels,
+    );
+
+    const nodeRows = rows.filter((row) => row.type === 'node');
+    expect(nodeRows.map((row) => row.detail)).toEqual([
+      'Helsinki',
+      'H0101',
+      'H0101',
+      'H0202',
+    ]);
   });
 
   // A real stop keeps its own name even at the end of the journey.
@@ -277,5 +314,54 @@ describe('itineraryRows', () => {
     );
 
     expect(new Set(rows.map((row) => row.key)).size).toBe(rows.length);
+  });
+});
+
+/*
+ * Durations come back rounded to whole minutes with a floor of one, so a
+ * forty-second connection is reported as a whole minute of waiting while both
+ * clock times land in the same minute. Drawn as two nodes, that reads as a
+ * contradiction: arrive 01:49, wait a minute, leave 01:49.
+ */
+describe('a wait the clock cannot show', () => {
+  it('draws one node when arrival and departure share a minute', () => {
+    const change = stop('2', 'Sörnäinen');
+
+    const rows = itineraryRows(
+      journeyOf([
+        ride(originPin, change, '01:30', '01:49'),
+        ride(change, targetPin, '01:49', '02:10', 1),
+      ]),
+      labels,
+    );
+
+    expect(nodes(rows)).toEqual([
+      'Kamppi @ 01:30',
+      'Sörnäinen @ 01:49',
+      'Kallio @ 02:10',
+    ]);
+    expect(rows.some((row) => row.type === 'wait')).toBe(false);
+  });
+
+  // The API's own times are untouched: a wait of a minute that really does
+  // cross one still splits, because both times can be read and differ.
+  it('still splits when the two times differ', () => {
+    const change = stop('2', 'Sörnäinen');
+
+    const rows = itineraryRows(
+      journeyOf([
+        ride(originPin, change, '01:30', '01:49'),
+        ride(change, targetPin, '01:50', '02:10', 1),
+      ]),
+      labels,
+    );
+
+    expect(nodes(rows)).toEqual([
+      'Kamppi @ 01:30',
+      'Sörnäinen @ 01:49',
+      'Sörnäinen @ 01:50',
+      'Kallio @ 02:10',
+    ]);
+    expect(rows.some((row) => row.type === 'wait')).toBe(true);
   });
 });

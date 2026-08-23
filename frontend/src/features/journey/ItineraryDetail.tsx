@@ -8,22 +8,30 @@ import {
   useLocale,
 } from '../../i18n';
 import type { Journey, TransitLeg, WalkLeg } from '../../types/journey';
-import { ModeIcon, WalkIcon } from './modeIcons';
+import { ModeIcon, SeatedIcon, WalkIcon } from './modeIcons';
 import { modeVisual, visualForFamily } from './modeVisuals';
 import { journeyTotals } from './journeyTotals';
 import {
   itineraryRows,
+  type JourneyEnd,
   type NodeRow,
   type SegmentRow,
   type Spine,
   type WaitRow,
 } from './itineraryRows';
+import { DestinationMarker, OriginMarker } from './placeMarkers';
 
 interface Props {
   journey: Journey;
-  /** What the traveller called their own two ends, for the pin nodes. */
-  originLabel: string | null;
-  destinationLabel: string | null;
+  /**
+   * The two ends as the traveller chose them, name and all.
+   *
+   * The engine answers with `ORIGIN` and `TARGET` — placeholders for a pair of
+   * coordinates — so the only thing that can name the ends of the journey is
+   * what was picked in the form.
+   */
+  origin: JourneyEnd;
+  destination: JourneyEnd;
   onBack: () => void;
 }
 
@@ -48,8 +56,8 @@ interface Props {
  */
 export function ItineraryDetail({
   journey,
-  originLabel,
-  destinationLabel,
+  origin,
+  destination,
   onBack,
 }: Props) {
   const locale = useLocale();
@@ -57,10 +65,9 @@ export function ItineraryDetail({
 
   const totals = journeyTotals(journey);
   const rows = itineraryRows(journey, {
-    origin: originLabel,
-    destination: destinationLabel,
-    originFallback: t(strings.planner.startPoint),
-    destinationFallback: t(strings.planner.endPoint),
+    origin,
+    destination,
+    fallback: t(strings.planner.selectedLocation),
   });
 
   return (
@@ -89,8 +96,24 @@ export function ItineraryDetail({
       </button>
 
       <article className="rounded-card border-border bg-surface-raised shadow-card overflow-hidden border">
-        <header className="border-border flex flex-col gap-2 border-b px-4 py-3">
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        {/*
+          Two lines, and each one answers a different question.
+          
+          The top line is when: the two times, and the duration pinned to the
+          end where the overview cards keep theirs, so opening a result does
+          not move the number you chose it by. Everything else — the changes,
+          the arithmetic — is what the journey is *made of*, and it moved down
+          to sit with the totals it belongs with.
+
+          It stays at the top rather than moving below the diagram. This is
+          the panel someone opened to decide whether to take this journey, and
+          the answer to "is that too much walking" has to be readable without
+          scrolling past twelve stops to find it. What was wrong with it was
+          density, not position: four unrelated figures were sharing one
+          baseline with the times.
+        */}
+        <header className="border-border flex flex-col gap-2.5 border-b px-5 py-4">
+          <div className="flex items-baseline gap-x-3">
             <p className="text-xl font-semibold tabular-nums tracking-tight">
               {formatClockTime(journey.startTime, locale.locale)}
               <span
@@ -102,31 +125,37 @@ export function ItineraryDetail({
               {formatClockTime(journey.endTime, locale.locale)}
             </p>
 
-            <p className="bg-brand-50 text-brand-700 rounded-control px-2 py-0.5 text-sm font-semibold">
+            <p className="bg-brand-50 text-brand-700 rounded-control ms-auto flex-none px-2 py-0.5 text-sm font-semibold">
               {formatDuration(journey.totalDurationMinutes, locale)}
             </p>
-
-            <p className="text-content-muted text-sm">
-              {t(strings.planner.changes, { count: totals.transfers })}
-            </p>
-
-            {totals.crossesMidnight && (
-              <p className="text-accent-strong text-sm font-semibold">
-                {t(strings.planner.arrivesNextDay, {
-                  date: formatDate(journey.endDate, locale.locale),
-                })}
-              </p>
-            )}
           </div>
+
+          {totals.crossesMidnight && (
+            <p className="text-accent-strong text-sm font-semibold">
+              {t(strings.planner.arrivesNextDay, {
+                date: formatDate(journey.endDate, locale.locale),
+              })}
+            </p>
+          )}
 
           {/*
             The journey's arithmetic. None of it is in the API — a leg knows
             its own numbers and nothing knows the total — and it is the first
             thing anyone asks who is deciding whether their shoes are up to it.
+
+            Each figure carries the icon of the thing it counts, which is what
+            lets the row be read by scanning rather than word by word.
           */}
-          <ul className="text-content-muted flex flex-wrap gap-x-3 gap-y-1 text-xs">
+          <ul className="text-content-muted flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-sm">
+            <li className="flex items-center gap-1.5">
+              <ChangeIcon />
+              {t(strings.planner.changes, { count: totals.transfers })}
+            </li>
             {totals.walkMinutes > 0 && (
-              <li>
+              <li className="flex items-center gap-1.5">
+                <span className="flex-none">
+                  <WalkIcon size={17} />
+                </span>
                 {t(strings.planner.totalWalking, {
                   duration: formatDuration(totals.walkMinutes, locale),
                   distance: formatDistance(totals.walkMeters, locale),
@@ -134,26 +163,28 @@ export function ItineraryDetail({
               </li>
             )}
             {totals.waitMinutes > 0 && (
-              <li>
+              <li className="flex items-center gap-1.5">
+                <SeatedIcon size={17} />
                 {t(strings.planner.totalWaiting, {
                   duration: formatDuration(totals.waitMinutes, locale),
                 })}
               </li>
             )}
             {totals.transitMinutes > 0 && (
-              <li>
+              <li className="flex items-center gap-1.5">
+                <RideIcon />
                 {t(strings.planner.totalRiding, {
                   duration: formatDuration(totals.transitMinutes, locale),
                 })}
-              </li>
-            )}
-            {/* Null whenever the feed omits shape_dist_traveled — expected,
-                and the line is simply absent rather than showing a zero. */}
-            {totals.transitMeters !== null && totals.transitMeters > 0 && (
-              <li>
-                {t(strings.planner.ridingDistance, {
-                  distance: formatDistance(totals.transitMeters, locale),
-                })}
+                {/* Null whenever the feed omits shape_dist_traveled —
+                    expected, and the distance is simply absent rather than
+                    shown as a zero. */}
+                {totals.transitMeters !== null && totals.transitMeters > 0 && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    {formatDistance(totals.transitMeters, locale)}
+                  </>
+                )}
               </li>
             )}
           </ul>
@@ -165,19 +196,22 @@ export function ItineraryDetail({
           </p>
         )}
 
-        <ol className="flex flex-col px-4 py-3">
+        {/*
+          The legs sat almost touching, which read as one dense block rather
+          than as a sequence of separate things you do. The spacing lives on
+          the rows themselves rather than as a gap here, because the spine has
+          to run continuously through it — a gap between list items would cut
+          the line into pieces at exactly the points where the journey does not
+          stop.
+        */}
+        <ol className="flex flex-col px-5 py-4">
           {rows.map((row) =>
             row.type === 'node' ? (
               <NodeLine key={row.key} row={row} />
             ) : row.type === 'wait' ? (
               <WaitLine key={row.key} row={row} />
             ) : (
-              <SegmentLine
-                key={row.key}
-                row={row}
-                originLabel={originLabel}
-                destinationLabel={destinationLabel}
-              />
+              <SegmentLine key={row.key} row={row} />
             ),
           )}
         </ol>
@@ -200,17 +234,17 @@ export function ItineraryDetail({
  * other one instead of shifting by two pixels.
  */
 function SpineLine({ spine }: { spine: Spine | null }) {
-  if (spine === null) return <span className="w-0.5 flex-1" />;
+  if (spine === null) return <span className="w-1 flex-1" />;
   if (spine.kind === 'transit') {
     return (
       <span
-        className={`${visualForFamily(spine.family).ink} w-0.5 flex-1 bg-current`}
+        className={`${visualForFamily(spine.family).ink} w-1 flex-1 rounded-full bg-current`}
       />
     );
   }
   return (
     <span
-      className={`border-border-strong w-0 flex-1 border-s-2 ${
+      className={`border-border-strong w-0 flex-1 border-s-[3px] ${
         spine.kind === 'wait' ? 'border-dotted' : 'border-dashed'
       }`}
     />
@@ -237,39 +271,72 @@ function NodeLine({ row }: { row: NodeRow }) {
   const { strings, t } = locale;
   const ink = nodeInk(row);
 
-  const dot =
-    row.role === 'origin'
-      ? 'border-mode-tram bg-surface-raised h-3.5 w-3.5 border-[3px]'
-      : row.role === 'destination'
-        ? 'bg-brand-500 h-3.5 w-3.5'
-        : ink !== null
-          ? `${ink} border-current bg-surface-raised h-3 w-3 border-[3px]`
-          : 'border-border-strong bg-surface-raised h-2.5 w-2.5 border-2';
+  /*
+   * The two ends carry the same markers the form does — the ring you start
+   * from, the pin you are heading to. They were plain dots here, which meant
+   * the journey you composed at the top of the sidebar and the journey drawn
+   * below it used two different notations for the same two points.
+   */
+  const marker =
+    row.role === 'origin' ? (
+      <OriginMarker size={22} />
+    ) : row.role === 'destination' ? (
+      <DestinationMarker size={24} hole="fill-surface-raised" />
+    ) : (
+      <span
+        className={`${
+          ink !== null
+            ? `${ink} border-current`
+            : 'border-border-strong'
+        } bg-surface-raised block h-4 w-4 rounded-full border-[3px]`}
+      />
+    );
 
   return (
-    <li className="flex items-stretch gap-3">
-      <span aria-hidden="true" className="flex w-5 flex-none flex-col items-center">
+    <li className="flex items-stretch gap-3.5">
+      <span aria-hidden="true" className="flex w-7 flex-none flex-col items-center">
         <SpineLine spine={row.above} />
-        <span className={`${dot} my-0 flex-none rounded-full`} />
+        <span className="flex flex-none items-center justify-center">{marker}</span>
         <SpineLine spine={row.below} />
       </span>
 
-      <span className="flex min-w-0 flex-1 flex-col justify-center py-0.5">
-        <span dir="auto" className="text-sm font-semibold">
+      <span className="flex min-w-0 flex-1 flex-col justify-center py-1.5">
+        <span dir="auto" className="font-semibold">
           {row.name}
+          {/*
+            The ends are named for a screen reader rather than on the page:
+            the marker says which is which to anyone who can see it, and the
+            line below is where the place itself gets described. Printing
+            "Start" under a node already called "Start" said nothing twice.
+          */}
+          {row.role !== 'via' && (
+            <span className="sr-only">
+              {' '}
+              (
+              {row.role === 'origin'
+                ? t(strings.planner.startPoint)
+                : t(strings.planner.endPoint)}
+              )
+            </span>
+          )}
         </span>
-        {(row.role !== 'via' || row.code !== null) && (
-          <span className="text-content-muted text-xs">
-            {row.role === 'origin'
-              ? t(strings.planner.startPoint)
-              : row.role === 'destination'
-                ? t(strings.planner.endPoint)
-                : row.code}
+        {/*
+          A badge rather than a second line of grey text. A stop code is a
+          label printed on the pole and the context under a pin is a different
+          kind of thing from the name above it — quiet, but its own object,
+          not a continuation of the sentence.
+        */}
+        {row.detail !== null && (
+          <span
+            dir="auto"
+            className="bg-surface-muted text-content-muted rounded-control mt-1 self-start px-1.5 py-0.5 text-xs font-medium"
+          >
+            {row.detail}
           </span>
         )}
       </span>
 
-      <span className="w-16 flex-none self-center text-end text-sm font-semibold tabular-nums">
+      <span className="w-16 flex-none self-center text-end font-semibold tabular-nums">
         {formatClockTime(row.time, locale.locale)}
       </span>
     </li>
@@ -290,29 +357,13 @@ function WaitLine({ row }: { row: WaitRow }) {
   const { strings, t } = locale;
 
   return (
-    <li className="flex items-stretch gap-3">
-      <span aria-hidden="true" className="flex w-5 flex-none flex-col items-center">
+    <li className="flex items-stretch gap-3.5">
+      <span aria-hidden="true" className="flex w-7 flex-none flex-col items-center">
         <SpineLine spine={row.spine} />
       </span>
 
-      <span className="text-content-muted flex min-w-0 flex-1 items-center gap-2 py-2 text-sm">
-        <svg
-          viewBox="0 0 24 24"
-          width="18"
-          height="18"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.9"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-          className="flex-none"
-        >
-          {/* An hourglass: time passing while you are not moving. */}
-          <path d="M6.5 3h11M6.5 21h11" />
-          <path d="M8 3v3.2c0 1.4 1.2 2.4 2.6 3.4 1 .7 1 1.1 0 1.8C9.2 12.4 8 13.4 8 14.8V21" />
-          <path d="M16 3v3.2c0 1.4-1.2 2.4-2.6 3.4-1 .7-1 1.1 0 1.8 1.4 1 2.6 2 2.6 3.4V21" />
-        </svg>
+      <span className="text-content-muted flex min-w-0 flex-1 items-center gap-2.5 py-5 text-sm">
+        <SeatedIcon size={22} />
         <span dir="auto">
           {t(strings.planner.waitHere, {
             duration: formatDuration(row.minutes, locale),
@@ -327,33 +378,64 @@ function WaitLine({ row }: { row: WaitRow }) {
 }
 
 /* ------------------------------------------------------------------ *
+ * Icons the panel uses for itself
+ * ------------------------------------------------------------------ */
+
+const strokeProps = {
+  viewBox: '0 0 24 24',
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 1.9,
+  strokeLinecap: 'round',
+  strokeLinejoin: 'round',
+  'aria-hidden': true,
+  className: 'flex-none',
+} as const;
+
+/** A change of vehicle: two lines meeting and parting. */
+function ChangeIcon({ size = 17 }: { size?: number }) {
+  return (
+    <svg {...strokeProps} width={size} height={size}>
+      <path d="M4 7h9l-2.5-2.5M4 7h9l-2.5 2.5" />
+      <path d="M20 17h-9l2.5-2.5M20 17h-9l2.5 2.5" />
+    </svg>
+  );
+}
+
+/**
+ * Time on board, drawn as a route rather than as a vehicle.
+ *
+ * A journey can change mode halfway, so any one silhouette here would be
+ * wrong for half of what it is counting. A line between two points is true of
+ * all of them.
+ */
+function RideIcon({ size = 17 }: { size?: number }) {
+  return (
+    <svg {...strokeProps} width={size} height={size}>
+      <circle cx="5.5" cy="18.5" r="2.4" />
+      <circle cx="18.5" cy="5.5" r="2.4" />
+      <path d="M7.9 16.1c1.6-1.6 1.6-4.2 3.6-6.2s4.6-2 6.2-3.6" />
+    </svg>
+  );
+}
+
+/* ------------------------------------------------------------------ *
  * The legs
  * ------------------------------------------------------------------ */
 
-function SegmentLine({
-  row,
-  originLabel,
-  destinationLabel,
-}: {
-  row: SegmentRow;
-  originLabel: string | null;
-  destinationLabel: string | null;
-}) {
+function SegmentLine({ row }: { row: SegmentRow }) {
   return (
-    <li className="flex items-stretch gap-3">
-      <span aria-hidden="true" className="flex w-5 flex-none flex-col items-center">
+    <li className="flex items-stretch gap-3.5">
+      <span aria-hidden="true" className="flex w-7 flex-none flex-col items-center">
         <SpineLine spine={row.spine} />
       </span>
 
-      <div className="flex min-w-0 flex-1 flex-col gap-1 py-2">
+      {/* Roomier than the nodes either side of it: a leg is something you
+          spend time doing, and it should not read as tightly packed as the
+          instants that bracket it. */}
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5 py-5">
         {row.leg.mode === 'WALK' ? (
-          <WalkBody
-            leg={row.leg}
-            isFirst={row.isFirst}
-            isLast={row.isLast}
-            originLabel={originLabel}
-            destinationLabel={destinationLabel}
-          />
+          <WalkBody leg={row.leg} />
         ) : (
           <TransitBody leg={row.leg} />
         )}
@@ -365,50 +447,27 @@ function SegmentLine({
 }
 
 /**
- * A leg on foot.
+ * A leg on foot, which says only that.
  *
- * The first and last legs name where they start and end in the traveller's own
- * words. Without that the opening instruction was "Walk to Kyläsaarenkatu" —
- * true, but silent about the fact that it starts at the pin they dropped, which
- * is the one thing they might want confirmed.
+ * It used to phrase itself around its two ends — "Walk from Selected location",
+ * "Walk to Kyläsaarenkatu" — and every one of those places is already drawn as
+ * a node immediately above or below the instruction, named and timed. The
+ * sentence was restating its own neighbours, in worse words, and it grew
+ * longest exactly where the pin had no name to use.
  */
-function WalkBody({
-  leg,
-  isFirst,
-  isLast,
-  originLabel,
-  destinationLabel,
-}: {
-  leg: WalkLeg;
-  isFirst: boolean;
-  isLast: boolean;
-  originLabel: string | null;
-  destinationLabel: string | null;
-}) {
+function WalkBody({ leg }: { leg: WalkLeg }) {
   const locale = useLocale();
   const { strings, t } = locale;
 
-  const from = originLabel ?? t(strings.planner.startPoint);
-  const to = destinationLabel ?? t(strings.planner.endPoint);
-
-  const text =
-    isFirst && isLast
-      ? t(strings.planner.walkWholeWay, { from, to })
-      : isFirst
-        ? t(strings.planner.walkFromOrigin, { place: from })
-        : isLast
-          ? t(strings.planner.walkToDestination, { place: to })
-          : t(strings.planner.walkLeg, { place: leg.toStop.name });
-
   return (
     <>
-      <p className="flex items-center gap-2 text-sm font-medium" dir="auto">
+      <p className="flex items-center gap-2.5 font-medium">
         <span className="text-content-muted flex-none">
-          <WalkIcon size={20} />
+          <WalkIcon size={24} />
         </span>
-        {text}
+        {t(strings.planner.walk)}
       </p>
-      <p className="text-content-muted ps-7 text-sm">
+      <p className="text-content-muted ps-8.5 text-sm">
         {formatDuration(leg.walkDurationMinutes, locale)}
         <span aria-hidden="true"> · </span>
         {formatDistance(leg.walkDistanceMeters, locale)}
@@ -429,19 +488,19 @@ function TransitBody({ leg }: { leg: TransitLeg }) {
       <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
         {/* The route bullet: transit's own way of naming a line. */}
         <span
-          className={`${visual.fill} text-on-mode rounded-control inline-flex items-center gap-1.5 px-2 py-1 text-sm font-bold tabular-nums`}
+          className={`${visual.fill} text-on-mode rounded-control inline-flex items-center gap-1.5 px-2.5 py-1 font-bold tabular-nums`}
         >
-          <ModeIcon routeType={leg.routeType} size={18} />
+          <ModeIcon routeType={leg.routeType} size={22} />
           {leg.routeShortName}
         </span>
 
         {/* Named as well as coloured, always. */}
-        <span className="text-content-muted text-xs">
+        <span className="text-content-muted text-sm">
           {modeLabel(leg.routeType, strings)}
         </span>
 
         {leg.destination !== null && (
-          <span dir="auto" className="text-sm font-medium">
+          <span dir="auto" className="font-medium">
             {t(strings.planner.towards, { destination: leg.destination })}
           </span>
         )}
@@ -477,7 +536,7 @@ function TransitBody({ leg }: { leg: TransitLeg }) {
                 <li key={stop.stopId} className="flex items-center gap-2">
                   <span
                     aria-hidden="true"
-                    className={`${visual.ink} h-1.5 w-1.5 flex-none rounded-full bg-current opacity-60`}
+                    className={`${visual.ink} h-2 w-2 flex-none rounded-full bg-current opacity-60`}
                   />
                   <span dir="auto" className="flex-1 truncate">
                     {stop.stopName}

@@ -5,21 +5,13 @@ import {
   WALKING_PACE_ORDER,
   type WalkingPace,
 } from '../../config/journey';
-import type { Place } from '../../types/place';
 import type { GeoBounds } from '../../config/geocoding';
+import { isReady, searchSignature, type JourneyFormValues } from './journeySearch';
 import { PlaceInput } from './PlaceInput';
 import { UseMyLocationButton } from './UseMyLocationButton';
 import { DateSelect } from './DateSelect';
 import { TimeSelect } from './TimeSelect';
 import { WalkIcon } from './modeIcons';
-
-export interface JourneyFormValues {
-  origin: Place | null;
-  destination: Place | null;
-  date: string;
-  time: string;
-  pace: WalkingPace;
-}
 
 interface Props {
   values: JourneyFormValues;
@@ -39,29 +31,6 @@ interface Props {
   bounds: GeoBounds | null;
   /** Turned off while the routing service is unreachable. */
   disabled?: boolean | undefined;
-}
-
-/** Complete enough to ask the engine about. */
-function isReady(values: JourneyFormValues): boolean {
-  return (
-    values.origin !== null &&
-    values.destination !== null &&
-    values.date !== '' &&
-    values.time !== ''
-  );
-}
-
-/** What a search actually depends on, as a comparable string. */
-function signature(values: JourneyFormValues): string {
-  return [
-    values.origin?.lat,
-    values.origin?.lon,
-    values.destination?.lat,
-    values.destination?.lon,
-    values.date,
-    values.time,
-    values.pace,
-  ].join('|');
 }
 
 /**
@@ -91,7 +60,7 @@ export function JourneyForm({
 
   useEffect(() => {
     if (!isReady(values)) return;
-    const current = signature(values);
+    const current = searchSignature(values);
     if (current === lastSearched.current) return;
     lastSearched.current = current;
     onSearch();
@@ -220,7 +189,7 @@ export function JourneyForm({
           type="button"
           onClick={onLeaveNow}
           disabled={off}
-          className="rounded-control border-border-strong text-content hover:border-brand-500 hover:text-brand-500 focus-visible:outline-brand-500 inline-flex cursor-pointer items-center gap-1.5 self-start border px-3 py-1.5 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-control border-border-strong bg-surface-muted text-content hover:border-brand-500 hover:text-brand-500 focus-visible:outline-brand-500 inline-flex cursor-pointer items-center gap-1.5 self-start border px-3 py-1.5 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <svg
             viewBox="0 0 24 24"
@@ -240,45 +209,81 @@ export function JourneyForm({
         </button>
       )}
 
-      <fieldset disabled={off} className="flex flex-col gap-1.5 disabled:opacity-60">
-        <legend className="text-content-muted mb-1.5 text-xs font-medium tracking-wide uppercase">
+      <fieldset disabled={off} className="flex flex-col disabled:opacity-60">
+        <legend className="text-content-muted mb-2 flex items-center gap-1.5 text-xs font-medium tracking-wide uppercase">
+          <WalkIcon size={15} />
           {t(strings.planner.walkingSpeed)}
         </legend>
         {/*
-          Four named paces as separate cards rather than one welded segmented
-          control. Same radios and the same keyboard behaviour — arrow keys
-          move, a screen reader says "2 of 4" — but each pace is its own
-          object, which is what a choice between four things looks like. The
-          segmented form read as a range slider that had been quantised, and
-          invited being dragged.
+          Radios that look like radios.
+
+          They were cards before — four filled tiles, each carrying its own
+          icon — which gave a secondary preference the visual weight of the
+          origin and destination fields, and made the selected one look like a
+          button that had been pressed rather than an option that had been
+          chosen. A ring and a dot is the control every visitor already knows,
+          and it leaves the pace names as the thing being read.
+
+          The dot follows React's own state rather than a `peer-checked:`
+          rule, because the state is right here; `peer-focus-visible` still
+          comes off the input, which is the one thing CSS has to answer for.
         */}
-        <div className="grid grid-cols-4 gap-1.5">
-          {WALKING_PACE_ORDER.map((pace) => (
-            <label key={pace} className="cursor-pointer">
-              <input
-                type="radio"
-                name="pace"
-                value={pace}
-                checked={values.pace === pace}
-                onChange={() => set('pace', pace)}
-                className="peer sr-only"
-              />
-              {/* Name over speed, so a longer word never reflows the row. */}
-              <span className="rounded-control border-border-strong peer-checked:bg-brand-fill peer-checked:text-on-brand peer-checked:border-brand-fill peer-focus-visible:outline-brand-500 hover:bg-surface-muted peer-checked:hover:bg-brand-fill flex flex-col items-center gap-0.5 border px-1 py-2 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2">
-                <WalkIcon size={16} />
-                <span className="text-xs font-semibold">{paceLabels[pace]}</span>
-                <span className="text-[0.65rem] opacity-75 tabular-nums">
-                  {t(strings.planner.kmh, {
-                    value: formatNumber(
-                      Math.round(WALKING_PACES[pace] * 3.6 * 10) / 10,
-                      locale.locale,
-                      { maximumFractionDigits: 1 },
-                    ),
-                  })}
+        <div className="-mx-2 grid grid-cols-2 gap-x-2 gap-y-1 sm:grid-cols-4">
+          {WALKING_PACE_ORDER.map((pace) => {
+            const chosen = values.pace === pace;
+            return (
+              <label
+                key={pace}
+                /*
+                  The whole row lights up, not just the dot. Four dots at
+                  arm's length are hard to tell apart at a glance, and the
+                  selection is worth seeing without looking for it.
+                */
+                className={`group rounded-control flex cursor-pointer items-center gap-2 px-2 py-1.5 ${
+                  chosen ? 'bg-brand-50' : 'hover:bg-surface-muted'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="pace"
+                  value={pace}
+                  checked={chosen}
+                  onChange={() => set('pace', pace)}
+                  className="peer sr-only"
+                />
+                <span
+                  aria-hidden="true"
+                  className={`peer-focus-visible:outline-brand-500 flex h-4.5 w-4.5 flex-none items-center justify-center rounded-full border-2 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 ${
+                    chosen
+                      ? 'border-brand-500'
+                      : 'border-border-strong group-hover:border-brand-500'
+                  }`}
+                >
+                  {chosen && <span className="bg-brand-500 h-2 w-2 rounded-full" />}
                 </span>
-              </span>
-            </label>
-          ))}
+
+                {/* Name over speed, so a longer word never reflows the row. */}
+                <span className="min-w-0">
+                  <span
+                    className={`block text-sm leading-tight ${
+                      chosen ? 'text-brand-700 font-semibold' : 'font-medium'
+                    }`}
+                  >
+                    {paceLabels[pace]}
+                  </span>
+                  <span className="text-content-muted block text-xs leading-tight tabular-nums">
+                    {t(strings.planner.kmh, {
+                      value: formatNumber(
+                        Math.round(WALKING_PACES[pace] * 3.6 * 10) / 10,
+                        locale.locale,
+                        { maximumFractionDigits: 1 },
+                      ),
+                    })}
+                  </span>
+                </span>
+              </label>
+            );
+          })}
         </div>
       </fieldset>
     </form>

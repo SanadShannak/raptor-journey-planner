@@ -1,7 +1,8 @@
 import { useRef } from 'react';
-import { Outlet } from 'react-router';
+import { Outlet, useLocation } from 'react-router';
 import { useLocale } from '../i18n';
 import { AppHeader } from './AppHeader';
+import { paths } from './routes';
 import { useRouteFocus } from './useRouteFocus';
 
 /**
@@ -14,8 +15,18 @@ import { useRouteFocus } from './useRouteFocus';
 export function RootLayout() {
   const { strings, t } = useLocale();
   const mainRef = useRef<HTMLElement>(null);
+  const { pathname } = useLocation();
 
   useRouteFocus(mainRef);
+
+  /*
+   * The planner is a sidebar and a map, sized to the viewport so the map never
+   * leaves the screen. A footer under that either steals height from the map
+   * or hangs below the fold as a strip you have to scroll a full-height layout
+   * to reach — and on a page whose own content scrolls inside its panes, a
+   * page-level footer is a thing you find by accident.
+   */
+  const showFooter = pathname !== paths.plan;
 
   return (
     <div className="min-h-viewport flex flex-col">
@@ -42,11 +53,13 @@ export function RootLayout() {
         <Outlet />
       </main>
 
-      <footer className="border-border text-content-muted border-t">
-        <div className="mx-auto max-w-6xl px-4 py-6 text-sm">
-          {t(strings.pages.home.title)}
-        </div>
-      </footer>
+      {showFooter && (
+        <footer className="border-border text-content-muted border-t">
+          <div className="mx-auto max-w-6xl px-4 py-6 text-sm">
+            {t(strings.pages.home.title)}
+          </div>
+        </footer>
+      )}
     </div>
   );
 }

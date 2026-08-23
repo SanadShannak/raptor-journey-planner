@@ -7,7 +7,7 @@ import {
   useLocale,
 } from '../../i18n';
 import type { Journey } from '../../types/journey';
-import { ModeIcon, WalkIcon } from './modeIcons';
+import { ModeIcon, SeatedIcon, WalkIcon } from './modeIcons';
 import { modeVisual } from './modeVisuals';
 import { journeyTotals } from './journeyTotals';
 
@@ -15,6 +15,16 @@ interface Props {
   journey: Journey;
   onOpen: () => void;
 }
+
+/**
+ * The shortest wait the strip bothers to draw.
+ *
+ * Every change has some wait in it, and a minute or two of it is just what
+ * catching a connection looks like — drawing those would put a chip between
+ * every pair of vehicles and turn the strip into a wall. What earns a place is
+ * the wait long enough to change which itinerary you pick.
+ */
+const WAIT_WORTH_SHOWING_MINUTES = 4;
 
 /**
  * One itinerary at a glance.
@@ -63,7 +73,7 @@ export function ItineraryOverview({ journey, onOpen }: Props) {
           {t(strings.planner.viewDetails)}
         </span>
 
-        <span aria-hidden="true" className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <span aria-hidden="true" className="flex items-baseline gap-x-3 gap-y-1">
           <span className="text-lg font-semibold tabular-nums tracking-tight">
             {formatClockTime(journey.startTime, locale.locale)}
             <span className="text-content-muted mx-1.5 inline-block rtl:-scale-x-100">
@@ -72,8 +82,14 @@ export function ItineraryOverview({ journey, onOpen }: Props) {
             {formatClockTime(journey.endTime, locale.locale)}
           </span>
 
-          {/* The number itineraries are actually compared by. */}
-          <span className="bg-brand-50 text-brand-700 rounded-control px-2 py-0.5 text-sm font-semibold">
+          {/*
+            The number itineraries are actually compared by, pushed to the far
+            end of the card. Five results then carry their durations down one
+            edge, where the eye can run through them in a column instead of
+            hunting for each one at whatever offset the times before it
+            happened to end at.
+          */}
+          <span className="bg-brand-50 text-brand-700 rounded-control ms-auto flex-none px-2 py-0.5 text-sm font-semibold">
             {formatDuration(journey.totalDurationMinutes, locale)}
           </span>
         </span>
@@ -82,22 +98,53 @@ export function ItineraryOverview({ journey, onOpen }: Props) {
           The journey's shape, in the order it happens. Aria-hidden because the
           detail panel says all of it in words; here it is a picture to scan.
         */}
-        <span aria-hidden="true" className="flex flex-wrap items-center gap-1">
+        {/*
+          Drawn at the size of the thing it is: this strip *is* the itinerary
+          at a glance — which vehicles, in what order, with how much walking
+          bracketing them — and it was set two steps smaller than the times
+          above it, as though it were a footnote to them. It is the row people
+          actually choose by.
+        */}
+        <span aria-hidden="true" className="flex flex-wrap items-center gap-1.5">
           {journey.legs.map((leg, index) => (
-            <span key={`${leg.startTime}-${index}`} className="flex items-center gap-1">
+            <span key={`${leg.startTime}-${index}`} className="flex items-center gap-1.5">
               {index > 0 && (
-                <span className="text-content-muted text-xs rtl:-scale-x-100">›</span>
+                <span className="text-content-muted text-sm rtl:-scale-x-100">›</span>
               )}
+
+              {/*
+                A long wait is part of the shape of a journey, and leaving it
+                out made two itineraries with the same vehicles look identical
+                when one of them stands on a platform for a quarter of an hour.
+                It is drawn where it happens — the API attributes a wait to the
+                leg it precedes.
+              */}
+              {index > 0 && leg.waitDurationMinutes >= WAIT_WORTH_SHOWING_MINUTES && (
+                <>
+                  <span className="bg-surface-muted text-content-muted rounded-control flex items-center gap-1 px-2 py-1 text-sm font-medium tabular-nums">
+                    <SeatedIcon size={17} />
+                    {leg.waitDurationMinutes}
+                  </span>
+                  <span className="text-content-muted text-sm rtl:-scale-x-100">›</span>
+                </>
+              )}
+
+              {/*
+                Walking and waiting are filled too, in a neutral tone. Left
+                bare they read as gaps between the coloured chips rather than
+                as legs of the same journey — but they are not vehicles, so
+                the fill is a surface rather than a colour with a meaning.
+              */}
               {leg.mode === 'WALK' ? (
-                <span className="text-content-muted flex items-center gap-0.5 text-xs font-medium tabular-nums">
-                  <WalkIcon size={16} />
+                <span className="bg-surface-muted text-content-muted rounded-control flex items-center gap-1 px-2 py-1 text-sm font-medium tabular-nums">
+                  <WalkIcon size={17} />
                   {leg.walkDurationMinutes}
                 </span>
               ) : (
                 <span
-                  className={`${modeVisual(leg.routeType).fill} text-on-mode rounded-control flex items-center gap-1 px-1.5 py-0.5 text-xs font-bold tabular-nums`}
+                  className={`${modeVisual(leg.routeType).fill} text-on-mode rounded-control flex items-center gap-1.5 px-2 py-1 text-sm font-bold tabular-nums`}
                 >
-                  <ModeIcon routeType={leg.routeType} size={14} />
+                  <ModeIcon routeType={leg.routeType} size={17} />
                   {leg.routeShortName}
                 </span>
               )}

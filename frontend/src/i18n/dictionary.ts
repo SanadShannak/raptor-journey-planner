@@ -149,6 +149,8 @@ export interface Dictionary {
     submit: string;
     kmh: string;
     searching: string;
+    /** Second line of the loader, while the engine is being asked. */
+    searchingHint: string;
     suggestionsAvailable: PluralForms;
     searchUnavailable: string;
     isStop: string;
@@ -166,12 +168,14 @@ export interface Dictionary {
     changes: PluralForms;
     later: string;
     noLater: string;
-    walkLeg: string;
-    walkToDestination: string;
-    /** The first leg, which starts at the visitor's own chosen point. */
-    walkFromOrigin: string;
-    /** A journey with no transit at all: their point to their point, on foot. */
-    walkWholeWay: string;
+    /**
+     * A leg on foot, named and nothing more.
+     *
+     * It used to phrase itself around its two ends — "Walk from Start", "Walk
+     * to Destination" — which restated the nodes drawn immediately above and
+     * below it in the strip map, in worse words than they use.
+     */
+    walk: string;
     transitLeg: string;
     towards: string;
     wait: string;
@@ -192,14 +196,25 @@ export interface Dictionary {
     backToResults: string;
     /** Heading of the detail panel. */
     journeyDetails: string;
-    /** Names the origin and destination nodes of the strip map. */
+    /**
+     * Names the origin and destination nodes of the strip map, for a screen
+     * reader. Not shown: the two ends are drawn with the same markers the form
+     * uses, and the line beneath a node is where the place itself is described.
+     */
     startPoint: string;
     endPoint: string;
-    /** Totals shown with an itinerary. */
+    /** A dropped pin nobody named — a coordinate, and nothing to call it. */
+    selectedLocation: string;
+    /**
+     * Totals shown with an itinerary.
+     *
+     * Verbs rather than gerunds — "Walk 11 min", not "Walking 11 min". They sit
+     * in a row of short labelled figures, where the shorter word reads as the
+     * heading it is.
+     */
     totalWalking: string;
     totalWaiting: string;
     totalRiding: string;
-    ridingDistance: string;
     /** One overview card's summary line, read by a screen reader. */
     journeySummary: string;
 
