@@ -60,6 +60,14 @@ export interface MapSegment {
    * the wrong stretch of line.
    */
   midpoint: Point | null;
+  /**
+   * The first and last point of the drawn line.
+   *
+   * Enough to ask how much room the leg takes on screen, which is not a
+   * question this file can answer — it depends on the zoom. A badge on a leg
+   * shorter than the badge itself hides the very thing it labels.
+   */
+  ends: [Point, Point] | null;
 }
 
 /**
@@ -160,6 +168,14 @@ function midpointOf(path: Point[]): Point | null {
   return path[path.length - 1] ?? first;
 }
 
+/** The two ends of a path, or null when it has none to speak of. */
+function endsOf(path: Point[]): [Point, Point] | null {
+  const first = path[0];
+  const last = path[path.length - 1];
+  if (first === undefined || last === undefined) return null;
+  return [first, last];
+}
+
 /** Folds every drawn point into one box. */
 function boxOf(points: Point[]): BoundingBox | null {
   if (points.length === 0) return null;
@@ -203,6 +219,7 @@ export function journeyGeometry(journey: Journey): JourneyGeometry {
         family,
         path,
         midpoint: midpointOf(path),
+        ends: endsOf(path),
       });
       drawn.push(...path);
     }

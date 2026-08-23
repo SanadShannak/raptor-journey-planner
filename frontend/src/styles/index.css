@@ -467,6 +467,26 @@
     text-align: start;
   }
 
+  /*
+   * A popup is painted white with dark text, which is a reasonable default and
+   * wrong in half of this app's schemes. The tip is the little arrow beneath
+   * it, and it has to match or the popup looks like it is peeling.
+   */
+  .leaflet-popup-content-wrapper,
+  .leaflet-popup-tip {
+    background: var(--color-surface-raised);
+    color: var(--color-content);
+  }
+
+  .leaflet-popup-close-button {
+    color: var(--color-content-muted);
+  }
+
+  .leaflet-popup-close-button:focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: -2px;
+  }
+
   .leaflet-bar a,
   .leaflet-bar a:hover {
     background-color: var(--color-surface-raised);

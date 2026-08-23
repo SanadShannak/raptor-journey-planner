@@ -16,8 +16,14 @@ interface Props {
 /** Minute granularity offered in the picker; typing is not restricted to it. */
 const MINUTE_STEP = 5;
 
-/** `12, 1, 2 … 11` — how a twelve-hour clock is actually read round the dial. */
-const HOURS_12 = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+/**
+ * `1 … 12`, in the order a list is read rather than the order a dial is.
+ *
+ * Starting at 12 is how the hand goes round, and how the hours actually
+ * succeed one another — but this is a column you scan, not a face you read, and
+ * in a column a 12 above the 1 looks like a sorting mistake.
+ */
+const HOURS_12 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
 const MINUTES = Array.from(
   { length: 60 / MINUTE_STEP },

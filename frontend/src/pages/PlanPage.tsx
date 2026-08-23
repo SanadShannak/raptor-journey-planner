@@ -18,6 +18,33 @@ import { ItineraryOverview } from '../features/journey/ItineraryOverview';
 import { ItineraryDetail } from '../features/journey/ItineraryDetail';
 import { JourneyMap } from '../map/JourneyMap';
 
+/**
+ * Whether two results are the same journey.
+ *
+ * There is no id on an itinerary, so it is identified by when it runs. Two
+ * searches overlapping in time return the same departures, and appending them
+ * blind would list a journey twice.
+ */
+function sameJourney(a: Journey, b: Journey): boolean {
+  return (
+    a.startDate === b.startDate &&
+    a.startTime === b.startTime &&
+    a.endTime === b.endTime
+  );
+}
+
+/** Existing results plus new ones, without duplicates and in departure order. */
+function mergeJourneys(current: Journey[], added: Journey[]): Journey[] {
+  return [...current, ...added]
+    .filter(
+      (journey, index, all) =>
+        all.findIndex((other) => sameJourney(other, journey)) === index,
+    )
+    .sort((a, b) =>
+      `${a.startDate}${a.startTime}`.localeCompare(`${b.startDate}${b.startTime}`),
+    );
+}
+
 /** Whether the routing service is answering at all. */
 type Service = 'checking' | 'up' | 'down';
 
@@ -242,23 +269,25 @@ export default function PlanPage() {
          * Appended, not replaced — the itinerary someone is reading stays put
          * while more arrive around it.
          */
-        setJourneys((current) =>
-          [...current, ...result]
-            .filter(
-              (journey, index, all) =>
-                all.findIndex(
-                  (other) =>
-                    other.startDate === journey.startDate &&
-                    other.startTime === journey.startTime &&
-                    other.endTime === journey.endTime,
-                ) === index,
-            )
-            .sort((a, b) =>
-              `${a.startDate}${a.startTime}`.localeCompare(
-                `${b.startDate}${b.startTime}`,
-              ),
-            ),
+        /*
+         * `journeys` as it was when this search was started, which is what the
+         * new results have to be merged into. A second "Later" cannot overtake
+         * the first: the request id below drops whichever answer is stale.
+         */
+        const before = journeys;
+        const merged = mergeJourneys(before, result);
+        setJourneys(merged);
+
+        /*
+         * The first of the new ones becomes the chosen one. Pressing "Later"
+         * is a question about what comes after, so the answer is what should
+         * be on the map — and leaving the border on the card above it said the
+         * map and the list disagreed about which journey was being looked at.
+         */
+        const firstNew = merged.findIndex(
+          (journey) => !before.some((earlier) => sameJourney(earlier, journey)),
         );
+        if (firstNew >= 0) setSelectedIndex(firstNew);
       }
       setState('idle');
       setErrorMessage(null);
@@ -610,7 +639,18 @@ export default function PlanPage() {
         aria-label={t(strings.planner.mapLabel)}
         className="bg-surface-muted relative order-first h-56 flex-1 lg:order-none lg:h-auto"
       >
-        <JourneyMap journey={shown} network={network} area={bounds} />
+        <JourneyMap
+          journey={shown}
+          network={network}
+          area={bounds}
+          /*
+            Straight into the form, through the same path a typed place takes —
+            so it clears the results, runs the same guard, and the field shows
+            what was chosen. Pressing the map is another way to fill the form
+            in, not a second way to plan a journey.
+          */
+          onPick={(place, end) => updateValues({ ...values, [end]: place })}
+        />
       </section>
     </div>
   );

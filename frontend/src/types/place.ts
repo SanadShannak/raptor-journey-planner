@@ -100,4 +100,22 @@ export interface Geocoder {
   /** Attribution the adapter's terms require to be displayed. */
   readonly attribution: string;
   search(query: string, options?: PlaceSearchOptions): Promise<Place[]>;
+  /**
+   * What is at a point on the ground, for a place chosen by pressing the map
+   * rather than by typing.
+   *
+   * Optional, because not every geocoder offers it and a network whose one
+   * does not must still work: a coordinate is a perfectly good origin without
+   * a name, and the interface says so instead of pretending otherwise. Resolves
+   * to null when the service has nothing to call the place.
+   *
+   * Sending a point here is the one time coordinates leave this app, and it
+   * happens because somebody pressed that spot — never as a side effect of
+   * where they happen to be.
+   */
+  reverse?(
+    latitude: number,
+    longitude: number,
+    options?: PlaceSearchOptions,
+  ): Promise<Place | null>;
 }

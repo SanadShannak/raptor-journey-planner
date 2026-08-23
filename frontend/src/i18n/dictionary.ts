@@ -235,6 +235,11 @@ export interface Dictionary {
     endPoint: string;
     /** A dropped pin nobody named — a coordinate, and nothing to call it. */
     selectedLocation: string;
+    /** What pressing a point on the map offers to do with it. */
+    setAsOrigin: string;
+    setAsDestination: string;
+    /** While the geocoder is being asked what is at that point. */
+    namingPlace: string;
     /**
      * Totals shown with an itinerary.
      *

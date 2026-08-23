@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { render } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { LocaleProvider } from '../i18n';
 import { ThemeProvider } from '../theme';
 import { JourneyMap } from './JourneyMap';
@@ -104,7 +104,7 @@ function show(journey: Journey | null) {
   return render(
     <LocaleProvider>
       <ThemeProvider>
-        <JourneyMap journey={journey} network="hsl" area={null} />
+        <JourneyMap journey={journey} network="hsl" area={null} onPick={() => {}} />
       </ThemeProvider>
     </LocaleProvider>,
   );
@@ -211,6 +211,7 @@ describe('JourneyMap', () => {
             journey={{ ...journeyOf([ride(a, b, 0)]), startTime: '19:00' }}
             network="hsl"
             area={null}
+            onPick={() => {}}
           />
         </ThemeProvider>
       </LocaleProvider>,
@@ -263,5 +264,40 @@ describe('JourneyMap', () => {
     // written with, and `textContent` collects it. Sorted because the order
     // they are placed in is the decluttering's business, not this test's.
     expect(badges.map((b) => b.textContent?.trim()).sort()).toEqual(['5 min', '55']);
+  });
+});
+
+/*
+ * Pressing the map is another way to fill the form in. What is worth pinning
+ * is the fallback: a geocoder that cannot name the spot — or has nothing to
+ * say about it — must still hand back a usable end of a journey, because a
+ * coordinate is one whether or not anybody can name it.
+ */
+describe('choosing a point on the map', () => {
+  it('offers the pressed point as either end', async () => {
+    const picks: Array<[string, string]> = [];
+    render(
+      <LocaleProvider>
+        <ThemeProvider>
+          <JourneyMap
+            journey={null}
+            network="hsl"
+            area={null}
+            onPick={(place, end) => picks.push([place.label, end])}
+          />
+        </ThemeProvider>
+      </LocaleProvider>,
+    );
+
+    const map = document.querySelector('.leaflet-container');
+    expect(map).toBeTruthy();
+    fireEvent.click(map as Element, { clientX: 10, clientY: 10 });
+
+    const start = await screen.findByRole('button', { name: 'Start here' });
+    expect(screen.getByRole('button', { name: 'End here' })).toBeTruthy();
+
+    fireEvent.click(start);
+    // Photon answers nothing in a test, so the point keeps the honest name.
+    expect(picks).toEqual([['Selected location', 'origin']]);
   });
 });

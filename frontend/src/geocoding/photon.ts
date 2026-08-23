@@ -24,6 +24,7 @@ import type {
  */
 
 const ENDPOINT = 'https://photon.komoot.io/api/';
+const REVERSE_ENDPOINT = 'https://photon.komoot.io/reverse';
 
 /**
  * OpenStreetMap values that mean "public transport stop".
@@ -137,6 +138,38 @@ export function createPhotonGeocoder(): Geocoder {
       return features
         .map((feature, index) => toPlace(feature as PhotonFeature, index))
         .filter((place): place is Place => place !== null);
+    },
+
+    async reverse(latitude, longitude, options: PlaceSearchOptions = {}) {
+      const url = new URL(REVERSE_ENDPOINT);
+      url.searchParams.set('lat', String(latitude));
+      url.searchParams.set('lon', String(longitude));
+      url.searchParams.set('limit', '1');
+      if (options.language) url.searchParams.set('lang', options.language);
+
+      const response = await fetch(url, {
+        signal: options.signal ?? null,
+        headers: { Accept: 'application/json' },
+      });
+      if (!response.ok) {
+        throw new Error(`Photon responded with ${response.status}.`);
+      }
+
+      const body: unknown = await response.json();
+      const features = (body as { features?: unknown })?.features;
+      if (!Array.isArray(features)) return null;
+
+      const nearest = features[0];
+      if (nearest === undefined) return null;
+
+      /*
+       * The place the service names, at the coordinates that were *pressed*.
+       * Its own coordinates are the centre of whatever it matched — a whole
+       * park, sometimes — and moving the pin there would answer a question
+       * nobody asked.
+       */
+      const named = toPlace(nearest as PhotonFeature, 0);
+      return named === null ? null : { ...named, lat: latitude, lon: longitude };
     },
   };
 }

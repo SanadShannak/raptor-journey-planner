@@ -46,6 +46,7 @@ import type {
  */
 const AUTOCOMPLETE_ENDPOINT = 'https://api.digitransit.fi/geocoding/v1/autocomplete';
 const SEARCH_ENDPOINT = 'https://api.digitransit.fi/geocoding/v1/search';
+const REVERSE_ENDPOINT = 'https://api.digitransit.fi/geocoding/v1/reverse';
 
 /** Pelias layers that mean "somewhere a vehicle calls". */
 const STOP_LAYERS = new Set(['stop', 'station']);
@@ -260,6 +261,40 @@ export function createDigitransitGeocoder(subscriptionKey: string): Geocoder {
        */
       if (suggestions.length > 0) return suggestions;
       return ask(SEARCH_ENDPOINT);
+    },
+
+    async reverse(latitude, longitude, options: PlaceSearchOptions = {}) {
+      const url = new URL(REVERSE_ENDPOINT);
+      url.searchParams.set('point.lat', String(latitude));
+      url.searchParams.set('point.lon', String(longitude));
+      url.searchParams.set('size', '1');
+      if (options.language) url.searchParams.set('lang', options.language);
+
+      const response = await fetch(url, {
+        signal: options.signal ?? null,
+        headers: {
+          Accept: 'application/json',
+          'digitransit-subscription-key': subscriptionKey,
+        },
+      });
+      if (!response.ok) {
+        throw new Error(`Digitransit responded with ${response.status}.`);
+      }
+
+      const body: unknown = await response.json();
+      const features = (body as { features?: unknown })?.features;
+      if (!Array.isArray(features)) return null;
+
+      const nearest = features[0];
+      if (nearest === undefined) return null;
+
+      /*
+       * Named by the service, positioned where the press was. What it matched
+       * may be a whole street or a station's centroid, and moving the pin
+       * there would answer a question nobody asked.
+       */
+      const named = toPlace(nearest as DigitransitFeature, 0);
+      return named === null ? null : { ...named, lat: latitude, lon: longitude };
     },
   };
 }

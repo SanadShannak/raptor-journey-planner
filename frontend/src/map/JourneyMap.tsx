@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import {
   AttributionControl,
@@ -6,6 +6,7 @@ import {
   MapContainer,
   Marker,
   Polyline,
+  Popup,
   TileLayer,
   ZoomControl,
   useMap,
@@ -15,6 +16,8 @@ import { formatDuration, useLocale } from '../i18n';
 import { useTheme } from '../theme';
 import type { GeoBounds } from '../config/geocoding';
 import type { Journey } from '../types/journey';
+import type { Place } from '../types/place';
+import { geocoder } from '../geocoding';
 import { visualForFamily } from '../features/journey/modeVisuals';
 import {
   ICON_SVG_ATTRIBUTES,
@@ -64,6 +67,137 @@ interface Props {
   network: string | null;
   /** The network's area, for when there is no journey to show. */
   area: GeoBounds | null;
+  /** Takes a point pressed on the map as one end of the search. */
+  onPick: (place: Place, end: 'origin' | 'destination') => void;
+}
+
+/** A point somebody pressed, and what the geocoder makes of it. */
+interface Pick {
+  lat: number;
+  lon: number;
+  /** Null while the lookup is still out, or if it came back with nothing. */
+  named: Place | null;
+  looking: boolean;
+}
+
+/**
+ * Offers a pressed point as one end of the journey.
+ *
+ * The map is an enhancement, so this adds no capability the form does not
+ * already have — it is the same two fields, reachable by pointing at a place
+ * whose name you do not know. Which is the case the form is worst at: you
+ * cannot type a name for the corner of a park.
+ *
+ * The point is named by asking the geocoder what is there, and a coordinate
+ * with no name is still a perfectly good end of a journey — so a service that
+ * offers no reverse lookup, or has nothing to say about that spot, costs the
+ * place its label and nothing else.
+ */
+function PickPoint({ onPick }: { onPick: Props['onPick'] }) {
+  const { locale, strings, t } = useLocale();
+  const [pick, setPick] = useState<Pick | null>(null);
+  /** The lookup in flight, so a second press cancels the first. */
+  const lookup = useRef<AbortController | null>(null);
+
+  /*
+   * Started from the press rather than from an effect watching the state it
+   * sets. An effect would have to depend on the very thing its own result
+   * changes, and the usual way round that is to pick the dependencies apart by
+   * hand until the linter is quiet — which leaves the next reader to work out
+   * why. One press, one lookup, cancelled by the next.
+   */
+  useMapEvent('click', (event) => {
+    const { lat, lng: lon } = event.latlng;
+    lookup.current?.abort();
+
+    const reverse = geocoder.reverse;
+    setPick({ lat, lon, named: null, looking: reverse !== undefined });
+    if (reverse === undefined) return;
+
+    const controller = new AbortController();
+    lookup.current = controller;
+
+    void reverse(lat, lon, { signal: controller.signal, language: locale })
+      .then((named) => {
+        if (controller.signal.aborted) return;
+        setPick((current) =>
+          current?.lat === lat && current.lon === lon
+            ? { ...current, named, looking: false }
+            : current,
+        );
+      })
+      .catch(() => {
+        if (controller.signal.aborted) return;
+        // A geocoder that cannot answer is no reason to refuse the point.
+        setPick((current) =>
+          current?.lat === lat && current.lon === lon
+            ? { ...current, looking: false }
+            : current,
+        );
+      });
+  });
+
+  useEffect(() => () => lookup.current?.abort(), []);
+
+  if (pick === null) return null;
+
+  const place: Place = pick.named ?? {
+    key: `picked-${pick.lat},${pick.lon}`,
+    lat: pick.lat,
+    lon: pick.lon,
+    label: t(strings.planner.selectedLocation),
+    context: null,
+    kind: 'place',
+    stopId: null,
+    stopCode: null,
+    platform: null,
+    modes: null,
+  };
+
+  const choose = (end: 'origin' | 'destination') => {
+    onPick(place, end);
+    setPick(null);
+  };
+
+  return (
+    <Popup position={[pick.lat, pick.lon]} eventHandlers={{ remove: () => setPick(null) }}>
+      <span className="flex flex-col gap-2">
+        <span className="flex flex-col">
+          <span dir="auto" className="font-semibold">
+            {place.label}
+          </span>
+          {pick.looking ? (
+            <span className="text-content-muted text-xs">
+              {t(strings.planner.namingPlace)}
+            </span>
+          ) : (
+            place.context !== null && (
+              <span dir="auto" className="text-content-muted text-xs">
+                {place.context}
+              </span>
+            )
+          )}
+        </span>
+
+        <span className="flex gap-1.5">
+          <button
+            type="button"
+            onClick={() => choose('origin')}
+            className="rounded-control bg-action text-on-action hover:bg-action-hover hover:text-on-action-hover focus-visible:outline-brand-500 cursor-pointer px-2.5 py-1.5 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            {t(strings.planner.setAsOrigin)}
+          </button>
+          <button
+            type="button"
+            onClick={() => choose('destination')}
+            className="rounded-control border-border-strong text-content hover:border-brand-500 focus-visible:outline-brand-500 cursor-pointer border px-2.5 py-1.5 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            {t(strings.planner.setAsDestination)}
+          </button>
+        </span>
+      </span>
+    </Popup>
+  );
 }
 
 /** Roughly Helsinki, used only for the instant before anything is known. */
@@ -197,6 +331,8 @@ interface Badge {
   key: string;
   point: L.LatLngExpression;
   icon: L.DivIcon;
+  /** The leg's two ends, for asking how much room it has on screen. */
+  ends: [L.LatLngExpression, L.LatLngExpression];
   /** Transit before walking, when only one of the two can be shown. */
   rank: number;
 }
@@ -227,9 +363,28 @@ function LegBadges({ badges }: { badges: Badge[] }) {
 
     const placed: L.Point[] = [];
     const keep: Badge[] = [];
+    /** How far apart two badges must sit before both are worth drawing. */
     const MIN_GAP = 76;
+    /**
+     * How much of the screen a leg must occupy to be worth labelling.
+     *
+     * A badge is a fixed size on screen while a leg is not: pull far enough
+     * back and the walk to the first stop is shorter than the label describing
+     * it, so the label covers both of its ends and the line between them and
+     * you cannot see the thing you are being told about. Below this the leg is
+     * left to speak for itself, and the badge returns as you zoom in.
+     */
+    const MIN_LEG_SPAN = 64;
 
     for (const badge of [...badges].sort((a, b) => a.rank - b.rank)) {
+      const [from, to] = badge.ends;
+      if (
+        map.latLngToLayerPoint(from).distanceTo(map.latLngToLayerPoint(to)) <
+        MIN_LEG_SPAN
+      ) {
+        continue;
+      }
+
       const at = map.latLngToLayerPoint(badge.point);
       if (placed.every((other) => at.distanceTo(other) >= MIN_GAP)) {
         placed.push(at);
@@ -256,7 +411,7 @@ const originIcon = L.divIcon({
   iconAnchor: [15, 15],
 });
 
-export function JourneyMap({ journey, network, area }: Props) {
+export function JourneyMap({ journey, network, area, onPick }: Props) {
   const locale = useLocale();
   const { strings, t, direction } = locale;
   const { resolved } = useTheme();
@@ -298,7 +453,7 @@ export function JourneyMap({ journey, network, area }: Props) {
     if (geometry === null || journey === null) return [];
 
     return geometry.segments.flatMap((segment) => {
-      if (segment.midpoint === null) return [];
+      if (segment.midpoint === null || segment.ends === null) return [];
       const leg = journey.legs[segment.legIndex];
       if (leg === undefined) return [];
 
@@ -316,6 +471,7 @@ export function JourneyMap({ journey, network, area }: Props) {
         {
           key: `${scope}-badge-${segment.key}`,
           point: segment.midpoint,
+          ends: segment.ends,
           icon: legBadge(segment.family, label),
           rank: segment.kind === 'transit' ? 0 : 1,
         },
@@ -358,6 +514,7 @@ export function JourneyMap({ journey, network, area }: Props) {
         zoomOut={t(strings.planner.zoomOut)}
       />
 
+      <PickPoint onPick={onPick} />
       <KeepSized />
       <FitTo box={box} animate={!reduceMotion} />
 
