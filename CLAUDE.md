@@ -64,7 +64,11 @@ The parsers compact relational GTFS text into zero-indexed contiguous arrays: a 
 
 Everything server-side lives under `backend/server/` apart from the engine, which sits at `backend/raptor-engines/`. One router per endpoint in `backend/server/routes/`.
 
-`formatItinerary.js` is the definitive source for the response shape the frontend consumes — read it rather than guessing at fields. Two rounding behaviours from `backend/server/utils/`: durations round to whole minutes with a floor of 1 (`formatDuration`), distances round to the nearest 50 m with a floor of 50 (`formatDistance`).
+`formatItinerary.js` is the definitive source for the response shape the frontend consumes — read it rather than guessing at fields. Three rounding behaviours from `backend/server/utils/`: times round to whole minutes *asymmetrically* — an arrival up, a departure down, so nobody is told they arrive earlier or may leave later than they can (`roundSecondsToMinute`); durations round to whole minutes with a floor of 1 (`formatDuration`); distances round to the nearest 50 m with a floor of 50 (`formatDistance`).
+
+**Every duration in a response is measured between the rounded times that same response publishes, never from the engine's exact seconds.** A leg's duration is `endTime − startTime`, a wait is the gap between the previous leg's `endTime` and this leg's `startTime`, and the legs and waits tile the journey — they sum to `totalDurationMinutes`, which is itself `endTime − startTime`. Dates move with the times, so rounding an arrival up across midnight advances `endDate` with it.
+
+This is a guarantee to build on, not a coincidence to defend against: **a client must not recompute a duration, and must not treat a disagreement as expected.** It is stated because it was once untrue — rounding a duration from raw seconds while rounding times asymmetrically let the two drift by up to two minutes, and the frontend grew a whole module to paper over it. The engine works in exact seconds and knows nothing about any of this; the rounding, and therefore the arithmetic, belongs to the presenter.
 
 The engine loads *yesterday, today, and tomorrow* schedules with offsets, so itineraries can legitimately cross midnight — `endDate` may be later than `startDate`.
 
