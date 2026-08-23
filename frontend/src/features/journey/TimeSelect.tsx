@@ -175,7 +175,7 @@ export function TimeSelect({ label, value, onChange, disabled }: Props) {
       </label>
 
       <div className="rounded-control border-border-strong bg-surface focus-within:border-brand-500 flex items-stretch overflow-hidden border ps-3">
-        <span className="me-2 flex flex-none items-center">
+        <span className="flex flex-none items-center">
           <ClockIcon />
         </span>
         <input
@@ -206,7 +206,7 @@ export function TimeSelect({ label, value, onChange, disabled }: Props) {
               setOpen(true);
             }
           }}
-          className="min-w-0 flex-1 bg-transparent py-2.5 text-sm font-medium focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+          className="min-w-0 flex-1 bg-transparent px-2 py-2.5 text-sm font-medium focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
         />
         <button
           ref={triggerRef}
@@ -217,12 +217,12 @@ export function TimeSelect({ label, value, onChange, disabled }: Props) {
           disabled={disabled ?? false}
           onClick={() => setOpen((wasOpen) => !wasOpen)}
           /*
-             No divider before the caret: the date field beside this one is a
-             single button and cannot have one, and two fields sitting side by
-             side had two different ideas about what a disclosure arrow looks
-             like. The hover fill is what marks it as pressable.
+             Nothing around the caret — no divider, no hover fill. The date
+             field beside this one is a single button, so its caret can have
+             neither, and two fields side by side had two different ideas
+             about what a disclosure arrow looks like.
           */
-          className="text-content-muted hover:text-content hover:bg-surface-muted focus-visible:outline-brand-500 me-1 flex w-8 flex-none cursor-pointer items-center justify-center self-stretch focus-visible:-outline-offset-2 focus-visible:outline-2 disabled:cursor-not-allowed disabled:opacity-60"
+          className="text-content-muted focus-visible:outline-brand-500 me-1 flex w-8 flex-none cursor-pointer items-center justify-center self-stretch focus-visible:-outline-offset-2 focus-visible:outline-2 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <Chevron open={open} />
         </button>

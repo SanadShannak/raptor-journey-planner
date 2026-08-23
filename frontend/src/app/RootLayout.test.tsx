@@ -151,3 +151,25 @@ describe('auth', () => {
     ).toBeTruthy();
   });
 });
+
+/*
+ * The planner fills the viewport and scrolls inside its own panes, so a
+ * page-level footer under it is a strip you reach by scrolling a layout that
+ * was supposed to end at the fold.
+ *
+ * Pinned because the first attempt at this tested the wrong path: the planner
+ * is mounted at the *root*, and `/plan` only redirects to it — so a page that
+ * never renders was the one being asked about, and the footer stayed exactly
+ * where it was.
+ */
+describe('the footer', () => {
+  it('is absent on the planner', () => {
+    renderAt(paths.home);
+    expect(screen.queryByRole('contentinfo')).toBeNull();
+  });
+
+  it('is present on an ordinary page', () => {
+    renderAt('/somewhere-else');
+    expect(screen.getByRole('contentinfo')).toBeTruthy();
+  });
+});

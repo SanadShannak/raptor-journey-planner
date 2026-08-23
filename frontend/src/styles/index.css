@@ -97,6 +97,14 @@
   --color-surface: oklch(1 0 0);
   --color-surface-muted: oklch(0.972 0.006 350);
   --color-surface-raised: oklch(1 0 0);
+  /*
+   * One step deeper than `surface-muted`, for the second of two neutral chips
+   * that have to be told apart at a glance — walking and waiting in the
+   * itinerary strip. Not a third surface for panels to sit on: it exists so a
+   * pair of neutrals can differ without either of them picking up a hue that
+   * would read as a mode colour.
+   */
+  --color-surface-sunken: oklch(0.925 0.008 350);
   --color-content: oklch(0.24 0.014 350);
   --color-content-muted: oklch(0.505 0.014 350);
 
@@ -186,6 +194,9 @@
   --dark-surface: oklch(0.19 0.012 350);
   --dark-surface-muted: oklch(0.235 0.014 350);
   --dark-surface-raised: oklch(0.26 0.014 350);
+  /* Deeper reads as *lighter* here: the chip has to separate from a raised
+     card rather than from a white page. */
+  --dark-surface-sunken: oklch(0.34 0.014 350);
   --dark-content: oklch(0.96 0.008 350);
   --dark-content-muted: oklch(0.72 0.014 350);
 
@@ -233,6 +244,7 @@
     --color-accent-strong: var(--dark-accent-strong);
     --color-surface: var(--dark-surface);
     --color-surface-muted: var(--dark-surface-muted);
+    --color-surface-sunken: var(--dark-surface-sunken);
     --color-surface-raised: var(--dark-surface-raised);
     --color-content: var(--dark-content);
     --color-content-muted: var(--dark-content-muted);
@@ -262,6 +274,7 @@
   --color-accent-strong: var(--dark-accent-strong);
   --color-surface: var(--dark-surface);
   --color-surface-muted: var(--dark-surface-muted);
+  --color-surface-sunken: var(--dark-surface-sunken);
   --color-surface-raised: var(--dark-surface-raised);
   --color-content: var(--dark-content);
   --color-content-muted: var(--dark-content-muted);
@@ -307,6 +320,7 @@
     --color-on-accent: #251d20;
     --color-surface: #ffffff;
     --color-surface-muted: #f9f4f6;
+    --color-surface-sunken: #ebe4e7;
     --color-surface-raised: #ffffff;
     --color-content: #251d20;
     --color-content-muted: #6b6266;
@@ -334,6 +348,7 @@
     --dark-accent-strong: #e68028;
     --dark-surface: #181215;
     --dark-surface-muted: #231b1f;
+    --dark-surface-sunken: #3e3539;
     --dark-surface-raised: #2a2125;
     --dark-content: #f6f0f2;
     --dark-content-muted: #aca1a6;
@@ -352,6 +367,13 @@
 @utility min-h-viewport {
   min-height: 100vh;
   min-height: 100dvh;
+}
+
+/* The same, fixed rather than minimum: a layout that ends exactly at the fold
+   because its own panes do the scrolling. */
+@utility h-viewport {
+  height: 100vh;
+  height: 100dvh;
 }
 
 /*

@@ -25,11 +25,29 @@ export function RootLayout() {
    * or hangs below the fold as a strip you have to scroll a full-height layout
    * to reach — and on a page whose own content scrolls inside its panes, a
    * page-level footer is a thing you find by accident.
+   *
+   * Matched against the *home* path, because that is where the planner lives:
+   * `/plan` only redirects to it, so a page that never renders was the one
+   * being tested.
    */
-  const showFooter = pathname !== paths.plan;
+  const showFooter = pathname !== paths.home;
 
   return (
-    <div className="min-h-viewport flex flex-col">
+    <div
+      /*
+        Where the footer goes, so does the page's own scrollbar: the planner
+        fills the viewport exactly and its panes scroll inside themselves, so
+        anything that scrolls the *document* there is a few pixels of nothing
+        under a layout that was supposed to end at the fold. Only from `lg`,
+        where the two-pane layout applies — on a phone the planner stacks and
+        the page has to scroll.
+      */
+      className={
+        showFooter
+          ? 'min-h-viewport flex flex-col'
+          : 'min-h-viewport flex flex-col lg:h-viewport lg:overflow-hidden'
+      }
+    >
       {/*
         First focusable element in the document. Hidden until focused, then
         visible — an invisible skip link is worse than none, because it traps

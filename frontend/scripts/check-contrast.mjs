@@ -37,6 +37,14 @@ const PAIRS = [
   // on the palest brand tint rather than on a plain surface.
   ['brand-700', 'brand-50', AA_TEXT],
   ['content-muted', 'brand-50', AA_TEXT],
+  // `brand-100` is the fill under the form's own controls — my location,
+  // leave now, the chosen walking pace — which need to be visible as controls
+  // against a white page rather than merely tinted.
+  ['brand-700', 'brand-100', AA_TEXT],
+  ['content-muted', 'brand-100', AA_TEXT],
+  // The second neutral chip, beside the first.
+  ['content-muted', 'surface-sunken', AA_TEXT],
+  ['content', 'surface-sunken', AA_TEXT],
   // The filled control, and the label on it. Both schemes fill with a
   // different lightness, so this is checked through the tokens rather than
   // against a hardcoded white.

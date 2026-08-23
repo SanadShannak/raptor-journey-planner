@@ -195,7 +195,7 @@ export function PlaceInput({
         with a sliver of background showing around the outside.
       */}
       <div className="rounded-control border-border-strong bg-surface focus-within:border-brand-500 flex items-stretch overflow-hidden border ps-3">
-        <span aria-hidden="true" className="me-2 flex flex-none items-center">
+        <span aria-hidden="true" className="flex flex-none items-center">
           {role === 'origin' ? <OriginMarker /> : <DestinationMarker />}
         </span>
         <input
@@ -237,7 +237,15 @@ export function PlaceInput({
           /* Finnish and Arabic place names in one field; let the browser
              decide which way each entry runs. */
           dir="auto"
-          className="min-w-0 flex-1 bg-transparent py-2.5 pe-2 text-sm font-medium focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+          /*
+             Symmetric padding, deliberately, where everything else here is
+             logical. `dir="auto"` means this input resolves its *own*
+             direction from what is typed into it — so a Latin name in an
+             Arabic page makes the field LTR, and a `pe-2` that was the left
+             side a moment ago becomes the right one, leaving the text flush
+             against the border it started at.
+          */
+          className="min-w-0 flex-1 bg-transparent px-2 py-2.5 text-sm font-medium focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
         />
         {action}
       </div>
@@ -288,8 +296,10 @@ export function PlaceInput({
                 >
                   <SuggestionIcon place={place} />
                   <span className="min-w-0 flex-1">
-                    <span dir="auto" className="block truncate text-sm font-medium">
-                      {place.label}
+                    {/* The box follows the page so it stays beside its icon;
+                        only the text inside it follows the name. */}
+                    <span className="block truncate text-sm font-medium">
+                      <span dir="auto">{place.label}</span>
                     </span>
                     <SuggestionDetail place={place} />
                   </span>
@@ -360,13 +370,13 @@ function SuggestionDetail({ place }: { place: Place }) {
   if (parts.length === 0) return null;
 
   return (
-    <span dir="auto" className="text-content-muted block truncate text-xs">
+    <span className="text-content-muted block truncate text-xs">
       {/*
         Joined with a separator rather than assembled into a sentence: these
         are independent labels, not clauses, so no word order is being
         implied and nothing needs translating as a whole.
       */}
-      {parts.join(' · ')}
+      <span dir="auto">{parts.join(' · ')}</span>
     </span>
   );
 }

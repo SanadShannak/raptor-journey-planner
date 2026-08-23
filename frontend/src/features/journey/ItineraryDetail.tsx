@@ -300,26 +300,49 @@ function NodeLine({ row }: { row: NodeRow }) {
         <SpineLine spine={row.below} />
       </span>
 
-      <span className="flex min-w-0 flex-1 flex-col justify-center py-1.5">
-        <span dir="auto" className="font-semibold">
-          {row.name}
-          {/*
-            The ends are named for a screen reader rather than on the page:
-            the marker says which is which to anyone who can see it, and the
-            line below is where the place itself gets described. Printing
-            "Start" under a node already called "Start" said nothing twice.
-          */}
-          {row.role !== 'via' && (
-            <span className="sr-only">
-              {' '}
-              (
-              {row.role === 'origin'
-                ? t(strings.planner.startPoint)
-                : t(strings.planner.endPoint)}
-              )
-            </span>
-          )}
+      {/*
+        `items-start` so the name and the badge are boxes the width of their
+        own text. Left to stretch, a Latin stop name in an Arabic page aligned
+        itself to the left of a column whose start is the right — which put
+        the name at the far side of the row from the marker it belongs to, and
+        the badge under it on the opposite side again.
+      */}
+      <span className="flex min-w-0 flex-1 flex-col items-start justify-center py-1.5">
+        {/*
+          The time shares a baseline with the name rather than being centred
+          against the whole block. Two scripts do not put their glyphs at the
+          same height inside a line box, so "centred" left an Arabic name
+          visibly riding above the Latin digits beside it. A baseline is the
+          one alignment both agree on.
+        */}
+        <span className="flex w-full items-baseline gap-3.5">
+          <span className="min-w-0 flex-1 truncate font-semibold">
+            {/* The box follows the page's direction; the name follows its
+                own, so a Latin name still sits where the row starts. */}
+            <span dir="auto">{row.name}</span>
+            {/*
+              The ends are named for a screen reader rather than on the page:
+              the marker says which is which to anyone who can see it, and the
+              line below is where the place itself gets described. Printing
+              "Start" under a node already called "Start" said nothing twice.
+            */}
+            {row.role !== 'via' && (
+              <span className="sr-only">
+                {' '}
+                (
+                {row.role === 'origin'
+                  ? t(strings.planner.startPoint)
+                  : t(strings.planner.endPoint)}
+                )
+              </span>
+            )}
+          </span>
+
+          <span className="w-16 flex-none text-end font-semibold tabular-nums">
+            {formatClockTime(row.time, locale.locale)}
+          </span>
         </span>
+
         {/*
           A badge rather than a second line of grey text. A stop code is a
           label printed on the pole and the context under a pin is a different
@@ -327,17 +350,10 @@ function NodeLine({ row }: { row: NodeRow }) {
           not a continuation of the sentence.
         */}
         {row.detail !== null && (
-          <span
-            dir="auto"
-            className="bg-surface-muted text-content-muted rounded-control mt-1 self-start px-1.5 py-0.5 text-xs font-medium"
-          >
-            {row.detail}
+          <span className="bg-surface-muted text-content-muted rounded-control mt-1 px-1.5 py-0.5 text-xs font-medium">
+            <span dir="auto">{row.detail}</span>
           </span>
         )}
-      </span>
-
-      <span className="w-16 flex-none self-center text-end font-semibold tabular-nums">
-        {formatClockTime(row.time, locale.locale)}
       </span>
     </li>
   );
@@ -538,10 +554,17 @@ function TransitBody({ leg }: { leg: TransitLeg }) {
                     aria-hidden="true"
                     className={`${visual.ink} h-2 w-2 flex-none rounded-full bg-current opacity-60`}
                   />
-                  <span dir="auto" className="flex-1 truncate">
-                    {stop.stopName}
+                  {/*
+                    Sized to the name rather than filling the row. Stretched,
+                    a Latin name in an Arabic page sat at the far left of its
+                    box while its bullet stayed at the right, with the width
+                    of the sidebar in between. The time is pushed to the end
+                    instead, which is where it was going anyway.
+                  */}
+                  <span className="min-w-0 truncate">
+                    <span dir="auto">{stop.stopName}</span>
                   </span>
-                  <span className="tabular-nums">
+                  <span className="ms-auto flex-none tabular-nums">
                     {formatClockTime(stop.stopArrivalTime, locale.locale)}
                   </span>
                 </li>

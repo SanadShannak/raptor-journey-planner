@@ -108,9 +108,14 @@ export function ItineraryOverview({ journey, onOpen }: Props) {
         <span aria-hidden="true" className="flex flex-wrap items-center gap-1.5">
           {journey.legs.map((leg, index) => (
             <span key={`${leg.startTime}-${index}`} className="flex items-center gap-1.5">
-              {index > 0 && (
-                <span className="text-content-muted text-sm rtl:-scale-x-100">›</span>
-              )}
+              {/*
+                No manual flip. `›` is a mirrored character, so the browser
+                already turns it round in a right-to-left run — flipping it
+                again turned it back, and the strip appeared to run from the
+                end of the journey to its start. The arrow between the two
+                times *does* need the class: `→` is not mirrored.
+              */}
+              {index > 0 && <span className="text-content-muted text-sm">›</span>}
 
               {/*
                 A long wait is part of the shape of a journey, and leaving it
@@ -121,19 +126,20 @@ export function ItineraryOverview({ journey, onOpen }: Props) {
               */}
               {index > 0 && leg.waitDurationMinutes >= WAIT_WORTH_SHOWING_MINUTES && (
                 <>
-                  <span className="bg-surface-muted text-content-muted rounded-control flex items-center gap-1 px-2 py-1 text-sm font-medium tabular-nums">
+                  <span className="bg-surface-sunken text-content-muted rounded-control flex items-center gap-1 px-2 py-1 text-sm font-medium tabular-nums">
                     <SeatedIcon size={17} />
                     {leg.waitDurationMinutes}
                   </span>
-                  <span className="text-content-muted text-sm rtl:-scale-x-100">›</span>
+                  <span className="text-content-muted text-sm">›</span>
                 </>
               )}
 
               {/*
-                Walking and waiting are filled too, in a neutral tone. Left
-                bare they read as gaps between the coloured chips rather than
-                as legs of the same journey — but they are not vehicles, so
-                the fill is a surface rather than a colour with a meaning.
+                Walking and waiting are filled too, in neutral tones — two
+                of them, because they are different things and a single grey
+                made a walk and a wait of the same length look interchangeable.
+                Neither is a vehicle, so both fills are surfaces rather than
+                colours that mean something.
               */}
               {leg.mode === 'WALK' ? (
                 <span className="bg-surface-muted text-content-muted rounded-control flex items-center gap-1 px-2 py-1 text-sm font-medium tabular-nums">

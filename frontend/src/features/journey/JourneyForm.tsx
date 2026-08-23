@@ -189,7 +189,14 @@ export function JourneyForm({
           type="button"
           onClick={onLeaveNow}
           disabled={off}
-          className="rounded-control border-border-strong bg-surface-muted text-content hover:border-brand-500 hover:text-brand-500 focus-visible:outline-brand-500 inline-flex cursor-pointer items-center gap-1.5 self-start border px-3 py-1.5 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+          /*
+             Filled and unbordered. `brand-100` is the form's one fill for a
+             control you can press — the same one under "my location" and the
+             chosen pace — because a tint a shade off white reads as a panel
+             rather than as a button, and an outline around a fill only adds a
+             second edge to look at.
+          */
+          className="rounded-control bg-brand-100 text-brand-700 hover:bg-brand-fill hover:text-on-brand focus-visible:outline-brand-500 inline-flex cursor-pointer items-center gap-1.5 self-start px-3 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <svg
             viewBox="0 0 24 24"
@@ -240,7 +247,7 @@ export function JourneyForm({
                   selection is worth seeing without looking for it.
                 */
                 className={`group rounded-control flex cursor-pointer items-center gap-2 px-2 py-1.5 ${
-                  chosen ? 'bg-brand-50' : 'hover:bg-surface-muted'
+                  chosen ? 'bg-brand-100' : 'hover:bg-surface-muted'
                 }`}
               >
                 <input

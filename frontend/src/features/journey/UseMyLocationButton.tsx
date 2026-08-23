@@ -112,9 +112,10 @@ export function UseMyLocationButton({ onLocated, onMessage, disabled }: Props) {
    * instead of a second border. The field clips it, so the outer corner it
    * inherits is the field's.
    *
-   * Filled rather than transparent. Sitting inside the field on the field's
-   * own background, it read as an icon someone had left there rather than as
-   * something to press.
+   * Filled rather than transparent, and the fill is the divider: sitting on
+   * the field's own background it read as an icon someone had left there, and
+   * with a fill of its own the extra rule between the two was one line more
+   * than the eye needed.
    */
   return (
     <button
@@ -126,7 +127,7 @@ export function UseMyLocationButton({ onLocated, onMessage, disabled }: Props) {
           ? t(strings.planner.locating)
           : t(strings.planner.useMyLocation)
       }
-      className="border-border-strong bg-surface-muted text-content-muted hover:text-brand-700 hover:bg-brand-50 focus-visible:outline-brand-500 flex w-11 flex-none cursor-pointer items-center justify-center self-stretch border-s focus-visible:-outline-offset-2 focus-visible:outline-2 disabled:cursor-not-allowed disabled:opacity-60"
+      className="bg-brand-100 text-brand-700 hover:bg-brand-fill hover:text-on-brand focus-visible:outline-brand-500 flex w-11 flex-none cursor-pointer items-center justify-center self-stretch focus-visible:-outline-offset-2 focus-visible:outline-2 disabled:cursor-not-allowed disabled:opacity-60"
     >
       <svg
         viewBox="0 0 24 24"

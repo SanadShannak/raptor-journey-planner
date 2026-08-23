@@ -181,7 +181,7 @@ export const ar: Dictionary = {
       many: '{count} تبديلاً',
       other: '{count} تبديل',
     },
-    later: 'أحدث',
+    later: 'مغادرة لاحقا',
     noLater: 'لم يُعثر على رحلة أحدث.',
     walk: 'مشي',
     transitLeg: '{mode} {line}',
