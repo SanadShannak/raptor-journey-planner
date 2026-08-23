@@ -206,7 +206,11 @@ export interface Dictionary {
     departsOnDate: string;
     /** The engine can legitimately answer with no transit at all. */
     walkOnly: string;
-    mapComingSoon: string;
+    /** Names the map region for a screen reader. */
+    mapLabel: string;
+    /** Leaflet writes these as both `title` and `aria-label` on its buttons. */
+    zoomIn: string;
+    zoomOut: string;
 
     /* The overview list, and the detail panel one itinerary opens into. */
     /** Accessible name of the button an overview card is built from. */

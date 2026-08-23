@@ -84,5 +84,39 @@ if (typeof HTMLDialogElement !== 'undefined') {
   }
 }
 
+/*
+ * Two more gaps, in the same spirit as the storage shim above: the environment
+ * is made to behave like a browser rather than the application being written
+ * around what jsdom happens to implement.
+ *
+ * `RootLayout.test.tsx` renders the real planner, and the planner renders a
+ * map — so both of these are reached by the existing suite, not only by tests
+ * that are about the map.
+ */
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  // Never fires: nothing in jsdom has a size to observe in the first place.
+  class NoopResizeObserver implements ResizeObserver {
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+  }
+  globalThis.ResizeObserver = NoopResizeObserver;
+}
+
+if (typeof window.matchMedia !== 'function') {
+  // Answers "no" to every query, which is the right default for a preference
+  // nobody expressed. A test that cares stubs its own.
+  window.matchMedia = ((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  })) as typeof window.matchMedia;
+}
+
 // jsdom is reused across tests in a file, so mounted trees must be torn down.
 afterEach(cleanup);

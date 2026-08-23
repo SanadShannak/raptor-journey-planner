@@ -42,14 +42,20 @@ export function OriginMarker({ size = 20 }: MarkerProps) {
   );
 }
 
+/**
+ * The pin's outline, exported because the map needs the same shape as a string.
+ *
+ * Leaflet draws a custom marker from raw markup rather than from a React tree,
+ * so the two renderings would otherwise be two hand-copied paths free to drift.
+ * The geometry lives here once; the map builds its own `<svg>` around it.
+ */
+export const DESTINATION_PIN_PATH =
+  'M12 21.5s6.5-6 6.5-10.5a6.5 6.5 0 10-13 0c0 4.5 6.5 10.5 6.5 10.5z';
+
 export function DestinationMarker({ size = 20, hole = 'fill-surface' }: MarkerProps) {
   return (
     <svg {...markerBase} width={size} height={size} aria-hidden="true" className="text-brand-500">
-      <path
-        d="M12 21.5s6.5-6 6.5-10.5a6.5 6.5 0 10-13 0c0 4.5 6.5 10.5 6.5 10.5z"
-        fill="currentColor"
-        stroke="none"
-      />
+      <path d={DESTINATION_PIN_PATH} fill="currentColor" stroke="none" />
       <circle cx="12" cy="10.7" r="2.3" className={hole} stroke="none" />
     </svg>
   );

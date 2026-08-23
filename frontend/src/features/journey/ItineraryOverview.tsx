@@ -16,6 +16,12 @@ interface Props {
   /** The day that was asked about, so a departure on another one can say so. */
   searchedDate: string;
   onOpen: () => void;
+  /**
+   * Reports that this card is the one being attended to, so the map can draw
+   * it. Sent for focus as well as for the pointer — a keyboard moving through
+   * the list is the same intent as a mouse resting on it.
+   */
+  onHighlight?: ((highlighted: boolean) => void) | undefined;
 }
 
 /**
@@ -47,7 +53,12 @@ const WAIT_WORTH_SHOWING_MINUTES = 4;
  * whose pointing is imprecise, and there is one tab stop per result instead of
  * two.
  */
-export function ItineraryOverview({ journey, searchedDate, onOpen }: Props) {
+export function ItineraryOverview({
+  journey,
+  searchedDate,
+  onOpen,
+  onHighlight,
+}: Props) {
   const locale = useLocale();
   const { strings, t } = locale;
 
@@ -58,6 +69,10 @@ export function ItineraryOverview({ journey, searchedDate, onOpen }: Props) {
       <button
         type="button"
         onClick={onOpen}
+        onPointerEnter={() => onHighlight?.(true)}
+        onPointerLeave={() => onHighlight?.(false)}
+        onFocus={() => onHighlight?.(true)}
+        onBlur={() => onHighlight?.(false)}
         className="rounded-card border-border bg-surface-raised shadow-card hover:border-brand-500 focus-visible:outline-brand-500 flex w-full cursor-pointer flex-col gap-2.5 border p-4 text-start focus-visible:outline-2 focus-visible:outline-offset-2"
       >
         {/*

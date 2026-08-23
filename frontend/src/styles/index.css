@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import './fonts.css';
+@import 'leaflet/dist/leaflet.css';
 
 /*
  * Design tokens.
@@ -418,6 +419,74 @@
 
 @theme {
   --animate-settle-in: settle-in 160ms ease-out both;
+}
+
+/*
+ * Leaflet.
+ *
+ * Its stylesheet is unlayered while Tailwind's utilities sit in `@layer
+ * utilities`, and unlayered author CSS wins — so none of the below can be done
+ * with utility classes on the elements themselves. It is written out here
+ * instead, which is also the only place with the tokens to hand.
+ *
+ * What Leaflet sets and this does not touch: `stroke` on a path is written as a
+ * presentation attribute, which any of these rules outranks. That is what lets
+ * a route line be coloured with `stroke-mode-bus` and follow the palette into
+ * dark mode, rather than being handed a hex value from JavaScript that knows
+ * nothing about either scheme.
+ */
+@layer base {
+  /*
+   * Preflight gives every image `max-width: 100%`, which shears Leaflet's tiles
+   * out of position — they are absolutely placed at their natural size.
+   */
+  .leaflet-container img {
+    max-width: none;
+    height: auto;
+  }
+
+  .leaflet-container {
+    /* Seen while tiles load, and in the gutters when the map is over-panned. */
+    background: var(--color-surface-muted);
+    font: inherit;
+  }
+
+  /* Leaflet's own CSS is entirely physical, so RTL needs telling. */
+  .leaflet-popup-content-wrapper,
+  .leaflet-popup-content {
+    text-align: start;
+  }
+
+  .leaflet-bar a,
+  .leaflet-bar a:hover {
+    background-color: var(--color-surface-raised);
+    color: var(--color-content);
+    border-bottom-color: var(--color-border);
+  }
+
+  .leaflet-bar a:hover {
+    background-color: var(--color-surface-muted);
+  }
+
+  .leaflet-bar a:focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: -2px;
+  }
+
+  .leaflet-control-attribution {
+    background: color-mix(in oklab, var(--color-surface-raised) 82%, transparent);
+    color: var(--color-content-muted);
+    /*
+     * Held to left-to-right whatever the page is doing. The credit is a fixed
+     * string ending in a Latin name, and in an RTL paragraph the "©" migrates
+     * to the wrong end of it.
+     */
+    direction: ltr;
+  }
+
+  .leaflet-control-attribution a {
+    color: var(--color-brand-500);
+  }
 }
 
 /*

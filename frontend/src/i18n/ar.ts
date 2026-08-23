@@ -202,7 +202,9 @@ export const ar: Dictionary = {
     arrivesNextDay: 'الوصول {date}',
     departsOnDate: 'المغادرة {date}',
     walkOnly: 'المشي طوال الطريق أسرع من انتظار رحلة.',
-    mapComingSoon: 'الخريطة قادمة في الخطوة التالية.',
+    mapLabel: 'خريطة الرحلة',
+    zoomIn: 'تكبير',
+    zoomOut: 'تصغير',
 
     viewDetails: 'عرض هذه الرحلة خطوة بخطوة',
     backToResults: 'العودة إلى النتائج',

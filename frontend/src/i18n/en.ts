@@ -172,7 +172,9 @@ export const en: Dictionary = {
     arrivesNextDay: 'Arrives {date}',
     departsOnDate: 'Departs {date}',
     walkOnly: 'Walking the whole way is faster than waiting for a service.',
-    mapComingSoon: 'The map arrives in the next step.',
+    mapLabel: 'Map of the journey',
+    zoomIn: 'Zoom in',
+    zoomOut: 'Zoom out',
 
     viewDetails: 'Show this journey step by step',
     backToResults: 'Back to results',

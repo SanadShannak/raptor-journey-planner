@@ -16,6 +16,7 @@ import {
 import type { JourneyEnd } from '../features/journey/itineraryRows';
 import { ItineraryOverview } from '../features/journey/ItineraryOverview';
 import { ItineraryDetail } from '../features/journey/ItineraryDetail';
+import { JourneyMap } from '../map/JourneyMap';
 
 /** Whether the routing service is answering at all. */
 type Service = 'checking' | 'up' | 'down';
@@ -65,6 +66,7 @@ export default function PlanPage() {
   const [networkToday, setNetworkToday] = useState<string | null>(null);
   const [timezone, setTimezone] = useState<string | null>(null);
   const [bounds, setBounds] = useState<GeoBounds | null>(null);
+  const [network, setNetwork] = useState<string | null>(null);
   const [service, setService] = useState<Service>('checking');
 
   /*
@@ -95,6 +97,14 @@ export default function PlanPage() {
   const [exhausted, setExhausted] = useState<string | null>(null);
   /** Which result is open in full, by index; null while the list is showing. */
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+  /**
+   * Which card the pointer or the keyboard is on.
+   *
+   * Only the map reads it. Hovering is a pointer idea, so the cards report
+   * focus as well — otherwise the map would follow a mouse and ignore someone
+   * tabbing through the same list.
+   */
+  const [highlightIndex, setHighlightIndex] = useState<number | null>(null);
 
   const requestId = useRef(0);
   /** Bumped to re-run the startup effect when the visitor retries. */
@@ -144,6 +154,7 @@ export default function PlanPage() {
       if (now !== null) setNetworkToday(now.date);
       if (networkResult.status === 'fulfilled') {
         setTimezone(networkResult.value.timezone);
+        setNetwork(networkResult.value.network);
         setBounds(boundsForNetwork(networkResult.value.network));
       }
 
@@ -278,6 +289,12 @@ export default function PlanPage() {
     setJourneys([]);
     setSearched(false);
     setOpenIndex(null);
+    /*
+     * The highlight is an index into a list that is about to be replaced, so it
+     * would otherwise point at whichever journey happened to land in that slot
+     * next — the same reason `openIndex` is cleared here.
+     */
+    setHighlightIndex(null);
     setExhausted(null);
     setErrorMessage(null);
     setState('idle');
@@ -353,6 +370,17 @@ export default function PlanPage() {
             time: now.time,
           });
         };
+
+  /*
+   * The open result wins, then whatever is being pointed at or focused, then
+   * the first — so the map is never blank while there is something to show, and
+   * the journey it falls back to is the soonest departure, which is the one
+   * most people take.
+   */
+  const shown =
+    openIndex !== null
+      ? (journeys[openIndex] ?? null)
+      : (journeys[highlightIndex ?? 0] ?? null);
 
   const offline = service === 'down';
   const showEmpty = searched && state === 'idle' && journeys.length === 0;
@@ -510,6 +538,11 @@ export default function PlanPage() {
                       journey={journey}
                       searchedDate={values.date}
                       onOpen={() => setOpenIndex(index)}
+                      onHighlight={(on) =>
+                        setHighlightIndex((current) =>
+                          on ? index : current === index ? null : current,
+                        )
+                      }
                     />
                   ))}
 
@@ -547,14 +580,18 @@ export default function PlanPage() {
       </div>
 
       {/*
-        The map's place, held open so the layout is the real one before the map
-        exists. Ordered first on a phone and second on a desktop.
+        The map. Ordered first on a phone and second on a desktop.
+
+        Labelled as a region and nothing more: every stop, time and change it
+        draws is already written out in the itinerary beside it, so it is an
+        enhancement over that list rather than a second place to have to look.
       */}
-      <div className="bg-surface-muted relative order-first h-56 flex-1 lg:order-none lg:h-auto">
-        <div className="text-content-muted absolute inset-0 flex items-center justify-center text-sm">
-          {t(strings.planner.mapComingSoon)}
-        </div>
-      </div>
+      <section
+        aria-label={t(strings.planner.mapLabel)}
+        className="bg-surface-muted relative order-first h-56 flex-1 lg:order-none lg:h-auto"
+      >
+        <JourneyMap journey={shown} network={network} area={bounds} />
+      </section>
     </div>
   );
 }

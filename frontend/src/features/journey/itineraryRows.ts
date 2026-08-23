@@ -63,6 +63,14 @@ export interface SegmentRow {
   key: string;
   spine: Spine;
   leg: JourneyLeg;
+  /**
+   * Which leg this is, by index.
+   *
+   * The key already encodes it, but a key is for React and is not meant to be
+   * parsed. The map draws one line per leg and needs to know which line a row
+   * is talking about, so the index is carried plainly.
+   */
+  legIndex: number;
   isFirst: boolean;
   isLast: boolean;
 }
@@ -192,6 +200,7 @@ export function itineraryRows(journey: Journey, labels: Labels): ItineraryRow[] 
       key: `leg-${index}-${leg.startTime}`,
       spine: spineFor(leg),
       leg,
+      legIndex: index,
       isFirst,
       isLast,
     });
