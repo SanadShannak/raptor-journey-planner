@@ -4,6 +4,7 @@ import { geocoder } from '../../geocoding';
 import type { Place } from '../../types/place';
 import type { GeoBounds } from '../../config/geocoding';
 import { ModeIcon } from './modeIcons';
+import { DestinationMarker, OriginMarker } from './placeMarkers';
 
 interface Props {
   label: string;
@@ -66,7 +67,12 @@ export function PlaceInput({
   const statusId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
 
-  /* A chosen place set from outside — the swap button, or a restored URL. */
+  /*
+   * A chosen place set from outside — the swap button, or a restored URL —
+   * replaces whatever is typed. Typing over a chosen place also clears it, and
+   * that clear arrives back here as a change like any other; see the input's
+   * own `onChange` for how the two are told apart.
+   */
   const [lastValue, setLastValue] = useState(value);
   if (value !== lastValue) {
     setLastValue(value);
@@ -208,9 +214,21 @@ export function PlaceInput({
           value={query}
           onChange={(event) => {
             setQuery(event.target.value);
-            // Typing after choosing invalidates the choice: the text no longer
-            // stands for a set of coordinates.
-            if (value !== null) onChange(null);
+            if (value !== null) {
+              /*
+               * Typing after choosing invalidates the choice: the text no
+               * longer stands for a set of coordinates.
+               *
+               * `lastValue` is moved in the same breath, because the clear is
+               * ours. Without it the null coming back from the parent looked
+               * like an outside change, and the sync above answered it by
+               * setting the field to that value's label — an empty string. The
+               * visible effect was that the first keystroke over a chosen
+               * place wiped the whole field instead of appending to it.
+               */
+              setLastValue(null);
+              onChange(null);
+            }
           }}
           onKeyDown={onKeyDown}
           onFocus={() => {
@@ -383,28 +401,6 @@ const iconProps = {
   strokeLinecap: 'round',
   strokeLinejoin: 'round',
 } as const;
-
-/*
- * The two ends of a journey read as the two ends of a line: an open ring where
- * you start, a filled marker where you finish. Borrowed from transit maps,
- * where the same pair distinguishes a terminus from a through station.
- */
-const OriginMarker = () => (
-  <svg {...iconProps} className="text-mode-tram">
-    <circle cx="12" cy="12" r="6.5" strokeWidth="3" />
-  </svg>
-);
-
-const DestinationMarker = () => (
-  <svg {...iconProps} className="text-brand-500">
-    <path
-      d="M12 21.5s6.5-6 6.5-10.5a6.5 6.5 0 10-13 0c0 4.5 6.5 10.5 6.5 10.5z"
-      fill="currentColor"
-      stroke="none"
-    />
-    <circle cx="12" cy="10.7" r="2.3" className="fill-surface" stroke="none" />
-  </svg>
-);
 
 const PinIcon = () => (
   <svg {...iconProps} className="text-content-muted">
