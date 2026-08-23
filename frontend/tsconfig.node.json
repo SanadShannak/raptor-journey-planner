@@ -19,5 +19,10 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["vite.config.ts"]
+  /*
+   * Everything here runs in Node rather than the browser: the Vite config, and
+   * the test that walks the repo's own files to check the paths quoted in the
+   * docs. tsconfig.app.json excludes that test for the same reason.
+   */
+  "include": ["vite.config.ts", "src/test/docPaths.test.ts"]
 }

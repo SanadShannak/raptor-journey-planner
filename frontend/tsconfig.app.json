@@ -28,5 +28,11 @@
     "noFallthroughCasesInSwitch": true,
     "allowUnreachableCode": false
   },
-  "include": ["src"]
+  "include": ["src"],
+  /*
+   * Browser code, so no node types are in scope here — an `import` of `node:fs`
+   * in src/ is meant to fail. The one test that legitimately runs in Node reads
+   * the repo from disk, and is type-checked by tsconfig.node.json instead.
+   */
+  "exclude": ["src/test/docPaths.test.ts"]
 }
