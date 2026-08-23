@@ -97,18 +97,6 @@ export default function PlanPage() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   const requestId = useRef(0);
-  /**
-   * The query the results on screen are an answer to.
-   *
-   * The form keeps its own copy of this to avoid repeating itself, but the
-   * form is unmounted while a result is open — so coming back from a detail
-   * panel remounted it with an empty memory, and it dutifully searched again
-   * for inputs that had not changed. The visible effect was that pages of
-   * results appended by "Later" survived the trip back for about a second and
-   * were then replaced by the first page. This copy outlives that, because it
-   * belongs to the same thing the results do.
-   */
-  const lastSearched = useRef<string | null>(null);
   /** Bumped to re-run the startup effect when the visitor retries. */
   const [attempt, setAttempt] = useState(0);
 
@@ -287,7 +275,6 @@ export default function PlanPage() {
    */
   function clearResults() {
     requestId.current += 1;
-    lastSearched.current = null;
     setJourneys([]);
     setSearched(false);
     setOpenIndex(null);
@@ -311,19 +298,11 @@ export default function PlanPage() {
   }
 
   /*
-   * Deliberately not memoised. `JourneyForm` runs this from an effect that
-   * depends on it, so a new identity each render does re-run that effect —
-   * but the form already refuses to search the same inputs twice, and that
-   * guard is what makes the search idempotent. Wrapping this in a callback
-   * would mean either reading `values` impurely inside a state updater or
-   * carrying a ref to shadow it, both of which trade a real bug for an
-   * imagined saving.
+   * Run when the form is submitted, and only then. It needs no guard against
+   * repeating itself: nothing calls it but a press, and a press is a request
+   * to search — including the same search twice.
    */
   function runSearch() {
-    const query = searchSignature(values);
-    if (query === lastSearched.current) return;
-    lastSearched.current = query;
-
     void search(values, 'replace');
   }
 
@@ -403,6 +382,7 @@ export default function PlanPage() {
             journey={open}
             origin={endOf(values.origin)}
             destination={endOf(values.destination)}
+            searchedDate={values.date}
             onBack={() => setOpenIndex(null)}
           />
         ) : (
@@ -503,6 +483,7 @@ export default function PlanPage() {
                     <ItineraryOverview
                       key={`${journey.startDate}-${journey.startTime}-${index}`}
                       journey={journey}
+                      searchedDate={values.date}
                       onOpen={() => setOpenIndex(index)}
                     />
                   ))}

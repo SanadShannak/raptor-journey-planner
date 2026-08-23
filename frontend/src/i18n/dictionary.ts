@@ -185,6 +185,15 @@ export interface Dictionary {
     showStops: string;
     hideStops: string;
     arrivesNextDay: string;
+    /**
+     * The journey leaves on a different day from the one that was searched.
+     *
+     * Searching late can push the first departure past midnight, and a
+     * twelve-hour clock cannot say so on its own — "12:15 AM" beside a search
+     * for the 24th reads as fifteen minutes past midnight *that* morning,
+     * which has already been and gone.
+     */
+    departsOnDate: string;
     /** The engine can legitimately answer with no transit at all. */
     walkOnly: string;
     mapComingSoon: string;

@@ -45,7 +45,7 @@ export function RootLayout() {
       className={
         showFooter
           ? 'min-h-viewport flex flex-col'
-          : 'min-h-viewport flex flex-col lg:h-viewport lg:overflow-hidden'
+          : 'min-h-viewport flex flex-col lg:fixed lg:inset-0 lg:overflow-hidden'
       }
     >
       {/*
@@ -73,6 +73,13 @@ export function RootLayout() {
         never be shorter than the itinerary inside it — which is exactly how a
         sidebar ends up taller than the screen with its own scrollbar never
         appearing, and the page scrolling instead.
+
+        The shell above is pinned with `fixed inset-0` rather than sized to
+        `100dvh`, because a height only *describes* the viewport: one
+        descendant that refuses to shrink still pushes the document taller and
+        the page grows a scrollbar. Out of flow, the document has nothing left
+        to be pushed by, so the sidebar's own scrollbar is the only one that
+        can appear.
       */}
       <main
         id="main-content"

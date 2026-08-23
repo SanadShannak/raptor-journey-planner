@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { formatNumber, useLocale } from '../../i18n';
 import {
   WALKING_PACES,
@@ -6,7 +6,7 @@ import {
   type WalkingPace,
 } from '../../config/journey';
 import type { GeoBounds } from '../../config/geocoding';
-import { isReady, searchSignature, type JourneyFormValues } from './journeySearch';
+import { isReady, type JourneyFormValues } from './journeySearch';
 import { PlaceInput } from './PlaceInput';
 import { UseMyLocationButton } from './UseMyLocationButton';
 import { DateSelect } from './DateSelect';
@@ -36,11 +36,20 @@ interface Props {
 /**
  * The journey search.
  *
- * There is no submit button: a complete form searches itself, and changing any
- * field searches again. The button existed only to say "I have finished
- * filling this in", and with four discrete controls — two of which are chosen
- * from a list — that moment is already unambiguous. Nothing here fires on a
- * keystroke; a place only counts once it has been picked.
+ * It searches when asked to, and not before.
+ *
+ * It used to search itself the moment it was complete, on the reasoning that
+ * four discrete controls make the "I have finished" moment unambiguous. Three
+ * things since have argued the other way. The search left the URL, so there is
+ * no live state worth keeping in step. A minimum on the searching state means
+ * every touched field costs a visible second. And results are cleared the
+ * moment an input changes — so adjusting a date, then a time, then a pace threw
+ * away two answers to reach a third, and asked the engine three questions to
+ * express one intent.
+ *
+ * A button also says something the absence of one could not: that the form is
+ * a question you finish asking. Enter submits it from any field, because the
+ * form is still a form.
  */
 export function JourneyForm({
   values,
@@ -55,16 +64,7 @@ export function JourneyForm({
   const locale = useLocale();
   const { strings, t } = locale;
 
-  const lastSearched = useRef<string | null>(null);
   const [locationMessage, setLocationMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!isReady(values)) return;
-    const current = searchSignature(values);
-    if (current === lastSearched.current) return;
-    lastSearched.current = current;
-    onSearch();
-  }, [values, onSearch]);
 
   const paceLabels: Record<WalkingPace, string> = {
     slow: t(strings.planner.speedSlow),
@@ -87,7 +87,13 @@ export function JourneyForm({
      * Still a <form>: it gives the fields a group, and Enter behaves. Submit is
      * swallowed because the search has already happened.
      */
-    <form onSubmit={(event) => event.preventDefault()} className="flex flex-col gap-3">
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (isReady(values)) onSearch();
+      }}
+      className="flex flex-col gap-3"
+    >
       {/*
         The two fields and the swap sit in two columns, so the swap has its own
         gutter rather than stacking under whatever the origin field puts at its
@@ -247,7 +253,7 @@ export function JourneyForm({
                   selection is worth seeing without looking for it.
                 */
                 className={`group rounded-control flex cursor-pointer items-center gap-2 px-2 py-1.5 transition-colors ${
-                  chosen ? 'bg-action text-on-action' : 'hover:bg-surface-muted'
+                  chosen ? 'bg-action text-on-action' : 'hover:bg-surface-sunken'
                 }`}
               >
                 <input
@@ -299,6 +305,33 @@ export function JourneyForm({
           })}
         </div>
       </fieldset>
+
+      {/*
+        Disabled until there is something to ask, rather than hidden: an
+        absent button gives no clue what is missing, while a present one that
+        cannot be pressed reads as "not yet".
+      */}
+      <button
+        type="submit"
+        disabled={off || !isReady(values)}
+        className="rounded-control bg-action text-on-action hover:bg-action-hover hover:text-on-action-hover focus-visible:outline-brand-500 mt-1 flex cursor-pointer items-center justify-center gap-2 px-4 py-2.5 font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <circle cx="10.5" cy="10.5" r="6.5" />
+          <path d="M15.4 15.4L21 21" />
+        </svg>
+        {t(strings.planner.submit)}
+      </button>
     </form>
   );
 }

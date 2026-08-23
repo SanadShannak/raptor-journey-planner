@@ -98,6 +98,7 @@ function show(journey: Journey, origin = kamppi, destination = kamppi) {
         journey={journey}
         origin={origin}
         destination={destination}
+        searchedDate="2026-08-24"
         onBack={() => {}}
       />
     </LocaleProvider>,
@@ -201,5 +202,31 @@ describe('ItineraryDetail legs', () => {
     expect(screen.getByText('Walk')).toBeTruthy();
     expect(screen.queryByText(/Walk from/)).toBeNull();
     expect(screen.queryByText(/Walk to/)).toBeNull();
+  });
+
+  /*
+   * The mirror of the arrival note: searching late can push the first
+   * departure past midnight, and a twelve-hour clock cannot say so alone.
+   */
+  it('says so when the journey leaves on a different day than was searched', () => {
+    const journey = journeyOf([walk(originPin, targetPin, '00:15', '00:35')]);
+    render(
+      <LocaleProvider>
+        <ItineraryDetail
+          journey={{ ...journey, startDate: '2026-08-25', endDate: '2026-08-25' }}
+          origin={kamppi}
+          destination={kamppi}
+          searchedDate="2026-08-24"
+          onBack={() => {}}
+        />
+      </LocaleProvider>,
+    );
+
+    expect(screen.getByText(/Departs/)).toBeTruthy();
+  });
+
+  it('stays quiet when it leaves on the day that was searched', () => {
+    show(journeyOf([walk(originPin, targetPin, '18:00', '18:20')]));
+    expect(screen.queryByText(/Departs/)).toBeNull();
   });
 });

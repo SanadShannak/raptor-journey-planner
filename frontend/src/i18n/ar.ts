@@ -199,6 +199,7 @@ export const ar: Dictionary = {
     showStops: 'إظهار المحطات',
     hideStops: 'إخفاء المحطات',
     arrivesNextDay: 'الوصول {date}',
+    departsOnDate: 'المغادرة {date}',
     walkOnly: 'المشي طوال الطريق أسرع من انتظار رحلة.',
     mapComingSoon: 'الخريطة قادمة في الخطوة التالية.',
 

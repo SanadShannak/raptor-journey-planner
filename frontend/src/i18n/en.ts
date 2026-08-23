@@ -169,6 +169,7 @@ export const en: Dictionary = {
     showStops: 'Show stops',
     hideStops: 'Hide stops',
     arrivesNextDay: 'Arrives {date}',
+    departsOnDate: 'Departs {date}',
     walkOnly: 'Walking the whole way is faster than waiting for a service.',
     mapComingSoon: 'The map arrives in the next step.',
 

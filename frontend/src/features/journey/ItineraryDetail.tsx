@@ -32,6 +32,8 @@ interface Props {
    */
   origin: JourneyEnd;
   destination: JourneyEnd;
+  /** The day that was asked about, so a departure on another one can say so. */
+  searchedDate: string;
   onBack: () => void;
 }
 
@@ -58,6 +60,7 @@ export function ItineraryDetail({
   journey,
   origin,
   destination,
+  searchedDate,
   onBack,
 }: Props) {
   const locale = useLocale();
@@ -129,6 +132,14 @@ export function ItineraryDetail({
               {formatDuration(journey.totalDurationMinutes, locale)}
             </p>
           </div>
+
+          {journey.startDate !== searchedDate && (
+            <p className="text-accent-strong text-sm font-semibold">
+              {t(strings.planner.departsOnDate, {
+                date: formatDate(journey.startDate, locale.locale),
+              })}
+            </p>
+          )}
 
           {totals.crossesMidnight && (
             <p className="text-accent-strong text-sm font-semibold">
@@ -338,7 +349,13 @@ function NodeLine({ row }: { row: NodeRow }) {
             )}
           </span>
 
-          <span className="w-16 flex-none text-end font-semibold tabular-nums">
+          {/*
+            Wide enough for "12:34 PM" on one line, and told not to wrap. At
+            four rem the meridiem dropped to a second line, which grew the row
+            it shares with the name — and pushed the badge a line and a half
+            clear of the stop it belongs to.
+          */}
+          <span className="w-20 flex-none whitespace-nowrap text-end font-semibold tabular-nums">
             {formatClockTime(row.time, locale.locale)}
           </span>
         </span>
@@ -378,8 +395,9 @@ function WaitLine({ row }: { row: WaitRow }) {
         <SpineLine spine={row.spine} />
       </span>
 
-      <span className="text-content-muted flex min-w-0 flex-1 items-center gap-2.5 py-5 text-sm">
-        <SeatedIcon size={22} />
+      {/* Weighted like a walk: standing still is a leg of the journey too. */}
+      <span className="text-content-muted flex min-w-0 flex-1 items-center gap-2.5 py-5 font-medium">
+        <SeatedIcon size={24} />
         <span dir="auto">
           {t(strings.planner.waitHere, {
             duration: formatDuration(row.minutes, locale),
@@ -388,7 +406,7 @@ function WaitLine({ row }: { row: WaitRow }) {
         </span>
       </span>
 
-      <span className="w-16 flex-none" />
+      <span className="w-20 flex-none" />
     </li>
   );
 }
@@ -457,7 +475,7 @@ function SegmentLine({ row }: { row: SegmentRow }) {
         )}
       </div>
 
-      <span className="w-16 flex-none" />
+      <span className="w-20 flex-none" />
     </li>
   );
 }

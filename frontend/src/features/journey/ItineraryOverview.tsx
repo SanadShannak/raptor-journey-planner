@@ -13,6 +13,8 @@ import { journeyTotals } from './journeyTotals';
 
 interface Props {
   journey: Journey;
+  /** The day that was asked about, so a departure on another one can say so. */
+  searchedDate: string;
   onOpen: () => void;
 }
 
@@ -45,7 +47,7 @@ const WAIT_WORTH_SHOWING_MINUTES = 4;
  * whose pointing is imprecise, and there is one tab stop per result instead of
  * two.
  */
-export function ItineraryOverview({ journey, onOpen }: Props) {
+export function ItineraryOverview({ journey, searchedDate, onOpen }: Props) {
   const locale = useLocale();
   const { strings, t } = locale;
 
@@ -181,6 +183,20 @@ export function ItineraryOverview({ journey, onOpen }: Props) {
             this is what stops "12:40 AM" reading as thirteen hours earlier
             than it is — so it is never left to the detail panel.
           */}
+          {/*
+            The mirror of the arrival note. Searching late enough pushes the
+            first departure past midnight, and "12:15 AM" beside a search for
+            the 24th reads as a quarter past midnight *that* morning — which
+            has already been and gone.
+          */}
+          {journey.startDate !== searchedDate && (
+            <span className="text-accent-strong font-semibold">
+              {t(strings.planner.departsOnDate, {
+                date: formatDate(journey.startDate, locale.locale),
+              })}
+            </span>
+          )}
+
           {totals.crossesMidnight && (
             <span className="text-accent-strong font-semibold">
               {t(strings.planner.arrivesNextDay, {
