@@ -141,13 +141,19 @@ describe('JourneyMap', () => {
     expect(container.querySelector('path.stroke-mode-tram')).toBeTruthy();
   });
 
-  // Drawn beneath the colour so it reads over any basemap, light or dark.
-  it('lays a surface-coloured casing under every line', () => {
+  /*
+   * The casing has to be *under* the colour, which in SVG means earlier in the
+   * document. Drawn the other way round it would paint over the very line it
+   * exists to protect.
+   */
+  it('lays the casing beneath the colour, not over it', () => {
     const { container } = show(
       journeyOf([ride(stop('A', 60.1, 24.9), stop('B', 60.2, 25.0), 3)]),
     );
 
-    expect(container.querySelectorAll('path.stroke-surface')).toHaveLength(1);
+    const paths = [...container.querySelectorAll('path')];
+    expect(paths[0]?.getAttribute('class')).toContain('stroke-surface');
+    expect(paths[1]?.getAttribute('class')).toContain('stroke-mode-bus');
   });
 
   /*
@@ -174,9 +180,83 @@ describe('JourneyMap', () => {
       journeyOf([walk(pin('ORIGIN', 60.0, 24.8), pin('TARGET', 60.2, 25.0))]),
     );
 
-    // The origin ring, in the same green the form's own marker uses.
-    expect(container.querySelector('path.stroke-mode-tram')).toBeTruthy();
-    // The destination pin, drawn from the shared path.
+    // A solid disc in the brand colour — deliberately not a ring, which is
+    // what every stop on this map is.
+    expect(container.querySelector('path.fill-brand-500')).toBeTruthy();
+    // The destination pin, drawn from the path the form and strip map share.
     expect(container.querySelector('.journey-marker svg')).toBeTruthy();
+  });
+
+  /*
+   * The regression this file exists for.
+   *
+   * Leaflet applies a path's `className` when it creates the element and never
+   * again, so a layer reused for a second journey kept the first one's colour:
+   * pick a later departure that starts by tram and it was still drawn in the
+   * bus blue of the one before it. Keying every layer to the journey is what
+   * forces a fresh element, and this is the only way to see that it worked.
+   */
+  it('repaints when the journey changes, rather than keeping the old colours', () => {
+    const a = stop('A', 60.1, 24.9);
+    const b = stop('B', 60.2, 25.0);
+
+    const { container, rerender } = show(journeyOf([ride(a, b, 3)]));
+    expect(container.querySelector('path.stroke-mode-bus')).toBeTruthy();
+
+    // A different journey, same shape, different vehicle: 0 is a tram.
+    rerender(
+      <LocaleProvider>
+        <ThemeProvider>
+          <JourneyMap
+            journey={{ ...journeyOf([ride(a, b, 0)]), startTime: '19:00' }}
+            network="hsl"
+            area={null}
+          />
+        </ThemeProvider>
+      </LocaleProvider>,
+    );
+
+    expect(container.querySelector('path.stroke-mode-tram')).toBeTruthy();
+    expect(container.querySelector('path.stroke-mode-bus')).toBeNull();
+  });
+
+  // Present so they can be inspected later; quiet so they are not in the way.
+  it('dots the stops a vehicle passes through', () => {
+    const { container } = show(
+      journeyOf([
+        {
+          ...ride(stop('A', 60.1, 24.9), stop('B', 60.3, 25.1), 3),
+          intermediateStops: [
+            {
+              stopId: '9',
+              stopName: 'Middle',
+              stopCode: null,
+              stopLat: 60.2,
+              stopLon: 25.0,
+              stopArrivalTime: '18:10',
+            },
+          ],
+        },
+      ]),
+    );
+
+    // Two calls (board, alight) plus the one ridden through.
+    expect(container.querySelectorAll('path.stroke-mode-bus')).toHaveLength(4);
+  });
+
+  // The mode's own silhouette and the line's own number, halfway along it.
+  it('badges each leg where its line runs', () => {
+    const { container } = show(
+      journeyOf([
+        walk(pin('ORIGIN', 60.0, 24.8), stop('A', 60.1, 24.9)),
+        ride(stop('A', 60.1, 24.9), stop('B', 60.2, 25.0), 3),
+      ]),
+    );
+
+    const badges = [...container.querySelectorAll('.journey-badge')];
+    expect(badges).toHaveLength(2);
+    // Trimmed: the silhouette's own markup carries the indentation it is
+    // written with, and `textContent` collects it.
+    expect(badges.map((b) => b.textContent?.trim())).toEqual(['Walk', '55']);
   });
 });

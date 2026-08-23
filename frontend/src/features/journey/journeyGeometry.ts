@@ -50,6 +50,16 @@ export interface MapSegment {
    */
   family: string | null;
   path: Point[];
+  /**
+   * Halfway along the drawn line, by length rather than by index.
+   *
+   * Where the badge naming this leg sits. Taking the middle *entry* of the
+   * array would put it wherever the shape happens to be densest — around a
+   * curve, typically, because that is where a feed records more points — and a
+   * badge parked on a bend at one end of a long straight reads as belonging to
+   * the wrong stretch of line.
+   */
+  midpoint: Point | null;
 }
 
 /**
@@ -103,6 +113,53 @@ function pathFor(leg: JourneyLeg): Point[] {
   return ends.filter(isPoint);
 }
 
+/**
+ * The point halfway along a path, measured by distance travelled.
+ *
+ * Longitude degrees narrow towards the poles, so they are scaled by latitude
+ * before lengths are compared. Without that, a north-south leg measures far
+ * longer than an equally long east-west one and the halfway mark sits
+ * off-centre. Plain trigonometry over a city is close enough: this chooses
+ * where to put a badge, it does not measure a distance anyone reads.
+ */
+function midpointOf(path: Point[]): Point | null {
+  const first = path[0];
+  if (first === undefined) return null;
+  if (path.length === 1) return first;
+
+  const spans: number[] = [];
+  let total = 0;
+
+  for (let i = 1; i < path.length; i += 1) {
+    const from = path[i - 1];
+    const to = path[i];
+    if (from === undefined || to === undefined) continue;
+
+    const dLat = to[0] - from[0];
+    const dLon = (to[1] - from[1]) * Math.cos((from[0] * Math.PI) / 180);
+    const span = Math.hypot(dLat, dLon);
+    spans.push(span);
+    total += span;
+  }
+
+  // Every point in the same place: the middle of it is that place.
+  if (total === 0) return first;
+
+  let remaining = total / 2;
+  for (const [index, span] of spans.entries()) {
+    if (remaining <= span) {
+      const from = path[index];
+      const to = path[index + 1];
+      if (from === undefined || to === undefined) break;
+      const ratio = span === 0 ? 0 : remaining / span;
+      return [from[0] + (to[0] - from[0]) * ratio, from[1] + (to[1] - from[1]) * ratio];
+    }
+    remaining -= span;
+  }
+
+  return path[path.length - 1] ?? first;
+}
+
 /** Folds every drawn point into one box. */
 function boxOf(points: Point[]): BoundingBox | null {
   if (points.length === 0) return null;
@@ -145,6 +202,7 @@ export function journeyGeometry(journey: Journey): JourneyGeometry {
         kind: transit ? 'transit' : 'walk',
         family,
         path,
+        midpoint: midpointOf(path),
       });
       drawn.push(...path);
     }

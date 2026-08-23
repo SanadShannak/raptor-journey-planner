@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { Fragment, useEffect, useMemo } from 'react';
 import L from 'leaflet';
 import {
   AttributionControl,
@@ -15,6 +15,11 @@ import { useTheme } from '../theme';
 import type { GeoBounds } from '../config/geocoding';
 import type { Journey } from '../types/journey';
 import { visualForFamily } from '../features/journey/modeVisuals';
+import {
+  ICON_SVG_ATTRIBUTES,
+  WALK_ICON_MARKUP,
+  modeIconMarkup,
+} from '../features/journey/modeIconMarkup';
 import { DESTINATION_PIN_PATH } from '../features/journey/placeMarkers';
 import {
   boxFromGeoBounds,
@@ -138,13 +143,38 @@ function ZoomButtonLabels({ zoomIn, zoomOut }: { zoomIn: string; zoomOut: string
   return null;
 }
 
+/**
+ * The badge that names a leg, sitting halfway along it.
+ *
+ * Built as a string because Leaflet makes a marker from markup and never from
+ * a React tree — and the silhouette inside it comes from the same constants
+ * the interface draws, so the two can never drift apart.
+ *
+ * The mode's own colour, with a surface-coloured edge so it holds against any
+ * tile beneath it. Named as well as coloured: the icon carries the mode and
+ * the text carries the line, so neither depends on colour alone.
+ */
+function legBadge(family: string | null, label: string): L.DivIcon {
+  const walking = family === null;
+  const tint = walking ? 'bg-surface text-content-muted' : `${visualForFamily(family).fill} text-on-mode`;
+  const icon = walking ? WALK_ICON_MARKUP : modeIconMarkup(family);
+
+  return L.divIcon({
+    className: 'journey-badge',
+    html: `<span class="${tint} rounded-control shadow-card ring-surface flex w-max items-center gap-1 px-1.5 py-0.5 text-xs font-bold ring-2"><svg ${ICON_SVG_ATTRIBUTES} width="15" height="15">${icon}</svg>${label}</span>`,
+    // Sized by its own content; the anchor is what centres it on the line.
+    iconSize: undefined as unknown as L.PointExpression,
+    iconAnchor: [0, 0],
+  });
+}
+
 /** The pin, built from the same path the form and the strip map draw. */
 const destinationIcon = L.divIcon({
   className: 'journey-marker',
-  html: `<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" class="text-brand-500"><path d="${DESTINATION_PIN_PATH}" fill="currentColor"/><circle cx="12" cy="10.7" r="2.3" class="fill-surface"/></svg>`,
-  iconSize: [26, 26],
+  html: `<svg viewBox="0 0 24 24" width="34" height="34" aria-hidden="true" class="text-brand-500 drop-shadow-sm"><path d="${DESTINATION_PIN_PATH}" fill="currentColor" stroke="currentColor" stroke-width="0.8"/><circle cx="12" cy="10.7" r="2.4" class="fill-surface"/></svg>`,
+  iconSize: [34, 34],
   // The point of a pin is its tip, which is the bottom of the box.
-  iconAnchor: [13, 26],
+  iconAnchor: [17, 34],
 });
 
 export function JourneyMap({ journey, network, area }: Props) {
@@ -159,6 +189,22 @@ export function JourneyMap({ journey, network, area }: Props) {
   );
 
   /*
+   * Every drawn key is scoped to the journey, so a change of journey brings a
+   * fresh set of layers rather than restyling the last one.
+   *
+   * That is not tidiness. A path's `className` is applied when Leaflet creates
+   * the element and never touched again, while `setStyle` reaches only the
+   * options — so a reused layer keeps the class it was born with. Moving from a
+   * journey that starts by bus to one that starts by tram repainted nothing:
+   * the second wore the first one's colours the whole way down. Remounting is
+   * what makes the colours belong to the journey being shown.
+   */
+  const scope =
+    journey === null
+      ? 'none'
+      : `${journey.startDate}-${journey.startTime}-${journey.endTime}`;
+
+  /*
    * The journey when there is one, the network's area otherwise. Memoised
    * because it is an effect's dependency, and a fresh array each render would
    * re-frame the map on every keystroke elsewhere on the page.
@@ -167,6 +213,16 @@ export function JourneyMap({ journey, network, area }: Props) {
     if (geometry?.bounds) return geometry.bounds;
     return area === null ? null : boxFromGeoBounds(area);
   }, [geometry, area]);
+
+  /*
+   * A line's designation comes from the leg rather than from the geometry:
+   * geometry carries what is drawn, and "55" is a name, not a shape.
+   */
+  const designationFor = (legIndex: number): string | null => {
+    const leg = journey?.legs[legIndex];
+    if (leg === undefined || leg.mode !== 'TRANSIT') return null;
+    return leg.routeShortName;
+  };
 
   const rtl = direction === 'rtl';
 
@@ -219,18 +275,18 @@ export function JourneyMap({ journey, network, area }: Props) {
            * It is ordinary transit cartography and it leaves the colour itself
            * untouched.
            */
-          <span key={segment.key}>
+          <Fragment key={`${scope}-${segment.key}`}>
             <Polyline
               positions={segment.path}
               className="stroke-surface"
-              pathOptions={{ weight: walking ? 7 : 9, opacity: 0.9 }}
+              pathOptions={{ weight: walking ? 8 : 10, opacity: 0.9 }}
               interactive={false}
             />
             <Polyline
               positions={segment.path}
               className={ink}
               pathOptions={{
-                weight: walking ? 3 : 5,
+                weight: walking ? 3 : 6,
                 opacity: 1,
                 // A walk is a straight line the engine measured as the crow
                 // flies, so it is dashed here exactly as it is in the strip
@@ -239,28 +295,65 @@ export function JourneyMap({ journey, network, area }: Props) {
               }}
               interactive={false}
             />
-          </span>
+          </Fragment>
         );
       })}
 
       {geometry?.calls.map((call) => (
         <CircleMarker
-          key={call.key}
+          key={`${scope}-${call.key}`}
           center={call.point}
-          radius={5}
+          radius={6}
           className={`${call.family === null ? '' : visualForFamily(call.family).stroke} fill-surface`}
           pathOptions={{ weight: 3, opacity: 1, fillOpacity: 1 }}
           interactive={false}
         />
       ))}
 
+      {/*
+        The stops ridden through. Small and quiet — they are information rather
+        than a decision, and the itinerary lists them in words. Drawn before
+        the badges so a badge is never lost behind one.
+      */}
+      {geometry?.passed.map((stop) => (
+        <CircleMarker
+          key={`${scope}-${stop.key}`}
+          center={stop.point}
+          radius={3.5}
+          className={`${stop.family === null ? '' : visualForFamily(stop.family).stroke} fill-surface`}
+          pathOptions={{ weight: 2, opacity: 1, fillOpacity: 1 }}
+          interactive={false}
+        />
+      ))}
+
+      {/* The badge naming each leg, halfway along it by length. */}
+      {geometry?.segments.map((segment) =>
+        segment.midpoint === null ? null : (
+          <Marker
+            key={`${scope}-badge-${segment.key}`}
+            position={segment.midpoint}
+            icon={legBadge(
+              segment.family,
+              segment.kind === 'walk'
+                ? t(strings.planner.walk)
+                : (designationFor(segment.legIndex) ?? ''),
+            )}
+            interactive={false}
+          />
+        ),
+      )}
+
       {geometry?.origin && (
         <CircleMarker
           center={geometry.origin}
-          radius={7}
-          // The open ring the form and the strip map both start from.
-          className="stroke-mode-tram fill-surface"
-          pathOptions={{ weight: 4, opacity: 1, fillOpacity: 1 }}
+          radius={9}
+          /*
+           * A solid disc with a surface-coloured halo, matching the form and
+           * the strip map. It was a thin ring in the tram green, which is
+           * precisely what a tram stop looks like on this map.
+           */
+          className="stroke-surface fill-brand-500"
+          pathOptions={{ weight: 3, opacity: 1, fillOpacity: 1 }}
           interactive={false}
         />
       )}

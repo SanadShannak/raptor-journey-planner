@@ -342,7 +342,7 @@ function NodeLine({ row }: { row: NodeRow }) {
    */
   const marker =
     row.role === 'origin' ? (
-      <OriginMarker size={22} />
+      <OriginMarker size={22} hole="stroke-surface-raised" />
     ) : row.role === 'destination' ? (
       <DestinationMarker size={24} hole="fill-surface-raised" />
     ) : (

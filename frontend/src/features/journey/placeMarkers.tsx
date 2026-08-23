@@ -1,11 +1,20 @@
 /**
  * The two ends of a journey, drawn the same way wherever they appear.
  *
- * An open ring where you start, a filled marker where you finish — borrowed
- * from transit maps, where the same pair distinguishes a terminus from a
- * through station. They mark the origin and destination fields in the form and
- * the first and last nodes of the strip map, and it is the same journey in
- * both places: a traveller should not have to learn the notation twice.
+ * A solid disc where you start, a pin where you finish. Both in the brand
+ * colour, because both are *the traveller's own* points rather than anything
+ * the network published — which is the distinction that has to survive: on a
+ * map they sit among stop markers, and those are drawn as thin rings in their
+ * line's colour.
+ *
+ * The origin used to be exactly that, a thin ring in the tram green, and on a
+ * map it was indistinguishable from a tram stop. Solid body, brand colour, and
+ * a halo in the page's own surface so it holds its shape over tiles of any
+ * brightness.
+ *
+ * They mark the origin and destination fields in the form and the first and
+ * last nodes of the strip map, and it is the same journey in both places: a
+ * traveller should not have to learn the notation twice.
  *
  * Sized by the caller rather than fixed, because the form draws them at the
  * scale of an input's leading icon and the diagram at the scale of its own
@@ -24,20 +33,26 @@ const markerBase = {
 interface MarkerProps {
   size?: number;
   /**
-   * Which surface the marker is sitting on, as a Tailwind `fill-*` class.
+   * Which surface the marker is sitting on, as a Tailwind `fill-*` or
+   * `stroke-*` class.
    *
    * The pin's centre is a hole punched through the fill rather than a lighter
-   * shade of it, so it has to be painted in the background it sits on. A card
-   * is `surface-raised` and a field is `surface`, and in dark mode those are
+   * shade of it, and the origin's halo is the same idea turned outward, so both
+   * have to be painted in the background they sit on. A card is
+   * `surface-raised` and a field is `surface`, and in dark mode those are
    * genuinely different colours.
    */
   hole?: string;
 }
 
-export function OriginMarker({ size = 20 }: MarkerProps) {
+export function OriginMarker({ size = 20, hole = 'stroke-surface' }: MarkerProps) {
   return (
-    <svg {...markerBase} width={size} height={size} aria-hidden="true" className="text-mode-tram">
-      <circle cx="12" cy="12" r="6.5" strokeWidth="3" />
+    <svg {...markerBase} width={size} height={size} aria-hidden="true" className="text-brand-500">
+      {/*
+        The halo is the page's own surface: invisible against a form field,
+        and what separates the disc from the map underneath it.
+      */}
+      <circle cx="12" cy="12" r="7" fill="currentColor" strokeWidth="3" className={hole} />
     </svg>
   );
 }
