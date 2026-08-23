@@ -383,21 +383,20 @@ export default function PlanPage() {
         Scrolling is confined to this pane only from `lg`, where the two-pane
         layout applies. On a phone the panes stack and the page scrolls.
       */}
-      <div className="border-border flex w-full flex-none flex-col border-e lg:min-h-0 lg:w-[26rem] lg:overflow-hidden xl:w-[30rem]">
+      <div className="border-border flex w-full flex-none flex-col border-e lg:min-h-0 lg:w-[26rem] lg:overflow-y-auto xl:w-[30rem]">
         {/*
-          Two panes rather than one long column.
+          One scrolling column, divided by a rule rather than by a second
+          scroller.
 
-          The form keeps its natural height and the results take what is left,
-          so the question stays on screen while its answers scroll beneath it —
-          and with a filled-in form the split lands near half and half. Neither
-          is pinned to an exact fraction: the form shrinks only under real
-          pressure, which is what keeps a short laptop screen from clipping it.
-
-          Below `lg` this collapses back to one scrolling column, because a
-          phone has no second pane to scroll against.
+          Giving the form its own scroll pane meant a dropdown opening inside
+          it had to fit there: the pane grew a scrollbar, the scrollbar took
+          width from the popover, and the popover narrowed as it opened. A
+          menu that changes shape while you read it is worse than a sidebar
+          you scroll, so the panes are back to being one, and the separation
+          is drawn instead of enforced.
         */}
         {open !== null ? (
-          <div className="flex flex-col gap-5 p-5 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+          <div className="flex flex-col gap-5 p-5">
             <ItineraryDetail
               journey={open}
               origin={endOf(values.origin)}
@@ -411,7 +410,7 @@ export default function PlanPage() {
             {/* The question. A light rule under it marks where the answers
                 begin, spanning the full width because the padding lives on
                 the panes rather than on the sidebar. */}
-            <div className="border-border flex flex-col gap-5 p-5 lg:min-h-0 lg:overflow-y-auto lg:border-b">
+            <div className="border-border flex flex-col gap-5 p-5 lg:border-b">
             <div>
               <h1 className="text-2xl font-semibold tracking-tight text-balance">
                 {t(strings.pages.plan.title)}
@@ -467,7 +466,7 @@ export default function PlanPage() {
             <section
               aria-live="polite"
               aria-busy={state === 'searching'}
-              className="flex flex-col gap-3 p-5 lg:min-h-0 lg:flex-1 lg:overflow-y-auto"
+              className="flex flex-col gap-3 p-5"
             >
               <p className="sr-only">
                 {service === 'checking'

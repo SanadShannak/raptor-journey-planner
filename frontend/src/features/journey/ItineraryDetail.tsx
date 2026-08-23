@@ -247,20 +247,52 @@ export function ItineraryDetail({
 function SpineLine({ spine }: { spine: Spine | null }) {
   if (spine === null) return <span className="w-1 flex-1" />;
   if (spine.kind === 'transit') {
+    /*
+     * `-my-px` closes a hairline. A colour runs through three separate
+     * elements — the line below a node, the leg's own, and the line above the
+     * next — and row heights land on fractional pixels, so the seams showed as
+     * faint breaks and one line read as three. Overlapping each end by a pixel
+     * hides the joins; the colour is identical either side, so the overlap
+     * itself cannot be seen.
+     */
     return (
       <span
-        className={`${visualForFamily(spine.family).ink} w-1 flex-1 rounded-full bg-current`}
+        className={`${visualForFamily(spine.family).ink} -my-px w-1 flex-1 rounded-full bg-current`}
       />
     );
   }
+  /*
+   * Four pixels, matching the transit line. At three it sat half a pixel off
+   * the axis its neighbours share, which reads as the dashes drifting to one
+   * side of the circles rather than running through them.
+   */
   return (
     <span
-      className={`border-border-strong w-0 flex-1 border-s-[3px] ${
+      className={`border-border-strong w-0 flex-1 border-s-4 ${
         spine.kind === 'wait' ? 'border-dotted' : 'border-dashed'
       }`}
     />
   );
 }
+
+/**
+ * How far the line runs before it reaches the marker.
+ *
+ * The marker has to centre on the middle of the stop's name — 1.125rem down,
+ * being the row's top padding plus half a line — so a stop is not written
+ * above its own circle. It also has to sit *in* the flow rather than hang over
+ * it, or the line below leaves from the middle of the circle and shows through
+ * an open ring instead of starting at its edge.
+ *
+ * Both hold when the lead is 1.125rem minus half the marker, which is a
+ * different number for each of the three: the ring, the pin and a via dot are
+ * all sized differently.
+ */
+const RAIL_LEAD: Record<NodeRow['role'], string> = {
+  origin: 'h-[0.4375rem]', // a 22px ring
+  destination: 'h-[0.375rem]', // a 24px pin
+  via: 'h-[0.625rem]', // a 16px dot
+};
 
 /** The colour a node takes: the vehicle's, wherever one is involved. */
 function nodeInk(row: NodeRow): string | null {
@@ -318,10 +350,10 @@ function NodeLine({ row }: { row: NodeRow }) {
         it drawn over the line running down behind it.
       */}
       <span aria-hidden="true" className="flex w-7 flex-none flex-col items-center">
-        <span className="flex h-[1.125rem] flex-none flex-col items-center">
+        <span className={`${RAIL_LEAD[row.role]} flex flex-none flex-col items-center`}>
           <SpineLine spine={row.above} />
         </span>
-        <span className="relative z-10 flex h-0 flex-none items-center justify-center">
+        <span className="relative z-10 flex flex-none items-center justify-center">
           {marker}
         </span>
         <SpineLine spine={row.below} />
@@ -383,7 +415,11 @@ function NodeLine({ row }: { row: NodeRow }) {
           not a continuation of the sentence.
         */}
         {row.detail !== null && (
-          <span className="bg-surface-muted text-content-muted rounded-control mt-1 px-1.5 py-0.5 text-xs font-medium">
+          <span
+            /* Pulled back by its own padding, so the text inside starts on the
+               same edge as the name above it — not the box it sits in. */
+            className="bg-surface-muted text-content-muted rounded-control -ms-1.5 mt-1 px-1.5 py-0.5 text-xs font-medium"
+          >
             <span dir="auto">{row.detail}</span>
           </span>
         )}
