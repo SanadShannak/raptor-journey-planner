@@ -16,13 +16,32 @@ function feature(properties: Record<string, unknown>) {
   };
 }
 
+/*
+ * A fresh Response per call, not one shared instance: a body can only be read
+ * once, and an empty first answer makes the adapter ask a second time.
+ */
 function respondWith(features: unknown[]) {
-  const fetchMock = vi.fn().mockResolvedValue(
-    new Response(JSON.stringify({ type: 'FeatureCollection', features })),
+  const fetchMock = vi.fn(
+    async (_url: RequestInfo | URL, _init?: RequestInit) =>
+      new Response(JSON.stringify({ type: 'FeatureCollection', features })),
   );
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
 }
+
+/** Answers each call from its own list, in order. */
+function respondInTurn(...responses: unknown[][]) {
+  let call = 0;
+  const fetchMock = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => {
+    const features = responses[call] ?? [];
+    call += 1;
+    return new Response(JSON.stringify({ type: 'FeatureCollection', features }));
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
+}
+
+const endpointOf = (call: unknown) => new URL(String(call)).pathname;
 
 const geocoder = createDigitransitGeocoder('test-key');
 
@@ -219,5 +238,65 @@ describe('Digitransit request', () => {
     expect(
       (init.headers as Record<string, string>)['digitransit-subscription-key'],
     ).toBe('test-key');
+  });
+});
+
+/*
+ * Pelias `autocomplete` matches the last word as a prefix but cannot match
+ * across a place's language variants, so "Kumpula Campus" — indexed in Finnish
+ * as "Kumpulan kampus" — comes back with nothing at all. `search` finds it and
+ * has no prefix matching of its own, so the two are used in that order.
+ */
+describe('Digitransit endpoint fallback', () => {
+  it('asks autocomplete first, and stops there when it answers', async () => {
+    const fetchMock = respondWith([
+      feature({ id: 'GTFS:HSL:8', name: 'Kumpula', layer: 'stop' }),
+    ]);
+
+    const places = await geocoder.search('Kumpula');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(endpointOf(fetchMock.mock.calls[0]![0])).toBe(
+      '/geocoding/v1/autocomplete',
+    );
+    expect(places).toHaveLength(1);
+  });
+
+  it('falls back to full-text search when autocomplete finds nothing', async () => {
+    const fetchMock = respondInTurn(
+      [],
+      [feature({ id: 'node:42', name: 'Kumpula Campus', layer: 'venue' })],
+    );
+
+    const places = await geocoder.search('Kumpula Campus');
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(endpointOf(fetchMock.mock.calls[1]![0])).toBe('/geocoding/v1/search');
+    expect(places.map((place) => place.label)).toEqual(['Kumpula Campus']);
+  });
+
+  it('carries the query, the bounds, and the key into the second ask', async () => {
+    const fetchMock = respondInTurn([], []);
+
+    await geocoder.search('Kumpula Campus', {
+      bounds: { minLat: 59.9, minLon: 24, maxLat: 60.9, maxLon: 25.7 },
+    });
+
+    const url = new URL(String(fetchMock.mock.calls[1]![0]));
+    expect(url.searchParams.get('text')).toBe('Kumpula Campus');
+    expect(url.searchParams.get('boundary.rect.min_lat')).toBe('59.9');
+
+    const init = fetchMock.mock.calls[1]![1] as RequestInit;
+    expect(
+      (init.headers as Record<string, string>)['digitransit-subscription-key'],
+    ).toBe('test-key');
+  });
+
+  // Both came back empty: two asks, and an honest nothing.
+  it('reports no results rather than asking a third time', async () => {
+    const fetchMock = respondInTurn([], []);
+
+    expect(await geocoder.search('nowhere at all')).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

@@ -26,7 +26,26 @@ import type {
  * search.
  */
 
-const ENDPOINT = 'https://api.digitransit.fi/geocoding/v1/autocomplete';
+/**
+ * Pelias offers two query endpoints, and neither one answers well alone.
+ *
+ * `autocomplete` treats the final word as a prefix, which is what makes a
+ * search box feel live: "Kump" already offers Kumpula. What it will not do is
+ * match across a name's language variants — every token has to hit the same
+ * indexed name — so "Kumpula Campus" returns *nothing at all*, because the
+ * place is indexed in Finnish as "Kumpulan kampus" with the English name only
+ * in a secondary field. Typing the name of a place in the wrong one of the
+ * city's two languages is not an unusual thing to do.
+ *
+ * `search` matches the full text properly and finds it, but has no notion of a
+ * prefix: "Kump" reaches Kumputie in Espoo and never Kumpula.
+ *
+ * So the fast one is asked first, and the thorough one only when it came back
+ * empty-handed — which costs a second round trip exactly when the alternative
+ * was showing the visitor nothing.
+ */
+const AUTOCOMPLETE_ENDPOINT = 'https://api.digitransit.fi/geocoding/v1/autocomplete';
+const SEARCH_ENDPOINT = 'https://api.digitransit.fi/geocoding/v1/search';
 
 /** Pelias layers that mean "somewhere a vehicle calls". */
 const STOP_LAYERS = new Set(['stop', 'station']);
@@ -195,39 +214,52 @@ export function createDigitransitGeocoder(subscriptionKey: string): Geocoder {
 
     async search(query, options: PlaceSearchOptions = {}) {
       const limit = options.limit ?? 6;
-      const url = new URL(ENDPOINT);
-      url.searchParams.set('text', query);
-      url.searchParams.set('size', String(Math.max(limit, MIN_REQUEST_SIZE)));
-      if (options.language) url.searchParams.set('lang', options.language);
-      if (options.bounds) {
-        const { minLat, minLon, maxLat, maxLon } = options.bounds;
-        url.searchParams.set('boundary.rect.min_lat', String(minLat));
-        url.searchParams.set('boundary.rect.min_lon', String(minLon));
-        url.searchParams.set('boundary.rect.max_lat', String(maxLat));
-        url.searchParams.set('boundary.rect.max_lon', String(maxLon));
+
+      async function ask(endpoint: string): Promise<Place[]> {
+        const url = new URL(endpoint);
+        url.searchParams.set('text', query);
+        url.searchParams.set('size', String(Math.max(limit, MIN_REQUEST_SIZE)));
+        if (options.language) url.searchParams.set('lang', options.language);
+        if (options.bounds) {
+          const { minLat, minLon, maxLat, maxLon } = options.bounds;
+          url.searchParams.set('boundary.rect.min_lat', String(minLat));
+          url.searchParams.set('boundary.rect.min_lon', String(minLon));
+          url.searchParams.set('boundary.rect.max_lat', String(maxLat));
+          url.searchParams.set('boundary.rect.max_lon', String(maxLon));
+        }
+
+        const response = await fetch(url, {
+          signal: options.signal ?? null,
+          headers: {
+            Accept: 'application/json',
+            // Sent as a header rather than a query parameter so the key stays
+            // out of anything that logs URLs.
+            'digitransit-subscription-key': subscriptionKey,
+          },
+        });
+        if (!response.ok) {
+          throw new Error(`Digitransit responded with ${response.status}.`);
+        }
+
+        const body: unknown = await response.json();
+        const features = (body as { features?: unknown })?.features;
+        if (!Array.isArray(features)) return [];
+
+        return features
+          .map((feature, index) => toPlace(feature as DigitransitFeature, index))
+          .filter((place): place is Place => place !== null)
+          .slice(0, limit);
       }
 
-      const response = await fetch(url, {
-        signal: options.signal ?? null,
-        headers: {
-          Accept: 'application/json',
-          // Sent as a header rather than a query parameter so the key stays
-          // out of anything that logs URLs.
-          'digitransit-subscription-key': subscriptionKey,
-        },
-      });
-      if (!response.ok) {
-        throw new Error(`Digitransit responded with ${response.status}.`);
-      }
-
-      const body: unknown = await response.json();
-      const features = (body as { features?: unknown })?.features;
-      if (!Array.isArray(features)) return [];
-
-      return features
-        .map((feature, index) => toPlace(feature as DigitransitFeature, index))
-        .filter((place): place is Place => place !== null)
-        .slice(0, limit);
+      const suggestions = await ask(AUTOCOMPLETE_ENDPOINT);
+      /*
+       * Only when there is nothing to show. A short answer is still an answer
+       * — the visitor is mid-word and the list is about to change again — and
+       * asking twice on every keystroke would double the traffic to a
+       * rate-limited key to improve results nobody was waiting on.
+       */
+      if (suggestions.length > 0) return suggestions;
+      return ask(SEARCH_ENDPOINT);
     },
   };
 }
