@@ -40,7 +40,7 @@ cd frontend && npm run check:contrast          # WCAG AA check on design tokens,
 
 The frontend has a Vitest suite. **The pipeline and backend have no tests and are not to get any** — `npm test` there is an unimplemented stub. Verify backend behaviour by calling the running server.
 
-The backend port (`3000`) is hardcoded in `backend/index.js`.
+The backend port defaults to `3000` and is set in `backend/server/serverConfig.js`, which honours `process.env.PORT`. The frontend's `VITE_API_BASE_URL` must agree with it.
 
 ## Architecture
 
@@ -60,9 +60,11 @@ The parsers compact relational GTFS text into zero-indexed contiguous arrays: a 
 
 ### Request path
 
-`backend/index.js` (validate query) → `raptor-engines/raptorEngine.js` (route, in seconds-from-midnight) → `backend/utils/formatItinerary.js` (presenter: seconds → `HH:mm`, rounding) → JSON.
+`backend/server/index.js` (mounts routers) → `backend/server/routes/plannerApi.js` (validates the query) → `backend/raptor-engines/raptorEngine.js` (routes, in seconds-from-midnight) → `backend/server/utils/formatItinerary.js` (presenter: seconds → `HH:mm`, rounding) → JSON.
 
-`formatItinerary.js` is the definitive source for the response shape the frontend consumes — read it rather than guessing at fields. Two rounding behaviours from `utils/`: durations round to whole minutes with a floor of 1 (`formatDuration`), distances round to the nearest 50 m with a floor of 50 (`formatDistance`).
+Everything server-side lives under `backend/server/` apart from the engine, which sits at `backend/raptor-engines/`. One router per endpoint in `backend/server/routes/`.
+
+`formatItinerary.js` is the definitive source for the response shape the frontend consumes — read it rather than guessing at fields. Two rounding behaviours from `backend/server/utils/`: durations round to whole minutes with a floor of 1 (`formatDuration`), distances round to the nearest 50 m with a floor of 50 (`formatDistance`).
 
 The engine loads *yesterday, today, and tomorrow* schedules with offsets, so itineraries can legitimately cross midnight — `endDate` may be later than `startDate`.
 
@@ -84,7 +86,15 @@ The risk a 12-hour clock carries is that "12:40 AM" reads as the wrong end of th
 
 ### API contract
 
-Endpoints are `GET /api/planner` (journey planning), `GET /api/stop/:id`, `GET /api/routes`, `GET /api/network`, `GET /api/valid-dates`, and `GET /api/health`. Non-2xx responses carry `{ errorCode, error }`, split 400 (validation, from `index.js`) / 404 (engine, from `raptorEngine.js`) / 500.
+Endpoints are `GET /api/planner` (journey planning), `GET /api/stop/:id`, `GET /api/routes`, `GET /api/network`, `GET /api/valid-dates`, and `GET /api/health`.
+
+Every failure, whatever its status, carries `{ errorCode, error }`. **The status tells you who refused, not whether there is an answer:**
+
+- **400** — the request was malformed, from `backend/server/routes/plannerApi.js`.
+- **200 with an `errorCode`** — the request was fine and the *engine* has an outcome to report, `NO_ROUTE_FOUND` among them. There is no `legs` in such a body, so code that goes straight to parsing an itinerary reports "unreadable response" for what is really "nothing runs then". **Read `errorCode` on a successful response too.**
+- **500** — `INTERNAL_SERVER_ERROR`.
+
+`NO_ROUTE_FOUND` is an *empty state, not a failure* — the search ran and the honest answer is that nothing connects those places then. `frontend/src/api/journey.ts` turns it into an empty list so no caller has to remember to special-case it. Everything else becomes an `ApiError` carrying the code, which `frontend/src/i18n/apiError.ts` maps to a localised message. **The API's own `error` string is developer-facing English and is never shown to anyone.**
 
 **The full contract — every parameter, field, nullability rule, error code, and rounding behaviour — lives in the `api-contract` skill.** Load it before touching `frontend/src/api` or `frontend/src/types`, or when interpreting any response field.
 
@@ -108,6 +118,31 @@ Deliberately small dependency footprint. Before adding any package, justify it: 
 - **Never show the API's `error` string to a user.** It is developer-facing English. Map `errorCode` to a localised message; fall back to a generic one for unrecognised codes.
 - **Stay inside the declared browser baseline** (`build.target` in `vite.config.ts`: Chrome/Edge 111, Firefox 113, Safari 15.4). Anything newer needs a feature-detected fallback — see `anySignal()` in `src/api/client.ts` for the pattern, and the `@supports not (color: oklch(...))` block for the CSS one. Widening or narrowing the baseline is a deliberate decision, not a side effect.
 - Avoid premature abstraction. Don't create an abstraction, or split out a tiny component, without a present need.
+
+### The journey planner
+
+`src/pages/PlanPage.tsx` owns the state; `src/features/journey/` holds the parts. The search lives in the URL so a journey can be shared and reached with the back button. There is no submit button — a complete form searches itself, and `JourneyForm` refuses to repeat a search whose inputs have not changed.
+
+**Results are two views, not one.** `ItineraryOverview` is a card per result, carrying only what a choice is made on; opening one swaps the sidebar for `ItineraryDetail`. Do not put the stop-by-stop account back in the list — a 26rem sidebar showing five of them cannot be compared, which is the whole reason the list exists.
+
+**The strip map is built from `itineraryRows.ts`, not from legs directly.** A leg is a *segment* and has nowhere to put the moment you arrive somewhere as distinct from the moment you leave it, so a change drawn straight from legs reads as one point in time when really you get off at 18:24, wait six minutes, and board again at 18:30. `itineraryRows()` expands a journey into strictly alternating node and segment rows — a stop appearing **twice** when there is a wait between them, once when there is not — and that invariant is what lets each colour run centre to centre between circles. Change the drawing there, not in the component.
+
+`journeyTotals.ts` computes what the API never sends: walking, waiting, and riding totals. Riding distance is null whenever *any* ridden leg lacks one, because a partial sum presented as a whole is worse than no number.
+
+The engine's synthetic endpoints are `code: "ORIGIN_PIN"` / `"TARGET_PIN"` with `name: "ORIGIN"` / `"TARGET"`. Those are placeholders, never shown — substitute what the traveller actually chose.
+
+`checkHealth()` from `src/api/health.ts` gates the form. It **never rejects**, including on abort, which is where it parts company with `getJson`: it is a fire-and-forget probe inside an effect, and re-throwing produced an unhandled rejection on every unmount rather than information anyone used.
+
+### Place search
+
+Geocoding is an adapter behind the `Geocoder` interface in `src/types/place.ts`, resolved once in `src/geocoding/index.ts` — the right one depends on the network, so adding a city means adding an adapter, not changing the form.
+
+- **Photon** is the default and needs no key. It is one of the few free geocoders that permits typeahead; Nominatim forbids it. It knows OpenStreetMap, not our feed, so it can never supply a stop id.
+- **Digitransit** is used when `VITE_DIGITRANSIT_SUBSCRIPTION_KEY` is set, and knows HSL's own stops. Its `addendum.GTFS` carries modes, stop code, and platform, which is what lets six results named "Pasila" be told apart. A key in a browser bundle is public by design; the dev one is committed in `frontend/.env.development` and is rate-limited per key.
+
+Two rules that cost real bugs: a stop id arrives as `GTFS:HSL:1020444#H0101` and the `#platform` suffix is **not** part of the id, and an unrecognised mode is **dropped rather than defaulted** — telling someone a rail platform is a bus stop sends them to the wrong side of the station.
+
+Never send a visitor's coordinates to a geocoder as a search bias. That would hand their position to a third party as a side effect of typing.
 
 ## Localisation
 

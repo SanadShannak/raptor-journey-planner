@@ -5,9 +5,9 @@ description: The backend journey-planning API contract — endpoints, query para
 
 # Journey-planning API contract
 
-Base URL comes from `VITE_API_BASE_URL`. Port `3000` is hardcoded in `backend/index.js`.
+Base URL comes from `VITE_API_BASE_URL`. The server port defaults to `3000`, set in `backend/server/serverConfig.js` (honours `process.env.PORT`).
 
-The authoritative sources, in order: a live response, then `backend/utils/formatItinerary.js` (the presenter that builds the payload), then `backend/index.js` (validation and query params). **Never invent a field.** If something here disagrees with a live response, the live response wins — and this file needs updating.
+The authoritative sources, in order: a live response, then `backend/server/utils/formatItinerary.js` (the presenter that builds the payload), then `backend/server/routes/plannerApi.js` (validation and query params). **Never invent a field.** If something here disagrees with a live response, the live response wins — and this file needs updating.
 
 ## Endpoints
 
@@ -165,17 +165,17 @@ Array of `[latitude, longitude]` pairs — latitude first, matching Leaflet's `L
 
 Applied by the backend presenter, so values arrive pre-rounded — do not round again.
 
-- Durations: whole minutes, with a floor of 1 for any non-zero duration (`backend/utils/formatDuration.js`).
-- Distances: nearest 50 m, with a floor of 50 for any non-zero distance (`backend/utils/formatDistance.js`).
+- Durations: whole minutes, with a floor of 1 for any non-zero duration (`backend/server/utils/formatDuration.js`).
+- Distances: nearest 50 m, with a floor of 50 for any non-zero distance (`backend/server/utils/formatDistance.js`).
 
 ## Errors
 
 Non-2xx responses carry `{ errorCode, error }`. `error` is developer-facing English — **never show it to end users**; map `errorCode` to a localised string instead.
 
-**400** — validation, from `backend/index.js`:
+**400** — validation, from `backend/server/routes/plannerApi.js`:
 `MISSING_ORIGIN`, `MISSING_DESTINATION`, `BAD_DATE`, `BAD_TIME`
 
-**404** — engine, from `backend/raptor-engines/raptorEngine.js`:
+**404 (legacy) / 200 (current)** — engine outcomes, from `backend/raptor-engines/raptorEngine.js`. See *Engine outcomes may arrive inside a 200* below; a client should handle both:
 `SAME_ORIGIN_TARGET`, `NO_ACTIVE_SERVICES`, `ORIGIN_OUT_OF_BOUNDS`, `ORIGIN_STOP_NOT_FOUND`, `DESTINATION_OUT_OF_BOUNDS`, `DESTINATION_STOP_NOT_FOUND`, `NO_ROUTE_FOUND`
 
 **500** — `INTERNAL_SERVER_ERROR`
@@ -186,11 +186,16 @@ Unknown paths return an Express **HTML** 404, not JSON — the client must toler
 
 ### Engine outcomes may arrive inside a 200
 
-`backend/server/routes/plannerApi.js` is being changed so that an engine
-outcome — everything in the 404 list above, `NO_ROUTE_FOUND` included — comes
-back as the same `{ errorCode, error }` envelope but with a **200** status; the
-status then says only that the request was served, not that a journey was
-found. Route-handler validation failures (the 400 list) keep their status.
+`backend/server/routes/plannerApi.js` sends an engine outcome — everything in
+the list above, `NO_ROUTE_FOUND` included — as the same `{ errorCode, error }`
+envelope but with a **200** status. The status says only that the request was
+served, not that a journey was found. Route-handler validation failures (the
+400 list) keep their status.
+
+Verified live: an out-of-bounds origin answers `200` in ~24 ms with
+`{ targetArrivalTime: null, legs: [], errorCode: "ORIGIN_OUT_OF_BOUNDS", error: ... }`.
+Note the `legs: []` sitting beside the error — an empty list is **not** proof of
+a successful search.
 
 **A client must therefore read `errorCode` on a successful response too.** An
 outcome body has no `legs`, so a client that goes straight to parsing an
@@ -201,11 +206,10 @@ build uses is not something the UI has to know. Detection is "both `errorCode`
 and `error` are strings" — never `errorCode` alone, or an itinerary would be
 swallowed the day a success body gains an `error: null`.
 
-> **Caveat, as of this writing.** The working-tree edit that introduces this
-> returns the object from the Express handler (`return rawItinerary;`) instead
-> of sending it (`return res.json(rawItinerary);`). Returning from a handler
-> sends nothing, so the request hangs until the client times out. Verify
-> against a live response before relying on this section.
+> **If a planner request ever hangs**, this is the first place to look. An
+> Express handler that `return`s a value sends nothing — the response is never
+> written and the client waits for its own timeout. It must be
+> `return res.json(rawItinerary);`. That exact mistake shipped once.
 
 ## Expected behaviours that look like bugs
 
