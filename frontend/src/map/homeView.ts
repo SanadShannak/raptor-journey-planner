@@ -23,8 +23,8 @@ export interface HomeView {
 
 /** The city and its inner suburbs — close enough to read, wide enough to place. */
 const HOME: Record<string, HomeView> = {
-  hsl: { center: [60.185, 24.94], zoom: 12 },
-  amman: { center: [31.955, 35.93], zoom: 12 },
+  hsl: { center: [60.185, 24.94], zoom: 13 },
+  amman: { center: [31.955, 35.93], zoom: 13 },
 };
 
 /**
@@ -34,7 +34,7 @@ const HOME: Record<string, HomeView> = {
 export function homeViewFor(network: string | null, bounds: GeoBounds | null): HomeView {
   const known = network === null ? undefined : HOME[network];
   if (known !== undefined) return known;
-  if (bounds === null) return { center: [60.185, 24.94], zoom: 12 };
+  if (bounds === null) return { center: [60.185, 24.94], zoom: 13 };
 
   return {
     center: [(bounds.minLat + bounds.maxLat) / 2, (bounds.minLon + bounds.maxLon) / 2],

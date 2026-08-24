@@ -395,10 +395,22 @@ function NodeLine({ row }: { row: NodeRow }) {
           one alignment both agree on.
         */}
         <span className="flex w-full items-baseline gap-3.5">
-          <span className="min-w-0 flex-1 truncate font-semibold">
-            {/* The box follows the page's direction; the name follows its
-                own, so a Latin name still sits where the row starts. */}
-            <span dir="auto">{row.name}</span>
+          {/*
+            `dir="auto"` on the box that truncates, not on a span inside it.
+            
+            An ellipsis is placed at the end of the *element's own* inline
+            flow, so a Latin name truncated by an element the page had made
+            right-to-left lost its beginning rather than its end — "…lan
+            kampus" instead of "Kumpulan…". The direction has to be the text's
+            for the ellipsis to fall in the right place.
+            
+            Which is why the box no longer fills the row: sized to its own
+            text it sits where the row starts whichever way the page runs, so
+            the placement that `dir="auto"` used to cost is kept by the layout
+            instead. The time is pushed to the far end by its own margin.
+          */}
+          <span dir="auto" className="min-w-0 truncate font-semibold">
+            {row.name}
             {/*
               The ends are named for a screen reader rather than on the page:
               the marker says which is which to anyone who can see it, and the
@@ -423,7 +435,7 @@ function NodeLine({ row }: { row: NodeRow }) {
             it shares with the name — and pushed the badge a line and a half
             clear of the stop it belongs to.
           */}
-          <span className="w-20 flex-none whitespace-nowrap text-end font-semibold tabular-nums">
+          <span className="ms-auto w-20 flex-none whitespace-nowrap text-end font-semibold tabular-nums">
             {formatClockTime(row.time, locale.locale)}
           </span>
         </span>
@@ -662,8 +674,8 @@ function TransitBody({ leg }: { leg: TransitLeg }) {
                     of the sidebar in between. The time is pushed to the end
                     instead, which is where it was going anyway.
                   */}
-                  <span className="min-w-0 truncate">
-                    <span dir="auto">{stop.stopName}</span>
+                  <span dir="auto" className="min-w-0 truncate">
+                    {stop.stopName}
                   </span>
                   <span className="ms-auto flex-none tabular-nums">
                     {formatClockTime(stop.stopArrivalTime, locale.locale)}

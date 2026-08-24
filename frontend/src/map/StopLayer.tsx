@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
-import { Marker, Tooltip, useMap, useMapEvents } from 'react-leaflet';
+import { Marker, useMap, useMapEvents } from 'react-leaflet';
 import { getStopsInBounds } from '../api/stops';
 import type { GeoBounds } from '../config/geocoding';
 import type { NetworkStop } from '../types/stop';
@@ -119,6 +119,8 @@ export function StopLayer({ onStopHover }: { onStopHover: () => void }) {
   const [stops, setStops] = useState<NetworkStop[]>([]);
   /** Bumped whenever the map settles, which is when the projection moved. */
   const [settled, setSettled] = useState(0);
+  /** The stop under the pointer, if any. */
+  const [hovered, setHovered] = useState<NetworkStop | null>(null);
   /** The area the current answer covers, so a small pan asks nothing. */
   const covered = useRef<GeoBounds | null>(null);
   const request = useRef<AbortController | null>(null);
@@ -169,7 +171,13 @@ export function StopLayer({ onStopHover }: { onStopHover: () => void }) {
     refresh();
   };
 
-  useMapEvents({ moveend: onSettle, zoomend: onSettle });
+  useMapEvents({
+    moveend: onSettle,
+    zoomend: onSettle,
+    // The name is placed from a projection, so it belongs to a still map.
+    movestart: () => setHovered(null),
+    zoomstart: () => setHovered(null),
+  });
 
   useEffect(() => {
     refresh();
@@ -208,6 +216,8 @@ export function StopLayer({ onStopHover }: { onStopHover: () => void }) {
     return keep;
   }, [stops, map, settled]);
 
+  const label = hovered === null ? null : map.latLngToContainerPoint([hovered.lat, hovered.lon]);
+
   return (
     <>
       {drawn.map((stop) => (
@@ -224,31 +234,49 @@ export function StopLayer({ onStopHover }: { onStopHover: () => void }) {
            */
           keyboard={false}
           eventHandlers={{
-            mouseover: (event) => {
+            mouseover: () => {
               onStopHover();
-              /*
-               * Placed again once its content is in.
-               *
-               * Leaflet measures a tooltip's width when it opens, to centre it
-               * over the marker — but react-leaflet fills the content in
-               * afterwards, through a portal, so the measurement can be taken
-               * of an empty box and the name lands off to one side. Asking for
-               * a fresh placement on the next frame measures the real thing.
-               */
-              requestAnimationFrame(() => event.target.getTooltip()?.update());
+              setHovered(stop);
             },
+            mouseout: () => setHovered((current) => (current === stop ? null : current)),
           }}
-        >
-          <Tooltip direction="top" offset={[0, -12]}>
-            <span dir="auto" className="font-semibold">
-              {stop.name}
-            </span>
-            {stop.code !== null && (
-              <span className="text-content-muted"> · {stop.code}</span>
-            )}
-          </Tooltip>
-        </Marker>
+        />
       ))}
+
+      {/*
+        The name, drawn rather than delegated.
+        
+        Leaflet's own tooltip measures its width the moment it opens, so that it
+        can centre itself over the marker — and react-leaflet fills the content
+        in afterwards, through a portal. The measurement was of an empty box,
+        and the name landed to one side of the stop it belonged to. Asking for a
+        second placement once the content had arrived did not settle it either.
+
+        Positioned here instead, from the point itself. There is nothing to
+        measure and nothing to correct: it is centred by a transform, which
+        needs no knowledge of how wide the name is. Same conclusion as the point
+        chooser reached, for the same reason.
+
+        `left` rather than `start`: the anchor is a point on the ground, placed
+        by projection in physical pixels, and the map does not flip with the
+        document.
+      */}
+      {hovered !== null && label !== null && (
+        <div
+          // Nothing to click, and it must not steal the hover that summoned it.
+          className="pointer-events-none absolute z-[900] -translate-x-1/2 -translate-y-full pb-2"
+          style={{ left: label.x, top: label.y }}
+        >
+          <span className="rounded-control border-border bg-surface-raised shadow-card motion-safe:animate-fade-in flex w-max items-center gap-1 border px-2 py-1 text-xs">
+            <span dir="auto" className="font-semibold">
+              {hovered.name}
+            </span>
+            {hovered.code !== null && (
+              <span className="text-content-muted">· {hovered.code}</span>
+            )}
+          </span>
+        </div>
+      )}
     </>
   );
 }

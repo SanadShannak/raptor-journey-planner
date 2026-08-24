@@ -417,8 +417,19 @@
   }
 }
 
+/*
+ * A name over a stop simply appears. Anything that travels draws the eye to the
+ * travelling, which is the wrong thing to notice when the point is the name.
+ */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
 @theme {
   --animate-settle-in: settle-in 160ms ease-out both;
+  --animate-fade-in: fade-in 140ms ease-out both;
 }
 
 /*
@@ -469,40 +480,6 @@
   color: var(--color-content);
 }
 
-.leaflet-tooltip {
-  background: var(--color-surface-raised);
-  color: var(--color-content);
-  border-color: var(--color-border);
-  box-shadow: var(--shadow-card);
-  font: inherit;
-  font-size: 0.8125rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: var(--radius-control);
-}
-
-/*
- * It fades rather than moves. A tooltip that slides into place draws the eye to
- * the travelling, which is the wrong thing to notice — the name is the point,
- * and it should simply be there a moment after you stop. Leaflet positions
- * these with a transform of its own, so animating one here would fight it in
- * any case.
- */
-@media (prefers-reduced-motion: no-preference) {
-  .leaflet-tooltip {
-    animation: tooltip-in 140ms ease-out;
-  }
-}
-
-@keyframes tooltip-in {
-  from {
-    opacity: 0;
-  }
-}
-
-/* The little arrow, which is drawn as a border and so needs its own say. */
-.leaflet-tooltip-top::before {
-  border-top-color: var(--color-surface-raised);
-}
 
 .leaflet-popup-close-button {
   color: var(--color-content-muted);
