@@ -197,32 +197,30 @@ function PickPoint({ onPick, onRename }: { onPick: Props['onPick']; onRename: Pr
   const lookup = useRef<AbortController | null>(null);
 
   useMapEvent('click', (event) => {
-    /*
-     * While the question is open, a press anywhere is an answer to it — or a
-     * dismissal — and never a new question.
-     *
-     * This is the ordinary way a map behaves, and it is also the only reliable
-     * fix for the popup re-opening under its own buttons. The popup lives
-     * inside the map's container, so pressing one of its buttons *is* a press
-     * on the map as far as Leaflet is concerned: the event bubbles straight
-     * through, Leaflet's handler runs before React's, and the question was
-     * being re-asked at wherever the button happened to be. Testing where the
-     * press landed was the obvious answer and did not hold; not asking twice
-     * does, because it does not depend on being able to tell the two presses
-     * apart.
-     */
-    if (pick !== null) {
-      map.closePopup();
-      setPick(null);
-      return;
-    }
-
     setPick({ lat: event.latlng.lat, lon: event.latlng.lng });
   });
 
+  /*
+   * Memoised, and it is the whole bug.
+   *
+   * react-leaflet keeps `position` in the dependencies of the effect that
+   * opens the popup, so a fresh array literal each render made that effect
+   * re-run on every render: it removed the popup and called `openOn` again,
+   * replaying the open animation in place. Pressing one of its own buttons is
+   * simply a render, so the popup appeared to re-open as it was answered.
+   *
+   * The removal in that cleanup also fired the layer's `remove` event, which
+   * was wired to clear the pick — so the teardown was undoing the state that
+   * had just been set. Both go away once the array stops changing identity.
+   */
+  const position = useMemo<[number, number] | null>(
+    () => (pick === null ? null : [pick.lat, pick.lon]),
+    [pick],
+  );
+
   useEffect(() => () => lookup.current?.abort(), []);
 
-  if (pick === null) return null;
+  if (pick === null || position === null) return null;
 
   const choose = (end: 'origin' | 'destination') => {
     const { lat, lon } = pick;
@@ -270,7 +268,18 @@ function PickPoint({ onPick, onRename }: { onPick: Props['onPick']; onRename: Pr
   };
 
   return (
-    <Popup position={[pick.lat, pick.lon]} eventHandlers={{ remove: () => setPick(null) }}>
+    /*
+     * No `remove` handler: it fires on the effect's own teardown as well as on
+     * a real close, so clearing the pick from it means every move of the popup
+     * cancels the move. Closing it by hand leaves `pick` set and nothing drawn,
+     * which the next press replaces.
+     *
+     * `autoPan` off because the map should not walk away from the point that
+     * was just pressed. Leaflet shifts the view to fit a popup near an edge,
+     * which moves the pin out from under the pointer at the moment somebody is
+     * reading what it says.
+     */
+    <Popup position={position} autoPan={false}>
       <span className="flex flex-col gap-2">
         <span dir="auto" className="font-semibold">
           {t(strings.planner.selectedLocation)}

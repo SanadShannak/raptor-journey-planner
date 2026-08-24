@@ -336,4 +336,41 @@ describe('the pick popup', () => {
     expect(screen.queryByRole('button', { name: 'End here' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Start here' })).toBeNull();
   });
+
+  /*
+   * A re-render must not disturb the question being asked. jsdom does not
+   * reproduce the re-opening this was written for — Leaflet's `openOn` is a
+   * no-op while the popup is already the map's current one, and without layout
+   * the teardown path behaves differently — so this asserts the invariant
+   * rather than the bug: whatever else changes, the popup stays put.
+   */
+  it('stays open across a re-render', async () => {
+    const view = (onPick: () => void) => (
+      <LocaleProvider>
+        <ThemeProvider>
+          <JourneyMap
+            journey={null}
+            network="hsl"
+            area={null}
+            onPick={onPick}
+            onRename={() => {}}
+          />
+        </ThemeProvider>
+      </LocaleProvider>
+    );
+
+    const { rerender } = render(view(() => {}));
+
+    fireEvent.click(document.querySelector('.leaflet-container') as Element, {
+      clientX: 10,
+      clientY: 10,
+    });
+    expect(await screen.findByRole('button', { name: 'Start here' })).toBeTruthy();
+
+    // A new handler identity is all it takes: this is what every parent render
+    // hands down, and it must not disturb the question being asked.
+    rerender(view(() => {}));
+
+    expect(screen.getByRole('button', { name: 'Start here' })).toBeTruthy();
+  });
 });
