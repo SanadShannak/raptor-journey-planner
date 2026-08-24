@@ -61,6 +61,7 @@ export const en: Dictionary = {
     originStopNotFound: 'That starting stop is not in the timetable.',
     destinationOutOfBounds: 'The destination is outside the area this timetable covers.',
     destinationStopNotFound: 'That destination stop is not in the timetable.',
+    stopNotFound: 'No stop with that identifier is in this timetable.',
   },
 
   nav: {
@@ -104,6 +105,8 @@ export const en: Dictionary = {
   planner: {
     origin: 'From',
     destination: 'To',
+    originPlaceholder: 'Address, place, or stop',
+    destinationPlaceholder: 'Address, place, or stop',
     swap: 'Swap start and destination',
     useMyLocation: 'Use my location',
     locating: 'Finding your location…',
@@ -197,6 +200,64 @@ export const en: Dictionary = {
     retryConnection: 'Try again',
     checkingService: 'Checking the routing service…',
   },
+
+  stops: {
+    browseHint: 'Every stop in view is listed here. Press one to see what leaves it.',
+    nearMe: 'Near me',
+    cityCentre: 'City centre',
+    filterByMode: 'Modes',
+    noMatchingStops: 'No stop in view is served by the modes you have left on. Try moving the map, or switching a mode back on.',
+    showAllModes: 'Show all modes',
+    zoomInForStops: 'Zoom in to see stops',
+    visibleStops: { one: '{count} stop in view', other: '{count} stops in view' },
+    noStopsHere: 'No stops in this part of the map.',
+
+    backToResults: 'Back to results',
+    backToStops: 'Back to stops',
+    backToJourney: 'Back to the journey',
+
+    loadingStop: 'Loading this stop…',
+
+    stopCode: 'Stop {code}',
+    fareZone: 'Zone {zone}',
+    wheelchairAccessible: 'Step-free access',
+    wheelchairNotAccessible: 'No step-free access',
+    wheelchairUnknown: 'Step-free access not stated',
+
+    upcoming: 'Upcoming',
+    timetable: 'Timetable',
+    viewLabel: 'What to show',
+
+    asOf: 'As of {time}',
+    inMinutes: { one: '{count} min', other: '{count} min' },
+    dueNow: 'Due',
+    departsIn: { one: 'Departs in {count} minute', other: 'Departs in {count} minutes' },
+    noUpcoming: 'Nothing more today',
+    noUpcomingHint: 'No further departures are scheduled from this stop. Try the timetable for another day.',
+    boardAnnouncement: {
+      one: '{count} upcoming departure.',
+      other: '{count} upcoming departures.',
+    },
+
+    towards: 'towards {destination}',
+    terminatesHere: 'Terminates here',
+    arrivesAt: 'Arrives {time}',
+    onDate: 'on {date}',
+
+    date: 'Date',
+    departureCount: { one: '{count} departure', other: '{count} departures' },
+    outsideTimetableRange: 'That date is outside this timetable',
+    outsideTimetableRangeHint: 'The loaded feed covers a fixed window of dates. Pick one inside it.',
+    noDeparturesToday: 'Nothing calls at this stop on that date.',
+
+    filterByLine: 'Lines',
+    clearFilter: 'Show all lines',
+    noMatchingLines: 'No departures match the lines you picked.',
+
+    departFromHere: 'Depart from here',
+    arriveHere: 'Arrive here',
+  },
+
   auth: {
     logIn: 'Log in',
     signUp: 'Sign up',

@@ -76,6 +76,7 @@ export const ar: Dictionary = {
     originStopNotFound: 'محطة الانطلاق غير موجودة في الجداول الزمنية.',
     destinationOutOfBounds: 'الوجهة خارج المنطقة التي تغطيها الجداول الزمنية.',
     destinationStopNotFound: 'محطة الوجهة غير موجودة في الجداول الزمنية.',
+    stopNotFound: 'لا توجد محطة بهذا المعرّف في هذه الجداول الزمنية.',
   },
 
   nav: {
@@ -119,6 +120,8 @@ export const ar: Dictionary = {
   planner: {
     origin: 'من',
     destination: 'إلى',
+    originPlaceholder: 'عنوان أو مكان أو محطة',
+    destinationPlaceholder: 'عنوان أو مكان أو محطة',
     swap: 'تبديل نقطة الانطلاق والوجهة',
     useMyLocation: 'استخدم موقعي',
     locating: 'جارٍ تحديد موقعك…',
@@ -227,6 +230,96 @@ export const ar: Dictionary = {
     retryConnection: 'حاول مرة أخرى',
     checkingService: 'جارٍ التحقّق من خدمة تخطيط الرحلات…',
   },
+
+  stops: {
+    browseHint: 'كل محطة ظاهرة في الخريطة مدرجة هنا. اضغط إحداها لترى ما يغادرها.',
+    nearMe: 'بالقرب مني',
+    cityCentre: 'وسط المدينة',
+    filterByMode: 'وسائل النقل',
+    noMatchingStops: 'لا محطة ظاهرة تخدمها الوسائل التي أبقيتها مفعّلة. جرّب تحريك الخريطة أو إعادة تفعيل إحداها.',
+    showAllModes: 'إظهار كل الوسائل',
+    zoomInForStops: 'قرّب الخريطة لعرض المحطات',
+    visibleStops: {
+      zero: 'لا محطات ظاهرة',
+      one: 'محطة واحدة ظاهرة',
+      two: 'محطتان ظاهرتان',
+      few: '{count} محطات ظاهرة',
+      many: '{count} محطة ظاهرة',
+      other: '{count} محطة ظاهرة',
+    },
+    noStopsHere: 'لا توجد محطات في هذا الجزء من الخريطة.',
+
+    backToResults: 'العودة إلى النتائج',
+    backToStops: 'العودة إلى المحطات',
+    backToJourney: 'العودة إلى الرحلة',
+
+    loadingStop: 'جارٍ تحميل المحطة…',
+
+    stopCode: 'المحطة {code}',
+    fareZone: 'المنطقة {zone}',
+    wheelchairAccessible: 'وصول خالٍ من الدرجات',
+    wheelchairNotAccessible: 'لا يوجد وصول خالٍ من الدرجات',
+    wheelchairUnknown: 'لم تُذكر إمكانية الوصول',
+
+    upcoming: 'القادمة',
+    timetable: 'الجدول الزمني',
+    viewLabel: 'ما الذي يُعرض',
+
+    asOf: 'حتى الساعة {time}',
+    inMinutes: {
+      zero: 'الآن',
+      one: 'دقيقة',
+      two: 'دقيقتان',
+      few: '{count} دقائق',
+      many: '{count} دقيقة',
+      other: '{count} دقيقة',
+    },
+    dueNow: 'الآن',
+    departsIn: {
+      zero: 'تغادر الآن',
+      one: 'تغادر بعد دقيقة واحدة',
+      two: 'تغادر بعد دقيقتين',
+      few: 'تغادر بعد {count} دقائق',
+      many: 'تغادر بعد {count} دقيقة',
+      other: 'تغادر بعد {count} دقيقة',
+    },
+    noUpcoming: 'لا مزيد اليوم',
+    noUpcomingHint: 'لا رحلات أخرى مجدولة من هذه المحطة. جرّب الجدول الزمني ليوم آخر.',
+    boardAnnouncement: {
+      zero: 'لا رحلات قادمة.',
+      one: 'رحلة قادمة واحدة.',
+      two: 'رحلتان قادمتان.',
+      few: '{count} رحلات قادمة.',
+      many: '{count} رحلة قادمة.',
+      other: '{count} رحلة قادمة.',
+    },
+
+    towards: 'باتجاه {destination}',
+    terminatesHere: 'تنتهي هنا',
+    arrivesAt: 'تصل {time}',
+    onDate: 'في {date}',
+
+    date: 'التاريخ',
+    departureCount: {
+      zero: 'لا رحلات',
+      one: 'رحلة واحدة',
+      two: 'رحلتان',
+      few: '{count} رحلات',
+      many: '{count} رحلة',
+      other: '{count} رحلة',
+    },
+    outsideTimetableRange: 'هذا التاريخ خارج نطاق الجدول الزمني',
+    outsideTimetableRangeHint: 'تغطي البيانات المحمّلة نطاقًا محدّدًا من التواريخ. اختر تاريخًا ضمنه.',
+    noDeparturesToday: 'لا شيء يمرّ بهذه المحطة في ذلك التاريخ.',
+
+    filterByLine: 'الخطوط',
+    clearFilter: 'إظهار كل الخطوط',
+    noMatchingLines: 'لا رحلات تطابق الخطوط التي اخترتها.',
+
+    departFromHere: 'ابدأ من هنا',
+    arriveHere: 'انتهِ هنا',
+  },
+
   auth: {
     logIn: 'تسجيل الدخول',
     signUp: 'إنشاء حساب',

@@ -89,7 +89,11 @@ const covers = (outer: GeoBounds, inner: L.LatLngBounds): boolean =>
  * silhouette — and the tooltip carries the name, which is what somebody is
  * really after when several stops share a corner.
  */
-function stopIcon(modes: NetworkStop['modes']): L.DivIcon {
+function stopIcon(
+  modes: NetworkStop['modes'],
+  selected: boolean,
+  clickable: boolean,
+): L.DivIcon {
   const mode = modes[0];
   const known = mode !== undefined;
   const ink = known ? visualForFamily(familyFor(mode)).ink : 'text-content-muted';
@@ -105,16 +109,63 @@ function stopIcon(modes: NetworkStop['modes']): L.DivIcon {
    * joined that set, so the network read as loudly as the journey drawn over
    * it. A different shape at half the size says "this is the ground", and
    * leaves the circles to mean "this is your journey".
+   *
+   * The chosen one is the exception: it grows and drops the transparency the
+   * rest wear. Size and weight rather than colour, because the mode already
+   * owns the colour here — a "selected" hue would either fight it or replace
+   * the one piece of information the marker carries.
    */
+  const skin = selected
+    ? 'h-6 w-6 opacity-100 border-2 ring-2 ring-current shadow-card z-[500]'
+    : 'h-4 w-4 opacity-70 border hover:opacity-100';
+  const cursor = clickable ? 'cursor-pointer' : '';
+
   return L.divIcon({
     className: 'network-stop',
-    html: `<span class="${ink} bg-surface-raised border-current absolute top-0 left-0 flex h-4 w-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[3px] border opacity-70 transition-opacity hover:opacity-100">${glyph}</span>`,
+    html: `<span class="${ink} bg-surface-raised border-current absolute top-0 left-0 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[3px] transition-opacity ${skin} ${cursor}">${glyph}</span>`,
     iconSize: [0, 0],
     iconAnchor: [0, 0],
   });
 }
 
-export function StopLayer({ onStopHover }: { onStopHover: () => void }) {
+interface Props {
+  /** Fires on hover, so whatever else is floating over the map can withdraw. */
+  onStopHover: () => void;
+  /** Opens a stop. Absent where there is nothing yet to open one into. */
+  onStopSelect?: ((stopId: string) => void) | undefined;
+  /** The stop already open, drawn as the chosen one rather than as scenery. */
+  selectedStopId?: string | null | undefined;
+  /**
+   * Narrows what is drawn, without narrowing what is reported.
+   *
+   * The two are deliberately different. A list beside the map needs the whole
+   * set in order to offer a mode filter at all — filtering the report as well
+   * would mean choosing "tram" removed "bus" from the choices — so the filter
+   * applies to the markers and the unfiltered set still goes up.
+   */
+  filter?: ((stop: NetworkStop) => boolean) | undefined;
+  /**
+   * The stops fetched for the current view, handed up so a list beside the map
+   * can show them — which is what makes this layer reachable without a
+   * pointer, and is why the markers can stay out of the tab order.
+   *
+   * Unfiltered and unthinned. Thinning is about pixels — two markers on one
+   * corner — and a list has no such problem, so it should not inherit the
+   * losses.
+   */
+  onVisibleStopsChange?: ((stops: NetworkStop[]) => void) | undefined;
+  /** Says the map is pulled out too far to draw any, which is not "none". */
+  onBelowZoomChange?: ((belowZoom: boolean) => void) | undefined;
+}
+
+export function StopLayer({
+  onStopHover,
+  onStopSelect,
+  selectedStopId = null,
+  filter,
+  onVisibleStopsChange,
+  onBelowZoomChange,
+}: Props) {
   const map = useMap();
   const [stops, setStops] = useState<NetworkStop[]>([]);
   /** Bumped whenever the map settles, which is when the projection moved. */
@@ -126,6 +177,17 @@ export function StopLayer({ onStopHover }: { onStopHover: () => void }) {
   const request = useRef<AbortController | null>(null);
   const timer = useRef<number | undefined>(undefined);
 
+  /*
+   * The two callbacks that report upward are held in refs rather than read
+   * from the closure. They set the host's state, so a host that re-renders in
+   * response would hand down a new function, and reading it as a dependency
+   * would re-run the effect that called it — which is a loop, not a render.
+   */
+  const belowZoom = useRef(onBelowZoomChange);
+  belowZoom.current = onBelowZoomChange;
+  const visibleChanged = useRef(onVisibleStopsChange);
+  visibleChanged.current = onVisibleStopsChange;
+
   const refresh = () => {
     window.clearTimeout(timer.current);
 
@@ -133,9 +195,14 @@ export function StopLayer({ onStopHover }: { onStopHover: () => void }) {
       if (map.getZoom() < MIN_ZOOM) {
         request.current?.abort();
         covered.current = null;
+        // "Too far out to draw any" is not "there are none here", and a list
+        // beside the map has to say the right one of those.
+        belowZoom.current?.(true);
         setStops((current) => (current.length === 0 ? current : []));
         return;
       }
+
+      belowZoom.current?.(false);
 
       const visible = map.getBounds();
       if (covered.current !== null && covers(covered.current, visible)) return;
@@ -202,7 +269,7 @@ export function StopLayer({ onStopHover }: { onStopHover: () => void }) {
     const placed: L.Point[] = [];
     const keep: NetworkStop[] = [];
 
-    const byImportance = [...stops].sort(
+    const byImportance = [...(filter === undefined ? stops : stops.filter(filter))].sort(
       (a, b) => b.modes.length - a.modes.length || a.id.localeCompare(b.id),
     );
 
@@ -214,7 +281,13 @@ export function StopLayer({ onStopHover }: { onStopHover: () => void }) {
       }
     }
     return keep;
-  }, [stops, map, settled]);
+  }, [stops, map, settled, filter]);
+
+  // Reported after render rather than during it: setting another component's
+  // state is not something a render is allowed to do.
+  useEffect(() => {
+    visibleChanged.current?.(stops);
+  }, [stops]);
 
   const label = hovered === null ? null : map.latLngToContainerPoint([hovered.lat, hovered.lon]);
 
@@ -224,13 +297,20 @@ export function StopLayer({ onStopHover }: { onStopHover: () => void }) {
         <Marker
           key={stop.id}
           position={[stop.lat, stop.lon]}
-          icon={stopIcon(stop.modes)}
+          icon={stopIcon(stop.modes, stop.id === selectedStopId, onStopSelect !== undefined)}
           /*
-           * Interactive so the name appears on hover, but out of the tab order.
-           * There are hundreds of these and nothing to do with one yet, so
-           * making each a tab stop would bury every real control on the page
-           * behind them. It goes back when there is a timetable to open, which
-           * is the point at which they become worth reaching.
+           * Out of the tab order, still, now that there is a timetable to open.
+           *
+           * The earlier reason was that there was nothing to do with one. The
+           * reason now is arithmetic: a screen holds tens of these, so making
+           * each a tab stop puts tens of them ahead of every real control on
+           * the page, and no keyboard user would reach the sidebar.
+           *
+           * The equivalent action lives outside the map instead — the stops in
+           * view are listed beside it, as ordinary buttons in the reading
+           * order. That is what the accessibility rule actually asks for: not
+           * that the map be operable, but that nothing be reachable only
+           * through it.
            */
           keyboard={false}
           eventHandlers={{
@@ -239,6 +319,14 @@ export function StopLayer({ onStopHover }: { onStopHover: () => void }) {
               setHovered(stop);
             },
             mouseout: () => setHovered((current) => (current === stop ? null : current)),
+            /*
+             * Registered only where there is somewhere to open a stop into.
+             * A marker that listens for a click consumes it — Leaflet fires on
+             * the first target it finds and stops — so an unconditional handler
+             * would silently swallow the point chooser for anyone trying to
+             * pick a place that happens to sit under a stop.
+             */
+            ...(onStopSelect === undefined ? {} : { click: () => onStopSelect(stop.id) }),
           }}
         />
       ))}

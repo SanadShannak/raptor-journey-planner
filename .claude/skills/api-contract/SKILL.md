@@ -16,7 +16,7 @@ The authoritative sources, in order: a live response, then `backend/server/utils
 | GET | `/api/planner` | Plan a journey |
 | GET | `/api/valid-dates` | Dates the loaded timetable covers |
 | GET | `/api/network` | Network identity, clock, and capability manifest |
-| GET | `/api/stop/:gtfsId` | Live departure board |
+| GET | `/api/stop/:gtfsId?limit=` | Live departure board |
 | GET | `/api/stop/:gtfsId/timetable?date=` | Whole-day timetable |
 | GET | `/api/routes` | Line index — inspection, not planning |
 | GET | `/api/routes/:lineId` | One line and its variants |
@@ -32,15 +32,30 @@ actually supplied:
 ```
 { network, timezone, language, agencyName, agencyUrl, publisherName,
   publisherUrl, feedStartDate, feedEndDate, feedVersion, compiledAt,
+  modes: [0, 1, 2, 3, 4],
   capabilities: { stopCode, stopDescription, fareZones,
                   wheelchairAccessibility, routeLongName, routeDirection,
-                  routeHeadsign, tripHeadsign, routeShape, transitDistance } }
+                  routeHeadsign, tripHeadsign, routeShape, transitDistance,
+                  platforms } }
 ```
 
 Every capability key is present and boolean even when the feed carries no
 metadata at all. Fetch this once at startup and branch on it, rather than
 null-checking each field at every call site — that keeps *"this network has no
 wheelchair data"* distinct from *"this stop is missing it"*.
+
+`modes` is the standard GTFS `route_type`s this network actually **runs**,
+ascending and de-duplicated, computed once at boot from the compiled routes.
+
+It is not a capability and the difference is the point: `capabilities` says
+which optional *columns* the feed supplied, `modes` says what moves. A client
+offering a mode filter needs the second — a fixed list would put a ferry on a
+network that has none — and the only other way to learn it is to fetch
+`/api/routes` and read one field off every line, which is ~70 kB for HSL to
+recover five integers.
+
+**Empty is a real answer** for a feed with no routes. Offer no filter rather
+than falling back to a default set.
 
 **Optional fields are always present as `null`, never omitted.** A missing key
 and a null both mean "no value", but only one lets you read the field without
@@ -208,6 +223,12 @@ Non-2xx responses carry `{ errorCode, error }`. `error` is developer-facing Engl
 **404 (legacy) / 200 (current)** — engine outcomes, from `backend/raptor-engines/raptorEngine.js`. See *Engine outcomes may arrive inside a 200* below; a client should handle both:
 `SAME_ORIGIN_TARGET`, `NO_ACTIVE_SERVICES`, `ORIGIN_OUT_OF_BOUNDS`, `ORIGIN_STOP_NOT_FOUND`, `DESTINATION_OUT_OF_BOUNDS`, `DESTINATION_STOP_NOT_FOUND`, `NO_ROUTE_FOUND`
 
+**Outside the planner**, the stop and route routers add their own:
+`STOP_NOT_FOUND` (404, both stop endpoints), `BAD_DATE` (400, the timetable),
+`BAD_BOUNDS` and `BOUNDS_TOO_LARGE` (400, the bounding box), `LINE_NOT_FOUND`
+and `PATTERN_NOT_FOUND` (404). These are ordinary HTTP failures — the 200-with-an-
+`errorCode` behaviour below belongs to the planner alone.
+
 **500** — `INTERNAL_SERVER_ERROR`
 
 404 bodies may carry extra fields alongside the error envelope (e.g. `targetArrivalTime: null`, `legs: []`). Ignore them; read `errorCode`.
@@ -257,9 +278,37 @@ Documented in the README's "Known Limitations" section. Surface these in the UI;
 
 ## Stop endpoints
 
-`GET /api/stop/:gtfsId` — live board. `{ stop, asOf: { date, time }, servingLines[], departures[], capabilities }`
+`GET /api/stop/:gtfsId?limit=` — live board. `{ stop, asOf: { date, time }, servingLines[], departures[], capabilities }`
+
+`limit` is the only parameter, **clamped to 1–200 with a default of 20**
+(`DEFAULT_DEPARTURES_LIMIT`). It is read with `parseInt(...) || DEFAULT`, so
+`limit=0` and anything non-numeric fall back to 20 rather than erroring. There
+is no `total` or `truncated` here, so a client can only tell "20 because that is
+all there is" from "20 because that is what I asked for" by comparing the length
+against the limit it sent.
+
+`asOf` is the moment the board was resolved, on the **network's** clock, so a
+tab left open is detectable as stale. `departures` is ascending and may be `[]`,
+which is a real answer at the end of service and not an error.
 
 `GET /api/stop/:gtfsId/timetable?date=` — whole day. `{ stop, date, servingLines[], schedule[], totalDepartures, outsideTimetableRange, capabilities }`
+
+`date` is **required**, and validated by a bare `/^\d{4}-\d{2}-\d{2}$/`. So a
+well-formed impossible date like `2026-99-99` is *not* a `BAD_DATE` — it is
+served as an ordinary empty board with `outsideTimetableRange: true`. Only a
+malformed string gets the 400.
+
+`outsideTimetableRange` says the date falls outside the feed's calendar
+entirely. It is an **empty state, not a failure**, and deserves different
+wording from "nothing runs at this stop that day".
+
+**Neither stop endpoint takes a line filter**, and the timetable takes no limit.
+Filtering a board by line is the client's job, over `servingLines`.
+
+Both raise **404 `STOP_NOT_FOUND`** for an id the feed does not contain. On the
+timetable route the id is checked *before* the date, so a bad id and a bad date
+together answer 404, not 400.
+
 `GET /api/stops?minLat=&minLon=&maxLat=&maxLon=` → `{ stops[], total, truncated, capabilities }`
 
 The stops inside a bounding box, for a map. Same router as `/api/stop/:id`, mounted twice: the singular is one stop, the plural is the set of them in an area.
@@ -288,10 +337,35 @@ A departure is:
 `destination` is then `null`, because "towards <the stop you are standing at>"
 is nonsense.
 
-A stop is `{ id, name, code, lat, lon, description, fareZone, wheelchairAccessible }`.
+`servingLines` is the distinct lines calling at the stop, sorted by designation
+with `numeric: true` so `3` precedes `21`:
+
+```
+{ lineId, routeShortName, routeType, routeLongName, directionId, destinations[] }
+```
+
+`destinations` is de-duplicated and **may be empty** — every pattern of that
+line terminates here, or none of their end points resolved to a name.
+
+**`directionId` here is not this line's direction.** Entries are keyed by
+`lineId`, which does not encode direction, so both directions of a line collapse
+into one entry and the value is whichever pattern happened to be seen first.
+Read it as noise; use `/api/routes/:lineId` when direction actually matters.
+
+A stop is `{ id, name, code, platform, lat, lon, description, fareZone, wheelchairAccessible }`.
 `wheelchairAccessible` is **tri-state**: `true`, `false`, or `null` for "the
 agency never said". Do not collapse null into false — that tells a wheelchair
 user a stop is unusable when the truth is unknown.
+
+`platform` is the same field, with the same meaning, as the one on a journey
+leg's `fromStop`/`toStop` — see *Stops* above for why the client and not the
+feed chooses whether it reads "Track" or "Platform".
+
+One shape note that only bites a corrupt dataset: if the internal record behind
+an id is missing, `describeStop` falls back to `{ id, name: null, code: null,
+lat: null, lon: null }` and the remaining keys are **absent rather than null**.
+The `:gtfsId` routes 404 before they can reach it, but a parser should default
+the missing keys rather than assume the full shape.
 
 ## Route inspection
 

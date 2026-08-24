@@ -189,8 +189,31 @@ const capabilities = {
   tripHeadsign: false,
   routeShape: false,
   transitDistance: false,
+  platforms: false,
   ...(cachedData.networkMeta?.available ?? {}),
 };
+
+/*
+ * Which vehicle types this network actually runs, ascending.
+ *
+ * Distinct from `capabilities`, and the difference matters: those say which
+ * optional *columns* the feed supplied, while this says what moves. A client
+ * building a mode filter needs the second and can only infer it from the first
+ * by fetching every line in the feed — 70 kB for HSL — and reading one field
+ * off each. Computed once here instead, from routes already in memory.
+ *
+ * Empty is a legitimate answer for a feed with no routes, and a client should
+ * offer no filter rather than a default set.
+ */
+const modes = [
+  ...new Set(
+    Object.values(cachedData.routes ?? {})
+      .map((route) => route?.route_type)
+      .filter((routeType) => typeof routeType === "number"),
+  ),
+].sort((a, b) => a - b);
+
+console.log(`modes: ${modes.length} vehicle types in this network`);
 
 /**
  * The destination sign for a trip, or null when this feed has no headsigns.
@@ -209,6 +232,7 @@ function getTripHeadsign(flatTripId) {
 module.exports = {
   getCache: () => cachedData,
   getCapabilities: () => capabilities,
+  getModes: () => modes,
   getNetworkMeta: () => cachedData.networkMeta,
   getTripHeadsign,
 };

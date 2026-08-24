@@ -1,3 +1,5 @@
+import type { GtfsRouteType } from './journey';
+
 /**
  * What the loaded network is, and what its compiled data supports.
  *
@@ -21,6 +23,18 @@ export interface NetworkInfo {
   feedStartDate: string | null;
   feedEndDate: string | null;
   capabilities: NetworkCapabilities;
+  /**
+   * The standard GTFS route types this network actually runs, ascending.
+   *
+   * Distinct from {@link NetworkCapabilities}, and the difference is the whole
+   * point: those say which optional columns the feed supplied, this says what
+   * moves. A mode filter needs the second, and offering a fixed list instead
+   * would put a ferry on a network that has none.
+   *
+   * **Empty is a real answer** for a feed with no routes. Offer no filter
+   * rather than falling back to a default set.
+   */
+  modes: GtfsRouteType[];
 }
 
 export interface NetworkCapabilities {

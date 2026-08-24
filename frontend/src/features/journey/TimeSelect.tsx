@@ -1,9 +1,9 @@
 import { useId, useLayoutEffect, useRef, useState } from 'react';
 import { clockMeridiems, formatClockTime, formatNumber, useLocale } from '../../i18n';
 import { Popover } from '../../components/Popover';
-import { Chevron } from './DateSelect';
+import { Chevron } from '../../components/DateSelect';
 import { parseTypedTime } from './parseTypedTime';
-import { centerOnOption } from './centerOnOption';
+import { centerOnOption } from '../../components/centerOnOption';
 
 interface Props {
   label: string;

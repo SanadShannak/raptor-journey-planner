@@ -33,7 +33,7 @@ const MESSAGE_FOR_CODE: Record<string, keyof Dictionary['errors']> = {
   ORIGIN_STOP_NOT_FOUND: 'originStopNotFound',
   DESTINATION_OUT_OF_BOUNDS: 'destinationOutOfBounds',
   DESTINATION_STOP_NOT_FOUND: 'destinationStopNotFound',
-  STOP_NOT_FOUND: 'originStopNotFound',
+  STOP_NOT_FOUND: 'stopNotFound',
   LINE_NOT_FOUND: 'generic',
   PATTERN_NOT_FOUND: 'generic',
   INTERNAL_SERVER_ERROR: 'serverError',

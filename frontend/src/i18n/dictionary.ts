@@ -120,6 +120,13 @@ export interface Dictionary {
   planner: {
     origin: string;
     destination: string;
+    /**
+     * An example of what goes in the field, shown on top of its label and
+     * never instead of one. It names the *kinds* of thing the geocoder
+     * accepts, which is not obvious from "From" alone.
+     */
+    originPlaceholder: string;
+    destinationPlaceholder: string;
     swap: string;
     useMyLocation: string;
     locating: string;
@@ -263,6 +270,100 @@ export interface Dictionary {
   };
 
   /**
+   * Stop inspection: who a stop is, what leaves it next, and its whole day.
+   *
+   * A sibling of `planner` rather than part of it, because the same panel is
+   * read from inside the planner and from its own page, and neither owns it.
+   */
+  stops: {
+    /** The index, where a stop has not been chosen yet. */
+    browseHint: string;
+    /** Moves the map to the visitor, on a press and never on load. */
+    nearMe: string;
+    /** Sends the map back to the view the page opens on. */
+    cityCentre: string;
+    /** Filtering the stops in view: every mode is on until switched off. */
+    filterByMode: string;
+    /** Every mode that could show one has been switched off. */
+    noMatchingStops: string;
+    /** Switches every mode back on. */
+    showAllModes: string;
+    /** Shown when the map is pulled out past the zoom that draws stops. */
+    zoomInForStops: string;
+    /** The list of stops currently on screen. */
+    visibleStops: Message;
+    /** No stops in view even though the map is close enough to draw them. */
+    noStopsHere: string;
+
+    /** The panel's back control. Its target differs by where it is read. */
+    backToResults: string;
+    backToStops: string;
+    /** Back to the itinerary that was open behind the stop. */
+    backToJourney: string;
+
+    loadingStop: string;
+
+    /* The stop itself. */
+    stopCode: string;
+    fareZone: string;
+    /** Tri-state, and the third is not a softer "no" — nobody published it. */
+    wheelchairAccessible: string;
+    wheelchairNotAccessible: string;
+    wheelchairUnknown: string;
+
+    /* The two views. */
+    upcoming: string;
+    timetable: string;
+    /** Names the pair as a group for a screen reader. */
+    viewLabel: string;
+
+    /* The live board. */
+    asOf: string;
+    /**
+     * How long until it leaves. A plural message: English needs two forms and
+     * Arabic six, and `if (n === 1)` cannot express either.
+     */
+    inMinutes: Message;
+    /** Under a minute away — a number here would tick to zero and stay. */
+    dueNow: string;
+    /** Read by a screen reader in place of the countdown's bare number. */
+    departsIn: Message;
+    noUpcoming: string;
+    noUpcomingHint: string;
+    /** Announced when a board finishes loading, so the change is not silent. */
+    boardAnnouncement: Message;
+
+    /* One departure. */
+    /** The destination we inferred rather than read off the vehicle. */
+    towards: string;
+    /** The trip ends here, so there is no onward destination to name. */
+    terminatesHere: string;
+    /** Its arrival, where a vehicle waits before leaving again. */
+    arrivesAt: string;
+    /** A departure falling on a different day from the one being viewed. */
+    onDate: string;
+
+    /* The whole day. */
+    date: string;
+    departureCount: Message;
+    /** The feed covers a fixed window; this date is outside it entirely. */
+    outsideTimetableRange: string;
+    outsideTimetableRangeHint: string;
+    /** Inside the window, but nothing calls here that day. */
+    noDeparturesToday: string;
+
+    /* Filtering. */
+    filterByLine: string;
+    clearFilter: string;
+    /** Every line is filtered out, which is the reader's own doing. */
+    noMatchingLines: string;
+
+    /* Onward. */
+    departFromHere: string;
+    arriveHere: string;
+  };
+
+  /**
    * Sign-in is never a gate: these open a dialog over whatever the visitor was
    * doing, and nothing on the site requires them.
    */
@@ -363,5 +464,10 @@ export interface Dictionary {
     originStopNotFound: string;
     destinationOutOfBounds: string;
     destinationStopNotFound: string;
+    /**
+     * Distinct from `originStopNotFound`. That one blames a *starting* point,
+     * which is nonsense on a stop page where nothing is being planned yet.
+     */
+    stopNotFound: string;
   };
 }

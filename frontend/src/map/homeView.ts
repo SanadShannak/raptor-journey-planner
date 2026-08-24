@@ -41,3 +41,19 @@ export function homeViewFor(network: string | null, bounds: GeoBounds | null): H
     zoom: 11,
   };
 }
+
+/**
+ * The zoom the stops page opens at, wherever it is looking.
+ *
+ * `StopLayer` draws nothing below its own `MIN_ZOOM`, so a page whose subject
+ * *is* the stops cannot open at the journey map's resting zoom — it would show
+ * a city with no stops on it and no indication that going closer would help.
+ * One step in from that threshold: stops are already drawn, and there is still
+ * room to pull out a little before they go.
+ */
+const STOPS_ZOOM = 16;
+
+/** The same resting place, framed close enough that stops are already drawn. */
+export function stopsViewFor(network: string | null, bounds: GeoBounds | null): HomeView {
+  return { center: homeViewFor(network, bounds).center, zoom: STOPS_ZOOM };
+}

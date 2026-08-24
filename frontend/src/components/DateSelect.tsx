@@ -1,6 +1,6 @@
 import { useId, useLayoutEffect, useRef, useState } from 'react';
-import { formatDate, useLocale } from '../../i18n';
-import { Popover } from '../../components/Popover';
+import { formatDate, useLocale } from '../i18n';
+import { Popover } from './Popover';
 import { centerOnOption } from './centerOnOption';
 
 interface Props {

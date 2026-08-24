@@ -2,6 +2,7 @@
  * `GET /api/network` — what network is loaded and what its data supports.
  */
 
+import type { GtfsRouteType } from '../types/journey';
 import type { NetworkCapabilities, NetworkInfo } from '../types/network';
 import { getJson } from './client';
 import { ApiError } from './errors';
@@ -30,6 +31,15 @@ const NO_CAPABILITIES: NetworkCapabilities = {
   transitDistance: false,
 };
 
+/** Standard GTFS route types only; anything else is dropped rather than kept. */
+function toModes(raw: unknown): GtfsRouteType[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (value): value is GtfsRouteType =>
+      typeof value === 'number' && Number.isFinite(value),
+  );
+}
+
 export async function getNetwork(options: CallOptions = {}): Promise<NetworkInfo> {
   const body = await getJson('/api/network', { signal: options.signal });
   const info = body as Partial<NetworkInfo> | null;
@@ -47,5 +57,8 @@ export async function getNetwork(options: CallOptions = {}): Promise<NetworkInfo
     feedStartDate: info.feedStartDate ?? null,
     feedEndDate: info.feedEndDate ?? null,
     capabilities: { ...NO_CAPABILITIES, ...(info.capabilities ?? {}) },
+    // Empty for a backend that predates the field, which is the same thing it
+    // means for a feed with no routes: offer no mode filter.
+    modes: toModes(info.modes),
   };
 }

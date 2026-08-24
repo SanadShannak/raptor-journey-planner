@@ -1,19 +1,14 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import {
-  AttributionControl,
   CircleMarker,
-  MapContainer,
   Marker,
   Polyline,
-  TileLayer,
-  ZoomControl,
   useMap,
   useMapEvent,
   useMapEvents,
 } from 'react-leaflet';
 import { formatDuration, useLocale } from '../i18n';
-import { useTheme } from '../theme';
 import type { GeoBounds } from '../config/geocoding';
 import type { Journey } from '../types/journey';
 import type { Place } from '../types/place';
@@ -32,9 +27,9 @@ import {
   journeyGeometry,
   type BoundingBox,
 } from '../features/journey/journeyGeometry';
+import { MapCanvas, FitTo } from './MapCanvas';
 import { StopLayer } from './StopLayer';
-import { homeViewFor, type HomeView } from './homeView';
-import { tileSourceFor } from './tileSource';
+import { homeViewFor } from './homeView';
 import { useReducedMotion } from './useReducedMotion';
 
 /**
@@ -50,15 +45,12 @@ import { useReducedMotion } from './useReducedMotion';
  * what lets the markers stay quiet rather than becoming a second, longer set of
  * tab stops competing with the list.
  *
- * Two Leaflet facts shape the code below more than they should:
- *
- * - **`MapContainer` freezes its props at mount.** `center`, `zoom`, `bounds`
- *   and every map option are read once and never again. The network's area
- *   arrives after `/api/network` answers, long after that, so all framing is
- *   done imperatively from a child that holds the map instance.
- * - **A path's `className` is applied when it is created and never updated.**
- *   So colour, which never changes for a given leg, is a class; width and
- *   opacity, which do change when a line is highlighted, are options.
+ * The ground it is drawn on — tiles, controls, sizing — belongs to
+ * {@link MapCanvas}, which the stops map shares. What is left here is the
+ * journey itself, and one Leaflet fact shapes it: **a path's `className` is
+ * applied when it is created and never updated.** So colour, which never
+ * changes for a given leg, is a class; width and opacity, which do change when
+ * a line is highlighted, are options.
  */
 
 interface Props {
@@ -78,110 +70,16 @@ interface Props {
    * nothing on screen should be thrown away for it.
    */
   onRename: (place: Place, end: 'origin' | 'destination') => void;
-}
-
-/*
- * The frame at mount, before `/api/network` has said which city this is.
- *
- * `MapContainer` reads these once and never again, so the real resting view is
- * set imperatively the moment the network is known. They are taken from the
- * same table so the first frame and the second are not two different places.
- */
-const FIRST_VIEW = homeViewFor(null, null);
-
-/**
- * Frames the map on whatever it is currently showing.
- *
- * `fitBounds` throws on an invalid box, and a journey that collapses to a
- * single point produces a valid but zero-sized one — which Leaflet answers by
- * slamming to its maximum zoom. Hence both the null guard and the `maxZoom`.
- */
-function FitTo({
-  box,
-  home,
-  animate,
-}: {
-  box: BoundingBox | null;
-  home: HomeView;
-  animate: boolean;
-}) {
-  const map = useMap();
-
-  useEffect(() => {
-    /*
-     * A journey is fitted; nothing is simply looked at. Fitting the network's
-     * search area instead would frame the map on a region — for HSL that
-     * reaches an hour of commuter rail north of the city — and open on
-     * somewhere too far out to point at.
-     */
-    if (box === null) {
-      map.setView(home.center, home.zoom, { animate });
-      return;
-    }
-
-    map.fitBounds(box, { padding: [32, 32], maxZoom: 16, animate });
-  }, [map, box, home, animate]);
-
-  return null;
-}
-
-/**
- * Tells the map when its own box changed size.
- *
- * Leaflet's `trackResize` watches the window, not the element. That covers
- * today — the sidebar is a fixed width, so every change to the map's size is
- * also a window resize — but it does not cover the first frame, where a map
- * created before layout settles renders as a grey half-panel. The observer
- * fires once on `observe()`, which fixes exactly that.
- */
-function KeepSized() {
-  const map = useMap();
-
-  useEffect(() => {
-    const container = map.getContainer();
-    if (typeof ResizeObserver === 'undefined') return;
-
-    let frame = 0;
-    const observer = new ResizeObserver(() => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        map.invalidateSize({ animate: false, pan: false, debounceMoveend: true });
-      });
-    });
-
-    observer.observe(container);
-    return () => {
-      cancelAnimationFrame(frame);
-      observer.disconnect();
-    };
-  }, [map]);
-
-  return null;
-}
-
-/**
- * The zoom buttons' names.
- *
- * Leaflet writes these as `title` and `aria-label`, and its own defaults are
- * English. They are set from outside because the control reads them once, when
- * it is created — the same freezing that applies to the map itself.
- */
-function ZoomButtonLabels({ zoomIn, zoomOut }: { zoomIn: string; zoomOut: string }) {
-  const map = useMap();
-
-  useEffect(() => {
-    const container = map.getContainer();
-    const label = (selector: string, text: string) => {
-      const button = container.querySelector(selector);
-      if (button === null) return;
-      button.setAttribute('title', text);
-      button.setAttribute('aria-label', text);
-    };
-    label('.leaflet-control-zoom-in', zoomIn);
-    label('.leaflet-control-zoom-out', zoomOut);
-  }, [map, zoomIn, zoomOut]);
-
-  return null;
+  /**
+   * Takes a stop pressed on the map, so the sidebar can open it.
+   *
+   * Deliberately not a navigation. The search this page is holding does not
+   * live in the URL, so leaving for `/stops/:id` would throw it away and the
+   * back button would land on an empty form.
+   */
+  onStopSelect: (stopId: string) => void;
+  /** The stop currently open in the sidebar, drawn as the chosen one. */
+  selectedStopId: string | null;
 }
 
 /** A point somebody pressed. */
@@ -513,18 +411,23 @@ const originIcon = L.divIcon({
   iconAnchor: [15, 15],
 });
 
-export function JourneyMap({ journey, network, area, onPick, onRename }: Props) {
+export function JourneyMap({
+  journey,
+  network,
+  area,
+  onPick,
+  onRename,
+  onStopSelect,
+  selectedStopId,
+}: Props) {
   const locale = useLocale();
   /*
    * Held here rather than inside the chooser, because two other things now
    * dismiss it: moving the map, and putting the pointer on a stop.
    */
   const [pick, setPick] = useState<Pick | null>(null);
-  const { strings, t, direction } = locale;
-  const { resolved } = useTheme();
   const reduceMotion = useReducedMotion();
 
-  const tiles = tileSourceFor(network);
   const geometry = useMemo(
     () => (journey === null ? null : journeyGeometry(journey)),
     [journey],
@@ -585,46 +488,16 @@ export function JourneyMap({ journey, network, area, onPick, onRename }: Props) 
     });
   }, [geometry, journey, scope, locale]);
 
-  const rtl = direction === 'rtl';
-
   return (
-    <MapContainer
-      className="absolute inset-0 h-full w-full"
-      center={FIRST_VIEW.center}
-      zoom={FIRST_VIEW.zoom}
-      zoomControl={false}
-      attributionControl={false}
-      /*
-       * Every one of these is a movement Leaflet runs in JavaScript, which no
-       * media query can shorten. `inertia` is the glide that continues after
-       * you let go, and is the one most easily forgotten.
-       */
-      zoomAnimation={!reduceMotion}
-      fadeAnimation={!reduceMotion}
-      markerZoomAnimation={!reduceMotion}
-      inertia={!reduceMotion}
-    >
-      <TileLayer
-        // Two real cartographies rather than one filtered one, so the route
-        // colours drawn on top are never distorted.
-        url={resolved === 'dark' ? tiles.dark : tiles.light}
-        attribution={tiles.attribution}
-        maxZoom={tiles.maxZoom}
-        detectRetina
-      />
-
-      <ZoomControl position={rtl ? 'topright' : 'topleft'} />
-      <AttributionControl position={rtl ? 'bottomleft' : 'bottomright'} prefix={false} />
-      <ZoomButtonLabels
-        zoomIn={t(strings.planner.zoomIn)}
-        zoomOut={t(strings.planner.zoomOut)}
-      />
-
+    <MapCanvas network={network}>
       {/* Drawn under everything the journey puts on the map. */}
-      <StopLayer onStopHover={() => setPick(null)} />
+      <StopLayer
+        onStopHover={() => setPick(null)}
+        onStopSelect={onStopSelect}
+        selectedStopId={selectedStopId}
+      />
 
       <PickPoint pick={pick} setPick={setPick} onPick={onPick} onRename={onRename} />
-      <KeepSized />
       <FitTo box={box} home={home} animate={!reduceMotion} />
 
       {geometry?.segments.map((segment) => {
@@ -701,6 +574,6 @@ export function JourneyMap({ journey, network, area, onPick, onRename }: Props) 
       {geometry?.destination && (
         <Marker position={geometry.destination} icon={destinationIcon} interactive={false} />
       )}
-    </MapContainer>
+    </MapCanvas>
   );
 }

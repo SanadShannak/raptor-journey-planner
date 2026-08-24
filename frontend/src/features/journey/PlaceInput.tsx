@@ -212,6 +212,18 @@ export function PlaceInput({
             activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined
           }
           value={query}
+          /*
+             An example, on top of the label above — never instead of it. A
+             placeholder disappears the moment somebody types, so it cannot
+             carry the field's name; what it can do is answer "what sort of
+             thing goes here", which for a geocoder field is worth saying
+             because an address, a landmark and a stop all work.
+          */
+          placeholder={t(
+            role === 'origin'
+              ? strings.planner.originPlaceholder
+              : strings.planner.destinationPlaceholder,
+          )}
           onChange={(event) => {
             setQuery(event.target.value);
             if (value !== null) {
@@ -252,7 +264,7 @@ export function PlaceInput({
              side a moment ago becomes the right one, leaving the text flush
              against the border it started at.
           */
-          className="min-w-0 flex-1 bg-transparent px-2 py-2.5 text-sm font-medium focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+          className="placeholder:text-content-muted min-w-0 flex-1 bg-transparent px-2 py-2.5 text-sm font-medium placeholder:font-normal focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
         />
         {action}
       </div>

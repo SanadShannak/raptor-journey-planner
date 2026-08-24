@@ -5,6 +5,7 @@ import { LocaleProvider } from '../i18n';
 import { ThemeProvider } from '../theme';
 import { RootLayout } from './RootLayout';
 import PlanPage from '../pages/PlanPage';
+import StopsPage from '../pages/StopsPage';
 import NotFoundPage from '../pages/NotFoundPage';
 import { paths } from './routes';
 
@@ -30,6 +31,8 @@ function renderAt(initialPath: string) {
           <Routes>
             <Route element={<RootLayout />}>
               <Route path={paths.home} element={<PlanPage />} />
+              <Route path={paths.stops} element={<StopsPage />} />
+              <Route path={paths.stopDetail} element={<StopsPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Route>
           </Routes>
@@ -165,6 +168,16 @@ describe('auth', () => {
 describe('the footer', () => {
   it('is absent on the planner', () => {
     renderAt(paths.home);
+    expect(screen.queryByRole('contentinfo')).toBeNull();
+  });
+
+  /*
+   * The stops pages are the same two-pane, viewport-height shape, so they owe
+   * the same absence — and both of them, because a stop is reached at its own
+   * path as often as through the index.
+   */
+  it.each([paths.stops, '/stops/1020444'])('is absent on %s', (path) => {
+    renderAt(path);
     expect(screen.queryByRole('contentinfo')).toBeNull();
   });
 

@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Outlet, useLocation } from 'react-router';
+import { Outlet, matchPath, useLocation } from 'react-router';
 import { useLocale } from '../i18n';
 import { AppHeader } from './AppHeader';
 import { paths } from './routes';
@@ -20,17 +20,22 @@ export function RootLayout() {
   useRouteFocus(mainRef);
 
   /*
-   * The planner is a sidebar and a map, sized to the viewport so the map never
-   * leaves the screen. A footer under that either steals height from the map
-   * or hangs below the fold as a strip you have to scroll a full-height layout
-   * to reach — and on a page whose own content scrolls inside its panes, a
-   * page-level footer is a thing you find by accident.
+   * Some pages are a sidebar and a map, sized to the viewport so the map never
+   * leaves the screen. A footer under one of those either steals height from
+   * the map or hangs below the fold as a strip you have to scroll a full-height
+   * layout to reach — and on a page whose own content scrolls inside its panes,
+   * a page-level footer is a thing you find by accident.
    *
-   * Matched against the *home* path, because that is where the planner lives:
-   * `/plan` only redirects to it, so a page that never renders was the one
-   * being tested.
+   * Matched against the *home* path for the planner, because that is where it
+   * lives: `/plan` only redirects to it, so a page that never renders was the
+   * one being tested. The stops pages are matched by pattern, so the index and
+   * a single stop are both covered without listing them twice.
    */
-  const showFooter = pathname !== paths.home;
+  const fullHeight =
+    pathname === paths.home ||
+    matchPath(paths.stops, pathname) !== null ||
+    matchPath(paths.stopDetail, pathname) !== null;
+  const showFooter = !fullHeight;
 
   return (
     <div

@@ -9,7 +9,7 @@ import type { GeoBounds } from '../../config/geocoding';
 import { isReady, type JourneyFormValues } from './journeySearch';
 import { PlaceInput } from './PlaceInput';
 import { UseMyLocationButton } from './UseMyLocationButton';
-import { DateSelect } from './DateSelect';
+import { DateSelect } from '../../components/DateSelect';
 import { TimeSelect } from './TimeSelect';
 import { WalkIcon } from './modeIcons';
 

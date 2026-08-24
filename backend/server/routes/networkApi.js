@@ -2,7 +2,11 @@ const express = require("express");
 const router = express.Router();
 const serverConfig = require("../serverConfig");
 
-const { getNetworkMeta, getCapabilities } = require("../../memoryCache");
+const {
+  getNetworkMeta,
+  getCapabilities,
+  getModes,
+} = require("../../memoryCache");
 const { networkTimezone } = require("../utils/networkTime");
 
 /*
@@ -48,6 +52,14 @@ router.get("/", (req, res) => {
       // Every key is present and boolean even when metadata is missing, so a
       // caller never has to check whether it can ask.
       capabilities: getCapabilities(),
+
+      /*
+       * The standard GTFS route types this network runs, ascending. Says what
+       * *moves*, where `capabilities` says which optional columns the feed
+       * supplied — a mode filter needs the former, and the only other way to
+       * learn it is to fetch every line and read one field off each.
+       */
+      modes: getModes(),
     });
   } catch (error) {
     console.error("[Network Endpoint Error]:", error);

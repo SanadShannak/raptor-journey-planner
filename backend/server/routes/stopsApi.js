@@ -62,6 +62,12 @@ function describeStop(internalStopId, fallbackGtfsId) {
    */
   described.description = stop.desc ?? null;
   described.fareZone = stop.zone ?? null;
+  /*
+   * The designation printed on the stop itself. GTFS gives a number and never
+   * says what it names, so whether it reads "Track" or "Platform" is the
+   * client's decision — taken from the mode, the way the networks speak.
+   */
+  described.platform = stop.platform ?? null;
   described.wheelchairAccessible =
     stop.wheelchair === undefined ? null : stop.wheelchair === 1;
 

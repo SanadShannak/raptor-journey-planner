@@ -110,6 +110,32 @@ export function formatClockTime(time: string, locale: Locale): string {
 }
 
 /**
+ * A whole hour, as a heading.
+ *
+ * The same clock {@link formatClockTime} prints, without the minutes — a
+ * timetable's hour headings are "3 PM", not "3:00 PM", and repeating a `:00`
+ * down the side of the board is noise beside the real times under it.
+ *
+ * Through `Intl` like every other time in this app. The hour arrives as the
+ * two-digit 24-hour string the API groups by, and writing `${hour}:00` would
+ * put a 24-hour clock on a page whose every other time is 12-hour — which is
+ * exactly what it used to do.
+ */
+export function formatClockHour(hour: string, locale: Locale): string {
+  // Matched before it is converted: `Number('')` is 0, which is a perfectly
+  // valid hour, so an empty string would otherwise print as midnight.
+  if (!/^\d{1,2}$/.test(hour)) return hour;
+
+  const parsed = Number(hour);
+  if (parsed > 23) return hour;
+
+  return new Intl.DateTimeFormat(INTL_LOCALE[locale], {
+    hour: 'numeric',
+    hour12: true,
+  }).format(new Date(2000, 0, 1, parsed));
+}
+
+/**
  * The locale's own words for the two halves of the day.
  *
  * The time field shows what it displays — "4:54 PM" rather than the 16:54 that

@@ -14,6 +14,7 @@ export { useLocale, type LocaleContextValue } from './localeContext';
 export { applyDocumentLocale, resolveInitialLocale } from './documentLocale';
 export {
   clockMeridiems,
+  formatClockHour,
   formatClockTime,
   formatDate,
   formatNumber,

@@ -104,7 +104,10 @@ function show(journey: Journey | null) {
   return render(
     <LocaleProvider>
       <ThemeProvider>
-        <JourneyMap journey={journey} network="hsl" area={null} onPick={() => {}} onRename={() => {}} />
+        <JourneyMap journey={journey} network="hsl" area={null} onPick={() => {}} onRename={() => {}}
+          onStopSelect={() => {}}
+          selectedStopId={null}
+        />
       </ThemeProvider>
     </LocaleProvider>,
   );
@@ -213,6 +216,8 @@ describe('JourneyMap', () => {
             area={null}
             onPick={() => {}}
             onRename={() => {}}
+            onStopSelect={() => {}}
+            selectedStopId={null}
           />
         </ThemeProvider>
       </LocaleProvider>,
@@ -286,6 +291,8 @@ describe('choosing a point on the map', () => {
             area={null}
             onPick={(place, end) => picks.push([place.label, end])}
             onRename={() => {}}
+            onStopSelect={() => {}}
+            selectedStopId={null}
           />
         </ThemeProvider>
       </LocaleProvider>,
@@ -321,6 +328,8 @@ describe('the pick popup', () => {
             area={null}
             onPick={() => {}}
             onRename={() => {}}
+            onStopSelect={() => {}}
+            selectedStopId={null}
           />
         </ThemeProvider>
       </LocaleProvider>,
@@ -355,6 +364,8 @@ describe('the pick popup', () => {
             area={null}
             onPick={(_place, end) => picks.push(end)}
             onRename={() => {}}
+            onStopSelect={() => {}}
+            selectedStopId={null}
           />
         </ThemeProvider>
       </LocaleProvider>,
@@ -381,6 +392,8 @@ describe('the pick popup', () => {
             area={null}
             onPick={onPick}
             onRename={() => {}}
+            onStopSelect={() => {}}
+            selectedStopId={null}
           />
         </ThemeProvider>
       </LocaleProvider>

@@ -17,6 +17,8 @@ import type { JourneyEnd } from '../features/journey/itineraryRows';
 import { ItineraryOverview } from '../features/journey/ItineraryOverview';
 import { ItineraryDetail } from '../features/journey/ItineraryDetail';
 import { JourneyMap } from '../map/JourneyMap';
+import { StopInspector } from '../features/stops/StopInspector';
+import type { StopIdentity } from '../types/stop';
 
 /**
  * Whether two results are the same journey.
@@ -69,6 +71,34 @@ const hold = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 /** The two ends as the traveller chose them, for the strip map's end nodes. */
 function endOf(place: Place | null): JourneyEnd {
   return { name: place?.label ?? null, context: place?.context ?? null };
+}
+
+/**
+ * A stop, as one end of a search.
+ *
+ * Carries the coordinates rather than the stop id, even though the id is right
+ * there and the API accepts one. A stop-id query hits the engine's documented
+ * "No Direct Start" limitation — Round-0 footpath expansion is not applied to
+ * exact stop nodes, so a stop without a direct connection can fail to route at
+ * all — and a coordinate on the same spot does not. The id is kept on the place
+ * so the field can still show what it is.
+ */
+function placeForStop(stop: StopIdentity): Place {
+  return {
+    key: `stop-${stop.id}`,
+    label: stop.name,
+    context: stop.description,
+    lat: stop.lat,
+    lon: stop.lon,
+    kind: 'stop',
+    stopId: stop.id,
+    stopCode: stop.code,
+    platform: stop.platform,
+    // Empty rather than null: this *is* a stop, and the geocoder's distinction
+    // between "not a stop" and "a stop whose modes were not reported" is the
+    // one being honoured. The stop endpoint does not carry modes.
+    modes: [],
+  };
 }
 
 /**
@@ -134,6 +164,16 @@ export default function PlanPage() {
    * straight back.
    */
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+
+  /*
+   * A stop pressed on the map, opened in the sidebar rather than navigated to.
+   *
+   * `/stops/:stopId` renders the same panel and would be the obvious thing to
+   * send somebody to — but the search on this page does not live in the URL, so
+   * leaving would throw it away and the back button would return to an empty
+   * form. Swapping the sidebar keeps the question intact behind the answer.
+   */
+  const [inspectStopId, setInspectStopId] = useState<string | null>(null);
 
   const requestId = useRef(0);
   /** Bumped to re-run the startup effect when the visitor retries. */
@@ -345,6 +385,19 @@ export default function PlanPage() {
     setValues(next);
   }
 
+  /**
+   * Puts an inspected stop into the form as one of the two ends.
+   *
+   * Through `updateValues` like every other change: the search has moved, so
+   * whatever is on screen answered a different question and goes with it. The
+   * panel closes too — the stop was a detour, and staying on it would hide the
+   * results the press just asked for.
+   */
+  function openStopAsEnd(stop: StopIdentity, end: 'origin' | 'destination') {
+    updateValues({ ...values, [end]: placeForStop(stop) });
+    setInspectStopId(null);
+  }
+
   /*
    * Run when the form is submitted, and only then. It needs no guard against
    * repeating itself: nothing calls it but a press, and a press is a request
@@ -458,7 +511,30 @@ export default function PlanPage() {
           you scroll, so the panes are back to being one, and the separation
           is drawn instead of enforced.
         */}
-        {open !== null ? (
+        {inspectStopId !== null ? (
+          /*
+            A stop, opened from the map. It sits ahead of the itinerary in this
+            chain because it was asked for later: pressing a stop while reading
+            a journey is a question about that stop, and answering it must not
+            close the journey underneath.
+          */
+          <StopInspector
+            stopId={inspectStopId}
+            timezone={timezone}
+            validDates={validDates}
+            networkToday={networkToday}
+            onBack={() => setInspectStopId(null)}
+            /* Back goes to whatever was showing underneath, which is the
+               open itinerary when there is one and the list otherwise. */
+            backLabel={t(
+              open !== null ? strings.stops.backToJourney : strings.stops.backToResults,
+            )}
+            onPlanFrom={(stop) =>
+              openStopAsEnd(stop, 'origin')
+            }
+            onPlanTo={(stop) => openStopAsEnd(stop, 'destination')}
+          />
+        ) : open !== null ? (
           <div className="flex flex-col gap-5 p-5">
             <ItineraryDetail
               journey={open}
@@ -647,6 +723,8 @@ export default function PlanPage() {
               current[end]?.key === place.key ? { ...current, [end]: place } : current,
             )
           }
+          onStopSelect={setInspectStopId}
+          selectedStopId={inspectStopId}
         />
       </section>
     </div>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDate, formatNumber, parseIsoDate, translate } from './translate';
+import { formatClockHour, formatDate, formatNumber, parseIsoDate, translate } from './translate';
 import { LOCALES, type Locale, type PluralForms } from './dictionary';
 import { en } from './en';
 import { ar } from './ar';
@@ -118,5 +118,29 @@ describe('formatting', () => {
   it('uses Latin digits in Arabic', () => {
     expect(formatNumber(3950, 'ar')).toMatch(/3.?950/);
     expect(formatDate('2026-09-13', 'ar')).toMatch(/2026/);
+  });
+});
+
+describe('formatClockHour', () => {
+  /*
+   * A timetable's hour headings used to be built as `${hour}:00`, which put a
+   * 24-hour clock at the head of a board whose every other time was 12-hour.
+   */
+  it('reads as a 12-hour heading, without the minutes', () => {
+    expect(formatClockHour('15', 'en')).toBe('3 PM');
+    expect(formatClockHour('00', 'en')).toBe('12 AM');
+    expect(formatClockHour('07', 'en')).toBe('7 AM');
+  });
+
+  it('uses the locale’s own meridiem and Latin digits in Arabic', () => {
+    const arabic = formatClockHour('15', 'ar');
+    expect(arabic).toContain('3');
+    expect(arabic).not.toContain('15');
+  });
+
+  // Anything that is not an hour comes back untouched rather than as a date.
+  it('returns an unreadable hour unchanged', () => {
+    expect(formatClockHour('99', 'en')).toBe('99');
+    expect(formatClockHour('', 'en')).toBe('');
   });
 });
