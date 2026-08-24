@@ -344,6 +344,33 @@ describe('the pick popup', () => {
    * the teardown path behaves differently — so this asserts the invariant
    * rather than the bug: whatever else changes, the popup stays put.
    */
+  it('can be dismissed without choosing an end', async () => {
+    const picks: string[] = [];
+    render(
+      <LocaleProvider>
+        <ThemeProvider>
+          <JourneyMap
+            journey={null}
+            network="hsl"
+            area={null}
+            onPick={(_place, end) => picks.push(end)}
+            onRename={() => {}}
+          />
+        </ThemeProvider>
+      </LocaleProvider>,
+    );
+
+    fireEvent.click(document.querySelector('.leaflet-container') as Element, {
+      clientX: 10,
+      clientY: 10,
+    });
+    fireEvent.click(await screen.findByRole('button', { name: 'Dismiss' }));
+
+    expect(screen.queryByRole('button', { name: 'Start here' })).toBeNull();
+    // Dismissing is not choosing: nothing reaches the form.
+    expect(picks).toEqual([]);
+  });
+
   it('stays open across a re-render', async () => {
     const view = (onPick: () => void) => (
       <LocaleProvider>

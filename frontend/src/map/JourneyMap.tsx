@@ -29,11 +29,11 @@ import {
   originMarkerMarkup,
 } from '../features/journey/placeMarkerMarkup';
 import {
-  boxFromGeoBounds,
   journeyGeometry,
   type BoundingBox,
 } from '../features/journey/journeyGeometry';
 import { StopLayer } from './StopLayer';
+import { homeViewFor, type HomeView } from './homeView';
 import { tileSourceFor } from './tileSource';
 import { useReducedMotion } from './useReducedMotion';
 
@@ -80,9 +80,14 @@ interface Props {
   onRename: (place: Place, end: 'origin' | 'destination') => void;
 }
 
-/** Roughly Helsinki, used only for the instant before anything is known. */
-const FALLBACK_CENTRE: L.LatLngExpression = [60.17, 24.94];
-const FALLBACK_ZOOM = 11;
+/*
+ * The frame at mount, before `/api/network` has said which city this is.
+ *
+ * `MapContainer` reads these once and never again, so the real resting view is
+ * set imperatively the moment the network is known. They are taken from the
+ * same table so the first frame and the second are not two different places.
+ */
+const FIRST_VIEW = homeViewFor(null, null);
 
 /**
  * Frames the map on whatever it is currently showing.
@@ -91,13 +96,31 @@ const FALLBACK_ZOOM = 11;
  * single point produces a valid but zero-sized one — which Leaflet answers by
  * slamming to its maximum zoom. Hence both the null guard and the `maxZoom`.
  */
-function FitTo({ box, animate }: { box: BoundingBox | null; animate: boolean }) {
+function FitTo({
+  box,
+  home,
+  animate,
+}: {
+  box: BoundingBox | null;
+  home: HomeView;
+  animate: boolean;
+}) {
   const map = useMap();
 
   useEffect(() => {
-    if (box === null) return;
+    /*
+     * A journey is fitted; nothing is simply looked at. Fitting the network's
+     * search area instead would frame the map on a region — for HSL that
+     * reaches an hour of commuter rail north of the city — and open on
+     * somewhere too far out to point at.
+     */
+    if (box === null) {
+      map.setView(home.center, home.zoom, { animate });
+      return;
+    }
+
     map.fitBounds(box, { padding: [32, 32], maxZoom: 16, animate });
-  }, [map, box, animate]);
+  }, [map, box, home, animate]);
 
   return null;
 }
@@ -189,12 +212,19 @@ interface Pick {
  * anybody can name it, which is why a geocoder with no reverse lookup, or
  * nothing to say about that spot, costs the place its label and nothing else.
  */
-function PickPoint({ onPick, onRename }: { onPick: Props['onPick']; onRename: Props['onRename'] }) {
+function PickPoint({
+  pick,
+  setPick,
+  onPick,
+  onRename,
+}: {
+  pick: Pick | null;
+  setPick: (pick: Pick | null) => void;
+  onPick: Props['onPick'];
+  onRename: Props['onRename'];
+}) {
   const { locale, strings, t } = useLocale();
   const map = useMap();
-  const [pick, setPick] = useState<Pick | null>(null);
-  /** Bumped whenever the map moves, so the card follows its point. */
-  const [moved, setMoved] = useState(0);
   /** The lookup in flight, so a second choice cancels the first. */
   const lookup = useRef<AbortController | null>(null);
   /** When a choice was last made. See the click handler. */
@@ -216,8 +246,14 @@ function PickPoint({ onPick, onRename }: { onPick: Props['onPick']; onRename: Pr
       if (Date.now() - chosenAt.current < 400) return;
       setPick({ lat: event.latlng.lat, lon: event.latlng.lng });
     },
-    move: () => setMoved((count) => count + 1),
-    zoom: () => setMoved((count) => count + 1),
+    /*
+     * Moving the map dismisses the question. It was asked about a point, and
+     * once that point is somewhere else on the screen — or off it — the card
+     * is a label for nothing. `movestart` rather than `move`, so it goes at the
+     * first sign of the map being driven rather than at the end of it.
+     */
+    movestart: () => setPick(null),
+    zoomstart: () => setPick(null),
   });
 
   useEffect(() => () => lookup.current?.abort(), []);
@@ -242,8 +278,6 @@ function PickPoint({ onPick, onRename }: { onPick: Props['onPick']; onRename: Pr
 
   if (pick === null) return null;
 
-  // Read on every render so the card stays over its point as the map moves.
-  void moved;
   const at = map.latLngToContainerPoint([pick.lat, pick.lon]);
 
   const choose = (end: 'origin' | 'destination') => {
@@ -293,8 +327,29 @@ function PickPoint({ onPick, onRename }: { onPick: Props['onPick']; onRename: Pr
       style={{ left: at.x, top: at.y }}
     >
       <div className="rounded-card border-border bg-surface-raised shadow-card flex flex-col gap-2 border p-3">
-        <span dir="auto" className="text-sm font-semibold">
-          {t(strings.planner.selectedLocation)}
+        <span className="flex items-start gap-3">
+          <span dir="auto" className="text-sm font-semibold">
+            {t(strings.planner.selectedLocation)}
+          </span>
+          <button
+            type="button"
+            onClick={() => setPick(null)}
+            aria-label={t(strings.planner.dismiss)}
+            className="text-content-muted hover:text-content focus-visible:outline-brand-500 rounded-control -me-1 -mt-1 ms-auto cursor-pointer p-1 focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
         </span>
 
         <span className="flex gap-1.5">
@@ -460,6 +515,11 @@ const originIcon = L.divIcon({
 
 export function JourneyMap({ journey, network, area, onPick, onRename }: Props) {
   const locale = useLocale();
+  /*
+   * Held here rather than inside the chooser, because two other things now
+   * dismiss it: moving the map, and putting the pointer on a stop.
+   */
+  const [pick, setPick] = useState<Pick | null>(null);
   const { strings, t, direction } = locale;
   const { resolved } = useTheme();
   const reduceMotion = useReducedMotion();
@@ -491,10 +551,9 @@ export function JourneyMap({ journey, network, area, onPick, onRename }: Props) 
    * because it is an effect's dependency, and a fresh array each render would
    * re-frame the map on every keystroke elsewhere on the page.
    */
-  const box = useMemo<BoundingBox | null>(() => {
-    if (geometry?.bounds) return geometry.bounds;
-    return area === null ? null : boxFromGeoBounds(area);
-  }, [geometry, area]);
+  const box = useMemo<BoundingBox | null>(() => geometry?.bounds ?? null, [geometry]);
+
+  const home = useMemo(() => homeViewFor(network, area), [network, area]);
 
   const badges = useMemo<Badge[]>(() => {
     if (geometry === null || journey === null) return [];
@@ -531,8 +590,8 @@ export function JourneyMap({ journey, network, area, onPick, onRename }: Props) 
   return (
     <MapContainer
       className="absolute inset-0 h-full w-full"
-      center={FALLBACK_CENTRE}
-      zoom={FALLBACK_ZOOM}
+      center={FIRST_VIEW.center}
+      zoom={FIRST_VIEW.zoom}
       zoomControl={false}
       attributionControl={false}
       /*
@@ -562,11 +621,11 @@ export function JourneyMap({ journey, network, area, onPick, onRename }: Props) 
       />
 
       {/* Drawn under everything the journey puts on the map. */}
-      <StopLayer />
+      <StopLayer onStopHover={() => setPick(null)} />
 
-      <PickPoint onPick={onPick} onRename={onRename} />
+      <PickPoint pick={pick} setPick={setPick} onPick={onPick} onRename={onRename} />
       <KeepSized />
-      <FitTo box={box} animate={!reduceMotion} />
+      <FitTo box={box} home={home} animate={!reduceMotion} />
 
       {geometry?.segments.map((segment) => {
         const walking = segment.kind === 'walk';

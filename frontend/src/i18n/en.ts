@@ -183,6 +183,7 @@ export const en: Dictionary = {
     startPoint: 'Start',
     endPoint: 'Destination',
     selectedLocation: 'Selected location',
+    dismiss: 'Dismiss',
     setAsOrigin: 'Start here',
     setAsDestination: 'End here',
     namingPlace: 'Looking up this place…',

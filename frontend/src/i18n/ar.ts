@@ -213,6 +213,7 @@ export const ar: Dictionary = {
     startPoint: 'الانطلاق',
     endPoint: 'الوجهة',
     selectedLocation: 'الموقع المحدَّد',
+    dismiss: 'إغلاق',
     setAsOrigin: 'ابدأ من هنا',
     setAsDestination: 'انتهِ هنا',
     namingPlace: 'جارٍ التعرّف على هذا المكان…',

@@ -114,7 +114,7 @@ function stopIcon(modes: NetworkStop['modes']): L.DivIcon {
   });
 }
 
-export function StopLayer() {
+export function StopLayer({ onStopHover }: { onStopHover: () => void }) {
   const map = useMap();
   const [stops, setStops] = useState<NetworkStop[]>([]);
   /** Bumped whenever the map settles, which is when the projection moved. */
@@ -223,8 +223,23 @@ export function StopLayer() {
            * is the point at which they become worth reaching.
            */
           keyboard={false}
+          eventHandlers={{
+            mouseover: (event) => {
+              onStopHover();
+              /*
+               * Placed again once its content is in.
+               *
+               * Leaflet measures a tooltip's width when it opens, to centre it
+               * over the marker — but react-leaflet fills the content in
+               * afterwards, through a portal, so the measurement can be taken
+               * of an empty box and the name lands off to one side. Asking for
+               * a fresh placement on the next frame measures the real thing.
+               */
+              requestAnimationFrame(() => event.target.getTooltip()?.update());
+            },
+          }}
         >
-          <Tooltip direction="top" offset={[0, -14]}>
+          <Tooltip direction="top" offset={[0, -12]}>
             <span dir="auto" className="font-semibold">
               {stop.name}
             </span>

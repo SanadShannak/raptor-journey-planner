@@ -235,6 +235,8 @@ export interface Dictionary {
     endPoint: string;
     /** A dropped pin nobody named — a coordinate, and nothing to call it. */
     selectedLocation: string;
+    /** Closes the card offering a pressed point, without taking it. */
+    dismiss: string;
     /** What pressing a point on the map offers to do with it. */
     setAsOrigin: string;
     setAsDestination: string;
