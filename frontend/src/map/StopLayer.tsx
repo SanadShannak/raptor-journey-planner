@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import { Marker, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import { getStopsInBounds } from '../api/stops';
@@ -33,9 +33,23 @@ import {
  * Street level, deliberately. At a district's worth of zoom the stops are
  * dense enough to read as a pattern rather than as places, and they crowd the
  * journey — which is what the map is for. They belong to the moment you are
- * looking at one neighbourhood and want to know what is on the corner.
+ * looking at one street and want to know what is on the corner.
  */
-const MIN_ZOOM = 16;
+const MIN_ZOOM = 17;
+
+/**
+ * How close two stops may be drawn before one of them is left out.
+ *
+ * A city centre puts stops within a few metres of each other — the two
+ * directions of one street, four corners of one junction — and at any zoom
+ * that shows a neighbourhood those land on top of one another. Thinning them
+ * in screen space keeps the survivors legible, and the ones left out come back
+ * as you go in, which is the same bargain the leg badges make.
+ *
+ * Interchanges win the ties: a stop several modes call at is the one most
+ * worth seeing, and the one most likely to be what somebody is looking for.
+ */
+const MIN_GAP = 22;
 
 /** How long the map must sit still before it is worth asking again. */
 const SETTLE_MS = 250;
@@ -79,8 +93,8 @@ function stopIcon(modes: NetworkStop['modes']): L.DivIcon {
   const known = mode !== undefined;
   const ink = known ? visualForFamily(familyFor(mode)).ink : 'text-content-muted';
   const glyph = known
-    ? `<svg ${ICON_SVG_ATTRIBUTES} width="11" height="11">${modeIconMarkup(familyFor(mode))}</svg>`
-    : '<span class="bg-current block h-1.5 w-1.5 rounded-full"></span>';
+    ? `<svg ${ICON_SVG_ATTRIBUTES} width="10" height="10">${modeIconMarkup(familyFor(mode))}</svg>`
+    : '<span class="bg-current block h-1 w-1 rounded-full"></span>';
 
   /*
    * A small square, not a circle.
@@ -93,7 +107,7 @@ function stopIcon(modes: NetworkStop['modes']): L.DivIcon {
    */
   return L.divIcon({
     className: 'network-stop',
-    html: `<span class="${ink} bg-surface-raised border-current absolute top-0 left-0 flex h-4 w-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[3px] border shadow-sm">${glyph}</span>`,
+    html: `<span class="${ink} bg-surface-raised border-current absolute top-0 left-0 flex h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[3px] border opacity-70 transition-opacity hover:opacity-100">${glyph}</span>`,
     iconSize: [0, 0],
     iconAnchor: [0, 0],
   });
@@ -102,6 +116,8 @@ function stopIcon(modes: NetworkStop['modes']): L.DivIcon {
 export function StopLayer() {
   const map = useMap();
   const [stops, setStops] = useState<NetworkStop[]>([]);
+  /** Bumped whenever the map settles, which is when the projection moved. */
+  const [settled, setSettled] = useState(0);
   /** The area the current answer covers, so a small pan asks nothing. */
   const covered = useRef<GeoBounds | null>(null);
   const request = useRef<AbortController | null>(null);
@@ -147,7 +163,12 @@ export function StopLayer() {
     }, SETTLE_MS);
   };
 
-  useMapEvents({ moveend: refresh, zoomend: refresh });
+  const onSettle = () => {
+    setSettled((count) => count + 1);
+    refresh();
+  };
+
+  useMapEvents({ moveend: onSettle, zoomend: onSettle });
 
   useEffect(() => {
     refresh();
@@ -159,9 +180,36 @@ export function StopLayer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map]);
 
+  /*
+   * Thinned in screen space at the zoom being looked at, so a dense centre
+   * shows what it can rather than a pile. Recomputed when the map moves,
+   * because that is when the projection changes.
+   */
+  const drawn = useMemo(() => {
+    // Not read: it is the signal that every projection below has moved, which
+    // is exactly when this has to be worked out again.
+    void settled;
+
+    const placed: L.Point[] = [];
+    const keep: NetworkStop[] = [];
+
+    const byImportance = [...stops].sort(
+      (a, b) => b.modes.length - a.modes.length || a.id.localeCompare(b.id),
+    );
+
+    for (const stop of byImportance) {
+      const at = map.latLngToLayerPoint([stop.lat, stop.lon]);
+      if (placed.every((other) => at.distanceTo(other) >= MIN_GAP)) {
+        placed.push(at);
+        keep.push(stop);
+      }
+    }
+    return keep;
+  }, [stops, map, settled]);
+
   return (
     <>
-      {stops.map((stop) => (
+      {drawn.map((stop) => (
         <Marker
           key={stop.id}
           position={[stop.lat, stop.lon]}

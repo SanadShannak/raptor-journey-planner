@@ -16,12 +16,6 @@ interface Props {
   /** The day that was asked about, so a departure on another one can say so. */
   searchedDate: string;
   onOpen: () => void;
-  /**
-   * Reports that this card is the one being attended to, so the map can draw
-   * it. Sent for focus as well as for the pointer — a keyboard moving through
-   * the list is the same intent as a mouse resting on it.
-   */
-  onHighlight?: ((highlighted: boolean) => void) | undefined;
   /** Whether this is the journey the map is currently drawing. */
   selected?: boolean | undefined;
 }
@@ -59,7 +53,6 @@ export function ItineraryOverview({
   journey,
   searchedDate,
   onOpen,
-  onHighlight,
   selected = false,
 }: Props) {
   const locale = useLocale();
@@ -72,10 +65,6 @@ export function ItineraryOverview({
       <button
         type="button"
         onClick={onOpen}
-        onPointerEnter={() => onHighlight?.(true)}
-        onPointerLeave={() => onHighlight?.(false)}
-        onFocus={() => onHighlight?.(true)}
-        onBlur={() => onHighlight?.(false)}
         /*
            `aria-current` rather than `aria-pressed`: this is not a control that
            stays down, it is the one item of a set that the map is showing.

@@ -481,20 +481,21 @@
 }
 
 /*
- * It arrives rather than appearing. A name that snaps into place over a stop
- * you happened to pass the pointer across reads as a jolt; a tenth of a second
- * of rising into place reads as an answer to having paused there.
+ * It fades rather than moves. A tooltip that slides into place draws the eye to
+ * the travelling, which is the wrong thing to notice — the name is the point,
+ * and it should simply be there a moment after you stop. Leaflet positions
+ * these with a transform of its own, so animating one here would fight it in
+ * any case.
  */
 @media (prefers-reduced-motion: no-preference) {
   .leaflet-tooltip {
-    animation: tooltip-in 120ms ease-out;
+    animation: tooltip-in 140ms ease-out;
   }
 }
 
 @keyframes tooltip-in {
   from {
     opacity: 0;
-    transform: translateY(3px);
   }
 }
 

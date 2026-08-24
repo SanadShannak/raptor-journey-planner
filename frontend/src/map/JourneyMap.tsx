@@ -197,6 +197,17 @@ function PickPoint({ onPick, onRename }: { onPick: Props['onPick']; onRename: Pr
   const lookup = useRef<AbortController | null>(null);
 
   useMapEvent('click', (event) => {
+    /*
+     * A press on one of the popup's own buttons is a press on the map as far
+     * as Leaflet is concerned — the popup lives inside the map's container, so
+     * the event bubbles straight through it. Without this, answering the
+     * question re-asked it at wherever the button happened to be.
+     */
+    const target = event.originalEvent.target;
+    if (target instanceof Element && target.closest('.leaflet-popup') !== null) {
+      return;
+    }
+
     setPick({ lat: event.latlng.lat, lon: event.latlng.lng });
   });
 
@@ -295,20 +306,25 @@ function legBadge(family: string | null, label: string): L.DivIcon {
     : `${visualForFamily(family).fill} text-on-mode`;
   const icon = walking ? WALK_ICON_MARKUP : modeIconMarkup(family);
 
+  /*
+   * Sat above the line on a pointer, rather than on top of it.
+   *
+   * Centred on the midpoint, a badge covers the very thing it names — and on a
+   * short leg it covers both ends and the line between them, which is why the
+   * walk to the first stop had to be zoomed a long way in before it could be
+   * labelled at all. Lifted clear, the label can appear at almost any zoom,
+   * because it is no longer competing for the same pixels as the drawing.
+   *
+   * The pointer is a square turned forty-five degrees and tucked under the
+   * chip's edge, so it takes the chip's own colour without a second shape to
+   * keep in step.
+   *
+   * `left` rather than `start`: the anchor is a point on the ground, placed by
+   * projection in physical pixels, and the map does not flip with the document.
+   */
   return L.divIcon({
     className: 'journey-badge',
-    /*
-     * Pulled back by half its own size so the line runs through its middle.
-     * The width is whatever the label needs, which is why this is a transform
-     * and not an `iconAnchor`: Leaflet wants that in pixels, and nothing here
-     * knows how wide "Kehärata" is until the browser has laid it out.
-     *
-     * `left` rather than `start`, which is the one place in this app that is
-     * right. The anchor is a point on the ground, placed by projection in
-     * physical pixels; the map does not flip with the document, so neither can
-     * the offset that centres something on it.
-     */
-    html: `<span class="${tint} rounded-control shadow-card ring-surface absolute top-0 left-0 flex w-max -translate-x-1/2 -translate-y-1/2 items-center gap-1.5 px-2 py-1 text-sm font-bold ring-2"><svg ${ICON_SVG_ATTRIBUTES} width="18" height="18">${icon}</svg>${label}</span>`,
+    html: `<span class="absolute top-0 left-0 flex -translate-x-1/2 -translate-y-full flex-col items-center pb-1.5"><span class="${tint} rounded-control shadow-card ring-surface flex w-max items-center gap-1.5 px-2 py-1 text-sm font-bold ring-2"><svg ${ICON_SVG_ATTRIBUTES} width="18" height="18">${icon}</svg>${label}</span><span class="${tint} ring-surface -mt-1 h-2.5 w-2.5 rotate-45 rounded-[2px] ring-2"></span></span>`,
     iconSize: [0, 0],
     iconAnchor: [0, 0],
   });
@@ -364,13 +380,12 @@ function LegBadges({ badges }: { badges: Badge[] }) {
     /**
      * How much of the screen a leg must occupy to be worth labelling.
      *
-     * A badge is a fixed size on screen while a leg is not: pull far enough
-     * back and the walk to the first stop is shorter than the label describing
-     * it, so the label covers both of its ends and the line between them and
-     * you cannot see the thing you are being told about. Below this the leg is
-     * left to speak for itself, and the badge returns as you zoom in.
+     * Much smaller than it was, because the badge no longer sits on the line —
+     * it stands above it on a pointer, so it is not competing for the same
+     * pixels as the drawing. What is left is only the point at which a leg is
+     * too short for a label to belong to it rather than to its neighbours.
      */
-    const MIN_LEG_SPAN = 64;
+    const MIN_LEG_SPAN = 26;
 
     for (const badge of [...badges].sort((a, b) => a.rank - b.rank)) {
       const [from, to] = badge.ends;

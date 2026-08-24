@@ -125,14 +125,6 @@ export default function PlanPage() {
   /** Which result is open in full, by index; null while the list is showing. */
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   /**
-   * Which card the pointer or the keyboard is on.
-   *
-   * Only the map reads it. Hovering is a pointer idea, so the cards report
-   * focus as well — otherwise the map would follow a mouse and ignore someone
-   * tabbing through the same list.
-   */
-  const [highlightIndex, setHighlightIndex] = useState<number | null>(null);
-  /**
    * Which card the traveller has actually chosen, as opposed to grazed.
    *
    * Pressing a card that is not this one makes it this one, and shows it on the
@@ -329,11 +321,10 @@ export default function PlanPage() {
     setSearched(false);
     setOpenIndex(null);
     /*
-     * Both are indexes into a list that is about to be replaced, so they would
-     * otherwise point at whichever journey happened to land in that slot next
-     * — the same reason `openIndex` is cleared here.
+     * An index into a list that is about to be replaced, so it would otherwise
+     * point at whichever journey happened to land in that slot next — the same
+     * reason `openIndex` is cleared here.
      */
-    setHighlightIndex(null);
     setSelectedIndex(null);
     setExhausted(null);
     setErrorMessage(null);
@@ -412,19 +403,19 @@ export default function PlanPage() {
         };
 
   /*
-   * The open result wins, then whatever is being pointed at or focused, then
-   * the chosen one, then the first — so the map is never blank while there is
-   * something to show, and the journey it falls back to is the soonest
-   * departure, which is the one most people take.
+   * The open result, else the chosen one, else the first — so the map is never
+   * blank while there is something to show, and the journey it falls back to is
+   * the soonest departure, which is the one most people take.
    *
-   * Pointing outranks choosing on purpose: a graze is a question, and the
-   * answer should be given back the moment the pointer leaves.
+   * The pointer used to outrank both, on the reasoning that a graze is a
+   * question worth answering. In practice it meant the map changed under you
+   * whenever you moved across the list on the way to something else, and a
+   * journey you had chosen could not be looked at while you read the card
+   * above it. Choosing is the only thing that moves the map now.
    */
   const active = selectedIndex ?? 0;
   const shown =
-    openIndex !== null
-      ? (journeys[openIndex] ?? null)
-      : (journeys[highlightIndex ?? active] ?? null);
+    openIndex !== null ? (journeys[openIndex] ?? null) : (journeys[active] ?? null);
 
   const offline = service === 'down';
   const showEmpty = searched && state === 'idle' && journeys.length === 0;
@@ -586,11 +577,6 @@ export default function PlanPage() {
                         index === active
                           ? setOpenIndex(index)
                           : setSelectedIndex(index)
-                      }
-                      onHighlight={(on) =>
-                        setHighlightIndex((current) =>
-                          on ? index : current === index ? null : current,
-                        )
                       }
                     />
                   ))}
