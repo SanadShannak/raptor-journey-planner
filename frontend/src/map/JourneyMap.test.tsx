@@ -104,7 +104,7 @@ function show(journey: Journey | null) {
   return render(
     <LocaleProvider>
       <ThemeProvider>
-        <JourneyMap journey={journey} network="hsl" area={null} onPick={() => {}} />
+        <JourneyMap journey={journey} network="hsl" area={null} onPick={() => {}} onRename={() => {}} />
       </ThemeProvider>
     </LocaleProvider>,
   );
@@ -212,6 +212,7 @@ describe('JourneyMap', () => {
             network="hsl"
             area={null}
             onPick={() => {}}
+            onRename={() => {}}
           />
         </ThemeProvider>
       </LocaleProvider>,
@@ -284,6 +285,7 @@ describe('choosing a point on the map', () => {
             network="hsl"
             area={null}
             onPick={(place, end) => picks.push([place.label, end])}
+            onRename={() => {}}
           />
         </ThemeProvider>
       </LocaleProvider>,
@@ -299,5 +301,39 @@ describe('choosing a point on the map', () => {
     fireEvent.click(start);
     // Photon answers nothing in a test, so the point keeps the honest name.
     expect(picks).toEqual([['Selected location', 'origin']]);
+  });
+});
+
+/*
+ * The popup asks a question and closes on being answered. It used to open
+ * saying one thing and change to another under the pointer, because it was
+ * asking the geocoder on the press — a name arriving is not worth a popup
+ * rewriting itself while somebody is reading it.
+ */
+describe('the pick popup', () => {
+  it('closes once an end has been chosen', async () => {
+    render(
+      <LocaleProvider>
+        <ThemeProvider>
+          <JourneyMap
+            journey={null}
+            network="hsl"
+            area={null}
+            onPick={() => {}}
+            onRename={() => {}}
+          />
+        </ThemeProvider>
+      </LocaleProvider>,
+    );
+
+    fireEvent.click(document.querySelector('.leaflet-container') as Element, {
+      clientX: 10,
+      clientY: 10,
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: 'End here' }));
+
+    expect(screen.queryByRole('button', { name: 'End here' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Start here' })).toBeNull();
   });
 });

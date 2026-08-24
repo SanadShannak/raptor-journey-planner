@@ -424,10 +424,12 @@
 /*
  * Leaflet.
  *
- * Its stylesheet is unlayered while Tailwind's utilities sit in `@layer
- * utilities`, and unlayered author CSS wins — so none of the below can be done
- * with utility classes on the elements themselves. It is written out here
- * instead, which is also the only place with the tokens to hand.
+ * Its stylesheet is unlayered, and unlayered author CSS beats anything in a
+ * layer however specific the selector — so none of this can be done with
+ * utility classes on the elements, and none of it can live in `@layer base`
+ * either. It sat there once and lost every conflict silently: the popup stayed
+ * white in dark mode while the rule that said otherwise was right there in the
+ * file. These are deliberately unlayered, which is the only way they apply.
  *
  * What Leaflet sets and this does not touch: `stroke` on a path is written as a
  * presentation attribute, which any of these rules outranks. That is what lets
@@ -435,92 +437,110 @@
  * dark mode, rather than being handed a hex value from JavaScript that knows
  * nothing about either scheme.
  */
-@layer base {
-  /*
-   * Preflight gives every image `max-width: 100%`, which shears Leaflet's tiles
-   * out of position — they are absolutely placed at their natural size.
-   */
-  .leaflet-container img {
-    max-width: none;
-    height: auto;
-  }
+/*
+ * Preflight gives every image `max-width: 100%`, which shears Leaflet's tiles
+ * out of position — they are absolutely placed at their natural size.
+ */
+.leaflet-container img {
+  max-width: none;
+  height: auto;
+}
 
-  .leaflet-container {
-    /* Seen while tiles load, and in the gutters when the map is over-panned. */
-    background: var(--color-surface-muted);
-    font: inherit;
-  }
+.leaflet-container {
+  /* Seen while tiles load, and in the gutters when the map is over-panned. */
+  background: var(--color-surface-muted);
+  font: inherit;
+}
 
-  /* Leaflet's own CSS is entirely physical, so RTL needs telling. */
-  .leaflet-popup-content-wrapper,
-  .leaflet-popup-content {
-    text-align: start;
-  }
+/* Leaflet's own CSS is entirely physical, so RTL needs telling. */
+.leaflet-popup-content-wrapper,
+.leaflet-popup-content {
+  text-align: start;
+}
 
-  /*
-   * A popup is painted white with dark text, which is a reasonable default and
-   * wrong in half of this app's schemes. The tip is the little arrow beneath
-   * it, and it has to match or the popup looks like it is peeling.
-   */
-  .leaflet-popup-content-wrapper,
-  .leaflet-popup-tip {
-    background: var(--color-surface-raised);
-    color: var(--color-content);
-  }
+/*
+ * A popup is painted white with dark text, which is a reasonable default and
+ * wrong in half of this app's schemes. The tip is the little arrow beneath
+ * it, and it has to match or the popup looks like it is peeling.
+ */
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--color-surface-raised);
+  color: var(--color-content);
+}
 
+.leaflet-tooltip {
+  background: var(--color-surface-raised);
+  color: var(--color-content);
+  border-color: var(--color-border);
+  box-shadow: var(--shadow-card);
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-control);
+}
+
+/*
+ * It arrives rather than appearing. A name that snaps into place over a stop
+ * you happened to pass the pointer across reads as a jolt; a tenth of a second
+ * of rising into place reads as an answer to having paused there.
+ */
+@media (prefers-reduced-motion: no-preference) {
   .leaflet-tooltip {
-    background: var(--color-surface-raised);
-    color: var(--color-content);
-    border-color: var(--color-border);
-    box-shadow: var(--shadow-card);
-    font: inherit;
-    font-size: 0.8125rem;
+    animation: tooltip-in 120ms ease-out;
   }
+}
 
-  /* The little arrow, which is drawn as a border and so needs its own say. */
-  .leaflet-tooltip-top::before {
-    border-top-color: var(--color-surface-raised);
+@keyframes tooltip-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
   }
+}
 
-  .leaflet-popup-close-button {
-    color: var(--color-content-muted);
-  }
+/* The little arrow, which is drawn as a border and so needs its own say. */
+.leaflet-tooltip-top::before {
+  border-top-color: var(--color-surface-raised);
+}
 
-  .leaflet-popup-close-button:focus-visible {
-    outline: 2px solid var(--color-brand-500);
-    outline-offset: -2px;
-  }
+.leaflet-popup-close-button {
+  color: var(--color-content-muted);
+}
 
-  .leaflet-bar a,
-  .leaflet-bar a:hover {
-    background-color: var(--color-surface-raised);
-    color: var(--color-content);
-    border-bottom-color: var(--color-border);
-  }
+.leaflet-popup-close-button:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: -2px;
+}
 
-  .leaflet-bar a:hover {
-    background-color: var(--color-surface-muted);
-  }
+.leaflet-bar a,
+.leaflet-bar a:hover {
+  background-color: var(--color-surface-raised);
+  color: var(--color-content);
+  border-bottom-color: var(--color-border);
+}
 
-  .leaflet-bar a:focus-visible {
-    outline: 2px solid var(--color-brand-500);
-    outline-offset: -2px;
-  }
+.leaflet-bar a:hover {
+  background-color: var(--color-surface-muted);
+}
 
-  .leaflet-control-attribution {
-    background: color-mix(in oklab, var(--color-surface-raised) 82%, transparent);
-    color: var(--color-content-muted);
-    /*
-     * Held to left-to-right whatever the page is doing. The credit is a fixed
-     * string ending in a Latin name, and in an RTL paragraph the "©" migrates
-     * to the wrong end of it.
-     */
-    direction: ltr;
-  }
+.leaflet-bar a:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: -2px;
+}
 
-  .leaflet-control-attribution a {
-    color: var(--color-brand-500);
-  }
+.leaflet-control-attribution {
+  background: color-mix(in oklab, var(--color-surface-raised) 82%, transparent);
+  color: var(--color-content-muted);
+  /*
+   * Held to left-to-right whatever the page is doing. The credit is a fixed
+   * string ending in a Latin name, and in an RTL paragraph the "©" migrates
+   * to the wrong end of it.
+   */
+  direction: ltr;
+}
+
+.leaflet-control-attribution a {
+  color: var(--color-brand-500);
 }
 
 /*

@@ -27,8 +27,15 @@ import {
  * stop sends someone to the wrong side of the street.
  */
 
-/** Below this the answer is a texture rather than a map. */
-const MIN_ZOOM = 14;
+/**
+ * Below this the answer is a texture rather than a map.
+ *
+ * Street level, deliberately. At a district's worth of zoom the stops are
+ * dense enough to read as a pattern rather than as places, and they crowd the
+ * journey — which is what the map is for. They belong to the moment you are
+ * looking at one neighbourhood and want to know what is on the corner.
+ */
+const MIN_ZOOM = 16;
 
 /** How long the map must sit still before it is worth asking again. */
 const SETTLE_MS = 250;
@@ -72,12 +79,21 @@ function stopIcon(modes: NetworkStop['modes']): L.DivIcon {
   const known = mode !== undefined;
   const ink = known ? visualForFamily(familyFor(mode)).ink : 'text-content-muted';
   const glyph = known
-    ? `<svg ${ICON_SVG_ATTRIBUTES} width="15" height="15">${modeIconMarkup(familyFor(mode))}</svg>`
-    : '<span class="bg-current block h-2 w-2 rounded-full"></span>';
+    ? `<svg ${ICON_SVG_ATTRIBUTES} width="11" height="11">${modeIconMarkup(familyFor(mode))}</svg>`
+    : '<span class="bg-current block h-1.5 w-1.5 rounded-full"></span>';
 
+  /*
+   * A small square, not a circle.
+   *
+   * Every marker the journey puts on this map is round — the two ends, the
+   * stops it calls at, the dots it rides through — and a round stop marker
+   * joined that set, so the network read as loudly as the journey drawn over
+   * it. A different shape at half the size says "this is the ground", and
+   * leaves the circles to mean "this is your journey".
+   */
   return L.divIcon({
     className: 'network-stop',
-    html: `<span class="${ink} bg-surface-raised ring-current absolute top-0 left-0 flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full opacity-95 shadow-sm ring-2">${glyph}</span>`,
+    html: `<span class="${ink} bg-surface-raised border-current absolute top-0 left-0 flex h-4 w-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[3px] border shadow-sm">${glyph}</span>`,
     iconSize: [0, 0],
     iconAnchor: [0, 0],
   });

@@ -70,135 +70,14 @@ interface Props {
   area: GeoBounds | null;
   /** Takes a point pressed on the map as one end of the search. */
   onPick: (place: Place, end: 'origin' | 'destination') => void;
-}
-
-/** A point somebody pressed, and what the geocoder makes of it. */
-interface Pick {
-  lat: number;
-  lon: number;
-  /** Null while the lookup is still out, or if it came back with nothing. */
-  named: Place | null;
-  looking: boolean;
-}
-
-/**
- * Offers a pressed point as one end of the journey.
- *
- * The map is an enhancement, so this adds no capability the form does not
- * already have — it is the same two fields, reachable by pointing at a place
- * whose name you do not know. Which is the case the form is worst at: you
- * cannot type a name for the corner of a park.
- *
- * The point is named by asking the geocoder what is there, and a coordinate
- * with no name is still a perfectly good end of a journey — so a service that
- * offers no reverse lookup, or has nothing to say about that spot, costs the
- * place its label and nothing else.
- */
-function PickPoint({ onPick }: { onPick: Props['onPick'] }) {
-  const { locale, strings, t } = useLocale();
-  const [pick, setPick] = useState<Pick | null>(null);
-  /** The lookup in flight, so a second press cancels the first. */
-  const lookup = useRef<AbortController | null>(null);
-
-  /*
-   * Started from the press rather than from an effect watching the state it
-   * sets. An effect would have to depend on the very thing its own result
-   * changes, and the usual way round that is to pick the dependencies apart by
-   * hand until the linter is quiet — which leaves the next reader to work out
-   * why. One press, one lookup, cancelled by the next.
+  /**
+   * Gives that point a better name once the geocoder answers.
+   *
+   * Separate from {@link onPick} because it must not read as a new choice: the
+   * coordinates are unchanged, so nothing about the search has moved and
+   * nothing on screen should be thrown away for it.
    */
-  useMapEvent('click', (event) => {
-    const { lat, lng: lon } = event.latlng;
-    lookup.current?.abort();
-
-    const reverse = geocoder.reverse;
-    setPick({ lat, lon, named: null, looking: reverse !== undefined });
-    if (reverse === undefined) return;
-
-    const controller = new AbortController();
-    lookup.current = controller;
-
-    void reverse(lat, lon, { signal: controller.signal, language: locale })
-      .then((named) => {
-        if (controller.signal.aborted) return;
-        setPick((current) =>
-          current?.lat === lat && current.lon === lon
-            ? { ...current, named, looking: false }
-            : current,
-        );
-      })
-      .catch(() => {
-        if (controller.signal.aborted) return;
-        // A geocoder that cannot answer is no reason to refuse the point.
-        setPick((current) =>
-          current?.lat === lat && current.lon === lon
-            ? { ...current, looking: false }
-            : current,
-        );
-      });
-  });
-
-  useEffect(() => () => lookup.current?.abort(), []);
-
-  if (pick === null) return null;
-
-  const place: Place = pick.named ?? {
-    key: `picked-${pick.lat},${pick.lon}`,
-    lat: pick.lat,
-    lon: pick.lon,
-    label: t(strings.planner.selectedLocation),
-    context: null,
-    kind: 'place',
-    stopId: null,
-    stopCode: null,
-    platform: null,
-    modes: null,
-  };
-
-  const choose = (end: 'origin' | 'destination') => {
-    onPick(place, end);
-    setPick(null);
-  };
-
-  return (
-    <Popup position={[pick.lat, pick.lon]} eventHandlers={{ remove: () => setPick(null) }}>
-      <span className="flex flex-col gap-2">
-        <span className="flex flex-col">
-          <span dir="auto" className="font-semibold">
-            {place.label}
-          </span>
-          {pick.looking ? (
-            <span className="text-content-muted text-xs">
-              {t(strings.planner.namingPlace)}
-            </span>
-          ) : (
-            place.context !== null && (
-              <span dir="auto" className="text-content-muted text-xs">
-                {place.context}
-              </span>
-            )
-          )}
-        </span>
-
-        <span className="flex gap-1.5">
-          <button
-            type="button"
-            onClick={() => choose('origin')}
-            className="rounded-control bg-action text-on-action hover:bg-action-hover hover:text-on-action-hover focus-visible:outline-brand-500 cursor-pointer px-2.5 py-1.5 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2"
-          >
-            {t(strings.planner.setAsOrigin)}
-          </button>
-          <button
-            type="button"
-            onClick={() => choose('destination')}
-            className="rounded-control border-border-strong text-content hover:border-brand-500 focus-visible:outline-brand-500 cursor-pointer border px-2.5 py-1.5 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2"
-          >
-            {t(strings.planner.setAsDestination)}
-          </button>
-        </span>
-      </span>
-    </Popup>
-  );
+  onRename: (place: Place, end: 'origin' | 'destination') => void;
 }
 
 /** Roughly Helsinki, used only for the instant before anything is known. */
@@ -280,6 +159,122 @@ function ZoomButtonLabels({ zoomIn, zoomOut }: { zoomIn: string; zoomOut: string
   }, [map, zoomIn, zoomOut]);
 
   return null;
+}
+
+/** A point somebody pressed. */
+interface Pick {
+  lat: number;
+  lon: number;
+}
+
+/**
+ * Offers a pressed point as one end of the journey.
+ *
+ * The map is an enhancement, so this adds no capability the form does not
+ * already have — it is the same two fields, reachable by pointing at a place
+ * whose name you do not know. Which is the case the form is worst at: you
+ * cannot type a name for the corner of a park.
+ *
+ * **Nothing is looked up until something has been chosen.** Asking the geocoder
+ * on the press meant the popup opened saying one thing and changed to another
+ * a moment later, under the pointer, while somebody was reading it — a name
+ * arriving is not worth a popup rewriting itself. So the popup is only ever the
+ * question, and the answer is fetched once the question has been answered.
+ *
+ * The place is handed over immediately under the honest name, and renamed in
+ * the field if the lookup comes back with something better. That is safe
+ * because a name is not part of what is searched: the query is built from
+ * coordinates, so a label arriving late changes nothing but the words in the
+ * box. And a coordinate is a perfectly good end of a journey whether or not
+ * anybody can name it, which is why a geocoder with no reverse lookup, or
+ * nothing to say about that spot, costs the place its label and nothing else.
+ */
+function PickPoint({ onPick, onRename }: { onPick: Props['onPick']; onRename: Props['onRename'] }) {
+  const { locale, strings, t } = useLocale();
+  const map = useMap();
+  const [pick, setPick] = useState<Pick | null>(null);
+  /** The lookup in flight, so a second choice cancels the first. */
+  const lookup = useRef<AbortController | null>(null);
+
+  useMapEvent('click', (event) => {
+    setPick({ lat: event.latlng.lat, lon: event.latlng.lng });
+  });
+
+  useEffect(() => () => lookup.current?.abort(), []);
+
+  if (pick === null) return null;
+
+  const choose = (end: 'origin' | 'destination') => {
+    const { lat, lon } = pick;
+
+    const place: Place = {
+      key: `picked-${lat},${lon}`,
+      lat,
+      lon,
+      label: t(strings.planner.selectedLocation),
+      context: null,
+      kind: 'place',
+      stopId: null,
+      stopCode: null,
+      platform: null,
+      modes: null,
+    };
+
+    onPick(place, end);
+
+    /*
+     * Closed through the map rather than by unmounting alone. Leaflet owns the
+     * popup's element, and asking it to close is the one instruction that is
+     * certainly obeyed.
+     */
+    map.closePopup();
+    setPick(null);
+
+    const reverse = geocoder.reverse;
+    if (reverse === undefined) return;
+
+    lookup.current?.abort();
+    const controller = new AbortController();
+    lookup.current = controller;
+
+    void reverse(lat, lon, { signal: controller.signal, language: locale })
+      .then((named) => {
+        if (controller.signal.aborted || named === null) return;
+        // Named where it was pressed, not at the centre of whatever matched.
+        onRename({ ...named, lat, lon, key: place.key }, end);
+      })
+      .catch(() => {
+        // A geocoder that cannot answer is no reason to disturb the choice
+        // that was already made.
+      });
+  };
+
+  return (
+    <Popup position={[pick.lat, pick.lon]} eventHandlers={{ remove: () => setPick(null) }}>
+      <span className="flex flex-col gap-2">
+        <span dir="auto" className="font-semibold">
+          {t(strings.planner.selectedLocation)}
+        </span>
+
+        <span className="flex gap-1.5">
+          <button
+            type="button"
+            onClick={() => choose('origin')}
+            className="rounded-control bg-action text-on-action hover:bg-action-hover hover:text-on-action-hover focus-visible:outline-brand-500 cursor-pointer px-2.5 py-1.5 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            {t(strings.planner.setAsOrigin)}
+          </button>
+          <button
+            type="button"
+            onClick={() => choose('destination')}
+            className="rounded-control border-border-strong text-content hover:border-brand-500 focus-visible:outline-brand-500 cursor-pointer border px-2.5 py-1.5 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            {t(strings.planner.setAsDestination)}
+          </button>
+        </span>
+      </span>
+    </Popup>
+  );
 }
 
 /**
@@ -412,7 +407,7 @@ const originIcon = L.divIcon({
   iconAnchor: [15, 15],
 });
 
-export function JourneyMap({ journey, network, area, onPick }: Props) {
+export function JourneyMap({ journey, network, area, onPick, onRename }: Props) {
   const locale = useLocale();
   const { strings, t, direction } = locale;
   const { resolved } = useTheme();
@@ -518,7 +513,7 @@ export function JourneyMap({ journey, network, area, onPick }: Props) {
       {/* Drawn under everything the journey puts on the map. */}
       <StopLayer />
 
-      <PickPoint onPick={onPick} />
+      <PickPoint onPick={onPick} onRename={onRename} />
       <KeepSized />
       <FitTo box={box} animate={!reduceMotion} />
 

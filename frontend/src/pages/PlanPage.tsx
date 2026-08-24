@@ -650,6 +650,17 @@ export default function PlanPage() {
             in, not a second way to plan a journey.
           */
           onPick={(place, end) => updateValues({ ...values, [end]: place })}
+          /*
+            A better name for the same coordinates. It goes in directly rather
+            than through `updateValues`, because the search has not changed —
+            the query is built from the position, and running it through the
+            change path would throw away results over a word.
+          */
+          onRename={(place, end) =>
+            setValues((current) =>
+              current[end]?.key === place.key ? { ...current, [end]: place } : current,
+            )
+          }
         />
       </section>
     </div>
