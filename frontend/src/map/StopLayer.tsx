@@ -30,12 +30,13 @@ import {
 /**
  * Below this the answer is a texture rather than a map.
  *
- * Street level, deliberately. At a district's worth of zoom the stops are
- * dense enough to read as a pattern rather than as places, and they crowd the
- * journey — which is what the map is for. They belong to the moment you are
- * looking at one street and want to know what is on the corner.
+ * Neighbourhood level. Far enough out to be useful while looking at a journey
+ * rather than only while looking at a corner, and close enough in that the
+ * thinning below has room to leave most of them standing. Further out than
+ * this they read as a pattern rather than as places, and they crowd the
+ * journey, which is what the map is for.
  */
-const MIN_ZOOM = 17;
+const MIN_ZOOM = 15;
 
 /**
  * How close two stops may be drawn before one of them is left out.
@@ -93,8 +94,8 @@ function stopIcon(modes: NetworkStop['modes']): L.DivIcon {
   const known = mode !== undefined;
   const ink = known ? visualForFamily(familyFor(mode)).ink : 'text-content-muted';
   const glyph = known
-    ? `<svg ${ICON_SVG_ATTRIBUTES} width="10" height="10">${modeIconMarkup(familyFor(mode))}</svg>`
-    : '<span class="bg-current block h-1 w-1 rounded-full"></span>';
+    ? `<svg ${ICON_SVG_ATTRIBUTES} width="11" height="11">${modeIconMarkup(familyFor(mode))}</svg>`
+    : '<span class="bg-current block h-1.5 w-1.5 rounded-full"></span>';
 
   /*
    * A small square, not a circle.
@@ -107,7 +108,7 @@ function stopIcon(modes: NetworkStop['modes']): L.DivIcon {
    */
   return L.divIcon({
     className: 'network-stop',
-    html: `<span class="${ink} bg-surface-raised border-current absolute top-0 left-0 flex h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[3px] border opacity-70 transition-opacity hover:opacity-100">${glyph}</span>`,
+    html: `<span class="${ink} bg-surface-raised border-current absolute top-0 left-0 flex h-4 w-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[3px] border opacity-70 transition-opacity hover:opacity-100">${glyph}</span>`,
     iconSize: [0, 0],
     iconAnchor: [0, 0],
   });
