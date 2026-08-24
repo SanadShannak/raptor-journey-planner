@@ -8,6 +8,7 @@ const {
   getModes,
 } = require("../../memoryCache");
 const { networkTimezone } = require("../utils/networkTime");
+const { networkCurrency } = require("../utils/networkCurrency");
 
 /*
  * What the loaded network is and what its data supports.
@@ -36,6 +37,17 @@ router.get("/", (req, res) => {
       /** The language stop and route names are written in, for markup and
        * screen-reader pronunciation. Null when the feed does not say. */
       language: meta?.language ?? null,
+
+      /*
+       * What this network charges in, as ISO 4217. Reported for the same
+       * reason as the timezone: it is one value everything derives from, so
+       * nothing downstream has to know which city is loaded to print a fare.
+       *
+       * Null when it cannot be established, and a client should then print a
+       * bare number — a balance in the wrong currency is worse than one with
+       * no currency at all.
+       */
+      currency: networkCurrency(),
 
       agencyName: meta?.agencyName ?? null,
       agencyUrl: meta?.agencyUrl ?? null,

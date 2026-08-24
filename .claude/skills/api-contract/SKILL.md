@@ -30,9 +30,9 @@ none of it can be assumed. `GET /api/network` reports what the loaded feed
 actually supplied:
 
 ```
-{ network, timezone, language, agencyName, agencyUrl, publisherName,
-  publisherUrl, feedStartDate, feedEndDate, feedVersion, compiledAt,
-  modes: [0, 1, 2, 3, 4],
+{ network, timezone, language, currency, agencyName, agencyUrl,
+  publisherName, publisherUrl, feedStartDate, feedEndDate, feedVersion,
+  compiledAt, modes: [0, 1, 2, 3, 4],
   capabilities: { stopCode, stopDescription, fareZones,
                   wheelchairAccessibility, routeLongName, routeDirection,
                   routeHeadsign, tripHeadsign, routeShape, transitDistance,
@@ -56,6 +56,22 @@ recover five integers.
 
 **Empty is a real answer** for a feed with no routes. Offer no filter rather
 than falling back to a default set.
+
+`currency` is what this network charges in, as ISO 4217 — the same kind of
+value as `timezone`, and reported for the same reason: one thing everything
+derives from, so a fare or a card balance prints in the right money without any
+call site knowing which city is loaded.
+
+**How many decimal places to show is a property of the currency, never a
+choice.** A dinar has three (`1.300 JOD`) and a euro two; `Intl.NumberFormat`
+knows, and hard-coding either is wrong on half the networks this repo can load.
+
+GTFS carries it in `fare_attributes.currency_type`, which the pipeline does not
+yet compile — `backend/server/utils/networkCurrency.js` therefore answers from a
+per-network table, exactly as `NETWORK_TIMEZONES` answers for a feed with no
+agency.txt, and will prefer the feed's value the day network-meta has one.
+**Null is a real answer**: print a bare number rather than guessing, because a
+balance in the wrong currency is worse than one with none.
 
 **Optional fields are always present as `null`, never omitted.** A missing key
 and a null both mean "no value", but only one lets you read the field without

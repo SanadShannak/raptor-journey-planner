@@ -258,6 +258,25 @@ export const en: Dictionary = {
     arriveHere: 'Arrive here',
   },
 
+  card: {
+    inquiryTitle: 'Check a card balance',
+    inquiryIntro: 'Type the number printed on the card. Nothing is saved, and you do not need an account.',
+    numberLabel: 'Card number',
+    numberHint: 'Eleven digits, as printed: 12345-67890-1',
+    check: 'Check balance',
+    checking: 'Checking…',
+
+    balance: 'Balance',
+    lastUsed: 'Last used {date}',
+    neverUsed: 'Not used yet',
+    emptyCard: 'This card is empty. Top it up before you travel.',
+    checkAnother: 'Check another card',
+
+    numberRequired: 'Enter the card number.',
+    numberIncomplete: 'That number is too short. A card number has eleven digits.',
+    notFound: 'No card has that number. Check the digits and try again.',
+  },
+
   auth: {
     logIn: 'Log in',
     signUp: 'Sign up',

@@ -20,6 +20,17 @@ export interface NetworkInfo {
   language: string | null;
   agencyName: string | null;
   publisherName: string | null;
+  /**
+   * What this network charges in, as an ISO 4217 code.
+   *
+   * The same kind of value as {@link timezone}: one thing everything derives
+   * from, so a fare or a card balance reads in the right money without any
+   * call site knowing which city is loaded.
+   *
+   * **Null is a real answer** and means "not established". Print a bare number
+   * then — a balance in the wrong currency is worse than one with none.
+   */
+  currency: string | null;
   feedStartDate: string | null;
   feedEndDate: string | null;
   capabilities: NetworkCapabilities;

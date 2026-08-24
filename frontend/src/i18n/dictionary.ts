@@ -364,6 +364,37 @@ export interface Dictionary {
   };
 
   /**
+   * Travel-card inquiry: type the number printed on a card, get its balance.
+   *
+   * Deliberately not behind sign-in. Somebody standing at a machine wanting to
+   * know whether they can board does not have an account, and asking them to
+   * make one is asking the wrong question.
+   */
+  card: {
+    inquiryTitle: string;
+    inquiryIntro: string;
+    /** Labels the field. The format goes in the hint, not in the label. */
+    numberLabel: string;
+    /** The shape of the number, shown under the field and never as a label. */
+    numberHint: string;
+    check: string;
+    checking: string;
+
+    /* What comes back. */
+    balance: string;
+    lastUsed: string;
+    neverUsed: string;
+    /** Zero is a balance, not an absence, and says something worth acting on. */
+    emptyCard: string;
+    checkAnother: string;
+
+    /* What went wrong, in the reader's terms rather than the server's. */
+    numberRequired: string;
+    numberIncomplete: string;
+    notFound: string;
+  };
+
+  /**
    * Sign-in is never a gate: these open a dialog over whatever the visitor was
    * doing, and nothing on the site requires them.
    */

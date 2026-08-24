@@ -54,6 +54,7 @@ export async function getNetwork(options: CallOptions = {}): Promise<NetworkInfo
     language: info.language ?? null,
     agencyName: info.agencyName ?? null,
     publisherName: info.publisherName ?? null,
+    currency: typeof info.currency === 'string' && info.currency !== '' ? info.currency : null,
     feedStartDate: info.feedStartDate ?? null,
     feedEndDate: info.feedEndDate ?? null,
     capabilities: { ...NO_CAPABILITIES, ...(info.capabilities ?? {}) },

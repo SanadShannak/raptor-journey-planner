@@ -110,6 +110,46 @@ export function formatClockTime(time: string, locale: Locale): string {
 }
 
 /**
+ * An amount of money, in whatever the network charges in.
+ *
+ * Through `Intl` for the usual reason and one more: **how many decimal places
+ * a currency has is a property of the currency**, not something to choose. A
+ * dinar has three — 1.300 JOD — and a euro two, and hard-coding either would
+ * print the wrong thing on half the networks this app can load. `Intl` knows,
+ * and it also puts the symbol on the side the locale writes it: "€1.30" in
+ * English, "1.30 €" in Arabic.
+ *
+ * With no currency established, a bare number with no symbol at all. Inventing
+ * one would state a fact nobody supplied, and a balance in the wrong money is
+ * worse than a balance in none.
+ */
+export function formatMoney(
+  amount: number,
+  currency: string | null,
+  locale: Locale,
+): string {
+  if (!Number.isFinite(amount)) return '';
+
+  if (currency === null) {
+    return new Intl.NumberFormat(INTL_LOCALE[locale]).format(amount);
+  }
+
+  try {
+    return new Intl.NumberFormat(INTL_LOCALE[locale], {
+      style: 'currency',
+      currency,
+    }).format(amount);
+  } catch {
+    /*
+     * `Intl` throws on a code it does not recognise, and the code comes from a
+     * feed rather than from us. A number the reader can still act on beats an
+     * exception thrown out of a render.
+     */
+    return new Intl.NumberFormat(INTL_LOCALE[locale]).format(amount);
+  }
+}
+
+/**
  * A whole hour, as a heading.
  *
  * The same clock {@link formatClockTime} prints, without the minutes — a
