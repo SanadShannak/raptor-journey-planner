@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import {
   AttributionControl,
@@ -6,11 +6,11 @@ import {
   MapContainer,
   Marker,
   Polyline,
-  Popup,
   TileLayer,
   ZoomControl,
   useMap,
   useMapEvent,
+  useMapEvents,
 } from 'react-leaflet';
 import { formatDuration, useLocale } from '../i18n';
 import { useTheme } from '../theme';
@@ -193,37 +193,62 @@ function PickPoint({ onPick, onRename }: { onPick: Props['onPick']; onRename: Pr
   const { locale, strings, t } = useLocale();
   const map = useMap();
   const [pick, setPick] = useState<Pick | null>(null);
+  /** Bumped whenever the map moves, so the card follows its point. */
+  const [moved, setMoved] = useState(0);
   /** The lookup in flight, so a second choice cancels the first. */
   const lookup = useRef<AbortController | null>(null);
+  /** When a choice was last made. See the click handler. */
+  const chosenAt = useRef(0);
 
-  useMapEvent('click', (event) => {
-    setPick({ lat: event.latlng.lat, lon: event.latlng.lng });
+  useMapEvents({
+    click: (event) => {
+      /*
+       * A backstop, and named as one.
+       *
+       * Pressing the card's own buttons should never reach here: the element
+       * is registered with Leaflet's `disableClickPropagation`, which is what
+       * its own controls use and what makes `Map._handleDOMEvent` skip a click
+       * whose target sits inside. Three separate readings of that machinery
+       * said the press could not get through, and three fixes built on that
+       * reading did not hold — so this stops trusting the reading. A click in
+       * the same breath as a choice is that choice, not a new question.
+       */
+      if (Date.now() - chosenAt.current < 400) return;
+      setPick({ lat: event.latlng.lat, lon: event.latlng.lng });
+    },
+    move: () => setMoved((count) => count + 1),
+    zoom: () => setMoved((count) => count + 1),
   });
-
-  /*
-   * Memoised, and it is the whole bug.
-   *
-   * react-leaflet keeps `position` in the dependencies of the effect that
-   * opens the popup, so a fresh array literal each render made that effect
-   * re-run on every render: it removed the popup and called `openOn` again,
-   * replaying the open animation in place. Pressing one of its own buttons is
-   * simply a render, so the popup appeared to re-open as it was answered.
-   *
-   * The removal in that cleanup also fired the layer's `remove` event, which
-   * was wired to clear the pick — so the teardown was undoing the state that
-   * had just been set. Both go away once the array stops changing identity.
-   */
-  const position = useMemo<[number, number] | null>(
-    () => (pick === null ? null : [pick.lat, pick.lon]),
-    [pick],
-  );
 
   useEffect(() => () => lookup.current?.abort(), []);
 
-  if (pick === null || position === null) return null;
+  /*
+   * Leaflet's own popup is not used for this.
+   *
+   * It brought an open animation, a lifecycle keyed on a `position` prop, and
+   * an `openOn` that runs again whenever that prop changes identity — and the
+   * question kept re-asking itself as it was answered. A plain element
+   * positioned over the map has none of that: it appears where it is put, it
+   * goes when the state does, and there is no animation left to replay.
+   *
+   * It still has to tell Leaflet not to treat presses on it as presses on the
+   * map, which is what `disableClickPropagation` is for.
+   */
+  const attach = useCallback((node: HTMLDivElement | null) => {
+    if (node === null) return;
+    L.DomEvent.disableClickPropagation(node);
+    L.DomEvent.disableScrollPropagation(node);
+  }, []);
+
+  if (pick === null) return null;
+
+  // Read on every render so the card stays over its point as the map moves.
+  void moved;
+  const at = map.latLngToContainerPoint([pick.lat, pick.lon]);
 
   const choose = (end: 'origin' | 'destination') => {
     const { lat, lon } = pick;
+    chosenAt.current = Date.now();
 
     const place: Place = {
       key: `picked-${lat},${lon}`,
@@ -239,13 +264,6 @@ function PickPoint({ onPick, onRename }: { onPick: Props['onPick']; onRename: Pr
     };
 
     onPick(place, end);
-
-    /*
-     * Closed through the map rather than by unmounting alone. Leaflet owns the
-     * popup's element, and asking it to close is the one instruction that is
-     * certainly obeyed.
-     */
-    map.closePopup();
     setPick(null);
 
     const reverse = geocoder.reverse;
@@ -268,20 +286,14 @@ function PickPoint({ onPick, onRename }: { onPick: Props['onPick']; onRename: Pr
   };
 
   return (
-    /*
-     * No `remove` handler: it fires on the effect's own teardown as well as on
-     * a real close, so clearing the pick from it means every move of the popup
-     * cancels the move. Closing it by hand leaves `pick` set and nothing drawn,
-     * which the next press replaces.
-     *
-     * `autoPan` off because the map should not walk away from the point that
-     * was just pressed. Leaflet shifts the view to fit a popup near an edge,
-     * which moves the pin out from under the pointer at the moment somebody is
-     * reading what it says.
-     */
-    <Popup position={position} autoPan={false}>
-      <span className="flex flex-col gap-2">
-        <span dir="auto" className="font-semibold">
+    <div
+      ref={attach}
+      // Above every Leaflet pane, the highest of which is 700.
+      className="absolute z-[1000] -translate-x-1/2 -translate-y-full pb-2"
+      style={{ left: at.x, top: at.y }}
+    >
+      <div className="rounded-card border-border bg-surface-raised shadow-card flex flex-col gap-2 border p-3">
+        <span dir="auto" className="text-sm font-semibold">
           {t(strings.planner.selectedLocation)}
         </span>
 
@@ -301,8 +313,8 @@ function PickPoint({ onPick, onRename }: { onPick: Props['onPick']; onRename: Pr
             {t(strings.planner.setAsDestination)}
           </button>
         </span>
-      </span>
-    </Popup>
+      </div>
+    </div>
   );
 }
 
