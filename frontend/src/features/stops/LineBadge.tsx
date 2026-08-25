@@ -1,4 +1,4 @@
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { modeLabel, useLocale } from '../../i18n';
 import { linePath } from '../../app/routes';
 import { ModeIcon } from '../journey/modeIcons';
@@ -24,6 +24,12 @@ interface Props {
  */
 export function LineBadge({ lineId, routeShortName, routeType, linked = false }: Props) {
   const { strings } = useLocale();
+  /*
+   * Where this badge is being read from, so the line it opens can name the way
+   * back. Read unconditionally because hooks must be, and used only when this
+   * is a link.
+   */
+  const at = useLocation();
 
   const body = (
     <>
@@ -46,6 +52,7 @@ export function LineBadge({ lineId, routeShortName, routeType, linked = false }:
   return (
     <Link
       to={linePath(lineId)}
+      state={{ back: `${at.pathname}${at.search}` }}
       className={`${skin} focus-visible:outline-content hover:opacity-85 focus-visible:outline-2 focus-visible:outline-offset-2`}
     >
       {body}

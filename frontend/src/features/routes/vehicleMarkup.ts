@@ -20,11 +20,17 @@ import { visualForFamily } from '../journey/modeVisuals';
  * rather than being replaced by a plain dot: mode is never carried by colour
  * alone here, and a dot on a map is a stop.
  *
- * The halo also does the job the old outline was doing badly. A ring the colour
- * of the page vanishes over a map — light cartography is very nearly `surface`
- * in the light scheme and dark cartography very nearly `surface` in the dark —
- * whereas a translucent disc of the mode's own colour reads against both,
- * because it is neither.
+ * The halo also does part of the job the old outline was doing badly. A ring
+ * the colour of the page vanishes over a map — light cartography is very nearly
+ * `surface` in the light scheme and dark cartography very nearly `surface` in
+ * the dark — whereas a translucent disc of the mode's own colour reads against
+ * both, because it is neither.
+ *
+ * The pin still needs an edge, and it is `content`: the page's ink, which is
+ * dark on a light scheme and light on a dark one, and therefore the opposite of
+ * the cartography underneath it either way. That is the one relationship that
+ * holds in both schemes. The tail needed it most — a small mode-coloured
+ * triangle over tiles of a similar tone simply was not there.
  *
  * Cased against the page's surface, like every other coloured thing drawn over
  * a map here — a dark disc on dark water is otherwise a hole.
@@ -57,9 +63,21 @@ const TAIL = 'M32 5 L41 21 L23 21 Z';
 export function vehicleMarkup(family: string, bearing: number): string {
   const ink = visualForFamily(family).ink;
 
+  const turn = `rotate(${bearing.toFixed(1)} 32 32)`;
+
+  /*
+   * The pin is outlined by drawing it twice — thickly in the outline colour,
+   * then filled on top. Stroking the tail and the body separately would draw a
+   * seam straight across the join where the two overlap; painted behind the
+   * fills, only the half of the stroke lying outside the union ever shows.
+   */
   return `<svg viewBox="0 0 64 64" width="${VEHICLE_SIZE}" height="${VEHICLE_SIZE}" class="route-vehicle ${ink}" aria-hidden="true">
   <circle class="vehicle-halo" cx="32" cy="32" r="26" fill="currentColor" />
-  <g transform="rotate(${bearing.toFixed(1)} 32 32)">
+  <g fill="none" class="stroke-content" stroke-width="4" stroke-linejoin="round" opacity="0.9">
+    <g transform="${turn}"><path d="${TAIL}" /></g>
+    <circle cx="32" cy="32" r="16" />
+  </g>
+  <g transform="${turn}">
     <path d="${TAIL}" fill="currentColor" />
   </g>
   <circle cx="32" cy="32" r="16" class="fill-surface" />

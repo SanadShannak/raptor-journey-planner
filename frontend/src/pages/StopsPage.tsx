@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useLocation, useNavigate, useParams } from 'react-router';
 import { useLocale } from '../i18n';
 import { usePageTitle } from '../app/usePageTitle';
 import { paths, stopPath } from '../app/routes';
 import { useGoBack } from '../app/useBackStack';
+import { backLabel } from '../app/backLabel';
 import { getValidDates } from '../api/journey';
 import { getNetwork } from '../api/network';
 import { nowInZone } from '../i18n';
@@ -45,6 +46,17 @@ export default function StopsPage() {
    */
   const back = useGoBack(paths.stops);
 
+  /**
+   * The address this entry came from, for naming the way back.
+   *
+   * Read defensively and only ever as an in-app path: history state is session
+   * data rather than user input, but it is still the sort of value that should
+   * not be able to become an outbound link.
+   */
+  const state = useLocation().state as { back?: unknown } | null;
+  const cameFrom =
+    typeof state?.back === 'string' && state.back.startsWith('/') ? state.back : null;
+
   const [validDates, setValidDates] = useState<string[]>([]);
   const [networkToday, setNetworkToday] = useState<string | null>(null);
   const [timezone, setTimezone] = useState<string | null>(null);
@@ -84,7 +96,20 @@ export default function StopsPage() {
     setView((previous) => askFor(previous, { kind: 'home' }));
   }, []);
 
-  usePageTitle(focused?.name ?? t(strings.pages.stops.title));
+  /*
+   * Named as a stop, and with the code printed on the pole where there is one —
+   * a tab reading "Pasila" is one of six a visitor may have open.
+   */
+  usePageTitle(
+    focused === null
+      ? t(strings.pages.stops.documentTitle)
+      : focused.code === null
+        ? t(strings.stops.documentTitle, { name: focused.name })
+        : t(strings.stops.documentTitleWithCode, {
+            name: focused.name,
+            code: focused.code,
+          }),
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -187,7 +212,9 @@ export default function StopsPage() {
             validDates={validDates}
             networkToday={networkToday}
             onBack={back.go}
-            backLabel={t(back.stepping ? strings.nav.back : strings.stops.backToStops)}
+            backLabel={t(
+              back.stepping ? backLabel(cameFrom, strings) : strings.stops.backToStops,
+            )}
             onResolved={setFocused}
           />
         )}

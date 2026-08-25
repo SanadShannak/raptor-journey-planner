@@ -117,9 +117,18 @@ export interface Dictionary {
       cardCard: string;
       cardCardBody: string;
     };
-    plan: { title: string };
-    routes: { title: string };
-    stops: { title: string };
+    /**
+     * A page's own name, and the name of the tab showing it.
+     *
+     * They are not always the same string and the difference is the point. A
+     * heading is an invitation — "Plan a journey" — while a tab is one of
+     * fifteen and has to say *what it is* from three words seen sideways.
+     * Where a page shows one particular thing, the tab names that thing rather
+     * than the page it is on.
+     */
+    plan: { title: string; documentTitle: string };
+    routes: { title: string; documentTitle: string };
+    stops: { title: string; documentTitle: string };
     card: { title: string; needsAccount: string };
     notFound: { title: string; body: string; backHome: string };
   };
@@ -284,6 +293,15 @@ export interface Dictionary {
    * read from inside the planner and from its own page, and neither owns it.
    */
   stops: {
+    /**
+     * Names the tab when one stop is being read: "Stop Vuosaari · V1502".
+     *
+     * Two forms because the code is what tells six stops called "Pasila"
+     * apart, and a feed that publishes none must not leave a dangling
+     * separator in a browser tab.
+     */
+    documentTitle: string;
+    documentTitleWithCode: string;
     /** The index, where a stop has not been chosen yet. */
     browseHint: string;
     /** Moves the map to the visitor, on a press and never on load. */
@@ -308,6 +326,8 @@ export interface Dictionary {
     backToStops: string;
     /** Back to the itinerary that was open behind the stop. */
     backToJourney: string;
+    /** Back to a stop's board, which is what was behind this. */
+    backToStop: string;
 
     loadingStop: string;
 
@@ -377,6 +397,8 @@ export interface Dictionary {
    * where it passes — and the words differ accordingly.
    */
   routes: {
+    /** Names the tab when one line is being read: "Route M1". */
+    documentTitle: string;
     /* The index, where a line has not been chosen yet. */
     browseHint: string;
     /** Labels the search field. Says what it searches, not what it might. */
@@ -396,8 +418,10 @@ export interface Dictionary {
     variantCount: Message;
     loadingLines: string;
 
-    /* The panel's back control. */
+    /* The panel's back control, and the places it can name. */
     backToLines: string;
+    /** Back to a line, which is what was behind this. */
+    backToLine: string;
     loadingLine: string;
 
     /* The line itself. */

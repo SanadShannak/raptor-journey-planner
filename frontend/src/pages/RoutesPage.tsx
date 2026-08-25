@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { useGoBack } from '../app/useBackStack';
+import { backLabel } from '../app/backLabel';
 import { useLocale, nowInZone } from '../i18n';
 import { usePageTitle } from '../app/usePageTitle';
 import { linePath, lineVariantPath, paths, stopPath, tripPath } from '../app/routes';
@@ -114,10 +115,15 @@ export default function RoutesPage() {
   const tripDate = search.get('date');
   const following = tripId !== null && tripDate !== null;
 
+  /*
+   * The line's *designation*, not its long name. "Route M1" is what somebody
+   * scanning a row of tabs can read; "Eira - Lasipalatsi - Ooppera - Sörnäinen
+   * (M) - Käpylä" is thirty characters of corridor before the useful part.
+   */
   usePageTitle(
     focused === null
-      ? t(strings.pages.routes.title)
-      : (focused.routeLongName ?? focused.routeShortName),
+      ? t(strings.pages.routes.documentTitle)
+      : t(strings.routes.documentTitle, { line: focused.routeShortName }),
   );
 
   /*
@@ -139,9 +145,12 @@ export default function RoutesPage() {
 
   const openLine = useCallback(
     (id: string) => {
-      void navigate(linePath(id));
+      // So the line can name the way back — "All lines" rather than "Back".
+      void navigate(linePath(id), {
+        state: { back: `${here.pathname}${here.search}` },
+      });
     },
-    [navigate],
+    [navigate, here.pathname, here.search],
   );
 
   /*
@@ -192,9 +201,13 @@ export default function RoutesPage() {
 
   const openStop = useCallback(
     (id: string) => {
-      void navigate(stopPath(id));
+      // The same return address the sidebar's rows carry, so a stop opened from
+      // the map names the way back as one opened from the list does.
+      void navigate(stopPath(id), {
+        state: { back: `${here.pathname}${here.search}` },
+      });
     },
-    [navigate],
+    [navigate, here.pathname, here.search],
   );
 
   return (
@@ -214,20 +227,14 @@ export default function RoutesPage() {
             onSelectTrip={openTrip}
             onBack={back.go}
             /*
-              The label names where it goes when that is knowable, and says
-              plainly that it goes back when it is not.
-              
-              `cameFrom` is the sender's own word for itself and only the first
-              hop has one — three levels in, the entry behind is another run or
-              a stop, and naming it would take threading a label through every
-              link in the app to say something the reader can already see.
+              Named from the address it returns to, not from the fact that there
+              is one. It used to say "Back to the journey" whenever anything had
+              sent us, because the planner was the first thing that ever did —
+              so a run opened from a stop's board claimed to go back to a
+              journey nobody was on.
             */
             backLabel={t(
-              cameFrom !== null
-                ? strings.stops.backToJourney
-                : back.stepping
-                  ? strings.nav.back
-                  : strings.routes.backToLines,
+              back.stepping ? backLabel(cameFrom, strings) : strings.routes.backToLines,
             )}
             onResolved={setFocused}
             onVehicles={setVehicles}

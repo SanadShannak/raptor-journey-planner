@@ -93,9 +93,9 @@ export const en: Dictionary = {
       cardCard: 'Travel card',
       cardCardBody: 'Check the balance on your card.',
     },
-    plan: { title: 'Plan a journey' },
-    routes: { title: 'Lines' },
-    stops: { title: 'Stops' },
+    plan: { title: 'Plan a journey', documentTitle: 'Itinerary Planner' },
+    routes: { title: 'Lines', documentTitle: 'Lines' },
+    stops: { title: 'Stops', documentTitle: 'Stops' },
     card: {
       title: 'Travel card',
       needsAccount: 'Checking a card balance will need an account. Accounts are not available yet.',
@@ -206,6 +206,8 @@ export const en: Dictionary = {
   },
 
   stops: {
+    documentTitle: 'Stop {name}',
+    documentTitleWithCode: 'Stop {name} · {code}',
     browseHint: 'Every stop in view is listed here. Press one to see what leaves it.',
     nearMe: 'Near me',
     cityCentre: 'City centre',
@@ -219,6 +221,7 @@ export const en: Dictionary = {
     backToResults: 'Back to results',
     backToStops: 'Back to stops',
     backToJourney: 'Back to the journey',
+    backToStop: 'Back to the stop',
 
     loadingStop: 'Loading this stop…',
 
@@ -261,6 +264,7 @@ export const en: Dictionary = {
   },
 
   routes: {
+    documentTitle: 'Route {line}',
     browseHint: 'Pick a line to see where it goes and when it runs.',
     searchLines: 'Search lines',
     searchPlaceholder: 'Number or destination',
@@ -277,6 +281,7 @@ export const en: Dictionary = {
     loadingLines: 'Loading lines…',
 
     backToLines: 'All lines',
+    backToLine: 'Back to the line',
     loadingLine: 'Loading line…',
 
     originToTerminus: '{origin} to {terminus}',

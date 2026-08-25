@@ -97,7 +97,12 @@ export default function PlanPage() {
   const locale = useLocale();
   const navigate = useNavigate();
   const { strings, t } = locale;
-  usePageTitle(t(strings.pages.plan.title));
+  /*
+   * The tab is named for what it is, which is not what the heading says. A
+   * heading invites — "Plan a journey" — and a tab is one of fifteen, read
+   * sideways, three words wide.
+   */
+  usePageTitle(t(strings.pages.plan.documentTitle));
 
   const [validDates, setValidDates] = useState<string[]>([]);
   const [networkToday, setNetworkToday] = useState<string | null>(null);

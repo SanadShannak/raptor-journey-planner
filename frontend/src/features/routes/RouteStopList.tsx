@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { formatClockTime, formatDate, useLocale } from '../../i18n';
 import type { Dictionary, Message } from '../../i18n/dictionary';
 import { stopPath } from '../../app/routes';
@@ -259,6 +259,7 @@ export function RouteStopList({
    */
   const holdInView = useFollowInView(focusTrip !== null && vehicles.length > 0);
   const { strings, t } = useLocale();
+  const at = useLocation();
   const family = familyFor(routeType);
   const ink = visualForFamily(family).ink;
 
@@ -470,6 +471,8 @@ export function RouteStopList({
                 address twice and the first press of "back" appeared to do
                 nothing at all, because it stepped onto an identical entry.
               */
+              // So the stop can name the way back rather than saying "Back".
+              state={{ back: `${at.pathname}${at.search}` }}
               className="border-border hover:bg-surface-muted focus-visible:outline-brand-500 rounded-control -mx-2 flex min-w-0 flex-1 items-start gap-3 border-b px-2 py-2.5 last:border-b-0 focus-visible:outline-2 focus-visible:-outline-offset-2"
             >
               <div className="flex min-w-0 flex-1 flex-col items-start gap-0.5">

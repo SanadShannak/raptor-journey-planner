@@ -108,9 +108,9 @@ export const ar: Dictionary = {
       cardCard: 'بطاقة السفر',
       cardCardBody: 'تحقق من رصيد بطاقتك.',
     },
-    plan: { title: 'خطط رحلة' },
-    routes: { title: 'الخطوط' },
-    stops: { title: 'المحطات' },
+    plan: { title: 'خطط رحلة', documentTitle: 'مخطط الرحلات' },
+    routes: { title: 'الخطوط', documentTitle: 'الخطوط' },
+    stops: { title: 'المحطات', documentTitle: 'المحطات' },
     card: {
       title: 'بطاقة السفر',
       needsAccount: 'التحقق من رصيد البطاقة يتطلّب حسابًا. الحسابات غير متاحة بعد.',
@@ -236,6 +236,8 @@ export const ar: Dictionary = {
   },
 
   stops: {
+    documentTitle: 'محطة {name}',
+    documentTitleWithCode: 'محطة {name} · {code}',
     browseHint: 'كل محطة ظاهرة في الخريطة مدرجة هنا. اضغط إحداها لترى ما يغادرها.',
     nearMe: 'بالقرب مني',
     cityCentre: 'وسط المدينة',
@@ -256,6 +258,7 @@ export const ar: Dictionary = {
     backToResults: 'العودة إلى النتائج',
     backToStops: 'العودة إلى المحطات',
     backToJourney: 'العودة إلى الرحلة',
+    backToStop: 'العودة إلى المحطة',
 
     loadingStop: 'جارٍ تحميل المحطة…',
 
@@ -323,6 +326,7 @@ export const ar: Dictionary = {
   },
 
   routes: {
+    documentTitle: 'خط {line}',
     browseHint: 'اختر خطًّا لمعرفة مساره وأوقات تشغيله.',
     searchLines: 'ابحث في الخطوط',
     searchPlaceholder: 'الرقم أو الوجهة',
@@ -347,6 +351,7 @@ export const ar: Dictionary = {
     loadingLines: 'يجري تحميل الخطوط…',
 
     backToLines: 'كل الخطوط',
+    backToLine: 'العودة إلى الخط',
     loadingLine: 'يجري تحميل الخط…',
 
     originToTerminus: 'من {origin} إلى {terminus}',
