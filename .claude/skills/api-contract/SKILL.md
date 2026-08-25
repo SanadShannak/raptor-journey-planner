@@ -469,18 +469,18 @@ client should then label variants by their end points instead.
 
 ```
 { patternId, directionId, headsign, originStopName, terminusStopName,
-  stopCount, tripCount, firstDeparture, lastDeparture }
+  stopCount, tripCount, firstDeparture, lastDeparture, serviceDates[] }
 ```
 
 `patternId` indexes the compiled patterns. It is stable for the life of a
 dataset but **not across a pipeline re-run**, so a client holding one across a
 data refresh should fall back to the line's first variant rather than error.
 
-`GET /api/routes/:lineId/:patternId` adds `stops[]`, `stopCount`, `shape` and
-`serviceDates[]`. `shape` is the pattern's *representative* geometry — trips on
-one pattern can use different shapes, so the most-used is stored; it is `null`
-for a feed without shapes.txt. Journey legs do not use it, slicing the trip's
-own shape instead.
+`GET /api/routes/:lineId/:patternId` adds `stops[]`, `stopCount` and `shape`.
+`shape` is the pattern's *representative* geometry — trips on one pattern can
+use different shapes, so the most-used is stored; it is `null` for a feed
+without shapes.txt. Journey legs do not use it, slicing the trip's own shape
+instead.
 
 A stop is `describeStop`'s shape — `platform` included — plus `sequence` and
 `distanceFromOriginMeters` (`null` for a feed without `shape_dist_traveled`).
@@ -490,14 +490,25 @@ holes.** A stop whose internal record is missing is dropped from the list, so
 array position and `sequence` are not the same number. `sequence` is the key to
 join on — it is what indexes a timetable trip's `calls`.
 
-`serviceDates` is exactly the days this variant runs, ascending, and is
+`serviceDates` is exactly the days a variant runs, ascending, and is
 **narrower than `/api/valid-dates`** — that is every day the feed covers, this
-is every day this line moves. HSL: 31 of 60 for tram 1's main pattern, and the
-feed carries at least one covered date whose service list is empty altogether.
-A date control on a line page should offer these and nothing else.
+is every day this variant moves. HSL: 31 of 60 for tram 1's main pattern, and
+the feed carries at least one covered date whose service list is empty
+altogether. A date control on a line page should offer these and nothing else.
+
+It is on the **variant summary**, so `/api/routes/:lineId` carries one per
+variant. That is what makes a list of variants choosable rather than a set of
+equally plausible wrong answers: a line's short workings are often seasonal, and
+`tram-H`'s 39 variants split 32 running today against 7 that start later. The
+whole line costs 33 kB, which is the largest on HSL.
+
+**Empty is a real answer** — a variant whose services have all expired.
 
 Yesterday's spillover is deliberately excluded: a pattern whose last trip is
-00:30 is finishing the previous service day, not running on this one.
+00:30 is finishing the previous service day, not running on this one. And the
+dates need not be contiguous, so `serviceDates[0]` and the last entry are a
+*range* rather than a promise about every day between them — ask `includes()`
+about a specific day.
 
 ### `GET /api/routes/:lineId/:patternId/timetable?date=`
 

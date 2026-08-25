@@ -174,6 +174,14 @@ function describeVariant({ patternId, route }) {
     /** Ranks the everyday service above short workings and depot runs. */
     tripCount: route.trip_count ?? null,
     ...operatingSpan(route),
+    /*
+     * The days this variant runs. Carried on the summary, not only on the
+     * variant in full, because choosing *between* variants needs it: a line's
+     * short workings are often seasonal, and a list that cannot tell the one
+     * running this week from the one that stopped in August is a list of
+     * equally plausible wrong answers.
+     */
+    serviceDates: serviceDatesFor(route),
   };
 }
 
@@ -580,11 +588,6 @@ router.get("/:lineId/:patternId", (req, res) => {
         .filter((stop) => stop !== null),
       stopCount: route.stop_ids.length,
       shape,
-      /*
-       * Exactly the days this variant runs. A date control asking about this
-       * line has no business offering the other fifty.
-       */
-      serviceDates: serviceDatesFor(route),
       capabilities,
     });
   } catch (error) {
