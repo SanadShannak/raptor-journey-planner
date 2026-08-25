@@ -139,10 +139,22 @@ Common to both modes: `mode`, `waitDurationMinutes`, `startDate`, `startTime`, `
 | `walkDurationMinutes` | `number` | `null` |
 | `walkDistanceMeters` | `number` | `null` |
 | `lineId` | `null` | `` `${modeSlug}-${routeShortName}` `` — e.g. `bus-550`, `tram-1`. The key `/api/routes/:lineId` takes |
+| `patternId` | `null` | `number` — which of the line's stop sequences this leg rode. See below |
 | `routeLongName` | `null` | `string \| null` — null when the feed omits it |
 | `directionId` | `null` | `0 \| 1 \| null` — null when the feed omits it |
 | `headsign` | `null` | `string \| null` — the operator's own sign, verbatim |
 | `destination` | `null` | `string \| null` — always populated; see below |
+
+`patternId` is what makes a leg openable. `lineId` names the line and a line can
+be many stop sequences — HSL's tram H is thirty-nine — so a client wanting to
+show the rider *this* run has no way to pick between them from `lineId` alone,
+and searching every variant's timetable for its own `tripId` is dozens of
+requests. The engine scanned this exact pattern, so it says which.
+
+Together with `tripId` and the leg's `startDate` it addresses one run of one
+variant: `/api/routes/{lineId}/{patternId}/timetable?date={startDate}` contains
+that `tripId`. Same stability caveat as everywhere else — good for the life of a
+dataset, not across a pipeline re-run.
 
 `lineId` exists because designations collide across modes: HSL has `"H"` as
 both a tram and a train, which become `tram-H` and `train-H`. The mode is

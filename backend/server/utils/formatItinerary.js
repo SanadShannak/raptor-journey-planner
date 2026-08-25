@@ -269,6 +269,19 @@ function formatItinerary(rawItinerary) {
       routeShortName: legRouteShortName,
       routeType: legRouteType,
       lineId: lineIdFor(route),
+      /*
+       * Which of the line's stop sequences this leg rode.
+       *
+       * `lineId` alone cannot answer it: HSL's tram H has thirty-nine patterns
+       * under one designation, and a client wanting to show the rider *this*
+       * run of the line has no way to pick between them. The engine already
+       * knows — it scanned this exact pattern — so saying so costs nothing and
+       * saves a client from fetching every variant to search for its own trip.
+       *
+       * Stable for the life of a dataset but not across a pipeline re-run, the
+       * same caveat `/api/routes` states for the ids it hands out.
+       */
+      patternId: internalRouteId,
       routeLongName: route?.long_name ?? null,
       directionId: route?.direction_id ?? null,
       headsign,
