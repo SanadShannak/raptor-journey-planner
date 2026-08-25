@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { tripPath } from '../../app/routes';
 import {
   formatClockTime,
@@ -675,6 +675,16 @@ function TransitBody({
   const { strings, t } = locale;
   const [showStops, setShowStops] = useState(false);
   const visual = modeVisual(leg.routeType);
+  /*
+   * Where to come back to, carried in history state rather than in the address.
+   *
+   * The run's own page has a back control, and without this it can only offer
+   * the line index — which is not where anybody pressing a leg of their own
+   * itinerary came from. State rather than a parameter because the return
+   * address is nobody else's business: it is not part of what the run *is*, so
+   * it has no place in a link somebody might share.
+   */
+  const here = useLocation();
   const stops = leg.intermediateStops;
 
   return (
@@ -693,6 +703,7 @@ function TransitBody({
       */}
       <Link
         to={tripPath(leg.lineId, leg.patternId, leg.tripId, leg.startDate)}
+        state={{ back: `${here.pathname}${here.search}` }}
         /*
           Padded out to a card rather than tight to the text. At a hair's
           breadth the hover read as a highlight that had missed — a band of

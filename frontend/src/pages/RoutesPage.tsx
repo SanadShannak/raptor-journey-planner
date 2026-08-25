@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { useLocale, nowInZone } from '../i18n';
 import { usePageTitle } from '../app/usePageTitle';
 import { linePath, lineVariantPath, paths, stopPath, tripPath } from '../app/routes';
@@ -33,6 +33,22 @@ export default function RoutesPage() {
   const { lineId } = useParams<{ lineId: string }>();
   const [search] = useSearchParams();
   const navigate = useNavigate();
+  const here = useLocation();
+
+  /**
+   * Where "back" goes, when somebody arrived from somewhere with an opinion.
+   *
+   * The planner sets it, because a reader who pressed a leg of their own
+   * itinerary did not come from the line index and should not be sent there.
+   * Read defensively and only ever used as an in-app path: history state is
+   * session data rather than user input, but it is still the sort of value that
+   * should not be able to become an outbound link.
+   */
+  const cameFrom =
+    typeof (here.state as { back?: unknown } | null)?.back === 'string' &&
+    (here.state as { back: string }).back.startsWith('/')
+      ? (here.state as { back: string }).back
+      : null;
 
   const [networkToday, setNetworkToday] = useState<string | null>(null);
   const [timezone, setTimezone] = useState<string | null>(null);
@@ -130,9 +146,13 @@ export default function RoutesPage() {
   const openVariant = useCallback(
     (pattern: number) => {
       if (lineId === undefined) return;
-      void navigate(lineVariantPath(lineId, pattern), { replace: true });
+      void navigate(lineVariantPath(lineId, pattern), {
+        replace: true,
+        // As above: a replace drops state unless it is handed back.
+        state: here.state,
+      });
     },
-    [navigate, lineId],
+    [navigate, lineId, here.state],
   );
 
   /*
@@ -144,18 +164,23 @@ export default function RoutesPage() {
   const openTrip = useCallback(
     (trip: { tripId: string; date: string } | null) => {
       if (lineId === undefined) return;
+      /*
+       * The return address rides along. These are `replace`, and a replace
+       * without state drops it — so letting go of a followed run would quietly
+       * lose the way back to the itinerary it was opened from.
+       */
+      const carry = { replace: true, state: here.state } as const;
+
       if (trip === null) {
         void navigate(
           patternId === null ? linePath(lineId) : lineVariantPath(lineId, patternId),
-          { replace: true },
+          carry,
         );
         return;
       }
-      void navigate(tripPath(lineId, patternId ?? 0, trip.tripId, trip.date), {
-        replace: true,
-      });
+      void navigate(tripPath(lineId, patternId ?? 0, trip.tripId, trip.date), carry);
     },
-    [navigate, lineId, patternId],
+    [navigate, lineId, patternId, here.state],
   );
 
   const openStop = useCallback(
@@ -181,8 +206,10 @@ export default function RoutesPage() {
             onSelectVariant={openVariant}
             onSelectTrip={openTrip}
             onOpenStop={openStop}
-            onBack={() => void navigate(paths.routes)}
-            backLabel={t(strings.routes.backToLines)}
+            onBack={() => void navigate(cameFrom ?? paths.routes)}
+            backLabel={t(
+              cameFrom === null ? strings.routes.backToLines : strings.stops.backToJourney,
+            )}
             onResolved={setFocused}
             onVehicles={setVehicles}
           />

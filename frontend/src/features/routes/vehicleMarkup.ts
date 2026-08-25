@@ -40,14 +40,16 @@ export const VEHICLE_SIZE = 42;
  * The arrow, pointing due north before it is rotated.
  *
  * A dart rather than a plain triangle — the notch in its back is what makes it
- * read as an arrowhead rather than as a roof on the badge. Its notch sits
- * exactly on the badge's top edge, so the two are one sign rather than a shape
- * with a hat.
+ * read as an arrowhead rather than as a roof on the badge. It is wider than the
+ * badge's own corner and reaches the edge of the frame, because at anything
+ * daintier the direction was a detail you had to look for rather than the first
+ * thing the sign tells you. Its notch overlaps the badge's top edge, so the two
+ * read as one shape rather than as a badge wearing a hat.
  *
  * Only the arrow turns. Rotating the whole badge would turn the silhouette with
  * it and leave a bus lying on its side halfway round a bend.
  */
-const ARROW = 'M21 0.8 L30.8 12.4 L21 8.6 L11.2 12.4 Z';
+const ARROW = 'M21 0 L33.6 14.2 L21 9.2 L8.4 14.2 Z';
 
 /**
  * @param family The visual family — `bus`, `tram`, … — not a raw route type.

@@ -8,6 +8,7 @@ import type { PatternStop, VariantTrip } from '../../types/route';
 import { familyFor, visualForFamily } from '../journey/modeVisuals';
 import type { NetworkMoment } from '../stops/minutesUntil';
 import { callOnTrip, nextCallAt } from './nextCallAt';
+import { centringScrollTop, scrollingAncestor } from './centreInPanel';
 import { VehicleBadge } from './VehicleBadge';
 import type { Vehicle } from './vehicleProgress';
 
@@ -118,15 +119,29 @@ function useFollowInView(active: boolean): (node: HTMLElement | null) => void {
 
   useEffect(() => {
     if (!active || surrendered || node === null) return;
+
     /*
-     * `center`, not `nearest`. `nearest` does the least it can get away with,
-     * which is to bring the badge just past the edge of the panel — technically
-     * in view, and with nothing of the line ahead of it to read. Centring costs
-     * a small movement on a vehicle that was already on screen and buys the
-     * stops either side of it, which is the thing somebody following a run is
-     * looking at.
+     * The panel, and only the panel. `scrollIntoView` would take the document
+     * with it, and these pages pin their shell to the viewport with no
+     * scrollbar to undo that — see `centreInPanel`.
      */
-    node.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    const box = scrollingAncestor(node);
+    if (box === null) return;
+
+    box.scrollTo({
+      /*
+       * Centred rather than merely brought into view. The least a browser can
+       * get away with is the badge just past the edge of the panel, with none
+       * of the line ahead of it — and the stops either side are the whole
+       * reason for following a run.
+       */
+      top: centringScrollTop(
+        node.getBoundingClientRect(),
+        box.getBoundingClientRect(),
+        box.scrollTop,
+      ),
+      behavior: 'smooth',
+    });
   }, [active, surrendered, node]);
 
   return setNode;

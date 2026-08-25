@@ -370,7 +370,14 @@ describe('RouteInspector', () => {
     fireEvent.click(disclose);
 
     const panel = within(screen.getByRole('heading', { name: 'Alternative routes' }).parentElement!);
-    expect(panel.getByText('towards Eira')).toBeTruthy();
+    /*
+     * Both ends, never the destination alone. Variants of one line share
+     * headsigns constantly — tram 1 has two patterns both signed "Käpylä" — so
+     * a list of destinations is a list you cannot choose from.
+     */
+    expect(panel.getByText('Pohjolanaukio to Telakkakatu')).toBeTruthy();
+    expect(panel.getByText('Telakkakatu to Pohjolanaukio')).toBeTruthy();
+    expect(panel.queryByText('towards Eira')).toBeNull();
     expect(panel.getByText('Showing now')).toBeTruthy();
   });
 
@@ -917,6 +924,24 @@ describe('RouteInspector', () => {
       await waitFor(() => expect(asked.length).toBeGreaterThan(0));
       expect(asked[0]).toBe('2026-09-11');
     });
+  });
+
+  /*
+   * The way back belongs to whoever sent you.
+   *
+   * A reader who pressed a leg of their own itinerary did not come from the
+   * line index, and offering it as the only way out strands them — the planner
+   * is one press away and the control points at the wrong place entirely.
+   */
+  it('offers the way back the host gave it', async () => {
+    const onBack = vi.fn();
+    stubFetch();
+    show({ onBack, backLabel: 'Back to the journey' });
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Back to the journey' }));
+
+    expect(onBack).toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'All lines' })).toBeNull();
   });
 
   /* The API's own `error` string is developer-facing English and never shown. */

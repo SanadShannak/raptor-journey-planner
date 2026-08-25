@@ -182,15 +182,26 @@ export function VariantPicker({ variants, currentPatternId, day, onSelect }: Pro
                         }`}
                       >
                         <span className="flex items-baseline gap-2">
+                          {/*
+                            Both ends, always — never the destination alone.
+
+                            These are variants of one line, so a great many of
+                            them share a headsign: tram 1 has two patterns both
+                            signed "Käpylä", and told apart only by the fact that
+                            one starts at the depot and the other four stops
+                            further down. "towards Käpylä" twice is a list you
+                            cannot choose from.
+
+                            Written as a sentence rather than with an arrow
+                            glyph: an arrow is directional and would have to
+                            mirror in Arabic, which is a bidi hazard for one
+                            character of decoration.
+                          */}
                           <span dir="auto" className="min-w-0 flex-1 text-sm font-medium">
-                            {variant.headsign !== null
-                              ? t(strings.routes.towards, {
-                                  destination: variant.headsign,
-                                })
-                              : t(strings.routes.originToTerminus, {
-                                  origin: variant.originStopName ?? '',
-                                  terminus: variant.terminusStopName ?? '',
-                                })}
+                            {t(strings.routes.originToTerminus, {
+                              origin: variant.originStopName ?? '',
+                              terminus: variant.terminusStopName ?? '',
+                            })}
                           </span>
                           {current && (
                             <span className="text-content-muted flex-none text-xs">

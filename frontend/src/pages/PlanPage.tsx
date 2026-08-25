@@ -742,7 +742,11 @@ export default function PlanPage() {
             the alternative is a line you can see and cannot ask about.
           */
           onSelectLeg={(leg) =>
-            void navigate(tripPath(leg.lineId, leg.patternId, leg.tripId, leg.startDate))
+            void navigate(tripPath(leg.lineId, leg.patternId, leg.tripId, leg.startDate), {
+              // The run's page can then offer the way back here, rather than
+              // only the line index nobody arrived from.
+              state: { back: `${window.location.pathname}${window.location.search}` },
+            })
           }
           /*
             A better name for the same coordinates. It goes in directly rather
