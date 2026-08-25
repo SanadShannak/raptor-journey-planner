@@ -442,6 +442,7 @@ export interface Dictionary {
     currentVariant: string;
     /* Variants grouped by whether they run on the day being looked at. */
     runningNow: string;
+    /** Not running yet — its first service day is still ahead. */
     startingLater: string;
     noLongerRunning: string;
     /** A variant named by its sign, when the feed carries one. */

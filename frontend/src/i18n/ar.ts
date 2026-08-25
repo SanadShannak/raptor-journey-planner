@@ -378,7 +378,7 @@ export const ar: Dictionary = {
     hideAlternatives: 'أخفِ المسارات البديلة',
     currentVariant: 'المعروض الآن',
     runningNow: 'يعمل الآن',
-    startingLater: 'يبدأ لاحقًا',
+    startingLater: 'مستقبلية',
     noLongerRunning: 'لم يعد يعمل',
     towards: 'باتجاه {destination}',
 

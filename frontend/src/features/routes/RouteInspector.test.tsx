@@ -397,7 +397,7 @@ describe('RouteInspector', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Show alternative routes' }));
 
     expect(screen.getByRole('heading', { name: 'Running now' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Starting later' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Future' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'No longer running' })).toBeTruthy();
   });
 

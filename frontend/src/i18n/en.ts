@@ -300,7 +300,7 @@ export const en: Dictionary = {
     hideAlternatives: 'Hide alternative routes',
     currentVariant: 'Showing now',
     runningNow: 'Running now',
-    startingLater: 'Starting later',
+    startingLater: 'Future',
     noLongerRunning: 'No longer running',
     towards: 'towards {destination}',
 

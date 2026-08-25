@@ -119,11 +119,14 @@ function useFollowInView(active: boolean): (node: HTMLElement | null) => void {
   useEffect(() => {
     if (!active || surrendered || node === null) return;
     /*
-     * `nearest` rather than `center`: a vehicle already on screen should not
-     * make the list twitch every tick just to sit it in the middle. It moves
-     * only once the badge has actually left the view.
+     * `center`, not `nearest`. `nearest` does the least it can get away with,
+     * which is to bring the badge just past the edge of the panel — technically
+     * in view, and with nothing of the line ahead of it to read. Centring costs
+     * a small movement on a vehicle that was already on screen and buys the
+     * stops either side of it, which is the thing somebody following a run is
+     * looking at.
      */
-    node.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    node.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }, [active, surrendered, node]);
 
   return setNode;

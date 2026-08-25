@@ -88,13 +88,21 @@ export function RouteHeader({ variant, span, day, networkToday, onFlip }: Props)
           routeType={variant.routeType}
         />
         {/*
-          No `dir="auto"` on the box. It resolves from the first strong
-          character, so a Latin route name would turn the whole heading
-          left-to-right and strand it at the far side of an Arabic page. The box
-          follows the document; bidi still renders the name itself correctly
-          inside it.
+          Sized to the name rather than stretched across the row, and no
+          `dir="auto"` on it.
+
+          Both halves of that matter in Arabic, and they fix different things.
+          `dir="auto"` resolves from the first strong character, so a Latin
+          route name would turn the whole heading left-to-right and strand it at
+          the far side of the page. And a box stretched to the full row leaves
+          the name at whichever end its own text-alignment lands on, a sidebar's
+          width away from the badge it belongs to — the same fault the stop rows
+          and the departure board each had, and the same fix.
+
+          `min-w-0` keeps it able to shrink, so a long name still wraps inside
+          the row instead of pushing the badge off it.
         */}
-        <h1 className="min-w-0 flex-1 text-2xl font-semibold tracking-tight text-balance">
+        <h1 className="min-w-0 text-2xl font-semibold tracking-tight text-balance">
           {variant.routeLongName ?? variant.routeShortName}
         </h1>
       </div>
