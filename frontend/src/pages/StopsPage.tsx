@@ -53,7 +53,8 @@ export default function StopsPage() {
    * data rather than user input, but it is still the sort of value that should
    * not be able to become an outbound link.
    */
-  const state = useLocation().state as { back?: unknown } | null;
+  const at = useLocation();
+  const state = at.state as { back?: unknown } | null;
   const cameFrom =
     typeof state?.back === 'string' && state.back.startsWith('/') ? state.back : null;
 
@@ -158,9 +159,14 @@ export default function StopsPage() {
 
   const openStop = useCallback(
     (id: string) => {
-      void navigate(stopPath(id));
+      // The return address every other stop link carries, so a stop reached
+      // from the index or from the map can name the way back rather than
+      // falling through to the bare word.
+      void navigate(stopPath(id), {
+        state: { back: `${at.pathname}${at.search}` },
+      });
     },
-    [navigate],
+    [navigate, at.pathname, at.search],
   );
 
   const onVisibleStopsChange = useCallback((stops: NetworkStop[]) => {

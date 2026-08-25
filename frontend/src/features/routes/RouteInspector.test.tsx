@@ -64,10 +64,10 @@ const call = (time: string, arrivalTime = time) => ({
 
 const TRIPS = [
   // Gone by 15:44.
-  { tripId: 'trip-early', headsign: 'Käpylä', calls: [call('05:37'), call('05:44'), call('05:52')] },
+  { tripId: 'trip-early', serviceDate: '2026-09-10', headsign: 'Käpylä', calls: [call('05:37'), call('05:44'), call('05:52')] },
   // Imminent at stop 1, and comfortably ahead at stop 2.
-  { tripId: 'trip-soon', headsign: 'Käpylä', calls: [call('15:40'), call('15:50'), call('16:20')] },
-  { tripId: 'trip-later', headsign: 'Käpylä', calls: [call('16:40'), call('16:50', '16:49'), call('17:20')] },
+  { tripId: 'trip-soon', serviceDate: '2026-09-10', headsign: 'Käpylä', calls: [call('15:40'), call('15:50'), call('16:20')] },
+  { tripId: 'trip-later', serviceDate: '2026-09-10', headsign: 'Käpylä', calls: [call('16:40'), call('16:50', '16:49'), call('17:20')] },
 ];
 
 interface Feed {
@@ -307,7 +307,7 @@ describe('RouteInspector', () => {
         stops: STOPS,
         stopCount: 3,
         // Only the middle stop waits.
-        trips: [{ tripId: 't', headsign: null, calls: [call('16:00'), call('16:10', '16:08'), call('16:20')] }],
+        trips: [{ tripId: 't', serviceDate: '2026-09-10', headsign: null, calls: [call('16:00'), call('16:10', '16:08'), call('16:20')] }],
         totalTrips: 1,
         outsideTimetableRange: false,
       },
@@ -611,9 +611,9 @@ describe('RouteInspector', () => {
           stops: STOPS,
           stopCount: 3,
           trips: [
-            { tripId: 'full', headsign: null, calls: [call('06:00'), call('06:10'), call('06:20')] },
+            { tripId: 'full', serviceDate: '2026-09-10', headsign: null, calls: [call('06:00'), call('06:10'), call('06:20')] },
             // A short working that joins the line after the origin.
-            { tripId: 'short', headsign: null, calls: [null, call('06:40'), call('06:50')] },
+            { tripId: 'short', serviceDate: '2026-09-10', headsign: null, calls: [null, call('06:40'), call('06:50')] },
           ],
           totalTrips: 2,
           outsideTimetableRange: false,
@@ -681,11 +681,11 @@ describe('RouteInspector', () => {
         stopCount: 3,
         trips: [
           // Ahead: between stops 1 and 2 at 15:44.
-          { tripId: 'ahead', headsign: null, calls: [call('15:20'), call('15:38'), call('15:46')] },
+          { tripId: 'ahead', serviceDate: '2026-09-10', headsign: null, calls: [call('15:20'), call('15:38'), call('15:46')] },
           // Behind: between stops 0 and 1.
-          { tripId: 'behind', headsign: null, calls: [call('15:40'), call('15:50'), call('16:01')] },
+          { tripId: 'behind', serviceDate: '2026-09-10', headsign: null, calls: [call('15:40'), call('15:50'), call('16:01')] },
           // Finished, so not drawn.
-          { tripId: 'gone', headsign: null, calls: [call('05:37'), call('05:44'), call('05:52')] },
+          { tripId: 'gone', serviceDate: '2026-09-10', headsign: null, calls: [call('05:37'), call('05:44'), call('05:52')] },
         ],
         totalTrips: 3,
         outsideTimetableRange: false,
@@ -744,7 +744,7 @@ describe('RouteInspector', () => {
         stops: STOPS,
         stopCount: 3,
         // One trip, already past the first two stops at 15:44.
-        trips: [{ tripId: 'last', headsign: null, calls: [call('15:20'), call('15:30'), call('15:50')] }],
+        trips: [{ tripId: 'last', serviceDate: '2026-09-10', headsign: null, calls: [call('15:20'), call('15:30'), call('15:50')] }],
         totalTrips: 1,
         outsideTimetableRange: false,
       },
@@ -784,11 +784,13 @@ describe('RouteInspector', () => {
   describe('following one run', () => {
     const FOLLOWED = {
       tripId: 'the-one',
+      serviceDate: '2026-09-10',
       headsign: 'Käpylä',
       calls: [call('15:20'), call('15:38'), call('16:30')],
     };
     const OTHER = {
       tripId: 'another',
+      serviceDate: '2026-09-10',
       headsign: 'Käpylä',
       calls: [call('15:52'), call('16:02'), call('16:44')],
     };
@@ -842,7 +844,7 @@ describe('RouteInspector', () => {
           stopCount: 3,
           trips: [
             FOLLOWED,
-            { tripId: 'another', headsign: null, calls: [call('15:40'), call('15:50'), call('16:44')] },
+            { tripId: 'another', serviceDate: '2026-09-10', headsign: null, calls: [call('15:40'), call('15:50'), call('16:44')] },
           ],
           totalTrips: 2,
           outsideTimetableRange: false,
@@ -887,7 +889,7 @@ describe('RouteInspector', () => {
           ...OUTBOUND,
           stops: STOPS,
           stopCount: 3,
-          trips: [{ tripId: 'the-one', headsign: null, calls: [call('15:20'), null, call('16:30')] }],
+          trips: [{ tripId: 'the-one', serviceDate: '2026-09-10', headsign: null, calls: [call('15:20'), null, call('16:30')] }],
           totalTrips: 1,
           outsideTimetableRange: false,
         },
@@ -998,8 +1000,8 @@ describe('RouteInspector', () => {
       stops: STOPS,
       stopCount: 3,
       trips: [
-        { tripId: 'ahead', headsign: null, calls: [call('15:20'), call('15:38'), call('15:46')] },
-        { tripId: 'behind', headsign: null, calls: [call('15:40'), call('15:50'), call('16:01')] },
+        { tripId: 'ahead', serviceDate: '2026-09-10', headsign: null, calls: [call('15:20'), call('15:38'), call('15:46')] },
+        { tripId: 'behind', serviceDate: '2026-09-10', headsign: null, calls: [call('15:40'), call('15:50'), call('16:01')] },
       ],
       totalTrips: 2,
       outsideTimetableRange: false,

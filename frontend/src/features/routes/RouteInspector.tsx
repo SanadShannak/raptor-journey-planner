@@ -284,7 +284,7 @@ export function RouteInspector({
   const dayTimetable =
     timetable !== null && timetable.date === shownDate ? timetable : null;
   const span = useMemo(
-    () => (dayTimetable === null ? null : daySpan(dayTimetable.trips)),
+    () => (dayTimetable === null ? null : daySpan(dayTimetable.trips, dayTimetable.date)),
     [dayTimetable],
   );
 
@@ -523,6 +523,7 @@ export function RouteInspector({
                 focusTrip={focusTrip}
                 stops={variant.stops}
                 routeType={variant.routeType}
+                routeShortName={variant.routeShortName}
                 /*
                   Null while a day is on its way, and null when there is no day
                   to ask about — the list draws no time either way rather than

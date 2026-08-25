@@ -2,6 +2,7 @@ import { useLocale } from '../../i18n';
 import type { Dictionary, Message } from '../../i18n/dictionary';
 import type { ServingLine, StopIdentity } from '../../types/stop';
 import { familyFor } from '../journey/modeVisuals';
+import { FareZone, StopCode } from './StopFacts';
 
 interface Props {
   stop: StopIdentity;
@@ -46,15 +47,15 @@ function platformLabel(lines: ServingLine[], strings: Dictionary): Message {
 export function StopHeader({ stop, servingLines }: Props) {
   const { strings, t } = useLocale();
 
-  const facts = [
-    stop.code === null ? null : t(strings.stops.stopCode, { code: stop.code }),
+  /*
+   * The platform stays a sentence: the number alone means nothing without the
+   * word, and which word it is — track, platform, stand — is the one thing GTFS
+   * never says and the client has to choose.
+   */
+  const platform =
     stop.platform === null
       ? null
-      : t(platformLabel(servingLines, strings), { platform: stop.platform }),
-    stop.fareZone === null
-      ? null
-      : t(strings.stops.fareZone, { zone: stop.fareZone }),
-  ].filter((fact): fact is string => fact !== null);
+      : t(platformLabel(servingLines, strings), { platform: stop.platform });
 
   return (
     <header className="flex flex-col gap-3">
@@ -76,16 +77,23 @@ export function StopHeader({ stop, servingLines }: Props) {
         )}
       </div>
 
-      {facts.length > 0 && (
-        <ul className="text-content-muted flex flex-wrap gap-x-3 gap-y-1 text-sm">
-          {facts.map((fact) => (
-            <li
-              key={fact}
-              className="rounded-control bg-surface-muted px-2 py-0.5 tabular-nums"
-            >
-              {fact}
+      {(stop.code !== null || platform !== null || stop.fareZone !== null) && (
+        <ul className="text-content-muted flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+          {stop.code !== null && (
+            <li>
+              <StopCode code={stop.code} />
             </li>
-          ))}
+          )}
+          {platform !== null && (
+            <li className="rounded-control bg-surface-muted px-2 py-0.5 tabular-nums">
+              {platform}
+            </li>
+          )}
+          {stop.fareZone !== null && (
+            <li>
+              <FareZone zone={stop.fareZone} />
+            </li>
+          )}
         </ul>
       )}
 

@@ -135,6 +135,15 @@ export interface VariantTrip {
   /** The GTFS trip id. Null when the feed's mapping has no entry for it. */
   tripId: string | null;
   /**
+   * Which day's *service* this run belongs to.
+   *
+   * Not always the date it runs on, and **not inferable from the times**: a
+   * 00:10 departure looks like the start of a day and is the tail of the
+   * previous one. Anything reading the line's operating span off the trips
+   * needs this, or it reports a line as running "from 00:10".
+   */
+  serviceDate: IsoDate;
+  /**
    * This trip's own sign, falling back to the pattern's. A pattern's trips do
    * not always share one — HSL's rail H runs a single Helsinki–Siuntio pattern
    * whose trips are signed both "Siuntio-Hanko" and "Siuntio".

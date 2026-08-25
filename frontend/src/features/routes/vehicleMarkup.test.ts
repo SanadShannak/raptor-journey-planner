@@ -7,7 +7,7 @@ import { vehicleMarkup, VEHICLE_SIZE } from './vehicleMarkup';
  */
 describe('vehicleMarkup', () => {
   it('turns only the tail, never the silhouette', () => {
-    const east = vehicleMarkup('bus', 90);
+    const east = vehicleMarkup('bus', 90, '550');
 
     expect(east).toContain('rotate(90.0 32 32)');
     // One rotated group for the tail's outline and one for its fill, and the
@@ -22,23 +22,48 @@ describe('vehicleMarkup', () => {
    * opposite of the cartography underneath either way.
    */
   it('outlines the pin in the page’s ink so it reads on a map', () => {
-    const markup = vehicleMarkup('tram', 0);
+    const markup = vehicleMarkup('tram', 0, '550');
 
     expect(markup).toContain('stroke-content');
     // Drawn behind the fills, so the join between tail and body has no seam.
     expect(markup.indexOf('stroke-content')).toBeLessThan(markup.indexOf('fill-surface'));
   });
 
-  it('keeps the mode’s silhouette rather than a bare dot', () => {
-    expect(vehicleMarkup('ferry', 0)).toContain('text-on-mode');
+  /*
+   * The designation, not the mode's silhouette. On a line's own page every
+   * vehicle is the same mode; what a reader needs on a map showing several is
+   * *which* line. The mode is still in the colour, and a number is not a hue.
+   */
+  it('carries the line’s designation', () => {
+    expect(vehicleMarkup('bus', 0, '550')).toContain('>550<');
+  });
+
+  /*
+   * A designation is one to five characters and every one of them has to fit.
+   * `textLength` holds the width whatever the size chosen, so an unanticipated
+   * one is squeezed rather than allowed to break out of the disc.
+   */
+  it('fits a long designation inside the disc', () => {
+    const long = vehicleMarkup('bus', 0, '996K');
+
+    expect(long).toContain('>996K<');
+    expect(long).toContain('textLength="20"');
+    // Smaller than a two-character one, so five do not become five slivers.
+    const size = (markup: string) => Number(/font-size="(\d+)"/.exec(markup)?.[1]);
+    expect(size(long)).toBeLessThan(size(vehicleMarkup('bus', 0, '2')));
+  });
+
+  /* A designation is data until it is markup, and this file writes markup. */
+  it('escapes a designation that would otherwise be markup', () => {
+    expect(vehicleMarkup('bus', 0, 'A&<B')).toContain('A&amp;&lt;B');
   });
 
   it('wears the mode’s own colour', () => {
-    expect(vehicleMarkup('tram', 0)).toContain('text-mode-tram');
-    expect(vehicleMarkup('train', 0)).toContain('text-mode-train');
+    expect(vehicleMarkup('tram', 0, '550')).toContain('text-mode-tram');
+    expect(vehicleMarkup('train', 0, '550')).toContain('text-mode-train');
   });
 
   it('draws at the size it advertises', () => {
-    expect(vehicleMarkup('bus', 0)).toContain(`width="${VEHICLE_SIZE}"`);
+    expect(vehicleMarkup('bus', 0, '550')).toContain(`width="${VEHICLE_SIZE}"`);
   });
 });

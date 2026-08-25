@@ -14,6 +14,9 @@ import type { VariantTrip } from '../../types/route';
  * span read from the last stop would say a line runs until 21:48 when the last
  * vehicle you can actually board leaves at 21:09.
  *
+ * And measured over one service day rather than one calendar date, which are
+ * not the same set of trips near midnight — see the filter below.
+ *
  * Null when the day has no trips, which is a real answer: a line does not run
  * every day, and saying so is better than a span of nothing.
  */
@@ -22,11 +25,20 @@ export interface DaySpan {
   last: string;
 }
 
-export function daySpan(trips: VariantTrip[]): DaySpan | null {
+export function daySpan(trips: VariantTrip[], serviceDate: string): DaySpan | null {
   let first: string | null = null;
   let last: string | null = null;
 
   for (const trip of trips) {
+    /*
+     * This day's own service, and not the tail of the one before it. A board
+     * for Thursday legitimately contains Wednesday's 24:10 running as 00:10,
+     * and counting it makes a tram line that starts at 05:37 report itself as
+     * running "from 12:10 AM" — which is true of the clock and false of the
+     * line.
+     */
+    if (trip.serviceDate !== serviceDate) continue;
+
     /*
      * The trip's own first call rather than `calls[0]`. A short working joins
      * the line partway down, so its origin is a hole — and reading the hole as

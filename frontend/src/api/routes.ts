@@ -202,7 +202,7 @@ function toCall(raw: unknown): TripCall | null {
  * A trip with no readable call at all is dropped — there is no row to draw and
  * nothing to sort it by. One with some holes is kept, holes and all.
  */
-function toTrip(raw: unknown, stopCount: number): VariantTrip | null {
+function toTrip(raw: unknown, stopCount: number, fallbackDate: IsoDate): VariantTrip | null {
   const trip = record(raw);
   if (trip === null) return null;
 
@@ -217,6 +217,9 @@ function toTrip(raw: unknown, stopCount: number): VariantTrip | null {
 
   return {
     tripId: text(trip['tripId']),
+    // A backend that predates the field answers for the date asked about,
+    // which is what it always meant before there was anything else to mean.
+    serviceDate: text(trip['serviceDate']) ?? fallbackDate,
     headsign: text(trip['headsign']),
     calls,
   };
@@ -340,14 +343,15 @@ export async function getVariantTimetable(
   const stops = toPatternStops(answer?.['stops']);
   const stopCount = number(answer?.['stopCount']) ?? stops.length;
   const raw = Array.isArray(answer?.['trips']) ? answer['trips'] : [];
-  const trips = raw.map((trip) => toTrip(trip, stopCount)).filter(isPresent);
+  const day = text(answer?.['date']) ?? date;
+  const trips = raw.map((trip) => toTrip(trip, stopCount, day)).filter(isPresent);
 
   return {
     ...requireLine(answer, 'Timetable'),
     patternId: number(answer?.['patternId']) ?? patternId,
     directionId: toDirection(answer?.['directionId']),
     headsign: text(answer?.['headsign']),
-    date: text(answer?.['date']) ?? date,
+    date: day,
     stops,
     stopCount,
     trips,

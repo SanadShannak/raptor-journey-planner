@@ -538,7 +538,7 @@ can.
 ```
 { …line fields, …variant fields, date,
   stops[], stopCount,
-  trips: [ { tripId, headsign, calls[] } ],
+  trips: [ { tripId, serviceDate, headsign, calls[] } ],
   totalTrips, outsideTimetableRange, capabilities }
 ```
 
@@ -558,10 +558,19 @@ usual reason.
 that day, and **uncapped** — the largest pattern on HSL is 143 trips over 34
 stops, which is ~440 kB served in single-digit milliseconds from RAM.
 
-Which calendar date a trip belongs to is decided by **where it starts**. A trip
-leaving 23:30 and arriving 00:01 is tonight's, and its last call resolves onto
-tomorrow by itself; yesterday's 25:10 trip is this date's 01:10 and appears
-here, not on yesterday's board. Both offsets are walked for exactly that reason.
+**A trip is included when it *overlaps* the date, not when it starts inside
+it** — which is where this differs from a stop's board, deliberately. A board
+lists departures, so a vehicle that left before midnight is not one you can
+still catch; a line's page is asked where the vehicles are, and at ten past
+midnight the honest answer includes the one that set off at 23:50. Both service
+offsets are walked, and a trip qualifies when its last call is at or after the
+start of the date and its first is before the end of it.
+
+`serviceDate` is which day's *service* the run belongs to, which is not always
+the date it runs on and **cannot be inferred from the times**: 00:10 looks like
+the start of a day and is the tail of the previous one. A client that reads a
+line's operating span off the trip list needs this, or it reports a line as
+running "from 00:10".
 
 `headsign` is the trip's own sign, falling back to the pattern's — a pattern's
 trips do not always share one.

@@ -379,14 +379,23 @@ function describeLine(line) {
  * the pattern's `stop_ids` and carries **arrivals**. The service bucket has
  * departures only, and the two agree, so there is no reason to consult both.
  *
- * `offset` converts the trip's own clock onto the requested date's. Which
- * calendar date a trip belongs to is decided by **where it starts**: a trip
- * leaving at 23:50 and arriving 00:20 is tonight's, and its last call resolves
- * onto tomorrow by itself. That is the same rule the stop timetable applies,
- * and it is why a service is walked under both offsets — yesterday's 25:10 trip
- * is this date's 01:10 and belongs here, not on yesterday's board.
+ * `offset` converts the trip's own clock onto the requested date's, and a
+ * service is walked under both — yesterday's 25:10 trip is this date's 01:10.
  *
- * Null when the trip has no stop times at all, or when it starts outside the
+ * **A trip is included when it *overlaps* the date, not when it starts inside
+ * it.** Starting inside is the rule a stop's board uses, and it is right there:
+ * a board lists departures, and a vehicle that left before midnight is not one
+ * you can still catch. A line's page is asked a different question — where are
+ * the vehicles, and when does the next one reach each stop — and at ten past
+ * midnight the honest answer includes the one that set off at 23:50 and is
+ * still halfway down the line. Under the old rule it simply vanished.
+ *
+ * `serviceDate` says which day's service the trip belongs to, which is not
+ * always the date it runs on and cannot be worked out from the times: 00:10 is
+ * the tail of yesterday's operation, and a page that reads "runs from 00:10"
+ * has been misled by it.
+ *
+ * Null when the trip has no stop times at all, or when it does not reach the
  * requested date.
  */
 function describeTrip(route, flatTripId, baseIsoDate, offset) {
@@ -396,20 +405,25 @@ function describeTrip(route, flatTripId, baseIsoDate, offset) {
   const stopCount = route.stop_ids.length;
 
   /*
-   * Where the trip starts, which is not always index 0: a pattern's trip can be
-   * short a stop time, in which case the parser left a hole rather than a time.
+   * The two ends of the run. Neither is always at the array's ends: a pattern's
+   * trip can be short a stop time, in which case the parser left a hole rather
+   * than a time.
    */
   let originSeconds = null;
+  let finalSeconds = null;
   for (let index = 0; index < stopCount; index += 1) {
     const stopTime = stopTimes[index];
-    if (stopTime) {
-      originSeconds = stopTime.departure - offset;
-      break;
-    }
+    if (!stopTime) continue;
+    if (originSeconds === null) originSeconds = stopTime.departure - offset;
+    finalSeconds = stopTime.arrival - offset;
   }
+
+  // Overlaps the date: it had not finished when the day began, and it had
+  // started before the day ended.
   if (
     originSeconds === null ||
-    originSeconds < 0 ||
+    finalSeconds === null ||
+    finalSeconds < 0 ||
     originSeconds >= SECONDS_PER_DAY
   ) {
     return null;
@@ -444,6 +458,13 @@ function describeTrip(route, flatTripId, baseIsoDate, offset) {
     originSeconds,
     trip: {
       tripId: cache.reverseTripMapping[flatTripId] ?? null,
+      /*
+       * The service day this run belongs to, which is the requested date for an
+       * ordinary trip and the day before for one walked under the spillover
+       * offset. A client cannot infer it: 00:10 looks like the start of a day
+       * and is the end of the previous one.
+       */
+      serviceDate: offset === 0 ? baseIsoDate : shiftIsoDate(baseIsoDate, -1),
       /*
        * The trip's own sign wins over the pattern's, because a pattern's trips
        * do not always share one — HSL's rail H runs a single pattern whose

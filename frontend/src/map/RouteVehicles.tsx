@@ -90,7 +90,7 @@ export function RouteVehicles({
              */
             key={vehicle.trip.tripId ?? `${vehicle.progress.fromSequence}`}
             position={placed.point}
-            icon={iconFor(variant.routeType, placed.bearing)}
+            icon={iconFor(variant.routeType, placed.bearing, variant.routeShortName)}
             /*
              * Out of the tab order either way. The sidebar draws the same
              * vehicles and, when they can be followed, draws them as real
@@ -116,12 +116,16 @@ export function RouteVehicles({
  * it would grow without ever being hit. Building one small SVG string a few
  * times a second is not the expensive part of a map.
  */
-function iconFor(routeType: GtfsRouteType, bearing: number): L.DivIcon {
+function iconFor(
+  routeType: GtfsRouteType,
+  bearing: number,
+  designation: string,
+): L.DivIcon {
   return L.divIcon({
     // The badge inside carries `route-vehicle`; this is only Leaflet's wrapper,
     // and naming both the same would double every count of them.
     className: 'route-vehicle-marker',
-    html: vehicleMarkup(familyFor(routeType), bearing),
+    html: vehicleMarkup(familyFor(routeType), bearing, designation),
     iconSize: [VEHICLE_SIZE, VEHICLE_SIZE],
     iconAnchor: [VEHICLE_SIZE / 2, VEHICLE_SIZE / 2],
   });

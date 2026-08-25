@@ -5,6 +5,8 @@ interface Props {
   family: string;
   /** Compass degrees, 0 north and 90 east. */
   bearing: number;
+  /** The line's short name, which is what the badge carries. */
+  designation: string;
 }
 
 /**
@@ -19,12 +21,12 @@ interface Props {
  * few seconds is the last thing that should be announcing itself. The stop rows
  * carry a quiet, unannounced note instead.
  */
-export function VehicleBadge({ family, bearing }: Props) {
+export function VehicleBadge({ family, bearing, designation }: Props) {
   return (
     <span
       aria-hidden="true"
       className="pointer-events-none block"
-      dangerouslySetInnerHTML={{ __html: vehicleMarkup(family, bearing) }}
+      dangerouslySetInnerHTML={{ __html: vehicleMarkup(family, bearing, designation) }}
     />
   );
 }

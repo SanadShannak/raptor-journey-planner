@@ -2,7 +2,7 @@ import { useId, useLayoutEffect, useRef, useState } from 'react';
 import { Chevron } from '../../components/DateSelect';
 import { Popover } from '../../components/Popover';
 import { centerOnOption } from '../../components/centerOnOption';
-import { useLocale } from '../../i18n';
+import { StopCode } from '../stops/StopFacts';
 import type { PatternStop } from '../../types/route';
 
 interface Props {
@@ -32,7 +32,6 @@ interface Props {
  * and the two calls are genuinely different choices.
  */
 export function StopSelect({ label, value, onChange, stops, disabled }: Props) {
-  const { strings, t } = useLocale();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -128,11 +127,8 @@ export function StopSelect({ label, value, onChange, stops, disabled }: Props) {
                 is no column to read it off.
               */}
               {stop.code !== null && (
-                <span className="text-content-muted flex-none text-xs tabular-nums">
-                  <span aria-hidden="true">{stop.code}</span>
-                  <span className="sr-only">
-                    {t(strings.stops.stopCode, { code: stop.code })}
-                  </span>
+                <span className="flex-none">
+                  <StopCode code={stop.code} />
                 </span>
               )}
             </button>

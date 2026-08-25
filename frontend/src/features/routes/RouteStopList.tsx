@@ -10,6 +10,7 @@ import {
   destinationMarkerMarkup,
   originMarkerMarkup,
 } from '../journey/placeMarkerMarkup';
+import { FareZone, StopCode } from '../stops/StopFacts';
 import type { NetworkMoment } from '../stops/minutesUntil';
 import { callOnTrip, nextCallAt } from './nextCallAt';
 import { centringScrollTop, offsetWithin, scrollingAncestor } from './centreInPanel';
@@ -19,6 +20,8 @@ import type { Vehicle } from './vehicleProgress';
 interface Props {
   stops: PatternStop[];
   routeType: GtfsRouteType;
+  /** The line's short name, which every vehicle badge carries. */
+  routeShortName: string;
   /** The day's trips, or null while they are on their way. */
   trips: VariantTrip[] | null;
   /** The day being looked at, so a call on another one says so. */
@@ -246,6 +249,7 @@ function platformLabel(routeType: GtfsRouteType, strings: Dictionary): Message {
 export function RouteStopList({
   stops,
   routeType,
+  routeShortName,
   trips,
   viewedDate,
   now,
@@ -312,11 +316,22 @@ export function RouteStopList({
         const last = index === stops.length - 1;
 
         /*
-         * A strut is spent when the stops at *both* of its ends are — the leg
-         * between a spent stop and a live one is still going to be driven.
+         * Which stretches of the line are behind you.
+         *
+         * Following one run, a leg is behind once the vehicle has *reached the
+         * stop at its far end* — so everything the vehicle has driven is grey,
+         * the leg it is currently on stays lit, and the boundary sits exactly
+         * where the badge is. That is the whole point of following a run.
+         *
+         * On the line as a whole there is no "you", so a leg is only spent when
+         * both its ends are: the stretch between a stop nothing will call at
+         * again and one that is still served is still going to be driven.
          */
-        const leadSpent = spent(index) && (first || spent(index - 1));
-        const belowSpent = spent(index) && (last || spent(index + 1));
+        const leadSpent = focusTrip !== null ? spent(index) : spent(index) && (first || spent(index - 1));
+        const belowSpent =
+          focusTrip !== null
+            ? !last && spent(index + 1)
+            : spent(index) && (last || spent(index + 1));
 
         /*
          * The vehicle standing at this stop, or the one running from it towards
@@ -333,15 +348,12 @@ export function RouteStopList({
             !vehicle.progress.atStop && vehicle.progress.fromSequence === stop.sequence,
         );
 
-        const facts = [
-          stop.code === null ? null : t(strings.stops.stopCode, { code: stop.code }),
+        const platform =
           stop.platform === null
             ? null
-            : t(platformLabel(routeType, strings), { platform: stop.platform }),
-          stop.fareZone === null
-            ? null
-            : t(strings.stops.fareZone, { zone: stop.fareZone }),
-        ].filter((fact): fact is string => fact !== null);
+            : t(platformLabel(routeType, strings), { platform: stop.platform });
+        const hasFacts =
+          stop.code !== null || platform !== null || stop.fareZone !== null;
 
         return (
           /*
@@ -406,8 +418,15 @@ export function RouteStopList({
                     ink={spent(index) ? SPENT : ink}
                   />
                 ) : (
+                  /*
+                    A ring, not a dot, and filled with the page rather than the
+                    line's colour — so the spine visibly *passes through* each
+                    stop instead of being interrupted by a bead on it. Wide
+                    enough that the hole is about half of it, which is what
+                    makes it read as a ring at this size.
+                  */
                   <span
-                    className={`${spent(index) ? SPENT : ink} h-2.5 w-2.5 rounded-full bg-current`}
+                    className={`${spent(index) ? SPENT : ink} bg-surface h-3.5 w-3.5 rounded-full border-[3px] border-current`}
                   />
                 )}
               </span>
@@ -427,6 +446,7 @@ export function RouteStopList({
                 <VehicleOnSpine
                   vehicle={here}
                   family={family}
+                  designation={routeShortName}
                   onFollow={onFollowTrip}
                   /*
                     Stretched across the column and flex-centred rather than
@@ -444,6 +464,7 @@ export function RouteStopList({
                 <VehicleOnSpine
                   vehicle={leaving}
                   family={family}
+                  designation={routeShortName}
                   onFollow={onFollowTrip}
                   top={`calc(${MARKER_CENTRE}px + ${leaving.progress.fraction * 100}%)`}
                 />
@@ -491,11 +512,11 @@ export function RouteStopList({
                   </span>
                 )}
 
-                {facts.length > 0 && (
-                  <span className="text-content-muted flex flex-wrap gap-x-2 text-xs tabular-nums">
-                    {facts.map((fact) => (
-                      <span key={fact}>{fact}</span>
-                    ))}
+                {hasFacts && (
+                  <span className="text-content-muted mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs tabular-nums">
+                    {stop.code !== null && <StopCode code={stop.code} />}
+                    {platform !== null && <span>{platform}</span>}
+                    {stop.fareZone !== null && <FareZone zone={stop.fareZone} />}
                   </span>
                 )}
               </div>
@@ -578,11 +599,13 @@ function EndMarker({ end, ink }: { end: 'origin' | 'destination'; ink: string })
 function VehicleOnSpine({
   vehicle,
   family,
+  designation,
   onFollow,
   top,
 }: {
   vehicle: Vehicle;
   family: string;
+  designation: string;
   onFollow: ((tripId: string) => void) | null | undefined;
   top: string;
 }) {
@@ -602,10 +625,10 @@ function VehicleOnSpine({
           className="rounded-control focus-visible:outline-brand-500 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2"
         >
           <span className="sr-only">{t(strings.routes.followThisRun)}</span>
-          <VehicleBadge family={family} bearing={DOWN} />
+          <VehicleBadge family={family} bearing={DOWN} designation={designation} />
         </button>
       ) : (
-        <VehicleBadge family={family} bearing={DOWN} />
+        <VehicleBadge family={family} bearing={DOWN} designation={designation} />
       )}
     </span>
   );

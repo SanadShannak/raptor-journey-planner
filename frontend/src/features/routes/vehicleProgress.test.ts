@@ -21,6 +21,7 @@ const call = (time: string, arrivalTime = time, date = '2026-09-10') => ({
 
 const trip = (calls: VariantTrip['calls'], tripId = 't'): VariantTrip => ({
   tripId,
+  serviceDate: '2026-09-10',
   headsign: 'Käpylä',
   calls,
 });

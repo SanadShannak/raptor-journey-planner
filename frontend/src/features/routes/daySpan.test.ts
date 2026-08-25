@@ -9,8 +9,11 @@ const call = (date: string, time: string) => ({
   arrivalTime: time,
 });
 
-const trip = (calls: VariantTrip['calls']): VariantTrip => ({
+const DAY = '2026-09-10';
+
+const trip = (calls: VariantTrip['calls'], serviceDate = DAY): VariantTrip => ({
   tripId: 't',
+  serviceDate,
   headsign: null,
   calls,
 });
@@ -27,7 +30,7 @@ describe('daySpan', () => {
       trip([call('2026-09-10', '21:09'), call('2026-09-10', '21:48')]),
     ];
 
-    expect(daySpan(trips)).toEqual({ first: '05:37', last: '21:09' });
+    expect(daySpan(trips, DAY)).toEqual({ first: '05:37', last: '21:09' });
   });
 
   /* A short working joins the line partway down, so its origin is a hole —
@@ -38,7 +41,7 @@ describe('daySpan', () => {
       trip([null, call('2026-09-10', '22:30')]),
     ];
 
-    expect(daySpan(trips)).toEqual({ first: '06:00', last: '22:30' });
+    expect(daySpan(trips, DAY)).toEqual({ first: '06:00', last: '22:30' });
   });
 
   it('reads a departure after midnight as the end of the day, not the start', () => {
@@ -47,13 +50,28 @@ describe('daySpan', () => {
       trip([call('2026-09-10', '05:37')]),
     ];
 
-    expect(daySpan(trips)).toEqual({ first: '05:37', last: '00:24' });
+    expect(daySpan(trips, DAY)).toEqual({ first: '05:37', last: '00:24' });
+  });
+
+  /*
+   * A board for Thursday legitimately contains Wednesday's 24:10 running as
+   * 00:10, and counting it makes a tram line that starts at 05:37 report itself
+   * as running "from 12:10 AM" — true of the clock and false of the line.
+   */
+  it('ignores the tail of the service day before', () => {
+    const trips = [
+      trip([call('2026-09-10', '00:10')], '2026-09-09'),
+      trip([call('2026-09-10', '05:37')]),
+      trip([call('2026-09-10', '21:09')]),
+    ];
+
+    expect(daySpan(trips, DAY)).toEqual({ first: '05:37', last: '21:09' });
   });
 
   /* A line does not run every day, and saying so beats a span of nothing. */
   it('answers null for a day with no trips', () => {
-    expect(daySpan([])).toBeNull();
-    expect(daySpan([trip([null, null])])).toBeNull();
+    expect(daySpan([], DAY)).toBeNull();
+    expect(daySpan([trip([null, null])], DAY)).toBeNull();
   });
 });
 

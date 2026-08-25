@@ -492,11 +492,11 @@
  */
 @keyframes vehicle-pulse {
   0% {
-    transform: scale(0.55);
-    opacity: 0.5;
+    transform: scale(0.5);
+    opacity: 0.6;
   }
 
-  70% {
+  75% {
     transform: scale(1);
     opacity: 0;
   }
@@ -510,34 +510,46 @@
 .vehicle-halo {
   transform-box: fill-box;
   transform-origin: center;
-  opacity: 0.32;
+  opacity: 0;
   animation: vehicle-pulse 2.4s ease-out infinite;
 }
 
 /*
- * Stillness for anyone who asked for it, and the halo stays — it is doing two
- * jobs, and only one of them is the beat. A steady disc still separates the
- * badge from a map that is very nearly the page's own colour.
+ * The second ring, half a beat behind the first.
+ *
+ * One ring spends most of its cycle invisible, which over a map reads as a
+ * badge that occasionally flickers rather than one that is pulsing. Two
+ * staggered rings mean there is always one on its way out.
+ */
+.vehicle-halo-late {
+  animation-delay: 1.2s;
+}
+
+/*
+ * And a steady disc underneath both, which is not part of the beat at all.
+ *
+ * The pulse is a signal and this is a background: it is what separates the
+ * badge from cartography that is very nearly the page's own colour, and it has
+ * to be there at the moment of the cycle when neither ring is. Without it the
+ * badge blinked out of its own surroundings twice every couple of seconds.
+ */
+.vehicle-halo-steady {
+  opacity: 0.3;
+}
+
+/*
+ * Stillness for anyone who asked for it. The steady disc stays and takes over
+ * the whole job — it is doing the half of it that was never the beat.
  */
 @media (prefers-reduced-motion: reduce) {
   .vehicle-halo {
     animation: none;
-    opacity: 0.28;
+    opacity: 0;
   }
-}
 
-/*
- * The same bargain for a leg's badge on the journey map: the wrapper takes
- * every press across its whole box, and the drawing inside refuses them all.
- * Otherwise the padding around the line number captures nothing and a press
- * lands on the map behind, opening the point chooser instead of the run.
- */
-.journey-badge {
-  pointer-events: auto;
-}
-
-.journey-badge svg {
-  pointer-events: none;
+  .vehicle-halo-steady {
+    opacity: 0.36;
+  }
 }
 
 /* Leaflet's own CSS is entirely physical, so RTL needs telling. */

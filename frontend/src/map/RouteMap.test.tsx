@@ -281,7 +281,7 @@ describe('RouteMap drawing', () => {
       variant: TRAM_1,
       vehicles: [
         {
-          trip: { tripId: 'running', headsign: 'Käpylä', calls: [] },
+          trip: { tripId: 'running', serviceDate: '2026-09-10', headsign: 'Käpylä', calls: [] },
           progress: { fromSequence: 0, toSequence: 2, fraction: 0.5, atStop: false },
         },
       ],
@@ -289,9 +289,10 @@ describe('RouteMap drawing', () => {
 
     const marker = container.querySelector('.route-vehicle') as HTMLElement;
     expect(marker).toBeTruthy();
-    // A rounded square rather than a circle, so it is not read as another stop.
-    expect(marker.querySelector('rect[rx]')).toBeTruthy();
-    // And an arrow, turned to the heading of the stretch it is on.
+    // A pin with a beating halo, and the line's own designation inside it.
+    expect(marker.querySelector('.vehicle-halo')).toBeTruthy();
+    expect(marker.innerHTML).toContain(`>${TRAM_1.routeShortName}<`);
+    // And a tail, turned to the heading of the stretch it is on.
     expect(marker.innerHTML).toContain('rotate(');
   });
 
@@ -300,11 +301,11 @@ describe('RouteMap drawing', () => {
       variant: TRAM_1,
       vehicles: [
         {
-          trip: { tripId: 'ahead', headsign: null, calls: [] },
+          trip: { tripId: 'ahead', serviceDate: '2026-09-10', headsign: null, calls: [] },
           progress: { fromSequence: 1, toSequence: 2, fraction: 0.2, atStop: false },
         },
         {
-          trip: { tripId: 'behind', headsign: null, calls: [] },
+          trip: { tripId: 'behind', serviceDate: '2026-09-10', headsign: null, calls: [] },
           progress: { fromSequence: 0, toSequence: null, fraction: 0, atStop: true },
         },
       ],
@@ -326,7 +327,7 @@ describe('RouteMap drawing', () => {
       variant: TRAM_1,
       vehicles: [
         {
-          trip: { tripId: 'a', headsign: null, calls: [] },
+          trip: { tripId: 'a', serviceDate: '2026-09-10', headsign: null, calls: [] },
           progress: { fromSequence: 0, toSequence: 1, fraction: 0.5, atStop: false },
         },
       ],
@@ -338,7 +339,7 @@ describe('RouteMap drawing', () => {
       variant: TRAM_1,
       vehicles: [
         {
-          trip: { tripId: 'b', headsign: null, calls: [] },
+          trip: { tripId: 'b', serviceDate: '2026-09-10', headsign: null, calls: [] },
           progress: { fromSequence: 1, toSequence: 2, fraction: 0.5, atStop: false },
         },
       ],
@@ -365,7 +366,7 @@ describe('RouteMap drawing', () => {
       variant: TRAM_1,
       vehicles: [
         {
-          trip: { tripId: 'the-one', headsign: null, calls: [] },
+          trip: { tripId: 'the-one', serviceDate: '2026-09-10', headsign: null, calls: [] },
           progress: { fromSequence: 0, toSequence: 1, fraction: 0.5, atStop: false },
         },
       ],
@@ -384,7 +385,7 @@ describe('RouteMap drawing', () => {
       variant: TRAM_1,
       vehicles: [
         {
-          trip: { tripId: 'the-one', headsign: null, calls: [] },
+          trip: { tripId: 'the-one', serviceDate: '2026-09-10', headsign: null, calls: [] },
           progress: { fromSequence: 0, toSequence: 1, fraction: 0.5, atStop: false },
         },
       ],
@@ -402,7 +403,7 @@ describe('RouteMap drawing', () => {
    */
   it('holds the map on the vehicle when one run is being followed', () => {
     const vehicle = {
-      trip: { tripId: 'the-one', headsign: null, calls: [] },
+      trip: { tripId: 'the-one', serviceDate: '2026-09-10', headsign: null, calls: [] },
       progress: { fromSequence: 0, toSequence: 1, fraction: 0.5, atStop: false },
     };
 
