@@ -13,6 +13,14 @@ interface Props {
   area: GeoBounds | null;
   /** The stop being inspected, once it is known, so the map can go to it. */
   focused: StopIdentity | null;
+  /**
+   * A stop is being inspected but has not arrived yet.
+   *
+   * Distinct from `focused === null`, which on its own says only "no stop
+   * resolved" and cannot tell "the index, showing the city" apart from "a stop
+   * is loading". They want opposite things from the map.
+   */
+  pending: boolean;
   onStopSelect: (stopId: string) => void;
   /** Narrows the markers to what the sidebar's filters have left standing. */
   filter: (stop: NetworkStop) => boolean;
@@ -37,6 +45,7 @@ export function StopsMap({
   network,
   area,
   focused,
+  pending,
   onStopSelect,
   filter,
   onVisibleStopsChange,
@@ -63,7 +72,13 @@ export function StopsMap({
         onVisibleStopsChange={onVisibleStopsChange}
         onBelowZoomChange={onBelowZoomChange}
       />
-      <RestOn home={home} focused={focused} view={view} animate={!reduceMotion} />
+      <RestOn
+        home={home}
+        focused={focused}
+        pending={pending}
+        view={view}
+        animate={!reduceMotion}
+      />
     </MapCanvas>
   );
 }
@@ -80,7 +95,9 @@ export function StopsMap({
  * 2. **The last thing the visitor asked for** — their own position, or the
  *    city. An explicit press outranks the resting view.
  * 3. **The city**, which is where a stops page with no other instruction
- *    belongs.
+ *    belongs — but only once nothing is on its way. A stop that has been asked
+ *    for and not yet answered holds the map still rather than sending it home
+ *    and back.
  *
  * Split across two effects this went wrong in a way worth recording: a "go
  * here" that stuck around made every later stop unframable, because the branch
@@ -95,11 +112,13 @@ export function StopsMap({
 function RestOn({
   home,
   focused,
+  pending,
   view,
   animate,
 }: {
   home: { center: [number, number]; zoom: number };
   focused: StopIdentity | null;
+  pending: boolean;
   view: ViewRequest;
   animate: boolean;
 }) {
@@ -116,6 +135,17 @@ function RestOn({
       return;
     }
 
+    /*
+     * A stop is on its way. Stay exactly where we are until it arrives.
+     *
+     * Falling through from here sent the map home, because "no stop resolved"
+     * and "no stop wanted" were the same condition. Pressing a stop on the map
+     * therefore zoomed out to the city and then back in to a stop a few metres
+     * from the last one — and the two animated moves collided, so what a
+     * reader actually saw was the zoom out, and no zoom back in.
+     */
+    if (pending) return;
+
     if (view.kind === 'at') {
       map.setView([view.lat, view.lon], Math.max(map.getZoom(), 16), { animate });
       return;
@@ -131,7 +161,7 @@ function RestOn({
      * network and its area, both set once and never again.
      */
     map.setView(home.center, home.zoom, { animate });
-  }, [map, focused, view, home, animate]);
+  }, [map, focused, pending, view, home, animate]);
 
   return null;
 }

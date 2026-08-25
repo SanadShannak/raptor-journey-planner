@@ -194,6 +194,11 @@ export default function StopsPage() {
           area={bounds}
           focused={focused}
           onStopSelect={openStop}
+          /*
+            A stop is wanted but has not loaded. Without this the map cannot
+            tell that from the index, and takes the chance to go home.
+          */
+          pending={stopId !== undefined && focused === null}
           filter={matches}
           onVisibleStopsChange={onVisibleStopsChange}
           onBelowZoomChange={setBelowZoom}
