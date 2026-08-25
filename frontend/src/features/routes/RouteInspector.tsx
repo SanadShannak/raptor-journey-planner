@@ -32,12 +32,28 @@ interface Props {
    * — which is its busiest, because `/api/routes/:lineId` orders them that way.
    */
   patternId: number | null;
+  /**
+   * One run of the variant to follow, from the URL.
+   *
+   * Null is the ordinary view: the whole line, each stop answering "what leaves
+   * here next". With a trip, the stop list becomes that one vehicle's journey.
+   */
+  tripId?: string | null | undefined;
+  /**
+   * The service day a followed trip belongs to. A trip id is only meaningful
+   * against one, and the same run tomorrow is a different trip.
+   */
+  tripDate?: string | null | undefined;
   /** The network's zone, for the countdowns. Null until `/api/network` answers. */
   timezone: string | null;
   /** Today on the network's clock, so the date picker opens somewhere honest. */
   networkToday: string | null;
   /** Moves to another variant of the same line, by putting it in the URL. */
   onSelectVariant: (patternId: number) => void;
+  /** Follows one run, or drops back to the whole line when given null. */
+  onSelectTrip: (trip: { tripId: string; date: string } | null) => void;
+  /** Opens a stop, so the host can decide whether that is a navigation. */
+  onOpenStop: (stopId: string) => void;
   onBack: () => void;
   backLabel: string;
   /** Hands the variant to the host once it is known, so the map can draw it. */
@@ -79,9 +95,13 @@ type View = 'stops' | 'timetable';
 export function RouteInspector({
   lineId,
   patternId,
+  tripId = null,
+  tripDate = null,
   timezone,
   networkToday,
   onSelectVariant,
+  onSelectTrip,
+  onOpenStop,
   onBack,
   backLabel,
   onResolved,
@@ -175,9 +195,17 @@ export function RouteInspector({
    */
   const shownDate =
     view === 'stops'
-      ? (networkToday !== null && variant?.serviceDates.includes(networkToday)
+      ? /*
+         * A followed run pins the day to its own. Its trip id belongs to that
+         * service day and to no other, so showing it against today would find
+         * nothing — and the run is the subject, so the day follows it rather
+         * than the other way round.
+         */
+        tripId !== null && tripDate !== null
+        ? tripDate
+        : networkToday !== null && variant?.serviceDates.includes(networkToday)
           ? networkToday
-          : '')
+          : ''
       : date;
 
   /* The day. */
@@ -276,12 +304,33 @@ export function RouteInspector({
    * it. Two circles on the spine turn that from a glitch into the obvious
    * consequence of where they are.
    */
+  /**
+   * The run being followed, once the day it belongs to is in hand.
+   *
+   * Null when no trip is asked for, and also when one is asked for that the day
+   * does not contain — a stale link, or a pattern id that moved under a data
+   * refresh. Falling back to the whole line is the right answer to both: the
+   * line is still there and still worth reading.
+   */
+  const focusTrip = useMemo(() => {
+    if (tripId === null || dayTimetable === null) return null;
+    return dayTimetable.trips.find((trip) => trip.tripId === tripId) ?? null;
+  }, [tripId, dayTimetable]);
+
   const vehicles = useMemo(() => {
     if (dayTimetable === null || now === null) return [];
     const seconds = nowSeconds(now);
     if (seconds === null) return [];
-    return activeVehicles(dayTimetable.trips, seconds);
-  }, [dayTimetable, now]);
+    const out = activeVehicles(dayTimetable.trips, seconds);
+    /*
+     * Following one run, only that run's vehicle is drawn. The others are still
+     * out there, but the page is answering a question about this one and a
+     * second badge on the spine invites the reader to think it is theirs.
+     */
+    return focusTrip === null
+      ? out
+      : out.filter((vehicle) => vehicle.trip.tripId === focusTrip.tripId);
+  }, [dayTimetable, now, focusTrip]);
 
   /*
    * Handed up in an effect rather than during render: it is somebody else's
@@ -427,6 +476,31 @@ export function RouteInspector({
           {view === 'stops' ? (
             <>
               {/*
+                A run is a lens over the line, so it says so and offers the way
+                out. Without this the page looks like the line itself with a
+                strangely sparse set of times, and there is nothing to press to
+                get back.
+              */}
+              {focusTrip !== null && (
+                <div className="rounded-card border-brand-500 bg-brand-50 flex flex-wrap items-center gap-x-3 gap-y-2 border px-4 py-3">
+                  <p className="text-brand-700 min-w-0 flex-1 text-sm font-medium">
+                    {focusTrip.headsign === null
+                      ? t(strings.routes.followingRun)
+                      : t(strings.routes.followingRunTowards, {
+                          destination: focusTrip.headsign,
+                        })}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => onSelectTrip(null)}
+                    className="rounded-control border-brand-500 text-brand-700 hover:bg-brand-100 focus-visible:outline-brand-500 flex-none cursor-pointer border px-2.5 py-1 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
+                  >
+                    {t(strings.routes.showWholeLine)}
+                  </button>
+                </div>
+              )}
+
+              {/*
                 The line does not run today, so there is no "next" at any of its
                 stops. Said once, at the top, rather than as the same phrase
                 repeated down forty rows — and pointing at the tab that can
@@ -448,6 +522,8 @@ export function RouteInspector({
               )}
 
               <RouteStopList
+                focusTrip={focusTrip}
+                onOpenStop={onOpenStop}
                 stops={variant.stops}
                 routeType={variant.routeType}
                 /*
@@ -455,6 +531,11 @@ export function RouteInspector({
                   to ask about — the list draws no time either way rather than
                   claiming nothing runs.
                 */
+                onFollowTrip={
+                  focusTrip !== null || shownDate === ''
+                    ? null
+                    : (trip) => onSelectTrip({ tripId: trip, date: shownDate })
+                }
                 trips={dayTimetable === null ? null : dayTimetable.trips}
                 viewedDate={shownDate}
                 now={now}

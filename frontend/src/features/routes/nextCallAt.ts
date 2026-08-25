@@ -38,6 +38,44 @@ export function nextCallAt(
   sequence: number,
   now: NetworkMoment | null,
 ): NextCall | null {
+  return earliestAt(trips, sequence, now);
+}
+
+/**
+ * When one particular run calls at a stop, gone or not.
+ *
+ * The counterpart to {@link nextCallAt}, and the difference is the whole point
+ * of following a single trip: a line's stop list answers "what leaves here
+ * next", which on a busy line is a different vehicle at every stop. Following
+ * one run asks the opposite question — "when is *this* vehicle at each stop" —
+ * and the answer has to include the stops it has already passed, or the list
+ * empties out behind it as it goes.
+ *
+ * Null where the trip does not call at that stop at all.
+ */
+export function callOnTrip(
+  trip: VariantTrip,
+  sequence: number,
+  now: NetworkMoment | null,
+): NextCall | null {
+  const call = trip.calls[sequence];
+  if (call === undefined || call === null) return null;
+
+  return {
+    call,
+    sequence,
+    headsign: trip.headsign,
+    // Negative once it has gone, which is a fact worth keeping here — a row can
+    // then show a call as past rather than pretending it is still to come.
+    minutes: now === null ? null : minutesUntil(call, now),
+  };
+}
+
+function earliestAt(
+  trips: VariantTrip[],
+  sequence: number,
+  now: NetworkMoment | null,
+): NextCall | null {
   let best: NextCall | null = null;
 
   for (const trip of trips) {

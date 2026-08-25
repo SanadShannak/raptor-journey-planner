@@ -57,6 +57,7 @@ const JOURNEY = {
       walkDurationMinutes: null,
       walkDistanceMeters: null,
       lineId: 'bus-550',
+      patternId: 0,
       routeLongName: null,
       directionId: 0,
       headsign: 'Itäkeskus',

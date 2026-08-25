@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { LocaleProvider } from '../../i18n/LocaleProvider';
 import type { Journey, Stop, TransitLeg, WalkLeg } from '../../types/journey';
 import { ItineraryDetail } from './ItineraryDetail';
@@ -42,6 +43,7 @@ function walk(from: Stop, to: Stop, start: string, end: string, wait = 0): WalkL
     routeShortName: null,
     routeType: null,
     lineId: null,
+    patternId: null,
     routeLongName: null,
     directionId: null,
     headsign: null,
@@ -70,6 +72,7 @@ function ride(from: Stop, to: Stop, start: string, end: string, wait = 0): Trans
     routeShortName: '55',
     routeType: 3,
     lineId: 'bus-55',
+    patternId: 0,
     routeLongName: null,
     directionId: null,
     headsign: null,
@@ -100,6 +103,7 @@ const unnamed: JourneyEnd = { name: null, context: null };
 function show(journey: Journey, origin = kamppi, destination = kamppi) {
   render(
     <LocaleProvider>
+      <MemoryRouter>
       <ItineraryDetail
         journey={journey}
         origin={origin}
@@ -107,6 +111,7 @@ function show(journey: Journey, origin = kamppi, destination = kamppi) {
         searchedDate="2026-08-24"
         onBack={() => {}}
       />
+    </MemoryRouter>
     </LocaleProvider>,
   );
 }
@@ -218,6 +223,7 @@ describe('ItineraryDetail legs', () => {
     const journey = journeyOf([walk(originPin, targetPin, '00:15', '00:35')]);
     render(
       <LocaleProvider>
+      <MemoryRouter>
         <ItineraryDetail
           journey={{ ...journey, startDate: '2026-08-25', endDate: '2026-08-25' }}
           origin={kamppi}
@@ -225,7 +231,8 @@ describe('ItineraryDetail legs', () => {
           searchedDate="2026-08-24"
           onBack={() => {}}
         />
-      </LocaleProvider>,
+      </MemoryRouter>
+    </LocaleProvider>,
     );
 
     expect(screen.getByText(/Departs/)).toBeTruthy();
@@ -270,10 +277,38 @@ describe('ItineraryDetail platforms', () => {
  * line. The panel raises the id and the page decides what to do with it, so
  * what matters here is that the right id leaves by the right press.
  */
+/*
+ * The run, from the itinerary.
+ *
+ * `lineId` names the line and a line can be many stop sequences, so `patternId`
+ * is what makes the leg openable at all — without it there is no way to know
+ * which of tram H's thirty-nine variants the rider is on.
+ */
+describe('ItineraryDetail run link', () => {
+  it('opens the run the leg is actually riding', () => {
+    const leg = ride(stop('a', 'Kamppi'), stop('b', 'Pasila'), '10:00', '10:20');
+    show(journeyOf([leg]));
+
+    const link = screen.getByRole('link', { name: /Follow this vehicle/ });
+    const url = new URL(link.getAttribute('href')!, 'http://x');
+    expect(url.pathname).toBe(`/routes/${leg.lineId}`);
+    expect(url.searchParams.get('variant')).toBe(String(leg.patternId));
+    expect(url.searchParams.get('trip')).toBe(leg.tripId);
+    // The leg's own service day: the same run tomorrow is a different trip.
+    expect(url.searchParams.get('date')).toBe(leg.startDate);
+  });
+
+  it('gives a walk no run to open', () => {
+    show(journeyOf([walk(stop('a', 'Kamppi'), stop('b', 'Pasila'), '10:00', '10:10')]));
+    expect(screen.queryByRole('link', { name: /Follow this vehicle/ })).toBeNull();
+  });
+});
+
 describe('ItineraryDetail stop inspection', () => {
   const withInspect = (journey: Journey, onInspectStop: (stopId: string) => void) =>
     render(
       <LocaleProvider>
+      <MemoryRouter>
         <ItineraryDetail
           journey={journey}
           origin={kamppi}
@@ -282,7 +317,8 @@ describe('ItineraryDetail stop inspection', () => {
           onBack={() => {}}
           onInspectStop={onInspectStop}
         />
-      </LocaleProvider>,
+      </MemoryRouter>
+    </LocaleProvider>,
     );
 
   it('opens the stop behind a name', () => {

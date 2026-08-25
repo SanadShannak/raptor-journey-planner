@@ -116,6 +116,7 @@ export interface WalkLeg extends LegBase {
   routeShortName: null;
   routeType: null;
   lineId: null;
+  patternId: null;
   routeLongName: null;
   directionId: null;
   headsign: null;
@@ -139,6 +140,18 @@ export interface TransitLeg extends LegBase {
    * takes.
    */
   lineId: string;
+  /**
+   * Which of the line's stop sequences this leg rode.
+   *
+   * {@link lineId} names the line, and a line can be many stop sequences — HSL's
+   * tram H is thirty-nine under one designation. This is what makes a leg
+   * *openable*: together with {@link tripId} and the leg's `startDate` it
+   * addresses one run of one variant, which is otherwise only findable by
+   * fetching every variant and searching each for the trip.
+   *
+   * Stable for the life of a dataset, not across a pipeline re-run.
+   */
+  patternId: number;
   /**
    * Descriptive name, e.g. `"Eira - Lasipalatsi - Ooppera - Käpylä"`.
    * Null when the feed omits the optional `route_long_name` column.

@@ -353,6 +353,48 @@ describe('RouteMap drawing', () => {
     expect(east).toBeGreaterThan(20);
   });
 
+  /*
+   * A vehicle is a door into its own run — but only where there is a run to
+   * open. Left interactive with nothing to do, a Leaflet marker still swallows
+   * the press, so a decoration would quietly eat clicks meant for the line or a
+   * stop underneath it.
+   */
+  it('opens the run of a vehicle somebody presses', () => {
+    const onFollowTrip = vi.fn();
+    const { container } = show({
+      variant: TRAM_1,
+      vehicles: [
+        {
+          trip: { tripId: 'the-one', headsign: null, calls: [] },
+          progress: { fromSequence: 0, toSequence: 1, fraction: 0.5, atStop: false },
+        },
+      ],
+      onFollowTrip,
+    });
+
+    const marker = container.querySelector('.route-vehicle-marker') as HTMLElement;
+    expect(marker.classList.contains('leaflet-interactive')).toBe(true);
+    marker.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    expect(onFollowTrip).toHaveBeenCalledWith('the-one');
+  });
+
+  it('leaves a vehicle inert when there is no run to open', () => {
+    const { container } = show({
+      variant: TRAM_1,
+      vehicles: [
+        {
+          trip: { tripId: 'the-one', headsign: null, calls: [] },
+          progress: { fromSequence: 0, toSequence: 1, fraction: 0.5, atStop: false },
+        },
+      ],
+      onFollowTrip: null,
+    });
+
+    const marker = container.querySelector('.route-vehicle-marker') as HTMLElement;
+    expect(marker.classList.contains('leaflet-interactive')).toBe(false);
+  });
+
   it('draws none when nothing is out', () => {
     const { container } = show({ variant: TRAM_1, vehicles: [] });
     expect(container.querySelectorAll('.route-vehicle')).toHaveLength(0);

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useLocale, nowInZone } from '../i18n';
 import { usePageTitle } from '../app/usePageTitle';
-import { linePath, lineVariantPath, paths, stopPath } from '../app/routes';
+import { linePath, lineVariantPath, paths, stopPath, tripPath } from '../app/routes';
 import { getNetwork } from '../api/network';
 import { boundsForNetwork, type GeoBounds } from '../config/geocoding';
 import type { GtfsRouteType } from '../types/journey';
@@ -82,6 +82,15 @@ export default function RoutesPage() {
   const patternId =
     patternParam === null || !/^\d+$/.test(patternParam) ? null : Number(patternParam);
 
+  /*
+   * A run to follow, and the day it belongs to. Both or neither: a trip id
+   * without its service day cannot be found, and a day without a trip is just
+   * the line.
+   */
+  const tripId = search.get('trip');
+  const tripDate = search.get('date');
+  const following = tripId !== null && tripDate !== null;
+
   usePageTitle(
     focused === null
       ? t(strings.pages.routes.title)
@@ -126,6 +135,29 @@ export default function RoutesPage() {
     [navigate, lineId],
   );
 
+  /*
+   * Following a run, and stopping. Both replace rather than push, like the
+   * variant flip: a lens over the same line is an adjustment to one question,
+   * not a new one, and pushing would make the back button walk out through
+   * every run somebody glanced at.
+   */
+  const openTrip = useCallback(
+    (trip: { tripId: string; date: string } | null) => {
+      if (lineId === undefined) return;
+      if (trip === null) {
+        void navigate(
+          patternId === null ? linePath(lineId) : lineVariantPath(lineId, patternId),
+          { replace: true },
+        );
+        return;
+      }
+      void navigate(tripPath(lineId, patternId ?? 0, trip.tripId, trip.date), {
+        replace: true,
+      });
+    },
+    [navigate, lineId, patternId],
+  );
+
   const openStop = useCallback(
     (id: string) => {
       void navigate(stopPath(id));
@@ -144,7 +176,11 @@ export default function RoutesPage() {
             patternId={patternId}
             timezone={timezone}
             networkToday={networkToday}
+            tripId={tripId}
+            tripDate={tripDate}
             onSelectVariant={openVariant}
+            onSelectTrip={openTrip}
+            onOpenStop={openStop}
             onBack={() => void navigate(paths.routes)}
             backLabel={t(strings.routes.backToLines)}
             onResolved={setFocused}
@@ -168,6 +204,19 @@ export default function RoutesPage() {
           pending={lineId !== undefined && focused === null}
           onStopSelect={openStop}
           vehicles={vehicles}
+          /* Already following one? Then its badge is a picture, not a door. */
+          /*
+            Already following one? Then its badge is a picture, not a door.
+
+            The day is today, and provably: `vehicles` is only ever non-empty
+            when the inspector is showing today, so a vehicle on screen cannot
+            belong to any other service day.
+          */
+          onFollowTrip={
+            following || networkToday === null
+              ? null
+              : (trip) => openTrip({ tripId: trip, date: networkToday })
+          }
         />
       </section>
     </div>

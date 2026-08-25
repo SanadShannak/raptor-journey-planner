@@ -46,3 +46,28 @@ export function linePath(lineId: string): string {
 export function lineVariantPath(lineId: string, patternId: number): string {
   return `${linePath(lineId)}?variant=${patternId}`;
 }
+
+/**
+ * One *run* of a variant — a single vehicle's journey down the line.
+ *
+ * The variant says which way round and which stops; the trip says which of the
+ * day's departures. Both are needed, and so is the date: a trip id belongs to a
+ * service day, and the same run on another day is a different trip.
+ *
+ * A search param rather than a path segment, for the same reason `variant` is:
+ * the whole line is the ordinary view and a trip is a lens over it, so a stale
+ * or unknown trip should fall back to showing the line rather than 404.
+ */
+export function tripPath(
+  lineId: string,
+  patternId: number,
+  tripId: string,
+  date: string,
+): string {
+  const params = new URLSearchParams({
+    variant: String(patternId),
+    trip: tripId,
+    date,
+  });
+  return `${linePath(lineId)}?${params.toString()}`;
+}

@@ -16,6 +16,14 @@ interface Props {
   variant: LineVariantDetail;
   /** The vehicles out on this pattern, from the day's own timetable. */
   vehicles: Vehicle[];
+  /**
+   * Follows the run a pressed vehicle is on, or null to leave them as pictures.
+   *
+   * Null also makes them non-interactive, which matters here: a Leaflet marker
+   * that accepts clicks swallows them, so a decoration left interactive would
+   * quietly eat presses meant for the line or a stop underneath it.
+   */
+  onFollow?: ((tripId: string) => void) | null | undefined;
 }
 
 /**
@@ -36,7 +44,7 @@ interface Props {
  * should be — which the panel beside it says in words rather than leaving the
  * map to imply otherwise.
  */
-export function RouteVehicles({ variant, vehicles }: Props) {
+export function RouteVehicles({ variant, vehicles, onFollow = null }: Props) {
   /*
    * Measured once per variant. It is O(shape × stops) — a few hundred points
    * against a few dozen stops — and it must not run on every tick of the clock.
@@ -65,6 +73,10 @@ export function RouteVehicles({ variant, vehicles }: Props) {
         const placed = pointBetweenStops(projected, from, to, vehicle.progress.fraction);
         if (placed === null) return null;
 
+        const tripId = vehicle.trip.tripId;
+        const follow =
+          onFollow === null || tripId === null ? null : () => onFollow(tripId);
+
         return (
           <Marker
             /*
@@ -76,8 +88,15 @@ export function RouteVehicles({ variant, vehicles }: Props) {
             key={vehicle.trip.tripId ?? `${vehicle.progress.fromSequence}`}
             position={placed.point}
             icon={iconFor(variant.routeType, placed.bearing)}
-            interactive={false}
+            /*
+             * Out of the tab order either way. The sidebar draws the same
+             * vehicles and, when they can be followed, draws them as real
+             * buttons — that is the keyboard's route to this, and it is why a
+             * marker here never needs to be one.
+             */
+            interactive={follow !== null}
             keyboard={false}
+            {...(follow === null ? {} : { eventHandlers: { click: follow } })}
             // Above the line and the stop circles, which it is travelling over.
             zIndexOffset={1000}
           />

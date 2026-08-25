@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { Link } from 'react-router';
+import { tripPath } from '../../app/routes';
 import {
   formatClockTime,
   formatDate,
@@ -677,7 +679,22 @@ function TransitBody({
 
   return (
     <>
-      <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      {/*
+        The line names itself, and opens the run you are on.
+        
+        Not the line's page but *this vehicle's* journey down it — which is the
+        question somebody reading an itinerary actually has: where else does the
+        thing I am about to board go, and when is it at each of those places.
+
+        A link rather than a button, and deliberately. The planner keeps its
+        search out of the URL, so following this in the same tab throws that
+        search away; a link lets a reader middle-click and keep both, which a
+        button cannot offer.
+      */}
+      <Link
+        to={tripPath(leg.lineId, leg.patternId, leg.tripId, leg.startDate)}
+        className="rounded-control hover:bg-surface-muted focus-visible:outline-brand-500 -mx-1 flex flex-wrap items-center gap-x-2 gap-y-1 px-1 py-0.5 focus-visible:outline-2 focus-visible:outline-offset-2"
+      >
         {/* The route bullet: transit's own way of naming a line. */}
         <span
           className={`${visual.fill} text-on-mode rounded-control inline-flex items-center gap-1.5 px-2.5 py-1 font-bold tabular-nums`}
@@ -696,7 +713,9 @@ function TransitBody({
             {t(strings.planner.towards, { destination: leg.destination })}
           </span>
         )}
-      </p>
+
+        <span className="sr-only">{t(strings.routes.followThisRun)}</span>
+      </Link>
 
       <p className="text-content-muted text-sm">
         {formatDuration(leg.transitDurationMinutes, locale)}

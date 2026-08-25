@@ -27,6 +27,8 @@ interface Props {
   onStopSelect: (stopId: string) => void;
   /** The vehicles out on this pattern now. Empty on a day that is not today. */
   vehicles: Vehicle[];
+  /** Follows the run a pressed vehicle is on. Null leaves them as pictures. */
+  onFollowTrip?: ((tripId: string) => void) | null | undefined;
 }
 
 /**
@@ -52,6 +54,7 @@ export function RouteMap({
   pending,
   onStopSelect,
   vehicles,
+  onFollowTrip = null,
 }: Props) {
   const home = useMemo(() => homeViewFor(network, area), [network, area]);
   const reduceMotion = useReducedMotion();
@@ -162,7 +165,7 @@ export function RouteMap({
 
       {/* Over the line and its stops, because it is travelling along them. */}
       {variant !== null && vehicles.length > 0 && (
-        <RouteVehicles variant={variant} vehicles={vehicles} />
+        <RouteVehicles variant={variant} vehicles={vehicles} onFollow={onFollowTrip} />
       )}
 
       {variant?.stops.map((stop, index) => {

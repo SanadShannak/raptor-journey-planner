@@ -464,6 +464,14 @@ export interface Dictionary {
     noMoreToday: string;
     /** Nothing calls at this stop on the chosen day at all. */
     noCallHere: string;
+    /** Following one run: this vehicle passes without stopping here. */
+    notOnThisRun: string;
+    /* Following one run of the line rather than the line itself. */
+    followingRun: string;
+    followingRunTowards: string;
+    showWholeLine: string;
+    /** Names the vehicle badge for anyone who cannot see it. */
+    followThisRun: string;
     /*
      * The vehicles drawn on the spine and the map, for a reader who gets
      * neither. Found by moving through the list, never announced — a position

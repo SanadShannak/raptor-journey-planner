@@ -155,6 +155,8 @@ function show(props: Partial<Parameters<typeof RouteInspector>[0]> = {}) {
           timezone="Europe/Helsinki"
           networkToday="2026-09-10"
           onSelectVariant={() => {}}
+          onSelectTrip={() => {}}
+          onOpenStop={() => {}}
           onBack={() => {}}
           backLabel="All lines"
           {...props}
@@ -221,6 +223,8 @@ describe('RouteInspector', () => {
             timezone="Europe/Helsinki"
             networkToday="2026-09-10"
             onSelectVariant={() => {}}
+            onSelectTrip={() => {}}
+            onOpenStop={() => {}}
             onBack={() => {}}
             backLabel="All lines"
           />
@@ -263,12 +267,21 @@ describe('RouteInspector', () => {
     expect(await screen.findByText('Track 51')).toBeTruthy();
   });
 
-  it('makes every stop a link to its own page', async () => {
+  /*
+   * The whole card, not just the name. A name is a small target beside a wide
+   * row of its own details, and a reader who has just read the platform and the
+   * zone has their pointer on the part that used to do nothing — so the
+   * accessible name is the card's contents rather than the stop's name alone.
+   */
+  it('makes every stop row a link to its own page', async () => {
     stubFetch();
     show();
 
-    const link = await screen.findByRole('link', { name: 'Lasipalatsi' });
-    expect(link.getAttribute('href')).toBe('/stops/id-1');
+    const row = await screen.findByRole('link', { name: /Lasipalatsi/ });
+    expect(row.getAttribute('href')).toBe('/stops/id-1');
+    // The details are inside the target, not beside it.
+    expect(row.textContent).toContain('Mannerheimintie');
+    expect(row.textContent).toContain('Platform 51');
   });
 
   /*
@@ -727,8 +740,8 @@ describe('RouteInspector', () => {
       expect(screen.getAllByText('Nothing more today')).toHaveLength(2),
     );
 
-    const passed = screen.getByRole('link', { name: 'Telakkakatu' });
-    const ahead = screen.getByRole('link', { name: 'Pohjolanaukio' });
+    const passed = screen.getByText('Telakkakatu');
+    const ahead = screen.getByText('Pohjolanaukio');
 
     expect(passed.className).toContain('text-content-muted');
     expect(ahead.className).toContain('text-content');
@@ -740,8 +753,170 @@ describe('RouteInspector', () => {
     show();
 
     // The stops arrive with the variant, a request before the times do.
-    const first = await screen.findByRole('link', { name: 'Telakkakatu' });
+    const first = await screen.findByText('Telakkakatu');
     expect(first.className).not.toContain('text-content-muted');
+  });
+
+  /*
+   * Following one run of the line rather than the line itself.
+   *
+   * The ordinary list answers "what leaves here next", which on a busy line is
+   * a different vehicle at every row. Following a run asks the opposite — "when
+   * is *this* vehicle at each stop" — and the answer has to include the stops it
+   * has already passed, or the list empties out behind it as it goes.
+   */
+  describe('following one run', () => {
+    const FOLLOWED = {
+      tripId: 'the-one',
+      headsign: 'Käpylä',
+      calls: [call('15:20'), call('15:38'), call('16:30')],
+    };
+    const OTHER = {
+      tripId: 'another',
+      headsign: 'Käpylä',
+      calls: [call('15:52'), call('16:02'), call('16:44')],
+    };
+
+    const followed = () =>
+      stubFetch({
+        timetable: {
+          ...LINE_FIELDS,
+          ...OUTBOUND,
+          stops: STOPS,
+          stopCount: 3,
+          trips: [FOLLOWED, OTHER],
+          totalTrips: 2,
+          outsideTimetableRange: false,
+        },
+      });
+
+    it('shows this run’s own times, past calls included', async () => {
+      followed();
+      show({ tripId: 'the-one', tripDate: '2026-09-10' });
+
+      // Its own three calls, not the next departure from any trip. Without the
+      // focus, stop 0 would read 3:52 PM — the other trip's.
+      expect(await screen.findByText('3:20 PM')).toBeTruthy();
+      expect(screen.getByText('3:38 PM')).toBeTruthy();
+      expect(screen.getByText('4:30 PM')).toBeTruthy();
+      expect(screen.queryByText('3:52 PM')).toBeNull();
+    });
+
+    it('says which run it is following, and offers the way out', async () => {
+      const onSelectTrip = vi.fn();
+      followed();
+      show({ tripId: 'the-one', tripDate: '2026-09-10', onSelectTrip });
+
+      expect(
+        await screen.findByText('Following one run, towards Käpylä.'),
+      ).toBeTruthy();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Show the whole line' }));
+      expect(onSelectTrip).toHaveBeenCalledWith(null);
+    });
+
+    it('draws only the followed run’s vehicle', async () => {
+      // Both of these are out at 15:44: one between stops 1 and 2, one between
+      // 0 and 1. `followed()`'s second trip has not set off yet.
+      stubFetch({
+        timetable: {
+          ...LINE_FIELDS,
+          ...OUTBOUND,
+          stops: STOPS,
+          stopCount: 3,
+          trips: [
+            FOLLOWED,
+            { tripId: 'another', headsign: null, calls: [call('15:40'), call('15:50'), call('16:44')] },
+          ],
+          totalTrips: 2,
+          outsideTimetableRange: false,
+        },
+      });
+      const { rerender } = show();
+
+      // Both are out at 15:44 without a focus.
+      await waitFor(() =>
+        expect(document.querySelectorAll('.route-vehicle')).toHaveLength(2),
+      );
+
+      rerender(
+        <LocaleProvider>
+          <MemoryRouter>
+            <RouteInspector
+              lineId="tram-1"
+              patternId={null}
+              tripId="the-one"
+              tripDate="2026-09-10"
+              timezone="Europe/Helsinki"
+              networkToday="2026-09-10"
+              onSelectVariant={() => {}}
+              onSelectTrip={() => {}}
+              onOpenStop={() => {}}
+              onBack={() => {}}
+              backLabel="All lines"
+            />
+          </MemoryRouter>
+        </LocaleProvider>,
+      );
+
+      await waitFor(() =>
+        expect(document.querySelectorAll('.route-vehicle')).toHaveLength(1),
+      );
+    });
+
+    /* A stop this run drives past is a different fact from the end of service. */
+    it('says a skipped stop is not on this run', async () => {
+      stubFetch({
+        timetable: {
+          ...LINE_FIELDS,
+          ...OUTBOUND,
+          stops: STOPS,
+          stopCount: 3,
+          trips: [{ tripId: 'the-one', headsign: null, calls: [call('15:20'), null, call('16:30')] }],
+          totalTrips: 1,
+          outsideTimetableRange: false,
+        },
+      });
+      show({ tripId: 'the-one', tripDate: '2026-09-10' });
+
+      expect(await screen.findByText('Not on this run')).toBeTruthy();
+      expect(screen.queryByText('Nothing more today')).toBeNull();
+    });
+
+    /* A stale link, or a pattern id moved by a data refresh. The line is still
+       there and still worth reading, so it is what shows. */
+    it('falls back to the whole line for a trip the day does not have', async () => {
+      followed();
+      show({ tripId: 'no-such-trip', tripDate: '2026-09-10' });
+
+      await screen.findByRole('heading', { level: 1 });
+      expect(screen.queryByText(/Following one run/)).toBeNull();
+      // And the ordinary "what leaves next" answer is back.
+      expect(await screen.findByText('3:52 PM')).toBeTruthy();
+    });
+
+    /*
+     * A trip id belongs to one service day and to no other, so the run pins the
+     * day rather than the other way round. Asking today's board for yesterday's
+     * trip finds nothing.
+     */
+    it('pins the day to the run’s own, not today', async () => {
+      const asked: string[] = [];
+      followed();
+      const inner = globalThis.fetch as typeof globalThis.fetch;
+      vi.stubGlobal('fetch', (url: RequestInfo | URL, init?: RequestInit) => {
+        const href = String(url);
+        if (href.includes('/timetable')) {
+          asked.push(new URL(href).searchParams.get('date') ?? '');
+        }
+        return inner(url, init);
+      });
+
+      show({ tripId: 'the-one', tripDate: '2026-09-11' });
+
+      await waitFor(() => expect(asked.length).toBeGreaterThan(0));
+      expect(asked[0]).toBe('2026-09-11');
+    });
   });
 
   /* The API's own `error` string is developer-facing English and never shown. */

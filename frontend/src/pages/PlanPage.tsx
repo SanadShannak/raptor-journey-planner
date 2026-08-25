@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router';
+import { tripPath } from '../app/routes';
 import { messageForApiError, nowInZone, useLocale } from '../i18n';
 import { usePageTitle } from '../app/usePageTitle';
 import { getValidDates, planJourney } from '../api/journey';
@@ -87,6 +89,7 @@ function endOf(place: Place | null): JourneyEnd {
  */
 export default function PlanPage() {
   const locale = useLocale();
+  const navigate = useNavigate();
   const { strings, t } = locale;
   usePageTitle(t(strings.pages.plan.title));
 
@@ -673,6 +676,18 @@ export default function PlanPage() {
             in, not a second way to plan a journey.
           */
           onPick={(place, end) => updateValues({ ...values, [end]: place })}
+          /*
+            A drawn line opens the run it belongs to.
+
+            The one navigation this map makes, and it costs the search — which
+            does not live in the URL, so leaving the page loses it. The same run
+            is a real link in the itinerary beside this, where it can be
+            middle-clicked to keep both; here there is no way to offer that, and
+            the alternative is a line you can see and cannot ask about.
+          */
+          onSelectLeg={(leg) =>
+            void navigate(tripPath(leg.lineId, leg.patternId, leg.tripId, leg.startDate))
+          }
           /*
             A better name for the same coordinates. It goes in directly rather
             than through `updateValues`, because the search has not changed —

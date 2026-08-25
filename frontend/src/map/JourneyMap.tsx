@@ -10,7 +10,7 @@ import {
 } from 'react-leaflet';
 import { formatDuration, useLocale } from '../i18n';
 import type { GeoBounds } from '../config/geocoding';
-import type { Journey } from '../types/journey';
+import type { Journey, TransitLeg } from '../types/journey';
 import type { Place } from '../types/place';
 import { geocoder } from '../geocoding';
 import { visualForFamily } from '../features/journey/modeVisuals';
@@ -80,6 +80,16 @@ interface Props {
   onStopSelect: (stopId: string) => void;
   /** The stop currently open in the sidebar, drawn as the chosen one. */
   selectedStopId: string | null;
+  /**
+   * Opens the run a drawn transit leg belongs to.
+   *
+   * Unlike {@link onStopSelect} this *is* a navigation, and knowingly: the run
+   * is a page of its own and cannot be shown in a sidebar that is already
+   * holding an itinerary. The cost is the planner's search, which does not live
+   * in the URL — the same link in the itinerary beside this can be middle-
+   * clicked to keep both, which this cannot.
+   */
+  onSelectLeg?: ((leg: TransitLeg) => void) | undefined;
 }
 
 /** A point somebody pressed. */
@@ -419,6 +429,7 @@ export function JourneyMap({
   onRename,
   onStopSelect,
   selectedStopId,
+  onSelectLeg,
 }: Props) {
   const locale = useLocale();
   /*
@@ -505,6 +516,29 @@ export function JourneyMap({
         const ink =
           segment.family === null ? '' : visualForFamily(segment.family).stroke;
 
+        /*
+         * A ridden leg opens its own run; a walk has none to open.
+         *
+         * The press is stopped from reaching the map, or the pin chooser opens
+         * underneath the page that is already on its way — Leaflet delivers a
+         * click to the layer *and* to the map unless a handler says otherwise.
+         */
+        const ridden = journey?.legs[segment.legIndex];
+        const follow =
+          onSelectLeg === undefined || ridden === undefined || ridden.mode !== 'TRANSIT'
+            ? undefined
+            : (event: L.LeafletMouseEvent) => {
+                L.DomEvent.stopPropagation(event);
+                onSelectLeg(ridden);
+              };
+
+        // Both strokes take the press: the casing is the wider of the two and
+        // is what makes a six-pixel line a target worth aiming at.
+        const pressable =
+          follow === undefined
+            ? { interactive: false as const }
+            : { interactive: true as const, eventHandlers: { click: follow } };
+
         return (
           /*
            * Drawn twice. The casing underneath is the page's own surface
@@ -518,7 +552,7 @@ export function JourneyMap({
               positions={segment.path}
               className="stroke-surface"
               pathOptions={{ weight: walking ? 8 : 10, opacity: 0.9 }}
-              interactive={false}
+              {...pressable}
             />
             <Polyline
               positions={segment.path}
@@ -531,7 +565,7 @@ export function JourneyMap({
                 // map — the drawing says it is an estimate.
                 ...(walking ? { dashArray: '1 9', lineCap: 'round' as const } : {}),
               }}
-              interactive={false}
+              {...pressable}
             />
           </Fragment>
         );

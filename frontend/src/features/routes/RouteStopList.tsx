@@ -6,7 +6,7 @@ import type { GtfsRouteType } from '../../types/journey';
 import type { PatternStop, VariantTrip } from '../../types/route';
 import { familyFor, visualForFamily } from '../journey/modeVisuals';
 import type { NetworkMoment } from '../stops/minutesUntil';
-import { nextCallAt } from './nextCallAt';
+import { callOnTrip, nextCallAt } from './nextCallAt';
 import { VehicleBadge } from './VehicleBadge';
 import type { Vehicle } from './vehicleProgress';
 
@@ -34,6 +34,27 @@ interface Props {
    * not happening.
    */
   vehicles: Vehicle[];
+  /**
+   * One run to follow, instead of the whole line.
+   *
+   * The list then answers a different question. Ordinarily each row shows what
+   * leaves that stop *next*, which on a busy line is a different vehicle at
+   * every row — and is why the times can climb and then drop. Following one
+   * trip, every row shows when *this* vehicle is there, including the stops it
+   * has already passed: the run is the subject, so its whole journey is.
+   */
+  focusTrip?: VariantTrip | null | undefined;
+  /** Opens a stop. The whole row is the target, not just the name. */
+  onOpenStop: (stopId: string) => void;
+  /**
+   * Follows the run a vehicle is on, or null when there is nothing to follow to
+   * — already following one, or no day to follow it on.
+   *
+   * Null also takes the badges back out of the tab order, which is right: a
+   * decoration that cannot be acted on should not be a stop on the way to
+   * something that can.
+   */
+  onFollowTrip?: ((tripId: string) => void) | null | undefined;
 }
 
 /**
@@ -121,6 +142,9 @@ export function RouteStopList({
   viewedDate,
   now,
   vehicles,
+  focusTrip = null,
+  onOpenStop,
+  onFollowTrip = null,
 }: Props) {
   const { strings, t } = useLocale();
   const family = familyFor(routeType);
@@ -131,9 +155,10 @@ export function RouteStopList({
    * per row — for the time, for whether the row is spent, and for the struts
    * either side of it — and `nextCallAt` walks every trip each time it is asked.
    */
-  const nextCalls = stops.map((stop) =>
-    trips === null ? null : nextCallAt(trips, stop.sequence, now),
-  );
+  const nextCalls = stops.map((stop) => {
+    if (focusTrip !== null) return callOnTrip(focusTrip, stop.sequence, now);
+    return trips === null ? null : nextCallAt(trips, stop.sequence, now);
+  });
 
   /**
    * A stop nothing will call at again today.
@@ -152,8 +177,19 @@ export function RouteStopList({
    * nothing is spent — a blank list drawn entirely in grey says the line is
    * finished when it has not been asked yet.
    */
-  const spent = (index: number): boolean =>
-    trips !== null && now !== null && nextCalls[index] === null;
+  const spent = (index: number): boolean => {
+    if (trips === null || now === null) return false;
+    /*
+     * Following one run, "spent" means this vehicle has been and gone — not
+     * that nothing will ever call again. A stop the trip skips is not spent
+     * either; it is simply not on this run, which the row says in words.
+     */
+    if (focusTrip !== null) {
+      const call = nextCalls[index];
+      return call !== null && call !== undefined && call.minutes !== null && call.minutes < 0;
+    }
+    return nextCalls[index] === null;
+  };
 
   return (
     <ul className="flex flex-col">
@@ -246,7 +282,10 @@ export function RouteStopList({
                 heights all work out.
               */}
               {here !== undefined && (
-                <span
+                <VehicleOnSpine
+                  vehicle={here}
+                  family={family}
+                  onFollow={onFollowTrip}
                   /*
                     Stretched across the column and flex-centred rather than
                     offset from one edge. `start-1/2` with a negative
@@ -256,35 +295,46 @@ export function RouteStopList({
                     edges and `justify-center` need no translate at all, and the
                     badge overflows the 14px column evenly on both sides.
                   */
-                  className="absolute start-0 end-0 z-20 flex -translate-y-1/2 justify-center"
-                  style={{ top: `${MARKER_CENTRE}px` }}
-                >
-                  <VehicleBadge family={family} bearing={DOWN} />
-                </span>
+                  top={`${MARKER_CENTRE}px`}
+                />
               )}
               {leaving !== undefined && (
-                <span
-                  className="absolute start-0 end-0 z-20 flex -translate-y-1/2 justify-center"
-                  style={{
-                    top: `calc(${MARKER_CENTRE}px + ${leaving.progress.fraction * 100}%)`,
-                  }}
-                >
-                  <VehicleBadge family={family} bearing={DOWN} />
-                </span>
+                <VehicleOnSpine
+                  vehicle={leaving}
+                  family={family}
+                  onFollow={onFollowTrip}
+                  top={`calc(${MARKER_CENTRE}px + ${leaving.progress.fraction * 100}%)`}
+                />
               )}
             </span>
 
-            <div className="border-border flex min-w-0 flex-1 items-start gap-3 border-b py-2.5 last:border-b-0">
+            {/*
+              The whole row opens the stop, not just its name.
+              
+              A name is a small target beside a wide row of its own details, and
+              a reader who has just read the platform and the zone has their
+              pointer on the part that did nothing. The card is what they were
+              already looking at.
+
+              A link rather than a button: it goes somewhere, so it should offer
+              what a link offers — a middle click, a copied address, a visited
+              colour. Nothing else in the row is interactive, so nothing is
+              nested inside it.
+            */}
+            <Link
+              to={stopPath(stop.id)}
+              onClick={() => onOpenStop(stop.id)}
+              className="border-border hover:bg-surface-muted focus-visible:outline-brand-500 rounded-control -mx-2 flex min-w-0 flex-1 items-start gap-3 border-b px-2 py-2.5 last:border-b-0 focus-visible:outline-2 focus-visible:-outline-offset-2"
+            >
               <div className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
-                <Link
-                  to={stopPath(stop.id)}
+                <span
                   dir="auto"
-                  className={`rounded-control hover:text-brand-700 focus-visible:outline-brand-500 max-w-full truncate font-medium hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 ${
+                  className={`max-w-full truncate font-medium ${
                     spent(index) ? 'text-content-muted' : 'text-content'
                   }`}
                 >
                   {stop.name}
-                </Link>
+                </span>
 
                 {stop.description !== null && (
                   <span dir="auto" className="text-content-muted max-w-full truncate text-xs">
@@ -318,12 +368,61 @@ export function RouteStopList({
                 pending={trips === null}
                 viewedDate={viewedDate}
                 counting={now !== null}
+                following={focusTrip !== null}
               />
-            </div>
+            </Link>
           </li>
         );
       })}
     </ul>
+  );
+}
+
+/**
+ * A vehicle on the spine, and a way into the run it is making.
+ *
+ * Pressable only where there is somewhere to go. Following one run already, or
+ * looking at a day with no times, it stays a picture — and a picture, rather
+ * than a button that does nothing, is what keeps it out of the tab order.
+ *
+ * When it *is* pressable it stops being `aria-hidden` and takes a real name,
+ * because it has become a control. The badge inside stays hidden either way:
+ * the button's name is the accessible content, and the drawing is decoration
+ * on top of it.
+ */
+function VehicleOnSpine({
+  vehicle,
+  family,
+  onFollow,
+  top,
+}: {
+  vehicle: Vehicle;
+  family: string;
+  onFollow: ((tripId: string) => void) | null | undefined;
+  top: string;
+}) {
+  const { strings, t } = useLocale();
+  const tripId = vehicle.trip.tripId;
+  const canFollow = onFollow !== null && onFollow !== undefined && tripId !== null;
+
+  return (
+    <span
+      className="absolute start-0 end-0 z-20 flex -translate-y-1/2 justify-center"
+      style={{ top }}
+    >
+      {canFollow ? (
+        <button
+          type="button"
+          onClick={() => onFollow(tripId)}
+          className="rounded-control focus-visible:outline-brand-500 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2"
+        >
+          <span className="sr-only">{t(strings.routes.followThisRun)}</span>
+          <VehicleBadge family={family} bearing={DOWN} />
+        </button>
+      ) : (
+        <VehicleBadge family={family} bearing={DOWN} />
+      )}
+    </span>
   );
 }
 
@@ -377,11 +476,14 @@ function NextDeparture({
   pending,
   viewedDate,
   counting,
+  following,
 }: {
   next: ReturnType<typeof nextCallAt>;
   pending: boolean;
   viewedDate: string;
   counting: boolean;
+  /** Following one run, so a call in the past is shown rather than dropped. */
+  following: boolean;
 }) {
   const { locale, strings, t } = useLocale();
 
@@ -392,10 +494,20 @@ function NextDeparture({
   if (next === null) {
     return (
       <span className="text-content-muted w-28 flex-none text-end text-xs">
-        {/* Two different facts. "Nothing more today" is the end of service on a
-            day that had one; "does not call that day" is a short working that
-            never comes here at all. Only a clock can tell them apart. */}
-        {t(counting ? strings.routes.noMoreToday : strings.routes.noCallHere)}
+        {/*
+          Three different facts, and they are not interchangeable. Following one
+          run, a missing call means this vehicle drives past without stopping.
+          Otherwise it is the end of service on a day that had one, or a short
+          working that never comes here at all — and only a clock separates
+          those two.
+        */}
+        {t(
+          following
+            ? strings.routes.notOnThisRun
+            : counting
+              ? strings.routes.noMoreToday
+              : strings.routes.noCallHere,
+        )}
       </span>
     );
   }
@@ -403,6 +515,12 @@ function NextDeparture({
   const { call, minutes } = next;
   const imminent =
     counting && minutes !== null && minutes >= 0 && minutes <= IMMINENT_WITHIN_MINUTES;
+  /*
+   * Following one run, a call it has already made is still part of its journey
+   * and stays on the list — dimmed, because it is not something you can act on.
+   * On the line as a whole a past call is simply never the answer.
+   */
+  const gone = following && minutes !== null && minutes < 0;
 
   return (
     /*
@@ -411,7 +529,9 @@ function NextDeparture({
       the meridiem dropped onto its own line under the time — which reads as two
       different facts rather than one time.
     */
-    <span className="flex w-28 flex-none flex-col items-end gap-0.5">
+    <span
+      className={`flex w-28 flex-none flex-col items-end gap-0.5 ${gone ? 'opacity-55' : ''}`}
+    >
       <span className="flex flex-nowrap items-center gap-1.5 whitespace-nowrap">
         {imminent && (
           <>
