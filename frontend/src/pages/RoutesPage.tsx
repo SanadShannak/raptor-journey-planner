@@ -206,7 +206,20 @@ export default function RoutesPage() {
             onSelectVariant={openVariant}
             onSelectTrip={openTrip}
             onOpenStop={openStop}
-            onBack={() => void navigate(cameFrom ?? paths.routes)}
+            /*
+              Back is a step *back* through history, not a fresh visit to where
+              we came from.
+              
+              Navigating to the address pushed a second copy of the planner on
+              top of the run, so the URL was right and the browser's own back
+              button then returned to the run — the page appeared to refuse to
+              be left. Going back one entry lands on the very entry that was
+              left, with its scroll position and its forward button intact.
+
+              Only when something sent us: a run reached by its own address has
+              no entry behind it worth assuming, and goes to the line index.
+             */
+            onBack={() => void (cameFrom === null ? navigate(paths.routes) : navigate(-1))}
             backLabel={t(
               cameFrom === null ? strings.routes.backToLines : strings.stops.backToJourney,
             )}

@@ -1,6 +1,6 @@
-import { useId } from 'react';
 import { formatClockTime, formatDate, useLocale } from '../../i18n';
-import type { PatternStop, TripCall, VariantTimetable } from '../../types/route';
+import { StopSelect } from './StopSelect';
+import type { TripCall, VariantTimetable } from '../../types/route';
 import { minutesUntil, type NetworkMoment } from '../stops/minutesUntil';
 import { stopsAfter } from './stopSelection';
 
@@ -47,8 +47,6 @@ export function TripTable({
   now,
 }: Props) {
   const { locale, strings, t } = useLocale();
-  const originId = useId();
-  const destinationId = useId();
 
   if (timetable.outsideTimetableRange) {
     return (
@@ -67,14 +65,12 @@ export function TripTable({
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row">
         <StopSelect
-          id={originId}
           label={t(strings.routes.fromStop)}
           stops={timetable.stops}
           value={origin}
           onChange={onOriginChange}
         />
         <StopSelect
-          id={destinationId}
           label={t(strings.routes.toStop)}
           stops={onward}
           value={destination}
@@ -98,52 +94,6 @@ export function TripTable({
           locale={locale}
         />
       )}
-    </div>
-  );
-}
-
-/** One end of the pair. A real `<label>`; the list is never its own label. */
-function StopSelect({
-  id,
-  label,
-  stops,
-  value,
-  onChange,
-  disabled = false,
-}: {
-  id: string;
-  label: string;
-  stops: PatternStop[];
-  value: number | null;
-  onChange: (sequence: number) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-      <label
-        htmlFor={id}
-        className="text-content-muted text-xs font-medium tracking-wide uppercase"
-      >
-        {label}
-      </label>
-      <select
-        id={id}
-        value={value ?? ''}
-        disabled={disabled}
-        onChange={(event) => onChange(Number(event.target.value))}
-        className="rounded-control border-border-strong bg-surface text-content hover:border-brand-500 focus-visible:outline-brand-500 w-full cursor-pointer border px-3 py-2.5 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {stops.map((stop) => (
-          /*
-            Keyed and valued by `sequence`, not by id. A loop route calls at the
-            same stop twice, so an id is not unique down a pattern — and the
-            two calls are genuinely different choices.
-          */
-          <option key={stop.sequence} value={stop.sequence}>
-            {stop.name}
-          </option>
-        ))}
-      </select>
     </div>
   );
 }

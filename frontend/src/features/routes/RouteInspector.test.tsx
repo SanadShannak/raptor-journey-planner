@@ -539,10 +539,10 @@ describe('RouteInspector', () => {
       show();
       await openTimetable();
 
-      const from = await screen.findByLabelText('From');
-      const to = screen.getByLabelText('To');
-      expect((from as HTMLSelectElement).value).toBe('0');
-      expect((to as HTMLSelectElement).value).toBe('2');
+      // Listboxes now, matching the date picker above them, so the chosen stop
+      // is the trigger's own accessible name rather than a `value`.
+      expect(await screen.findByRole('button', { name: /From Telakkakatu/ })).toBeTruthy();
+      expect(screen.getByRole('button', { name: /To Pohjolanaukio/ })).toBeTruthy();
 
       const rows = screen.getAllByRole('row');
       // A heading row plus one per trip.
@@ -575,12 +575,18 @@ describe('RouteInspector', () => {
       show();
       await openTimetable();
 
-      const from = await screen.findByLabelText('From');
-      fireEvent.change(from, { target: { value: '1' } });
+      fireEvent.click(await screen.findByRole('button', { name: /From Telakkakatu/ }));
+      fireEvent.click(
+        within(screen.getByRole('listbox', { name: 'From' })).getByRole('option', {
+          name: /Lasipalatsi/,
+        }),
+      );
 
-      const to = screen.getByLabelText('To') as HTMLSelectElement;
-      const names = [...to.options].map((option) => option.textContent);
-      expect(names).toEqual(['Pohjolanaukio']);
+      fireEvent.click(screen.getByRole('button', { name: /To / }));
+      const onward = within(screen.getByRole('listbox', { name: 'To' })).getAllByRole('option');
+      expect(onward.map((option) => option.textContent)).toEqual([
+        expect.stringContaining('Pohjolanaukio'),
+      ]);
     });
 
     it('says so when the origin is the end of the line', async () => {
@@ -588,7 +594,12 @@ describe('RouteInspector', () => {
       show();
       await openTimetable();
 
-      fireEvent.change(await screen.findByLabelText('From'), { target: { value: '2' } });
+      fireEvent.click(await screen.findByRole('button', { name: /From Telakkakatu/ }));
+      fireEvent.click(
+        within(screen.getByRole('listbox', { name: 'From' })).getByRole('option', {
+          name: /Pohjolanaukio/,
+        }),
+      );
 
       expect(screen.getByText(/end of the line/)).toBeTruthy();
       expect(screen.queryByRole('table')).toBeNull();
