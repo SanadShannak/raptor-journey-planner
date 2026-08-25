@@ -156,7 +156,6 @@ function show(props: Partial<Parameters<typeof RouteInspector>[0]> = {}) {
           networkToday="2026-09-10"
           onSelectVariant={() => {}}
           onSelectTrip={() => {}}
-          onOpenStop={() => {}}
           onBack={() => {}}
           backLabel="All lines"
           {...props}
@@ -224,8 +223,7 @@ describe('RouteInspector', () => {
             networkToday="2026-09-10"
             onSelectVariant={() => {}}
             onSelectTrip={() => {}}
-            onOpenStop={() => {}}
-            onBack={() => {}}
+              onBack={() => {}}
             backLabel="All lines"
           />
         </MemoryRouter>
@@ -869,8 +867,7 @@ describe('RouteInspector', () => {
               networkToday="2026-09-10"
               onSelectVariant={() => {}}
               onSelectTrip={() => {}}
-              onOpenStop={() => {}}
-              onBack={() => {}}
+                  onBack={() => {}}
               backLabel="All lines"
             />
           </MemoryRouter>
@@ -986,7 +983,6 @@ describe('RouteInspector', () => {
                 networkToday="2026-09-10"
                 onSelectVariant={() => {}}
                 onSelectTrip={() => {}}
-                onOpenStop={() => {}}
                 onBack={() => {}}
                 backLabel="All lines"
                 {...props}
@@ -1043,7 +1039,6 @@ describe('RouteInspector', () => {
                 networkToday="2026-09-10"
                 onSelectVariant={() => {}}
                 onSelectTrip={() => {}}
-                onOpenStop={() => {}}
                 onBack={() => {}}
                 backLabel="All lines"
               />

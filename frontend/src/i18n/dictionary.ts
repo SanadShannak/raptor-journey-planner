@@ -87,6 +87,14 @@ export interface Dictionary {
     skipToContent: string;
     /** Toggle for the navigation panel on narrow screens. */
     openMenu: string;
+    /**
+     * A back control with nowhere specific to name.
+     *
+     * The first hop back can say where it goes, because whoever sent you said
+     * so. Three levels in it cannot, and inventing a name for "the run behind
+     * the stop behind the run" is worse than the plain word.
+     */
+    back: string;
     closeMenu: string;
     home: string;
     plan: string;

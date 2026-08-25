@@ -72,6 +72,7 @@ export const en: Dictionary = {
     primaryLabel: 'Main',
     skipToContent: 'Skip to content',
     openMenu: 'Menu',
+    back: 'Back',
     closeMenu: 'Close menu',
     home: 'Home',
     plan: 'Plan a journey',

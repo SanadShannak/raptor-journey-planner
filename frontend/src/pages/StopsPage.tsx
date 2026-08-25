@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router';
 import { useLocale } from '../i18n';
 import { usePageTitle } from '../app/usePageTitle';
 import { paths, stopPath } from '../app/routes';
+import { useGoBack } from '../app/useBackStack';
 import { getValidDates } from '../api/journey';
 import { getNetwork } from '../api/network';
 import { nowInZone } from '../i18n';
@@ -36,6 +37,13 @@ export default function StopsPage() {
   const { locale, strings, t } = useLocale();
   const { stopId } = useParams<{ stopId: string }>();
   const navigate = useNavigate();
+
+  /*
+   * The same stack the lines page walks. A stop reached from a run, from a
+   * journey, or from three of each in turn steps back the way it came; the
+   * index is only for a stop opened cold.
+   */
+  const back = useGoBack(paths.stops);
 
   const [validDates, setValidDates] = useState<string[]>([]);
   const [networkToday, setNetworkToday] = useState<string | null>(null);
@@ -178,8 +186,8 @@ export default function StopsPage() {
             timezone={timezone}
             validDates={validDates}
             networkToday={networkToday}
-            onBack={() => void navigate(paths.stops)}
-            backLabel={t(strings.stops.backToStops)}
+            onBack={back.go}
+            backLabel={t(back.stepping ? strings.nav.back : strings.stops.backToStops)}
             onResolved={setFocused}
           />
         )}

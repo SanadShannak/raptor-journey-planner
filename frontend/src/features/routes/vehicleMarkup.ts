@@ -9,18 +9,22 @@ import { visualForFamily } from '../journey/modeVisuals';
  * and Leaflet builds a marker from an HTML string and never from a React tree —
  * the same bargain {@link modeIconMarkup} already makes for the silhouettes.
  *
- * A rounded square — the stops are circles, and shape is the distinction that
- * survives everything a colour does not: greyscale, colour blindness, a small
- * screen, a crowded stretch of line where a vehicle sits right on top of the
- * stop it is calling at. Two circles of different sizes are the same sign
- * twice.
+ * A pin with a beating halo: a soft disc that pulses outward, a pale body, a
+ * core in the mode's colour carrying the mode's own silhouette, and a tail on
+ * the leading edge pointing the way it is travelling.
  *
- * In the mode's colour with the mode's own silhouette inside,
- * and an arrowhead on the leading edge pointing the way it is travelling. Every
- * part of that is doing a job: the square tells a vehicle from the circles the
- * stops are drawn as, the colour says which mode, the silhouette says it again
- * for anyone who cannot see the colour, and the arrow is a shape rather than a
- * hue so the direction survives greyscale too.
+ * Every part is doing a job. The halo says *this one is moving* — it is the
+ * only animated thing on either surface, so a vehicle is findable among forty
+ * stops without reading any of them. The tail is a shape rather than a hue, so
+ * the direction survives greyscale. And the silhouette stays inside the core
+ * rather than being replaced by a plain dot: mode is never carried by colour
+ * alone here, and a dot on a map is a stop.
+ *
+ * The halo also does the job the old outline was doing badly. A ring the colour
+ * of the page vanishes over a map — light cartography is very nearly `surface`
+ * in the light scheme and dark cartography very nearly `surface` in the dark —
+ * whereas a translucent disc of the mode's own colour reads against both,
+ * because it is neither.
  *
  * Cased against the page's surface, like every other coloured thing drawn over
  * a map here — a dark disc on dark water is otherwise a hole.
@@ -29,29 +33,21 @@ import { visualForFamily } from '../journey/modeVisuals';
 /**
  * How big the badge is drawn, in CSS pixels.
  *
- * Deliberately larger than anything else on the spine or the map. A vehicle is
- * the one thing here that *moves*, and at the size of a stop marker it read as
- * one more dot in a column of dots — the movement was the only thing telling
- * them apart, and movement is exactly what a glance does not catch.
+ * The halo is most of it. The body inside is about the size the badge has
+ * always been; what has grown is the space it beats into, which is transparent
+ * and so costs nothing it overlaps.
  */
-export const VEHICLE_SIZE = 56;
+export const VEHICLE_SIZE = 64;
 
 /**
- * The arrow, pointing due north before it is rotated.
+ * The tail, pointing due north before it is rotated.
  *
- * A dart, and it **overlaps the badge rather than standing off it**. Detached
- * it read as two signs — a square, and a separate triangle floating above it —
- * and which square the triangle belonged to was a guess on a crowded stretch of
- * line. Its wings and its notch all sit inside the badge's top edge, so the two
- * fuse into one filled shape with a point on it.
- *
- * Only the arrow turns. Rotating the whole badge would turn the silhouette with
- * it and leave a bus lying on its side halfway round a bend.
+ * Its base sits *inside* the body, so the two fuse into one pin rather than
+ * reading as a circle with a triangle balanced on it. Only the tail turns:
+ * rotating the whole badge would turn the silhouette with it and leave a bus
+ * lying on its side halfway round a bend.
  */
-const ARROW = 'M28 3 L39.5 19 L28 15.5 L16.5 19 Z';
-
-/** The badge, as attributes rather than a path, so the corners stay rounded. */
-const BADGE = 'x="16" y="16" width="24" height="24" rx="7.5"';
+const TAIL = 'M32 5 L41 21 L23 21 Z';
 
 /**
  * @param family The visual family — `bus`, `tram`, … — not a raw route type.
@@ -60,23 +56,14 @@ const BADGE = 'x="16" y="16" width="24" height="24" rx="7.5"';
  */
 export function vehicleMarkup(family: string, bearing: number): string {
   const ink = visualForFamily(family).ink;
-  const turn = `rotate(${bearing.toFixed(1)} 28 28)`;
 
-  /*
-   * Outlined by drawing everything twice: once thickly in the outline colour,
-   * once filled on top. A stroke on each shape separately would draw a seam
-   * straight across the join where the arrow meets the badge — the two overlap,
-   * and each one's outline runs through the other. Painted behind the fills,
-   * only the half of the stroke that lies outside the union ever shows, which
-   * is an outline around the whole sign and nothing across its middle.
-   */
-  return `<svg viewBox="0 0 56 56" width="${VEHICLE_SIZE}" height="${VEHICLE_SIZE}" class="route-vehicle ${ink}" aria-hidden="true">
-  <g fill="none" class="stroke-brand-500" stroke-width="5" stroke-linejoin="round">
-    <g transform="${turn}"><path d="${ARROW}" /></g>
-    <rect ${BADGE} />
+  return `<svg viewBox="0 0 64 64" width="${VEHICLE_SIZE}" height="${VEHICLE_SIZE}" class="route-vehicle ${ink}" aria-hidden="true">
+  <circle class="vehicle-halo" cx="32" cy="32" r="26" fill="currentColor" />
+  <g transform="rotate(${bearing.toFixed(1)} 32 32)">
+    <path d="${TAIL}" fill="currentColor" />
   </g>
-  <g transform="${turn}"><path d="${ARROW}" fill="currentColor" /></g>
-  <rect ${BADGE} fill="currentColor" />
-  <svg x="21" y="21" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" class="text-on-mode">${modeIconMarkup(family)}</svg>
+  <circle cx="32" cy="32" r="16" class="fill-surface" />
+  <circle cx="32" cy="32" r="12.5" fill="currentColor" />
+  <svg x="24.5" y="24.5" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" class="text-on-mode">${modeIconMarkup(family)}</svg>
 </svg>`;
 }

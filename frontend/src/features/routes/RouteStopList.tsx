@@ -50,8 +50,7 @@ interface Props {
    * has already passed: the run is the subject, so its whole journey is.
    */
   focusTrip?: VariantTrip | null | undefined;
-  /** Opens a stop. The whole row is the target, not just the name. */
-  onOpenStop: (stopId: string) => void;
+
   /**
    * Follows the run a vehicle is on, or null when there is nothing to follow to
    * — already following one, or no day to follow it on.
@@ -252,7 +251,6 @@ export function RouteStopList({
   now,
   vehicles,
   focusTrip = null,
-  onOpenStop,
   onFollowTrip = null,
 }: Props) {
   /*
@@ -346,11 +344,13 @@ export function RouteStopList({
 
         return (
           /*
-            `gap-5` rather than the `gap-3` a plain spine needs. A vehicle badge
-            is 42px centred on a 14px column, so it hangs fourteen pixels past
-            each side — at the old gap it sat on top of the stop's own name.
+            Wider than the `gap-3` a plain spine needs. A vehicle badge is 64px
+            centred on a 14px column, so it hangs twenty-five pixels past each
+            side — at a tighter gap it sat on top of the stop's own name. What
+            overhangs at this one is the outer edge of the halo, which is
+            translucent and pulsing away to nothing.
           */
-          <li key={`${stop.sequence}-${stop.id}`} className="flex gap-5">
+          <li key={`${stop.sequence}-${stop.id}`} className="flex gap-6">
             {/*
               The spine. Two struts and a circle between them, so the line
               enters and leaves at the circle's edge rather than showing through
@@ -464,7 +464,12 @@ export function RouteStopList({
             */}
             <Link
               to={stopPath(stop.id)}
-              onClick={() => onOpenStop(stop.id)}
+              /*
+                No `onClick` navigation beside the link. It had one, and the two
+                agreed on the destination — so pressing a stop pushed the same
+                address twice and the first press of "back" appeared to do
+                nothing at all, because it stepped onto an identical entry.
+              */
               className="border-border hover:bg-surface-muted focus-visible:outline-brand-500 rounded-control -mx-2 flex min-w-0 flex-1 items-start gap-3 border-b px-2 py-2.5 last:border-b-0 focus-visible:outline-2 focus-visible:-outline-offset-2"
             >
               <div className="flex min-w-0 flex-1 flex-col items-start gap-0.5">

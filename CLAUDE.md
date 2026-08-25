@@ -141,6 +141,10 @@ The engine's synthetic endpoints are `code: "ORIGIN_PIN"` / `"TARGET_PIN"` with 
 
 `checkHealth()` from `src/api/health.ts` gates the form. It **never rejects**, including on abort, which is where it parts company with `getJson`: it is a fire-and-forget probe inside an effect, and re-throwing produced an unhandled rejection on every unmount rather than information anyone used.
 
+**Back is a stack, not a destination.** `src/app/useBackStack.ts` counts in-app pushes in a module-level value — mounted once in `RootLayout` — so a back control can tell "there is an entry of ours behind this one" from "this page was opened cold". When there is one it steps back a single entry, however many levels deep somebody has gone; when there is not, it goes to the section's own index, which is the only case a page has to name for itself. The count is subscribed to rather than read, because a control words itself during render and the count moves in an effect one render later.
+
+The corollary: **a row that is a `<Link>` must not also navigate on click.** Both agreed on the destination, so pressing a stop pushed the same address twice and the first press of back appeared to do nothing.
+
 ### Place search
 
 Geocoding is an adapter behind the `Geocoder` interface in `src/types/place.ts`, resolved once in `src/geocoding/index.ts` — the right one depends on the network, so adding a city means adding an adapter, not changing the form.

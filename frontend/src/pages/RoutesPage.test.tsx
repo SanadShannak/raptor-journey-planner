@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { fireEvent } from '@testing-library/react';
-import { MemoryRouter, Route, Routes, useNavigationType } from 'react-router';
+import { Link, MemoryRouter, Route, Routes, useNavigationType } from 'react-router';
 import { LocaleProvider } from '../i18n';
 import { ThemeProvider } from '../theme';
 import { paths } from '../app/routes';
 import RoutesPage from './RoutesPage';
+import { forgetDepth } from '../app/navigationDepth';
+import { useTrackNavigationDepth } from '../app/useBackStack';
 
 /*
  * The page's wiring, not its panels — which have their own tests. What is here
@@ -70,18 +72,35 @@ function stubFetch() {
 let kinds: string[] = [];
 function Watch() {
   kinds.push(useNavigationType());
+  /*
+   * The layout does this in the app, and the count is what tells a back control
+   * there is an entry of ours behind — so a test without it is testing a page
+   * that has been dropped into a browser with no history.
+   */
+  useTrackNavigationDepth();
   return null;
 }
 
-/** A history stack, so "back" has somewhere real to go. */
-function show(entries: Array<string | { pathname: string; search?: string; state?: unknown }>) {
+function show(entry: string) {
   return render(
     <LocaleProvider>
       <ThemeProvider>
-        <MemoryRouter initialEntries={entries} initialIndex={entries.length - 1}>
+        <MemoryRouter initialEntries={[entry]}>
           <Watch />
           <Routes>
-            <Route path={paths.home} element={<p>the planner</p>} />
+            <Route
+              path={paths.home}
+              element={
+                <>
+                  <p>the planner</p>
+                  {/* Navigated into for real, so the stack is a stack the
+                      tracker has actually seen grow. */}
+                  <Link to="/routes/tram-1" state={{ back: '/' }}>
+                    open the run
+                  </Link>
+                </>
+              }
+            />
             <Route path={paths.routes} element={<RoutesPage />} />
             <Route path={paths.routeDetail} element={<RoutesPage />} />
           </Routes>
@@ -94,6 +113,7 @@ function show(entries: Array<string | { pathname: string; search?: string; state
 beforeEach(() => {
   localStorage.clear();
   kinds = [];
+  forgetDepth();
   vi.setSystemTime(new Date('2026-09-10T12:44:30Z'));
   stubFetch();
 });
@@ -111,10 +131,8 @@ describe('RoutesPage back', () => {
    * refusing to be left. Back has to be a step back.
    */
   it('steps back through history rather than pushing where it came from', async () => {
-    show([
-      '/',
-      { pathname: '/routes/tram-1', state: { back: '/' } },
-    ]);
+    show('/');
+    fireEvent.click(screen.getByRole('link', { name: 'open the run' }));
 
     fireEvent.click(await screen.findByRole('button', { name: /Back to the journey/ }));
 
@@ -125,7 +143,7 @@ describe('RoutesPage back', () => {
 
   /* Nothing sent us, so there is no entry behind worth assuming. */
   it('goes to the line index when it was reached by its own address', async () => {
-    show([{ pathname: '/routes/tram-1' }]);
+    show('/routes/tram-1');
 
     const back = await screen.findByRole('button', { name: 'All lines' });
     expect(screen.queryByRole('button', { name: /Back to the journey/ })).toBeNull();

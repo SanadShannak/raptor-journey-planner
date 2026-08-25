@@ -482,6 +482,51 @@
 }
 
 /*
+ * The halo beats, and it is the only thing on either surface that moves on its
+ * own. That is the point of it: a vehicle is findable among forty stops without
+ * reading any of them.
+ *
+ * `transform-box: fill-box` is what makes `transform-origin: center` mean the
+ * circle's own centre rather than the SVG's user-space origin — without it the
+ * halo grows out of the top-left corner of the badge and swings.
+ */
+@keyframes vehicle-pulse {
+  0% {
+    transform: scale(0.55);
+    opacity: 0.5;
+  }
+
+  70% {
+    transform: scale(1);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+.vehicle-halo {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0.32;
+  animation: vehicle-pulse 2.4s ease-out infinite;
+}
+
+/*
+ * Stillness for anyone who asked for it, and the halo stays — it is doing two
+ * jobs, and only one of them is the beat. A steady disc still separates the
+ * badge from a map that is very nearly the page's own colour.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .vehicle-halo {
+    animation: none;
+    opacity: 0.28;
+  }
+}
+
+/*
  * The same bargain for a leg's badge on the journey map: the wrapper takes
  * every press across its whole box, and the drawing inside refuses them all.
  * Otherwise the padding around the line number captures nothing and a press

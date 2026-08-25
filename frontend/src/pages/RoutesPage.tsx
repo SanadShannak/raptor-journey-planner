@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
+import { useGoBack } from '../app/useBackStack';
 import { useLocale, nowInZone } from '../i18n';
 import { usePageTitle } from '../app/usePageTitle';
 import { linePath, lineVariantPath, paths, stopPath, tripPath } from '../app/routes';
@@ -49,6 +50,12 @@ export default function RoutesPage() {
     (here.state as { back: string }).back.startsWith('/')
       ? (here.state as { back: string }).back
       : null;
+
+  /*
+   * One step back up the stack, however deep it goes — and the line index only
+   * when there is nothing of ours behind, which is a link opened cold.
+   */
+  const back = useGoBack(paths.routes);
 
   const [networkToday, setNetworkToday] = useState<string | null>(null);
   const [timezone, setTimezone] = useState<string | null>(null);
@@ -205,23 +212,22 @@ export default function RoutesPage() {
             tripDate={tripDate}
             onSelectVariant={openVariant}
             onSelectTrip={openTrip}
-            onOpenStop={openStop}
+            onBack={back.go}
             /*
-              Back is a step *back* through history, not a fresh visit to where
-              we came from.
+              The label names where it goes when that is knowable, and says
+              plainly that it goes back when it is not.
               
-              Navigating to the address pushed a second copy of the planner on
-              top of the run, so the URL was right and the browser's own back
-              button then returned to the run — the page appeared to refuse to
-              be left. Going back one entry lands on the very entry that was
-              left, with its scroll position and its forward button intact.
-
-              Only when something sent us: a run reached by its own address has
-              no entry behind it worth assuming, and goes to the line index.
-             */
-            onBack={() => void (cameFrom === null ? navigate(paths.routes) : navigate(-1))}
+              `cameFrom` is the sender's own word for itself and only the first
+              hop has one — three levels in, the entry behind is another run or
+              a stop, and naming it would take threading a label through every
+              link in the app to say something the reader can already see.
+            */
             backLabel={t(
-              cameFrom === null ? strings.routes.backToLines : strings.stops.backToJourney,
+              cameFrom !== null
+                ? strings.stops.backToJourney
+                : back.stepping
+                  ? strings.nav.back
+                  : strings.routes.backToLines,
             )}
             onResolved={setFocused}
             onVehicles={setVehicles}

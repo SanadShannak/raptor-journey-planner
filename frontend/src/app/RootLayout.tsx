@@ -3,6 +3,7 @@ import { Outlet, matchPath, useLocation } from 'react-router';
 import { useLocale } from '../i18n';
 import { AppHeader } from './AppHeader';
 import { paths } from './routes';
+import { useTrackNavigationDepth } from './useBackStack';
 import { useRouteFocus } from './useRouteFocus';
 
 /**
@@ -31,6 +32,13 @@ export function RootLayout() {
    * one being tested. The stops and lines pages are matched by pattern, so an
    * index and a single subject are both covered without listing them twice.
    */
+  /*
+   * Counted here because every page passes through this layout, so no page has
+   * to remember to. It is what lets a back control know whether there is an
+   * entry of ours behind the current one.
+   */
+  useTrackNavigationDepth();
+
   const fullHeight =
     pathname === paths.home ||
     matchPath(paths.stops, pathname) !== null ||

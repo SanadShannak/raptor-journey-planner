@@ -87,6 +87,7 @@ export const ar: Dictionary = {
     primaryLabel: 'الرئيسية',
     skipToContent: 'تخطي إلى المحتوى',
     openMenu: 'القائمة',
+    back: 'رجوع',
     closeMenu: 'إغلاق القائمة',
     home: 'الرئيسية',
     plan: 'خطط رحلة',

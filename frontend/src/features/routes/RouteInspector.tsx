@@ -52,8 +52,7 @@ interface Props {
   onSelectVariant: (patternId: number) => void;
   /** Follows one run, or drops back to the whole line when given null. */
   onSelectTrip: (trip: { tripId: string; date: string } | null) => void;
-  /** Opens a stop, so the host can decide whether that is a navigation. */
-  onOpenStop: (stopId: string) => void;
+
   onBack: () => void;
   backLabel: string;
   /** Hands the variant to the host once it is known, so the map can draw it. */
@@ -101,7 +100,6 @@ export function RouteInspector({
   networkToday,
   onSelectVariant,
   onSelectTrip,
-  onOpenStop,
   onBack,
   backLabel,
   onResolved,
@@ -523,7 +521,6 @@ export function RouteInspector({
 
               <RouteStopList
                 focusTrip={focusTrip}
-                onOpenStop={onOpenStop}
                 stops={variant.stops}
                 routeType={variant.routeType}
                 /*
