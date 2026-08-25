@@ -42,32 +42,23 @@ export function scrollingAncestor(node: Element): HTMLElement | null {
 /**
  * How far `node` sits below the top of `container`'s scrollable content.
  *
- * Walked up the offset chain rather than measured from the viewport, and that
- * is the whole point: a `getBoundingClientRect` taken while a smooth scroll is
- * still running measures the container *mid-flight*, so the sum lands wherever
- * the animation happened to be and the next centring is off by whatever was
- * left of the last one. Offsets do not move while the box scrolls.
+ * Measured as the gap between the two boxes plus however far the container has
+ * already scrolled — which sounds like it should drift as the container moves,
+ * and is the one form that does not. The gap shrinks by exactly what `scrollTop`
+ * grows by, so the sum is the node's fixed place in the content and is the same
+ * answer whether it is taken at rest or halfway through a smooth scroll.
  *
- * Null when the node is not inside the container at all, which happens for a
- * frame after a re-render moves the badge to a different row.
+ * The obvious alternative, walking `offsetParent`, does not work here: that
+ * chain skips every statically-positioned ancestor, and the panel is one — so
+ * it leaps straight over the container to the body and the walk has nothing to
+ * stop at.
  */
-export function offsetWithin(node: HTMLElement, container: HTMLElement): number | null {
-  let total = 0;
-  let step: HTMLElement | null = node;
-
-  while (step !== null && step !== container) {
-    total += step.offsetTop;
-    /*
-     * `offsetParent` skips straight past static ancestors, so this climbs in a
-     * handful of steps — but it also skips *over* the container when the
-     * container is static, which is why the parent chain is the fallback.
-     */
-    const next: Element | null = step.offsetParent;
-    step = next instanceof HTMLElement ? next : step.parentElement;
-    if (step !== null && !container.contains(step) && step !== container) return null;
-  }
-
-  return step === container ? total : null;
+export function offsetWithin(node: HTMLElement, container: HTMLElement): number {
+  return (
+    node.getBoundingClientRect().top -
+    container.getBoundingClientRect().top +
+    container.scrollTop
+  );
 }
 
 /**

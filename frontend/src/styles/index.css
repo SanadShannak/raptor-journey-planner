@@ -463,6 +463,24 @@
   font: inherit;
 }
 
+/*
+ * A vehicle badge takes a press anywhere in its box, not only where it is
+ * painted.
+ *
+ * An SVG's default `pointer-events: visiblePainted` means the transparent
+ * corners of the badge — most of its box, since the shape inside is a disc with
+ * an arrow — do not capture at all, so a press landing there falls through to
+ * whatever is behind. Handing every event to the element *around* the drawing
+ * makes the whole square the target, which is what it looks like.
+ */
+.route-vehicle-marker {
+  pointer-events: auto;
+}
+
+.route-vehicle {
+  pointer-events: none;
+}
+
 /* Leaflet's own CSS is entirely physical, so RTL needs telling. */
 .leaflet-popup-content-wrapper,
 .leaflet-popup-content {

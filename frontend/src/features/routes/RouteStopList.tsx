@@ -132,9 +132,6 @@ function useFollowInView(active: boolean): (node: HTMLElement | null) => void {
     const box = scrollingAncestor(node);
     if (box === null) return;
 
-    const offset = offsetWithin(node, box);
-    if (offset === null) return;
-
     box.scrollTo({
       /*
        * Centred rather than merely brought into view. The least a browser can
@@ -146,7 +143,11 @@ function useFollowInView(active: boolean): (node: HTMLElement | null) => void {
        * an earlier smooth scroll is still running retargets that scroll instead
        * of adding to wherever it had got to.
        */
-      top: centringScrollTop(offset, node.offsetHeight, box.clientHeight),
+      top: centringScrollTop(
+        offsetWithin(node, box),
+        node.getBoundingClientRect().height,
+        box.clientHeight,
+      ),
       behavior: 'smooth',
     });
   }, [active, surrendered, node]);

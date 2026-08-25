@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { tripPath } from '../app/routes';
 import { messageForApiError, nowInZone, useLocale } from '../i18n';
@@ -141,13 +141,48 @@ export default function PlanPage() {
   const restored = useRef(false);
 
   const [journeys, setJourneys] = useState<Journey[]>([]);
+
+  /**
+   * Opens or closes the detail panel, and records which in the address.
+   *
+   * `replace` throughout: opening a card is a change of view within one answer,
+   * not a new question, and pushing would make the back button walk out through
+   * every itinerary somebody glanced at before it left the page.
+   */
+  const setOpenIndex = useCallback(
+    (next: number | null) => {
+      setOpenIndexState(next);
+      setSearchParams(
+        (params) => {
+          const copy = new URLSearchParams(params);
+          if (next === null) copy.delete('open');
+          else copy.set('open', String(next));
+          return copy;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
   const [state, setState] = useState<'idle' | 'searching' | 'failed'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
   const [extending, setExtending] = useState(false);
   const [exhausted, setExhausted] = useState<string | null>(null);
   /** Which result is open in full, by index; null while the list is showing. */
-  const [openIndex, setOpenIndex] = useState<number | null>(null);
+  /*
+   * Which result is open in full, by index; null while the list is showing.
+   *
+   * In the address alongside the search, for the same reason the search itself
+   * is: this page can be left — a leg opens the run it is riding — and coming
+   * back to the *list* when you left from the *detail* is coming back to the
+   * wrong place. An index rather than anything richer because the list it
+   * indexes is restored first, from the same address and the same cache.
+   */
+  const [openIndex, setOpenIndexState] = useState<number | null>(() => {
+    const raw = searchP.get('open');
+    return raw !== null && /^\d+$/.test(raw) ? Number(raw) : null;
+  });
   /**
    * Which card the traveller has actually chosen, as opposed to grazed.
    *
@@ -329,6 +364,15 @@ export default function PlanPage() {
         const before = journeys;
         const merged = mergeJourneys(before, result);
         setJourneys(merged);
+        /*
+         * Kept under the *original* search's signature, not this request's.
+         * "Later" shifts the time past the last result, so it has a signature
+         * of its own — but what is on screen is still the answer to the
+         * question that was typed, and that is the question somebody comes back
+         * to. Without this, returning from a run's page threw away every batch
+         * after the first.
+         */
+        remember(searchSignature(values), merged);
 
         /*
          * The first of the new ones becomes the chosen one. Pressing "Later"

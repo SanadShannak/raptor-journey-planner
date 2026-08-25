@@ -212,6 +212,33 @@ describe('PlanPage search in the address', () => {
     ).toBeTruthy();
   });
 
+  /*
+   * Where you left from is where you come back to. Leaving from the detail
+   * panel and returning to the list is returning to the wrong place.
+   */
+  it('reopens the itinerary that was open when the page was left', async () => {
+    show(`${asked}&open=0`);
+
+    expect(
+      await screen.findByRole('button', { name: 'Back to results' }, { timeout: 3000 }),
+    ).toBeTruthy();
+  });
+
+  it('comes back to the list when nothing was open', async () => {
+    show(asked);
+
+    await screen.findByRole('button', { name: /Show this journey/ }, { timeout: 3000 });
+    expect(screen.queryByRole('button', { name: 'Back to results' })).toBeNull();
+  });
+
+  /* An index the restored list does not reach is not an itinerary. */
+  it('shows the list for an index that is not there', async () => {
+    show(`${asked}&open=99`);
+
+    await screen.findByRole('button', { name: /Show this journey/ }, { timeout: 3000 });
+    expect(screen.queryByRole('button', { name: 'Back to results' })).toBeNull();
+  });
+
   /* A half-filled address is not a search, so it opens an empty form. */
   it('ignores an address missing an end', async () => {
     show('/?from=Kamppi&fromLat=60.169&fromLon=24.931&date=2026-08-25&time=09:00');

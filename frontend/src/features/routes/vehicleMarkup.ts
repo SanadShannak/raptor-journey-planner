@@ -75,9 +75,9 @@ export function vehicleMarkup(family: string, bearing: number): string {
    */
   return `<svg viewBox="0 0 48 48" width="${VEHICLE_SIZE}" height="${VEHICLE_SIZE}" class="route-vehicle ${ink}" aria-hidden="true">
   <g transform="rotate(${bearing.toFixed(1)} 24 24)">
-    <path d="${ARROW}" fill="currentColor" class="stroke-surface" stroke-width="2.5" stroke-linejoin="round" />
+    <path d="${ARROW}" fill="currentColor" class="stroke-border-strong" stroke-width="2.5" stroke-linejoin="round" />
   </g>
-  <rect x="13" y="13" width="22" height="22" rx="7" fill="currentColor" class="stroke-surface" stroke-width="2.5" />
+  <rect x="13" y="13" width="22" height="22" rx="7" fill="currentColor" class="stroke-border-strong" stroke-width="2.5" />
   <svg x="17" y="17" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" class="text-on-mode">${modeIconMarkup(family)}</svg>
 </svg>`;
 }

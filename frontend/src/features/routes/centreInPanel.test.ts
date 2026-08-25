@@ -37,35 +37,41 @@ describe('centringScrollTop', () => {
 
 describe('offsetWithin', () => {
   /**
-   * jsdom reports every `offsetTop` as zero, so what can be checked here is the
-   * walk itself — that it climbs to the container and stops, and that it
-   * refuses a node living somewhere else entirely.
+   * jsdom reports every rect as zero, so what can be checked is the shape of
+   * the sum rather than a real measurement — specifically the property the
+   * whole thing rests on: it does not move when the container scrolls.
    */
-  const build = () => {
+  const boxed = (nodeTop: number, boxTop: number, scrollTop: number) => {
     const box = document.createElement('div');
-    const middle = document.createElement('div');
-    const row = document.createElement('div');
-    middle.append(row);
-    box.append(middle);
-    document.body.append(box);
-    return { box, row };
+    const node = document.createElement('div');
+    box.append(node);
+    box.getBoundingClientRect = () => ({ top: boxTop }) as DOMRect;
+    node.getBoundingClientRect = () => ({ top: nodeTop }) as DOMRect;
+    Object.defineProperty(box, 'scrollTop', { value: scrollTop, configurable: true });
+    return { box, node };
   };
 
-  it('walks up to the container it was given', () => {
-    const { box, row } = build();
-    expect(offsetWithin(row, box)).toBe(0);
+  it('is the gap between the boxes plus how far the panel has scrolled', () => {
+    const { box, node } = boxed(500, 100, 0);
+    expect(offsetWithin(node, box)).toBe(400);
   });
 
-  it('is null for a node that is not inside it', () => {
-    const { box } = build();
-    const stranger = document.createElement('div');
-    document.body.append(stranger);
+  /*
+   * The property that lets this be read mid-animation. As the panel scrolls the
+   * gap shrinks by exactly what `scrollTop` grows by, so the node's place in the
+   * content never moves.
+   */
+  it('is the same answer however far the panel has scrolled', () => {
+    const atRest = boxed(500, 100, 0);
+    const scrolled = boxed(200, 100, 300);
 
-    expect(offsetWithin(stranger, box)).toBeNull();
+    expect(offsetWithin(scrolled.node, scrolled.box)).toBe(
+      offsetWithin(atRest.node, atRest.box),
+    );
   });
 
-  it('is zero for the container asked about itself', () => {
-    const { box } = build();
-    expect(offsetWithin(box, box)).toBe(0);
+  it('is negative for a node scrolled above the panel', () => {
+    const { box, node } = boxed(50, 100, 0);
+    expect(offsetWithin(node, box)).toBe(-50);
   });
 });
