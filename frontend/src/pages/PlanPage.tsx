@@ -19,6 +19,7 @@ import type { JourneyEnd } from '../features/journey/itineraryRows';
 import { ItineraryOverview } from '../features/journey/ItineraryOverview';
 import { ItineraryDetail } from '../features/journey/ItineraryDetail';
 import { fromSearchParams, toSearchParams } from '../features/journey/searchParams';
+import { recall, remember } from '../features/journey/journeyCache';
 import { JourneyMap } from '../map/JourneyMap';
 import { StopInspector } from '../features/stops/StopInspector';
 
@@ -305,6 +306,14 @@ export default function PlanPage() {
       if (mode === 'replace') {
         setJourneys(result);
         setSearched(true);
+        /*
+         * Kept for the tab's lifetime, so leaving this page for a run's own
+         * timetable and coming back does not blink the answer out and fetch it
+         * again. Only a whole search: "later" appends to an answer rather than
+         * being one, and caching the half of it that happened to be on screen
+         * would restore a list nobody asked for.
+         */
+        remember(searchSignature(from), result);
       } else if (result.length === 0) {
         setExhausted(t(strings.planner.noLater));
       } else {
@@ -370,6 +379,19 @@ export default function PlanPage() {
     if (values.origin === null || values.destination === null) return;
 
     restored.current = true;
+
+    /*
+     * The same answer, if it is still the same question. Coming back to a
+     * journey you were already looking at should not blink out and reload —
+     * see `journeyCache`.
+     */
+    const kept = recall(searchSignature(values));
+    if (kept !== null) {
+      setJourneys(kept);
+      setSearched(true);
+      return;
+    }
+
     void search(values, 'replace');
     // Deliberately not depending on `values`: this fires for what arrived in
     // the URL, and every later change is somebody typing.

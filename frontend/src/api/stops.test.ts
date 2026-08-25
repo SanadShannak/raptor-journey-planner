@@ -133,6 +133,7 @@ const DEPARTURE = {
   arrivalDate: '2026-08-24',
   arrivalTime: '15:51',
   lineId: 'train-E',
+  patternId: 716,
   routeShortName: 'E',
   routeType: 2,
   headsign: 'Kauklahti',
@@ -170,6 +171,7 @@ describe('getStopBoard', () => {
       servingLines: [
         {
           lineId: 'train-E',
+      patternId: null,
           routeShortName: 'E',
           routeType: 2,
           routeLongName: 'Helsinki-Kauklahti',
@@ -186,6 +188,26 @@ describe('getStopBoard', () => {
     expect(board.asOf).toEqual({ date: '2026-08-24', time: '15:44' });
     expect(board.servingLines[0]?.destinations).toEqual(['Kauklahti']);
     expect(board.departures[0]).toEqual(DEPARTURE);
+  });
+
+  /*
+   * The pattern is what makes a board row openable — with the trip and the date
+   * it addresses the run in front of you rather than the line in general. A
+   * backend that predates it answers null, and the row falls back to the line.
+   */
+  it('reads a departure with no pattern as having none, rather than guessing', async () => {
+    const { patternId: _dropped, ...withoutPattern } = DEPARTURE;
+    respondWith({
+      stop: STOP,
+      asOf: { date: '2026-08-24', time: '15:44' },
+      servingLines: [],
+      departures: [withoutPattern],
+    });
+
+    const board = await getStopBoard('2611502');
+
+    expect(board.departures[0]?.patternId).toBeNull();
+    expect(board.departures[0]?.tripId).toBe(DEPARTURE.tripId);
   });
 
   /*

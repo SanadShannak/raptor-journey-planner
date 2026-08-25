@@ -47,6 +47,7 @@ const departure = (over: Record<string, unknown> = {}) => ({
   arrivalDate: '2026-08-24',
   arrivalTime: '15:52',
   lineId: 'train-E',
+  patternId: 716,
   routeShortName: 'E',
   routeType: 2,
   headsign: 'Kauklahti',
@@ -390,5 +391,38 @@ describe('StopInspector', () => {
 
     await screen.findByRole('heading', { level: 1, name: 'Espoo' });
     expect(screen.queryByRole('button', { name: /Back/ })).toBeNull();
+  });
+});
+
+/*
+ * A board row is about the vehicle in front of you, so pressing it opens that
+ * run — not the line in general, which is what the badge alone used to offer.
+ */
+describe('StopInspector departures open their own run', () => {
+  it('makes the whole row a link to that trip on that day', async () => {
+    stubFetch(() => ({ body: board() }));
+    show();
+
+    const row = await screen.findByRole('link', { name: /Kauklahti/ });
+    const url = new URL(row.getAttribute('href')!, 'http://x');
+
+    expect(url.pathname).toBe('/routes/train-E');
+    expect(url.searchParams.get('variant')).toBe('716');
+    expect(url.searchParams.get('trip')).toBe('trip-1');
+    expect(url.searchParams.get('date')).toBe('2026-08-24');
+
+    // The time and the countdown are inside the target, not beside it.
+    expect(row.textContent).toContain('3:52 PM');
+  });
+
+  /* No pattern, no run to open — the line is the honest fallback. */
+  it('falls back to the line when the departure has no pattern', async () => {
+    stubFetch(() => ({
+      body: board({ departures: [departure({ patternId: null })] }),
+    }));
+    show();
+
+    const row = await screen.findByRole('link', { name: /Kauklahti/ });
+    expect(row.getAttribute('href')).toBe('/routes/train-E');
   });
 });

@@ -22,7 +22,7 @@
  * The document is never returned, for the same reason: on the wide layout it is
  * the thing that must not move, and on the narrow one moving it is unwelcome.
  */
-export function scrollingAncestor(node: Element): Element | null {
+export function scrollingAncestor(node: Element): HTMLElement | null {
   let candidate = node.parentElement;
 
   while (candidate !== null && candidate !== document.body) {
@@ -39,23 +39,50 @@ export function scrollingAncestor(node: Element): Element | null {
   return null;
 }
 
-/** A box, as much of one as this needs. */
-export interface Span {
-  top: number;
-  height: number;
+/**
+ * How far `node` sits below the top of `container`'s scrollable content.
+ *
+ * Walked up the offset chain rather than measured from the viewport, and that
+ * is the whole point: a `getBoundingClientRect` taken while a smooth scroll is
+ * still running measures the container *mid-flight*, so the sum lands wherever
+ * the animation happened to be and the next centring is off by whatever was
+ * left of the last one. Offsets do not move while the box scrolls.
+ *
+ * Null when the node is not inside the container at all, which happens for a
+ * frame after a re-render moves the badge to a different row.
+ */
+export function offsetWithin(node: HTMLElement, container: HTMLElement): number | null {
+  let total = 0;
+  let step: HTMLElement | null = node;
+
+  while (step !== null && step !== container) {
+    total += step.offsetTop;
+    /*
+     * `offsetParent` skips straight past static ancestors, so this climbs in a
+     * handful of steps — but it also skips *over* the container when the
+     * container is static, which is why the parent chain is the fallback.
+     */
+    const next: Element | null = step.offsetParent;
+    step = next instanceof HTMLElement ? next : step.parentElement;
+    if (step !== null && !container.contains(step) && step !== container) return null;
+  }
+
+  return step === container ? total : null;
 }
 
 /**
- * Where the container should be scrolled to put `node` in its middle.
+ * Where the container should be scrolled to put a node in its middle.
  *
- * Both spans are viewport-relative, which is what `getBoundingClientRect`
- * gives and what makes this independent of where either element sits in the
- * document. The difference between the two centres is how far the container has
- * to move, and it is added to where it already is.
+ * Everything here is in the container's own content coordinates, so it is a
+ * fixed target: issuing it twice in a row is idempotent, and issuing it while
+ * an earlier smooth scroll is still running simply retargets that scroll rather
+ * than compounding with it.
  */
-export function centringScrollTop(node: Span, box: Span, scrollTop: number): number {
-  const nodeCentre = node.top + node.height / 2;
-  const boxCentre = box.top + box.height / 2;
+export function centringScrollTop(
+  offsetTop: number,
+  nodeHeight: number,
+  containerHeight: number,
+): number {
   // Never past the top; the container clamps the other end itself.
-  return Math.max(0, scrollTop + (nodeCentre - boxCentre));
+  return Math.max(0, offsetTop - (containerHeight - nodeHeight) / 2);
 }

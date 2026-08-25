@@ -1,43 +1,71 @@
 import { describe, expect, it } from 'vitest';
-import { centringScrollTop } from './centreInPanel';
+import { centringScrollTop, offsetWithin } from './centreInPanel';
 
 /*
  * The arithmetic, which is the part jsdom can be asked about — it lays nothing
- * out, so `scrollingAncestor` has no heights to read and always answers null
- * there. That is why the sum lives in a function of its own.
+ * out, so heights are all zero there and `scrollingAncestor` always answers
+ * null. That is why the sum lives in a function of its own.
  */
 describe('centringScrollTop', () => {
-  /** A 600px panel scrolled to the top, and a 40px row somewhere in it. */
-  const box = { top: 100, height: 600 };
+  /** A 600px panel, and a 40px row. */
+  const PANEL = 600;
+  const ROW = 40;
 
-  it('does not move a row already in the middle', () => {
-    const row = { top: 100 + 300 - 20, height: 40 };
-    expect(centringScrollTop(row, box, 0)).toBe(0);
-  });
-
-  it('scrolls down for a row below the middle', () => {
-    // Centre at 580 against the panel's 400: 180 further down.
-    const row = { top: 560, height: 40 };
-    expect(centringScrollTop(row, box, 0)).toBe(180);
-  });
-
-  it('adds to wherever the panel already is', () => {
-    const row = { top: 560, height: 40 };
-    expect(centringScrollTop(row, box, 1000)).toBe(1180);
-  });
-
-  it('scrolls up for a row above the middle', () => {
-    const row = { top: 120, height: 40 };
-    expect(centringScrollTop(row, box, 500)).toBe(500 - 260);
+  it('centres a row on the panel', () => {
+    // 1000 down, less the 280 of panel that should sit above it.
+    expect(centringScrollTop(1000, ROW, PANEL)).toBe(720);
   });
 
   /*
-   * A row near the top of a panel that is already at the top would ask for a
-   * negative offset. Browsers clamp it, but returning one invites a caller to
-   * do arithmetic on it and find a surprise.
+   * The property that makes this safe to issue mid-animation: the answer is a
+   * fixed place in the panel's own content, not an adjustment to wherever the
+   * panel currently is. Asking twice asks for the same thing.
    */
+  it('is the same answer however far the panel has already scrolled', () => {
+    expect(centringScrollTop(1000, ROW, PANEL)).toBe(centringScrollTop(1000, ROW, PANEL));
+  });
+
   it('never asks for a negative offset', () => {
-    const row = { top: 100, height: 40 };
-    expect(centringScrollTop(row, box, 0)).toBe(0);
+    expect(centringScrollTop(10, ROW, PANEL)).toBe(0);
+    expect(centringScrollTop(0, ROW, PANEL)).toBe(0);
+  });
+
+  it('accounts for the row\'s own height', () => {
+    expect(centringScrollTop(1000, 200, PANEL)).toBe(1000 - 200);
+  });
+});
+
+describe('offsetWithin', () => {
+  /**
+   * jsdom reports every `offsetTop` as zero, so what can be checked here is the
+   * walk itself — that it climbs to the container and stops, and that it
+   * refuses a node living somewhere else entirely.
+   */
+  const build = () => {
+    const box = document.createElement('div');
+    const middle = document.createElement('div');
+    const row = document.createElement('div');
+    middle.append(row);
+    box.append(middle);
+    document.body.append(box);
+    return { box, row };
+  };
+
+  it('walks up to the container it was given', () => {
+    const { box, row } = build();
+    expect(offsetWithin(row, box)).toBe(0);
+  });
+
+  it('is null for a node that is not inside it', () => {
+    const { box } = build();
+    const stranger = document.createElement('div');
+    document.body.append(stranger);
+
+    expect(offsetWithin(stranger, box)).toBeNull();
+  });
+
+  it('is zero for the container asked about itself', () => {
+    const { box } = build();
+    expect(offsetWithin(box, box)).toBe(0);
   });
 });

@@ -88,6 +88,16 @@ export interface StopDeparture {
   arrivalDate: IsoDate;
   arrivalTime: ClockTime;
   lineId: string;
+  /**
+   * Which of the line's stop sequences this departure belongs to.
+   *
+   * `lineId` names the line and a line can be many patterns, so this is what
+   * makes a board row openable: with {@link tripId} and {@link date} it
+   * addresses the run standing in front of you rather than the line in general.
+   *
+   * Null only for a backend that predates the field.
+   */
+  patternId: number | null;
   routeShortName: string;
   routeType: GtfsRouteType;
   /**

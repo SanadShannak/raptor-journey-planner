@@ -6,9 +6,13 @@ import { stopPath } from '../../app/routes';
 import type { GtfsRouteType } from '../../types/journey';
 import type { PatternStop, VariantTrip } from '../../types/route';
 import { familyFor, visualForFamily } from '../journey/modeVisuals';
+import {
+  destinationMarkerMarkup,
+  originMarkerMarkup,
+} from '../journey/placeMarkerMarkup';
 import type { NetworkMoment } from '../stops/minutesUntil';
 import { callOnTrip, nextCallAt } from './nextCallAt';
-import { centringScrollTop, scrollingAncestor } from './centreInPanel';
+import { centringScrollTop, offsetWithin, scrollingAncestor } from './centreInPanel';
 import { VehicleBadge } from './VehicleBadge';
 import type { Vehicle } from './vehicleProgress';
 
@@ -128,18 +132,21 @@ function useFollowInView(active: boolean): (node: HTMLElement | null) => void {
     const box = scrollingAncestor(node);
     if (box === null) return;
 
+    const offset = offsetWithin(node, box);
+    if (offset === null) return;
+
     box.scrollTo({
       /*
        * Centred rather than merely brought into view. The least a browser can
        * get away with is the badge just past the edge of the panel, with none
        * of the line ahead of it — and the stops either side are the whole
        * reason for following a run.
+       *
+       * An absolute target in the panel's own coordinates, so issuing it while
+       * an earlier smooth scroll is still running retargets that scroll instead
+       * of adding to wherever it had got to.
        */
-      top: centringScrollTop(
-        node.getBoundingClientRect(),
-        box.getBoundingClientRect(),
-        box.scrollTop,
-      ),
+      top: centringScrollTop(offset, node.offsetHeight, box.clientHeight),
       behavior: 'smooth',
     });
   }, [active, surrendered, node]);
@@ -356,7 +363,21 @@ export function RouteStopList({
                 exactly one node to keep on screen and no bookkeeping to do
                 about which row that is.
               */
-              ref={here !== undefined || leaving !== undefined ? holdInView : undefined}
+              /*
+                Attached only while a run is followed, and only to that run's
+                own badge.
+                
+                Left on unconditionally it was handed to every vehicle on the
+                line in turn — five of them at rush hour — so the hook ended up
+                holding whichever row happened to render last, and following a
+                run afterwards scrolled to a stranger. Which is why letting go
+                of one run and picking another did nothing at all.
+              */
+              ref={
+                focusTrip !== null && (here !== undefined || leaving !== undefined)
+                  ? holdInView
+                  : undefined
+              }
               className="relative flex flex-none flex-col items-center"
             >
               <Strut ink={leadSpent ? SPENT : ink} hidden={first} lead />
@@ -377,11 +398,16 @@ export function RouteStopList({
                 sits above the overlap, so the join cannot be seen.
               */}
               <span className="relative z-10 flex h-3.5 w-3.5 flex-none items-center justify-center">
-                <span
-                  className={`${spent(index) ? SPENT : ink} rounded-full border-current bg-current ${
-                    first || last ? 'h-3.5 w-3.5 border-[3px] bg-surface' : 'h-2.5 w-2.5'
-                  }`}
-                />
+                {first || last ? (
+                  <EndMarker
+                    end={first ? 'origin' : 'destination'}
+                    ink={spent(index) ? SPENT : ink}
+                  />
+                ) : (
+                  <span
+                    className={`${spent(index) ? SPENT : ink} h-2.5 w-2.5 rounded-full bg-current`}
+                  />
+                )}
               </span>
               <Strut ink={belowSpent ? SPENT : ink} hidden={last} />
 
@@ -489,6 +515,42 @@ export function RouteStopList({
         );
       })}
     </ul>
+  );
+}
+
+/**
+ * The two ends of the line, as the marks this app already uses for them.
+ *
+ * A ring at each end was a stop drawn slightly larger than the stops either
+ * side of it, which is not a distinction anybody reads — you had to count to
+ * the top of the list to know which end you were looking at. These are the same
+ * target and pin the planner puts on a journey's two ends, so somebody who has
+ * read one map has already learnt them.
+ *
+ * The origin takes the line's own colour, because where a line *starts* is a
+ * fact about that line. The destination keeps the brand pin it wears
+ * everywhere: an end of a journey is an end of a journey, and a tram-green pin
+ * would be a fourth thing to learn for no gain. Greyed with the rest of the
+ * spine once the day has passed them.
+ *
+ * They overflow the 14px marker box on purpose — the box is what keeps every
+ * circle on one axis, and these are centred in it rather than sized to it.
+ */
+function EndMarker({ end, ink }: { end: 'origin' | 'destination'; ink: string }) {
+  const origin = end === 'origin';
+
+  return (
+    <span
+      aria-hidden="true"
+      className={`absolute flex-none ${origin ? ink : 'text-brand-500'}`}
+      dangerouslySetInnerHTML={{
+        __html: `<svg viewBox="0 0 24 24" width="${origin ? 18 : 24}" height="${
+          origin ? 18 : 24
+        }" aria-hidden="true">${
+          origin ? originMarkerMarkup('fill-surface') : destinationMarkerMarkup('fill-surface')
+        }</svg>`,
+      }}
+    />
   );
 }
 

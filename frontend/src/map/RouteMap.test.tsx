@@ -453,11 +453,16 @@ describe('RouteMap drawing', () => {
     const onStopSelect = vi.fn();
     const { container } = show({ variant: TRAM_1, onStopSelect });
 
-    // The circles, in pattern order, drawn after the line's two polylines.
+    /*
+     * The stops between the ends. The first and last are drawn as the target
+     * and pin the planner uses, not as circles — a slightly bigger circle among
+     * circles was not a distinction anybody read.
+     */
     const circles = [...container.querySelectorAll('path.leaflet-interactive')];
-    expect(circles).toHaveLength(TRAM_1.stops.length);
+    expect(circles).toHaveLength(TRAM_1.stops.length - 2);
+    expect(container.querySelectorAll('.route-end')).toHaveLength(2);
 
-    circles[1]?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    circles[0]?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
     expect(onStopSelect).toHaveBeenCalledWith('id-1');
   });

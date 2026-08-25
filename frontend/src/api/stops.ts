@@ -147,6 +147,10 @@ function toDeparture(raw: unknown): StopDeparture | null {
     arrivalDate: text(departure['arrivalDate']) ?? date,
     arrivalTime: text(departure['arrivalTime']) ?? time,
     lineId: text(departure['lineId']) ?? '',
+    patternId:
+      typeof departure['patternId'] === 'number' && Number.isFinite(departure['patternId'])
+        ? departure['patternId']
+        : null,
     routeShortName: text(departure['routeShortName']) ?? '',
     routeType: routeType as GtfsRouteType,
     headsign: text(departure['headsign']),

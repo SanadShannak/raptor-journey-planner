@@ -187,21 +187,51 @@ export function VariantPicker({ variants, currentPatternId, day, onSelect }: Pro
 
                             These are variants of one line, so a great many of
                             them share a headsign: tram 1 has two patterns both
-                            signed "Käpylä", and told apart only by the fact that
-                            one starts at the depot and the other four stops
-                            further down. "towards Käpylä" twice is a list you
-                            cannot choose from.
+                            signed "Käpylä", told apart only by the fact that one
+                            starts at the depot and the other four stops further
+                            down. "towards Käpylä" twice is a list you cannot
+                            choose from.
 
-                            Written as a sentence rather than with an arrow
-                            glyph: an arrow is directional and would have to
-                            mirror in Arabic, which is a bidi hazard for one
-                            character of decoration.
+                            The arrow is drawn rather than written, and mirrors
+                            with the page. A "→" character is bidi-neutral, so in
+                            an Arabic panel full of Latin stop names it lands
+                            wherever the surrounding runs put it — which is not
+                            reliably between the two names, and not reliably
+                            pointing the way the reader is reading. An SVG
+                            flipped by `rtl:-scale-x-100` is neither.
+
+                            Not a translated sentence assembled from pieces: both
+                            operands are proper nouns out of the feed and the
+                            connector is a glyph. The spoken version underneath
+                            is one message with two placeholders, as it must be.
                           */}
-                          <span dir="auto" className="min-w-0 flex-1 text-sm font-medium">
-                            {t(strings.routes.originToTerminus, {
-                              origin: variant.originStopName ?? '',
-                              terminus: variant.terminusStopName ?? '',
-                            })}
+                          <span className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-medium">
+                            <span dir="auto" className="min-w-0 truncate">
+                              {variant.originStopName ?? ''}
+                            </span>
+                            <svg
+                              viewBox="0 0 20 20"
+                              width="14"
+                              height="14"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              aria-hidden="true"
+                              className="text-content-muted flex-none rtl:-scale-x-100"
+                            >
+                              <path d="M3 10h13M11 5l5 5-5 5" />
+                            </svg>
+                            <span dir="auto" className="min-w-0 truncate">
+                              {variant.terminusStopName ?? ''}
+                            </span>
+                            <span className="sr-only">
+                              {t(strings.routes.originToTerminus, {
+                                origin: variant.originStopName ?? '',
+                                terminus: variant.terminusStopName ?? '',
+                              })}
+                            </span>
                           </span>
                           {current && (
                             <span className="text-content-muted flex-none text-xs">

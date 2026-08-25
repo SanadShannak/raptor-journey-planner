@@ -1,9 +1,14 @@
 import { Fragment, useEffect, useMemo } from 'react';
-import { CircleMarker, Polyline, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import { CircleMarker, Marker, Polyline, useMap } from 'react-leaflet';
 import type { GeoBounds } from '../config/geocoding';
 import type { Coordinates } from '../types/journey';
 import type { LineVariantDetail } from '../types/route';
 import { familyFor, visualForFamily } from '../features/journey/modeVisuals';
+import {
+  destinationMarkerMarkup,
+  originMarkerMarkup,
+} from '../features/journey/placeMarkerMarkup';
 import {
   pointBetweenStops,
   projectShape,
@@ -43,6 +48,31 @@ interface Props {
    * can read anything from it.
    */
   chase?: boolean | undefined;
+}
+
+/**
+ * The line's two ends, as Leaflet markers.
+ *
+ * Built from the same markup the interface draws, so the pin on the map and the
+ * pin on the spine cannot drift apart — the arrangement the mode silhouettes
+ * and the vehicle badge already have.
+ */
+function endIcon(end: 'origin' | 'destination', ink: string): L.DivIcon {
+  const origin = end === 'origin';
+  const size = origin ? 24 : 34;
+
+  return L.divIcon({
+    className: 'route-end',
+    html: `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true" class="${
+      origin ? ink : 'text-brand-500'
+    }">${origin ? originMarkerMarkup('fill-surface') : destinationMarkerMarkup('fill-surface')}</svg>`,
+    iconSize: [size, size],
+    /*
+     * A target is centred on its point; a pin stands on its tip. The pin's path
+     * reaches y=21.5 of a 24 box, so its point is a whisker above the bottom.
+     */
+    iconAnchor: origin ? [size / 2, size / 2] : [size / 2, size * 0.9],
+  });
 }
 
 /**
@@ -99,7 +129,13 @@ export function RouteMap({
   const reduceMotion = useReducedMotion();
 
   const family = variant === null ? null : familyFor(variant.routeType);
+  /** For the drawn line and the stop circles, which are strokes. */
   const ink = family === null ? '' : visualForFamily(family).stroke;
+  /*
+   * And for the end markers, which are filled with `currentColor` — a
+   * `stroke-*` class sets the stroke and leaves the fill black.
+   */
+  const text = family === null ? '' : visualForFamily(family).ink;
 
   /**
    * What the line is drawn as.
@@ -261,16 +297,52 @@ export function RouteMap({
         />
       )}
 
+      {/*
+        The two ends, as the marks this app already uses for them.
+
+        A slightly larger circle among circles is not a distinction anybody
+        reads — on a line that doubles back you could not tell which end you
+        were looking at without following the whole thing. These are the same
+        target and pin the planner puts on a journey's ends.
+
+        The origin takes the line's colour, because where a line *starts* is a
+        fact about that line; the destination keeps the brand pin it wears
+        everywhere, because an end is an end.
+      */}
+      {variant !== null && variant.stops.length > 0 && (
+        <Fragment key={`${scope}-ends`}>
+          <Marker
+            position={[variant.stops[0]!.lat, variant.stops[0]!.lon]}
+            icon={endIcon('origin', text)}
+            interactive={false}
+            keyboard={false}
+          />
+          {variant.stops.length > 1 && (
+            <Marker
+              position={[
+                variant.stops[variant.stops.length - 1]!.lat,
+                variant.stops[variant.stops.length - 1]!.lon,
+              ]}
+              icon={endIcon('destination', text)}
+              interactive={false}
+              keyboard={false}
+            />
+          )}
+        </Fragment>
+      )}
+
       {variant?.stops.map((stop, index) => {
-        const end = index === 0 || index === variant.stops.length - 1;
+        // The ends have their own markers above; a circle under them would
+        // show through the pin's cut-out centre.
+        if (index === 0 || index === variant.stops.length - 1) return null;
 
         return (
           <CircleMarker
             key={`${scope}-${stop.sequence}-${stop.id}`}
             center={[stop.lat, stop.lon]}
-            radius={end ? 6 : 3.5}
+            radius={3.5}
             className={`${ink} fill-surface`}
-            pathOptions={{ weight: end ? 3 : 2, opacity: 1, fillOpacity: 1 }}
+            pathOptions={{ weight: 2, opacity: 1, fillOpacity: 1 }}
             /*
               Pressable, and out of the tab order without being asked: a Leaflet
               path is an SVG element with no tabindex, unlike a marker, which

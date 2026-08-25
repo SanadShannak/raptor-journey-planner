@@ -182,7 +182,7 @@ function forEachDeparture(internalStopId, isoDate, visit) {
 
 /** Turns an internal visit into the public departure shape. */
 function describeDeparture(visit, baseIsoDate) {
-  const { route, flatTripId, stopIndex, departureSeconds, arrivalSeconds } =
+  const { route, routeId, flatTripId, stopIndex, departureSeconds, arrivalSeconds } =
     visit;
 
   const departure = resolveDateAndTime(baseIsoDate, departureSeconds);
@@ -201,6 +201,15 @@ function describeDeparture(visit, baseIsoDate) {
     arrivalDate: arrival.date,
     arrivalTime: arrival.time,
     lineId: lineIdFor(route),
+    /*
+     * Which of the line's stop sequences this departure belongs to.
+     *
+     * `lineId` names the line and a line can be many patterns, so without this
+     * a board can only offer "the line" — not the run standing in front of you,
+     * which is what somebody reading a departure board is asking about. The
+     * walk already knows: it found this trip inside that pattern's bucket.
+     */
+    patternId: routeId,
     routeShortName: route.short_name,
     routeType: route.route_type,
     headsign,

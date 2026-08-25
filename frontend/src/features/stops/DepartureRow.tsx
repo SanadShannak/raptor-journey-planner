@@ -1,7 +1,9 @@
-import { formatClockTime, formatDate, useLocale } from '../../i18n';
-import type { StopDeparture } from '../../types/stop';
-import { LineBadge } from './LineBadge';
-import { minutesUntil, type NetworkMoment } from './minutesUntil';
+import { Link, useLocation } from "react-router";
+import { formatClockTime, formatDate, useLocale } from "../../i18n";
+import { linePath, tripPath } from "../../app/routes";
+import type { StopDeparture } from "../../types/stop";
+import { LineBadge } from "./LineBadge";
+import { minutesUntil, type NetworkMoment } from "./minutesUntil";
 
 interface Props {
   departure: StopDeparture;
@@ -59,6 +61,7 @@ const COUNTDOWN_WITHIN_MINUTES = 60;
  */
 export function DepartureRow({ departure, now, viewedDate, countdown }: Props) {
   const { locale, strings, t } = useLocale();
+  const here = useLocation();
 
   const minutes = now === null ? null : minutesUntil(departure, now);
   const counting =
@@ -70,34 +73,63 @@ export function DepartureRow({ departure, now, viewedDate, countdown }: Props) {
   const clock = formatClockTime(departure.time, locale);
   const elsewhere = departure.date !== viewedDate;
 
-  return (
-    <li className="border-border flex items-center gap-3 border-b py-2.5 last:border-b-0">
-      <LineBadge
-        lineId={departure.lineId}
-        routeShortName={departure.routeShortName}
-        routeType={departure.routeType}
-        linked
-      />
+  /*
+   * The whole row opens the run, not just the badge.
+   *
+   * Two things were wrong with a linked badge. It was a small target at one end
+   * of a wide row whose every other part described the same departure — the
+   * destination, the time, the countdown — and it led to the *line*, which is
+   * not what a board is about. Somebody reading a departure board is asking
+   * about the vehicle in front of them.
+   *
+   * The line page is the fallback for a departure with no trip to open: a
+   * backend that predates `patternId`, or a feed whose trip ids did not map.
+   */
+  const openable = departure.patternId !== null && departure.tripId !== null;
+  const to = openable
+    ? tripPath(
+        departure.lineId,
+        departure.patternId as number,
+        departure.tripId as string,
+        departure.date,
+      )
+    : linePath(departure.lineId);
 
-      {/*
+  return (
+    <li className="border-border border-b last:border-b-0">
+      <Link
+        to={to}
+        // So the run's own page can offer the way back to this board.
+        state={{ back: `${here.pathname}${here.search}` }}
+        className="rounded-control hover:bg-surface-muted focus-visible:outline-brand-500 -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 px-2 py-2.5 focus-visible:outline-2 focus-visible:-outline-offset-2"
+      >
+        <LineBadge
+          lineId={departure.lineId}
+          routeShortName={departure.routeShortName}
+          routeType={departure.routeType}
+        />
+
+        {/*
         `items-start`, so each line is sized to its own text rather than to the
         column. Stretched, `dir="auto"` made the *box* left-to-right for a
         Latin destination, so the words sat at the far left of it — beside the
         time — while the line badge stayed at the right of an Arabic page. The
         box follows the page; only the text inside it follows itself.
       */}
-      <span className="flex min-w-0 flex-1 flex-col items-start">
-        <span dir="auto" className="max-w-full truncate font-medium">
-          {departure.terminatesHere
-            ? t(strings.stops.terminatesHere)
-            : departure.headsign !== null
-              ? departure.headsign
-              : departure.destination !== null
-                ? t(strings.stops.towards, { destination: departure.destination })
-                : (departure.routeLongName ?? '')}
-        </span>
+        <span className="flex min-w-0 flex-1 flex-col items-start">
+          <span dir="auto" className="max-w-full truncate font-medium">
+            {departure.terminatesHere
+              ? t(strings.stops.terminatesHere)
+              : departure.headsign !== null
+                ? departure.headsign
+                : departure.destination !== null
+                  ? t(strings.stops.towards, {
+                      destination: departure.destination,
+                    })
+                  : (departure.routeLongName ?? "")}
+          </span>
 
-        {/*
+          {/*
           The arrival, only where it differs from the departure.
           
           The board is a departure board: the headline time is when a vehicle
@@ -106,16 +138,16 @@ export function DepartureRow({ departure, now, viewedDate, countdown }: Props) {
           is a different and useful fact, and where it does not wait the two
           numbers would say the same thing twice.
         */}
-        {departure.arrivalTime !== departure.time && (
-          <span className="text-content-muted text-xs">
-            {t(strings.stops.arrivesAt, {
-              time: formatClockTime(departure.arrivalTime, locale),
-            })}
-          </span>
-        )}
-      </span>
+          {departure.arrivalTime !== departure.time && (
+            <span className="text-content-muted text-xs">
+              {t(strings.stops.arrivesAt, {
+                time: formatClockTime(departure.arrivalTime, locale),
+              })}
+            </span>
+          )}
+        </span>
 
-      {/*
+        {/*
         The countdown sits *before* the time, not after it.
 
         The time is the fixed thing — it is the same on every board, and it is
@@ -138,44 +170,45 @@ export function DepartureRow({ departure, now, viewedDate, countdown }: Props) {
         beside a time is legible to the eye because the layout supplies the
         rest, and reads as a fragment when spoken.
       */}
-      {countdown && (
-        <span className="flex w-20 flex-none justify-end">
-          {counting && (
-            <>
-              <span
-                aria-hidden="true"
-                className={`rounded-control px-1.5 py-0.5 text-sm font-semibold whitespace-nowrap tabular-nums ${
-                  minutes <= 1
-                    ? 'bg-brand-fill text-on-brand'
-                    : 'bg-surface-sunken text-content'
-                }`}
-              >
-                {minutes < 1
-                  ? t(strings.stops.dueNow)
-                  : t(strings.stops.inMinutes, { count: minutes })}
-              </span>
-              <span className="sr-only">
-                {t(strings.stops.departsIn, { count: minutes })}
-              </span>
-            </>
-          )}
-        </span>
-      )}
-
-      <span className="flex flex-none flex-col items-end">
-        <span className="font-semibold tabular-nums">{clock}</span>
-
-        {elsewhere && (
-          <span className="text-content-muted text-xs">
-            {t(strings.stops.onDate, {
-              date: formatDate(departure.date, locale, {
-                day: 'numeric',
-                month: 'short',
-              }),
-            })}
+        {countdown && (
+          <span className="flex w-20 flex-none justify-end">
+            {counting && (
+              <>
+                <span
+                  aria-hidden="true"
+                  className={`rounded-control px-1.5 py-0.5 text-sm font-semibold whitespace-nowrap tabular-nums ${
+                    minutes <= 1
+                      ? "bg-brand-fill text-on-brand"
+                      : "bg-surface-sunken text-content"
+                  }`}
+                >
+                  {minutes < 1
+                    ? t(strings.stops.dueNow)
+                    : t(strings.stops.inMinutes, { count: minutes })}
+                </span>
+                <span className="sr-only">
+                  {t(strings.stops.departsIn, { count: minutes })}
+                </span>
+              </>
+            )}
           </span>
         )}
-      </span>
+
+        <span className="flex flex-none flex-col items-end">
+          <span className="font-semibold tabular-nums">{clock}</span>
+
+          {elsewhere && (
+            <span className="text-content-muted text-xs">
+              {t(strings.stops.onDate, {
+                date: formatDate(departure.date, locale, {
+                  day: "numeric",
+                  month: "short",
+                }),
+              })}
+            </span>
+          )}
+        </span>
+      </Link>
     </li>
   );
 }

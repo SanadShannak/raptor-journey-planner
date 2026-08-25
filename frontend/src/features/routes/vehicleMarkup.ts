@@ -34,22 +34,24 @@ import { visualForFamily } from '../journey/modeVisuals';
  * one more dot in a column of dots — the movement was the only thing telling
  * them apart, and movement is exactly what a glance does not catch.
  */
-export const VEHICLE_SIZE = 42;
+export const VEHICLE_SIZE = 48;
 
 /**
  * The arrow, pointing due north before it is rotated.
  *
  * A dart rather than a plain triangle — the notch in its back is what makes it
- * read as an arrowhead rather than as a roof on the badge. It is wider than the
- * badge's own corner and reaches the edge of the frame, because at anything
- * daintier the direction was a detail you had to look for rather than the first
- * thing the sign tells you. Its notch overlaps the badge's top edge, so the two
- * read as one shape rather than as a badge wearing a hat.
+ * read as an arrowhead rather than as a roof on the badge.
+ *
+ * **It stands clear of the badge rather than touching it.** Overlapping, most
+ * of the arrow was inside the square and the same colour as it, so what showed
+ * was a small bump on one edge — the direction was something you could work out
+ * rather than something the sign told you. Detached, with a gap the surface
+ * colour shows through, it is unmistakably an arrow pointing somewhere.
  *
  * Only the arrow turns. Rotating the whole badge would turn the silhouette with
  * it and leave a bus lying on its side halfway round a bend.
  */
-const ARROW = 'M21 0 L33.6 14.2 L21 9.2 L8.4 14.2 Z';
+const ARROW = 'M24 0.5 L35.5 12 L24 7.5 L12.5 12 Z';
 
 /**
  * @param family The visual family — `bus`, `tram`, … — not a raw route type.
@@ -65,11 +67,17 @@ export function vehicleMarkup(family: string, bearing: number): string {
    * the sidebar by React or into the map by Leaflet, which is the only way to
    * assert that the two renderers agree.
    */
-  return `<svg viewBox="0 0 42 42" width="${VEHICLE_SIZE}" height="${VEHICLE_SIZE}" class="route-vehicle ${ink}" aria-hidden="true">
-  <g transform="rotate(${bearing.toFixed(1)} 21 21)">
-    <path d="${ARROW}" fill="currentColor" class="stroke-surface" stroke-width="2" stroke-linejoin="round" />
+  /*
+   * The arrow turns about the badge's centre, so its tip traces a circle of
+   * radius 23.5 — just inside the 24 the frame allows. Any further out and it
+   * would be clipped at the diagonals and nowhere else, which reads as the
+   * arrow shrinking on bends.
+   */
+  return `<svg viewBox="0 0 48 48" width="${VEHICLE_SIZE}" height="${VEHICLE_SIZE}" class="route-vehicle ${ink}" aria-hidden="true">
+  <g transform="rotate(${bearing.toFixed(1)} 24 24)">
+    <path d="${ARROW}" fill="currentColor" class="stroke-surface" stroke-width="2.5" stroke-linejoin="round" />
   </g>
-  <rect x="8" y="8" width="26" height="26" rx="8" fill="currentColor" class="stroke-surface" stroke-width="2.5" />
-  <svg x="12.5" y="12.5" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="text-on-mode">${modeIconMarkup(family)}</svg>
+  <rect x="13" y="13" width="22" height="22" rx="7" fill="currentColor" class="stroke-surface" stroke-width="2.5" />
+  <svg x="17" y="17" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" class="text-on-mode">${modeIconMarkup(family)}</svg>
 </svg>`;
 }

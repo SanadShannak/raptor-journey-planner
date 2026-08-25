@@ -927,6 +927,126 @@ describe('RouteInspector', () => {
   });
 
   /*
+   * Following a run scrolls the panel to its vehicle — every time, not just the
+   * first.
+   *
+   * The bug this guards: the hold-ref was attached to *every* vehicle badge
+   * rather than only a followed run's, so with five trams out the hook ended up
+   * holding whichever row rendered last. Letting go of one run and following
+   * another then scrolled to a stranger, or did nothing at all.
+   *
+   * jsdom lays nothing out, so the panel's geometry has to be lent to it. Where
+   * it lands is not checkable here and does not need to be — that arithmetic is
+   * a pure function with its own tests. What is checkable is *that* it moves,
+   * and that it moves again for the next run.
+   */
+  describe('holding a followed run in view', () => {
+    const withPanelGeometry = () => {
+      const scrolls: unknown[] = [];
+      Element.prototype.scrollTo = function (options: unknown) {
+        scrolls.push(options);
+      };
+      Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
+        configurable: true,
+        get: () => 2000,
+      });
+      Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
+        configurable: true,
+        get: () => 600,
+      });
+      const real = window.getComputedStyle.bind(window);
+      vi.stubGlobal('getComputedStyle', (element: Element) =>
+        element instanceof HTMLElement && element.dataset['panel'] === 'yes'
+          ? ({ overflowY: 'auto' } as CSSStyleDeclaration)
+          : real(element),
+      );
+      return scrolls;
+    };
+
+    const inPanel = (props: Partial<Parameters<typeof RouteInspector>[0]>) =>
+      render(
+        <LocaleProvider>
+          <MemoryRouter>
+            <div data-panel="yes">
+              <RouteInspector
+                lineId="tram-1"
+                patternId={null}
+                timezone="Europe/Helsinki"
+                networkToday="2026-09-10"
+                onSelectVariant={() => {}}
+                onSelectTrip={() => {}}
+                onOpenStop={() => {}}
+                onBack={() => {}}
+                backLabel="All lines"
+                {...props}
+              />
+            </div>
+          </MemoryRouter>
+        </LocaleProvider>,
+      );
+
+    const TWO_OUT = {
+      ...LINE_FIELDS,
+      ...OUTBOUND,
+      stops: STOPS,
+      stopCount: 3,
+      trips: [
+        { tripId: 'ahead', headsign: null, calls: [call('15:20'), call('15:38'), call('15:46')] },
+        { tripId: 'behind', headsign: null, calls: [call('15:40'), call('15:50'), call('16:01')] },
+      ],
+      totalTrips: 2,
+      outsideTimetableRange: false,
+    };
+
+    /* Five badges on a line is not "the" vehicle, and moving the panel to one
+       of them would be a decision nobody asked for. */
+    it('holds nothing while the whole line is showing', async () => {
+      const scrolls = withPanelGeometry();
+      stubFetch({ timetable: TWO_OUT });
+      inPanel({});
+
+      await waitFor(() =>
+        expect(document.querySelectorAll('.route-vehicle')).toHaveLength(2),
+      );
+      expect(scrolls).toEqual([]);
+    });
+
+    it('moves for the run being followed, and again for the next one', async () => {
+      const scrolls = withPanelGeometry();
+      stubFetch({ timetable: TWO_OUT });
+      const { rerender } = inPanel({ tripId: 'ahead', tripDate: '2026-09-10' });
+
+      await waitFor(() => expect(scrolls.length).toBeGreaterThan(0));
+      const afterFirst = scrolls.length;
+
+      rerender(
+        <LocaleProvider>
+          <MemoryRouter>
+            <div data-panel="yes">
+              <RouteInspector
+                lineId="tram-1"
+                patternId={null}
+                tripId="behind"
+                tripDate="2026-09-10"
+                timezone="Europe/Helsinki"
+                networkToday="2026-09-10"
+                onSelectVariant={() => {}}
+                onSelectTrip={() => {}}
+                onOpenStop={() => {}}
+                onBack={() => {}}
+                backLabel="All lines"
+              />
+            </div>
+          </MemoryRouter>
+        </LocaleProvider>,
+      );
+
+      // A different run, a different row, and the panel follows it there.
+      await waitFor(() => expect(scrolls.length).toBeGreaterThan(afterFirst));
+    });
+  });
+
+  /*
    * The way back belongs to whoever sent you.
    *
    * A reader who pressed a leg of their own itinerary did not come from the

@@ -369,9 +369,15 @@ get hoisted ahead of `"07"`, silently scrambling the board.
 A departure is:
 
 ```
-{ date, time, arrivalDate, arrivalTime, lineId, routeShortName, routeType,
-  headsign, destination, terminatesHere, tripId, directionId, routeLongName }
+{ date, time, arrivalDate, arrivalTime, lineId, patternId, routeShortName,
+  routeType, headsign, destination, terminatesHere, tripId, directionId,
+  routeLongName }
 ```
+
+`patternId` is which of the line's stop sequences this departure belongs to, and
+it is what makes a board row openable: with `tripId` and `date` it addresses the
+run standing in front of you rather than the line in general. Same meaning and
+same stability caveat as the `patternId` on a journey leg.
 
 `terminatesHere` is true when the trip ends at the stop being viewed; its
 `destination` is then `null`, because "towards <the stop you are standing at>"
