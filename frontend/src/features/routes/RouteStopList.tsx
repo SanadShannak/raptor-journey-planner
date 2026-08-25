@@ -105,15 +105,27 @@ export function RouteStopList({ stops, routeType, trips, viewedDate, now }: Prop
             */}
             <span aria-hidden="true" className="flex flex-none flex-col items-center">
               <Strut ink={ink} hidden={first} lead />
-              <span
-                className={`${ink} my-0.5 flex-none rounded-full border-current bg-current ${
-                  first || last ? 'h-3.5 w-3.5 border-[3px] bg-transparent' : 'h-2.5 w-2.5'
-                }`}
-              />
+              {/*
+                A fixed 14px box around every marker, whatever size the marker
+                inside it is.
+                
+                That box is what keeps the line straight. Sized to the marker
+                instead, an end ring is 14px and an intermediate dot 10px, so
+                the two sit on axes two pixels apart — and because the ends are
+                the ones that differ, the bend showed up immediately under the
+                first stop and again above the last. One box, one axis.
+              */}
+              <span className="my-0.5 flex h-3.5 w-3.5 flex-none items-center justify-center">
+                <span
+                  className={`${ink} rounded-full border-current bg-current ${
+                    first || last ? 'h-3.5 w-3.5 border-[3px] bg-transparent' : 'h-2.5 w-2.5'
+                  }`}
+                />
+              </span>
               <Strut ink={ink} hidden={last} />
             </span>
 
-            <div className="border-border flex min-w-0 flex-1 items-start gap-3 border-b py-2.5">
+            <div className="border-border flex min-w-0 flex-1 items-start gap-3 border-b py-2.5 last:border-b-0">
               <div className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
                 <Link
                   to={stopPath(stop.id)}
@@ -155,9 +167,13 @@ export function RouteStopList({ stops, routeType, trips, viewedDate, now }: Prop
 /**
  * One half of the spine between two circles.
  *
- * `lead` is the stretch above a circle, which has to reach the middle of the
- * stop's name — the row's top padding plus half a line — so a stop is never
- * written above its own dot. Below it, the strut simply fills what is left.
+ * `lead` is the stretch above a circle and has to land its centre on the middle
+ * of the stop's name, or a stop is written above its own dot. That is the row's
+ * top padding plus half a line — 10px plus 12px — less the marker's own 2px
+ * margin and half its 14px box: thirteen pixels. It only holds because every
+ * marker shares one box size.
+ *
+ * Below it, the strut simply fills what is left.
  */
 function Strut({
   ink,
@@ -200,11 +216,11 @@ function NextDeparture({
 
   // Times are on their way. Say nothing rather than "nothing runs", which is a
   // claim this row is not yet in a position to make.
-  if (pending) return <span className="w-24 flex-none" />;
+  if (pending) return <span className="w-28 flex-none" />;
 
   if (next === null) {
     return (
-      <span className="text-content-muted w-24 flex-none text-end text-xs">
+      <span className="text-content-muted w-28 flex-none text-end text-xs">
         {/* Two different facts. "Nothing more today" is the end of service on a
             day that had one; "does not call that day" is a short working that
             never comes here at all. Only a clock can tell them apart. */}
@@ -218,8 +234,14 @@ function NextDeparture({
     counting && minutes !== null && minutes >= 0 && minutes <= IMMINENT_WITHIN_MINUTES;
 
   return (
-    <span className="flex w-24 flex-none flex-col items-end gap-0.5">
-      <span className="flex items-center gap-1.5">
+    /*
+      Wide enough for a chip and a clock side by side, and `nowrap` so a
+      translation nobody has written yet overflows rather than folding. At 6rem
+      the meridiem dropped onto its own line under the time — which reads as two
+      different facts rather than one time.
+    */
+    <span className="flex w-28 flex-none flex-col items-end gap-0.5">
+      <span className="flex flex-nowrap items-center gap-1.5 whitespace-nowrap">
         {imminent && (
           <>
             <span
@@ -237,7 +259,7 @@ function NextDeparture({
             </span>
           </>
         )}
-        <span className="font-semibold tabular-nums">
+        <span className="font-semibold whitespace-nowrap tabular-nums">
           {formatClockTime(call.time, locale)}
         </span>
       </span>
@@ -250,7 +272,7 @@ function NextDeparture({
         does not, the two numbers would say the same thing twice.
       */}
       {call.arrivalTime !== call.time && (
-        <span className="text-content-muted text-xs tabular-nums">
+        <span className="text-content-muted text-xs whitespace-nowrap tabular-nums">
           {t(strings.stops.arrivesAt, { time: formatClockTime(call.arrivalTime, locale) })}
         </span>
       )}

@@ -4,6 +4,7 @@ import L from 'leaflet';
 import { LocaleProvider } from '../i18n';
 import { ThemeProvider } from '../theme';
 import { RouteMap } from './RouteMap';
+import { ROUTE_STOPS_MIN_ZOOM, STOPS_MIN_ZOOM } from './homeView';
 import type { LineVariantDetail, PatternStop } from '../types/route';
 
 /*
@@ -45,13 +46,13 @@ const TRAM_1: LineVariantDetail = {
   tripCount: 450,
   firstDeparture: '05:37',
   lastDeparture: '21:09',
+  serviceDates: ['2026-09-10'],
   stops: [stop(0, 60.158), stop(1, 60.17), stop(2, 60.22)],
   shape: [
     [60.158, 24.934],
     [60.17, 24.9],
     [60.22, 24.95],
   ],
-  serviceDates: ['2026-09-10'],
 };
 
 /** A different line, so a re-render has something else to frame. */
@@ -247,6 +248,16 @@ describe('RouteMap drawing', () => {
 
     expect(container.querySelector('.stroke-mode-bus')).toBeTruthy();
     expect(container.querySelector('.stroke-mode-tram')).toBeNull();
+  });
+
+  /*
+   * The network's other stops are context behind a drawn line, so they are held
+   * back further here than on the page where they are the subject. A line framed
+   * end to end covers a whole corridor; filling that with every stop in the city
+   * buries the one thing the reader came for.
+   */
+  it('holds the network’s other stops back further than the stops page does', () => {
+    expect(ROUTE_STOPS_MIN_ZOOM).toBe(STOPS_MIN_ZOOM + 2);
   });
 
   it('opens the stop somebody presses', () => {

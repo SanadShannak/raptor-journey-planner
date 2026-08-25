@@ -6,7 +6,7 @@ import type { LineVariantDetail } from '../types/route';
 import { familyFor, visualForFamily } from '../features/journey/modeVisuals';
 import { MapCanvas, FitTo } from './MapCanvas';
 import { StopLayer } from './StopLayer';
-import { homeViewFor, STOPS_MIN_ZOOM } from './homeView';
+import { homeViewFor, ROUTE_STOPS_MIN_ZOOM } from './homeView';
 import { useReducedMotion } from './useReducedMotion';
 
 interface Props {
@@ -107,11 +107,16 @@ export function RouteMap({ network, area, variant, pending, onStopSelect }: Prop
 
   return (
     <MapCanvas network={network}>
-      {/* Drawn under the line: context, not the subject. */}
+      {/*
+        Drawn under the line: context, not the subject — and held back two zoom
+        levels further in than the stops page for exactly that reason. A line
+        framed end to end covers a whole corridor, and filling it with every
+        other stop in the city buries the one thing the reader came for.
+      */}
       <StopLayer
         onStopHover={() => {}}
         onStopSelect={onStopSelect}
-        minZoom={STOPS_MIN_ZOOM}
+        minZoom={ROUTE_STOPS_MIN_ZOOM}
       />
 
       {/*

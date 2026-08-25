@@ -37,6 +37,7 @@ const VARIANT = {
   tripCount: 450,
   firstDeparture: '05:37',
   lastDeparture: '21:09',
+  serviceDates: ['2026-08-31', '2026-09-01'],
 };
 
 const stop = (sequence: number, over: Record<string, unknown> = {}) => ({
@@ -131,6 +132,33 @@ describe('getLine', () => {
     expect(line.variants[0]).toEqual(VARIANT);
   });
 
+  /*
+   * The days a variant runs arrive with the *summary*, not only with the
+   * variant in full — which is what makes a list of variants choosable rather
+   * than a set of equally plausible wrong answers.
+   */
+  it('reads each variant’s own service days', async () => {
+    respondWith({
+      ...LINE,
+      directions: [0, 1],
+      variants: [
+        VARIANT,
+        { ...VARIANT, patternId: 3, serviceDates: ['2026-10-05'] },
+        // A variant whose services have expired carries an empty list, which is
+        // a real answer and not a missing one.
+        { ...VARIANT, patternId: 4, serviceDates: [] },
+      ],
+    });
+
+    const line = await getLine('tram-1');
+
+    expect(line.variants.map((entry) => entry.serviceDates)).toEqual([
+      ['2026-08-31', '2026-09-01'],
+      ['2026-10-05'],
+      [],
+    ]);
+  });
+
   it('turns a 404 into an ApiError carrying the code', async () => {
     respondWith({ errorCode: 'LINE_NOT_FOUND', error: 'Line not found.' }, 404);
 
@@ -159,7 +187,6 @@ describe('getLineVariant', () => {
         [60.158, 24.934],
         [60.17, 24.938],
       ],
-      serviceDates: ['2026-08-31', '2026-09-01'],
     });
 
     const variant = await getLineVariant('tram-1', 0);
@@ -168,13 +195,14 @@ describe('getLineVariant', () => {
     expect(variant.stops[1]?.platform).toBe('51');
     expect(variant.stops[2]?.distanceFromOriginMeters).toBe(800);
     expect(variant.shape).toHaveLength(2);
+    // Off the variant summary, which the detail response also carries.
     expect(variant.serviceDates).toEqual(['2026-08-31', '2026-09-01']);
   });
 
   /* A feed without shapes.txt still has a line; null says "draw stop to stop",
      and so does a geometry too short to be a line. */
   it('reads an absent or one-point shape as no shape', async () => {
-    respondWith({ ...LINE, ...VARIANT, stops: [], shape: null, serviceDates: [] });
+    respondWith({ ...LINE, ...VARIANT, stops: [], shape: null });
     expect((await getLineVariant('tram-1', 0)).shape).toBeNull();
 
     respondWith({ ...LINE, ...VARIANT, stops: [], shape: [[60.1, 24.9]] });

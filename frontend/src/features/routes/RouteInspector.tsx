@@ -4,6 +4,7 @@ import { DateSelect } from '../../components/DateSelect';
 import { messageForApiError, useLocale } from '../../i18n';
 import type { Line, LineVariantDetail, VariantTimetable } from '../../types/route';
 import { useNetworkNow } from '../stops/useNetworkNow';
+import { daySpan } from './daySpan';
 import { RouteHeader } from './RouteHeader';
 import { RouteStopList } from './RouteStopList';
 import { TripTable } from './TripTable';
@@ -39,16 +40,20 @@ type View = 'stops' | 'timetable';
  * the URL names none, and whether there is an opposite direction to flip to.
  * The variant follows, and then the day.
  *
- * **One date for the whole panel, above both views.** The obvious placement is
- * inside the timetable, where a date control belongs; but the stop list needs a
- * day's times too, or it has nothing to say about when anything leaves. Holding
- * one date means one request instead of two, one thing to change, and it turns
- * the stop list into an answer to "where does this line call on a Sunday, and
- * when" rather than only to "what is next right now".
+ * **Each view has its own day, and only one of them can be chosen.** The stop
+ * list is about now — what is next at each stop, how far along the line the
+ * vehicle is — so its day is today and there is no control to change it. The
+ * timetable is about planning, so that is where the day is picked. A picker
+ * over both would offer to move the stop list off today, which is the one day
+ * it is for.
  *
- * Which is also why nothing polls here. A whole service day is in hand, so the
- * next departure at every stop is recomputed locally as the clock ticks. A
- * departure board refetches because it is a window onto now; this is not.
+ * They share the one request. The effective day is whichever view is showing,
+ * so switching tabs can cost a fetch — a cheap one, and cheaper than holding
+ * two days of the same line in memory to avoid it.
+ *
+ * Nothing polls. A whole service day is in hand, so the next departure at every
+ * stop is recomputed locally as the clock ticks. A departure board refetches
+ * because it is a window onto now; this is not.
  */
 export function RouteInspector({
   lineId,
@@ -135,13 +140,28 @@ export function RouteInspector({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lineId, patternId]);
 
+  /*
+   * The day the panel is actually asking about.
+   *
+   * Today on the stop list, whatever was picked on the timetable. Empty when
+   * the stop list is showing and the line does not run today — which is a real
+   * state with its own words rather than a reason to fall back to a day the
+   * reader did not ask for.
+   */
+  const shownDate =
+    view === 'stops'
+      ? (networkToday !== null && variant?.serviceDates.includes(networkToday)
+          ? networkToday
+          : '')
+      : date;
+
   /* The day. */
   useEffect(() => {
-    if (variant === null || date === '') return;
+    if (variant === null || shownDate === '') return;
 
     const controller = new AbortController();
 
-    void getVariantTimetable(variant.lineId, variant.patternId, date, {
+    void getVariantTimetable(variant.lineId, variant.patternId, shownDate, {
       signal: controller.signal,
     })
       .then((answer) => {
@@ -157,7 +177,7 @@ export function RouteInspector({
 
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [variant, date]);
+  }, [variant, shownDate]);
 
   /*
    * The day opens on today when this line runs then, and on the first day it
@@ -202,7 +222,20 @@ export function RouteInspector({
    * are different facts, and only one of them will resolve itself.
    */
   const clock = useNetworkNow(timezone);
-  const now = date !== '' && date === networkToday ? clock : null;
+  const now = shownDate !== '' && shownDate === networkToday ? clock : null;
+
+  /*
+   * The day's own span, and the day's own trips — but only once the answer on
+   * screen is for the day being asked about. Between a tab switch and the
+   * response, `timetable` still holds the *other* day, and a header reading
+   * "runs 05:37 to 21:09 today" from Sunday's board is worse than a gap.
+   */
+  const dayTimetable =
+    timetable !== null && timetable.date === shownDate ? timetable : null;
+  const span = useMemo(
+    () => (dayTimetable === null ? null : daySpan(dayTimetable.trips)),
+    [dayTimetable],
+  );
 
   /** Where the flip goes, or null when this line only runs one way. */
   const flipTarget = useMemo(() => {
@@ -241,6 +274,9 @@ export function RouteInspector({
       {variant !== null && (
         <RouteHeader
           variant={variant}
+          span={span}
+          day={shownDate}
+          networkToday={networkToday}
           onFlip={
             flipTarget === null ? null : () => onSelectVariant(flipTarget.patternId)
           }
@@ -263,6 +299,12 @@ export function RouteInspector({
             <VariantPicker
               variants={line.variants}
               currentPatternId={variant.patternId}
+              /*
+                Judged against today rather than against a day picked in the
+                timetable. "Running now" has to mean now, or the grouping
+                changes under a reader who was only looking up a Sunday.
+              */
+              day={networkToday}
               onSelect={onSelectVariant}
             />
           )}
@@ -297,12 +339,15 @@ export function RouteInspector({
           </div>
 
           {/*
-            The day, above both views because both are read against it. Its
-            options are the variant's own service days rather than every date
-            the feed covers — a control offering days this line does not run
-            invites a choice that comes back empty.
+            The day, on the timetable only. The stop list is about today and has
+            no day to choose; a picker sitting over both would offer to move it
+            off the one day it is for.
+
+            Its options are the variant's own service days rather than every
+            date the feed covers — a control offering days this line does not
+            run invites a choice that comes back empty.
           */}
-          {variant.serviceDates.length > 0 && (
+          {view === 'timetable' && variant.serviceDates.length > 0 && (
             <DateSelect
               label={t(strings.routes.date)}
               value={date}
@@ -318,24 +363,46 @@ export function RouteInspector({
             region around the stops would re-announce forty rows twice a minute
             as the countdowns moved.
           */}
-          <p aria-live="polite" aria-busy={timetable === null} className="sr-only">
-            {timetable === null
+          <p aria-live="polite" aria-busy={dayTimetable === null} className="sr-only">
+            {dayTimetable === null
               ? ''
-              : t(strings.routes.dayAnnouncement, { count: timetable.totalTrips })}
+              : t(strings.routes.dayAnnouncement, { count: dayTimetable.totalTrips })}
           </p>
 
           {view === 'stops' ? (
-            <RouteStopList
-              stops={variant.stops}
-              routeType={variant.routeType}
-              trips={timetable === null ? null : timetable.trips}
-              viewedDate={date}
-              now={now}
-            />
+            <>
+              {/*
+                The line does not run today, so there is no "next" at any of its
+                stops. Said once, at the top, rather than as the same phrase
+                repeated down forty rows — and pointing at the tab that can
+                answer for another day.
+              */}
+              {shownDate === '' && (
+                <div className="rounded-card border-border bg-surface-muted flex flex-col gap-1 border px-4 py-5">
+                  <p className="font-medium">{t(strings.routes.notRunningToday)}</p>
+                  <p className="text-content-muted text-sm">
+                    {t(strings.routes.notRunningTodayHint)}
+                  </p>
+                </div>
+              )}
+
+              <RouteStopList
+                stops={variant.stops}
+                routeType={variant.routeType}
+                /*
+                  Null while a day is on its way, and null when there is no day
+                  to ask about — the list draws no time either way rather than
+                  claiming nothing runs.
+                */
+                trips={dayTimetable === null ? null : dayTimetable.trips}
+                viewedDate={shownDate}
+                now={now}
+              />
+            </>
           ) : (
-            timetable !== null && (
+            dayTimetable !== null && (
               <TripTable
-                timetable={timetable}
+                timetable={dayTimetable}
                 origin={pair.origin}
                 destination={pair.destination}
                 onOriginChange={setOrigin}

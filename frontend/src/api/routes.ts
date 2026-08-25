@@ -112,6 +112,7 @@ function toVariant(raw: unknown): LineVariant | null {
     tripCount: number(variant['tripCount']),
     firstDeparture: text(variant['firstDeparture']),
     lastDeparture: text(variant['lastDeparture']),
+    serviceDates: toIsoDates(variant['serviceDates']),
   };
 }
 
@@ -281,9 +282,9 @@ export async function getLine(lineId: string, options: CallOptions = {}): Promis
 /**
  * `GET /api/routes/:lineId/:patternId` — one variant's stops, shape and days.
  *
- * `serviceDates` is what a date control on this page offers. Deliberately not
- * `/api/valid-dates`: that is every day the feed covers, including days this
- * line does not run.
+ * `serviceDates` — carried on the variant summary, so it arrives here too — is
+ * what a date control on this page offers. Deliberately not `/api/valid-dates`:
+ * that is every day the feed covers, including days this line does not run.
  */
 export async function getLineVariant(
   lineId: string,
@@ -310,7 +311,6 @@ export async function getLineVariant(
     // is missing. Falling back to the list is the only honest guess.
     stopCount: number(answer?.['stopCount']) ?? stops.length,
     shape: toShape(answer?.['shape']),
-    serviceDates: toIsoDates(answer?.['serviceDates']),
   };
 }
 

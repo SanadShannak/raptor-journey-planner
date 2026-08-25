@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import { formatClockTime, formatDate, formatDuration, useLocale } from '../../i18n';
+import { formatClockTime, formatDate, useLocale } from '../../i18n';
 import type { PatternStop, TripCall, VariantTimetable } from '../../types/route';
 import { minutesUntil, type NetworkMoment } from '../stops/minutesUntil';
 import { stopsAfter } from './stopSelection';
@@ -213,11 +213,8 @@ function Rows({
               <th scope="col" className="py-1.5 pe-3 text-start font-semibold">
                 {t(strings.routes.departs)}
               </th>
-              <th scope="col" className="py-1.5 pe-3 text-start font-semibold">
-                {t(strings.routes.arrives)}
-              </th>
               <th scope="col" className="py-1.5 text-end font-semibold">
-                {t(strings.routes.journeyTime)}
+                {t(strings.routes.arrives)}
               </th>
             </tr>
           </thead>
@@ -245,14 +242,11 @@ function Rows({
                       <span className="sr-only">{t(strings.routes.alreadyDeparted)}</span>
                     )}
                   </td>
-                  <td className="py-2 pe-3 tabular-nums">
+                  <td className="py-2 text-end tabular-nums">
                     <span className="font-semibold">
                       {formatClockTime(row.to.arrivalTime, locale)}
                     </span>
                     <DateNote date={row.to.arrivalDate} viewedDate={timetable.date} />
-                  </td>
-                  <td className="text-content-muted py-2 text-end tabular-nums">
-                    {formatDuration(rideMinutes(row.from, row.to), { locale, strings, t })}
                   </td>
                 </tr>
               );
@@ -276,23 +270,6 @@ function DateNote({ date, viewedDate }: { date: string; viewedDate: string }) {
       })}
     </span>
   );
-}
-
-/**
- * How long the ride takes, measured between the two times printed beside it.
- *
- * Never from anything else. The rule the whole API follows is that a duration
- * agrees with the times published next to it, and the only way to keep that
- * here — where the two times come from two different cells — is to subtract
- * one from the other. `minutesUntil` already handles a pair spanning midnight,
- * which is why it takes dates.
- */
-function rideMinutes(from: TripCall, to: TripCall): number {
-  const minutes = minutesUntil(
-    { date: to.arrivalDate, time: to.arrivalTime },
-    { date: from.date, time: from.time },
-  );
-  return minutes === null ? 0 : Math.max(0, minutes);
 }
 
 const isGone = (call: TripCall, now: NetworkMoment): boolean => {

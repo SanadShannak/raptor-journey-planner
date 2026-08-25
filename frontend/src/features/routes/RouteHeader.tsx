@@ -1,9 +1,24 @@
-import { formatClockTime, useLocale } from '../../i18n';
+import { formatClockTime, formatDate, useLocale } from '../../i18n';
 import { LineBadge } from '../stops/LineBadge';
 import type { LineVariantDetail } from '../../types/route';
+import type { DaySpan } from './daySpan';
 
 interface Props {
   variant: LineVariantDetail;
+  /**
+   * When the first and last vehicle leave the origin on the day being looked
+   * at, or null when it does not run that day.
+   *
+   * The day's own span rather than the pattern's lifetime one. Those answer
+   * different questions — "how early does this line ever start" against "when
+   * does it start on a Sunday" — and only the second is worth printing beside a
+   * date.
+   */
+  span: DaySpan | null;
+  /** The day the span belongs to, so it can say which day it is talking about. */
+  day: string;
+  /** Today on the network's clock, so "today" is only said when it is true. */
+  networkToday: string | null;
   /**
    * Where the flip goes, or null when there is nowhere to flip to.
    *
@@ -19,19 +34,22 @@ interface Props {
  * Who this line is, and which way round it is being shown.
  *
  * The designation wears its mode, as it does on every board — the same badge,
- * unlinked, because pressing it would lead here. Under it the long name, which
+ * unlinked, because pressing it would lead here. Beside it the long name, which
  * is the operator's own description of the route and often the only place the
  * middle of the line is named at all.
  *
- * Then where this variant runs, as one message rather than two labels with an
- * arrow between them: word order differs between languages, and a sentence
- * assembled from fragments cannot follow it.
+ * **The long name does not change when the direction does, and cannot.** An
+ * operator publishes one name for a line, written along the corridor rather
+ * than along a direction — "Eira - Lasipalatsi - Ooppera - Sörnäinen (M) -
+ * Käpylä" is the same road travelled either way, and reversing the words to
+ * make it look directional would be inventing a name the feed does not carry.
  *
- * The span is the line's **lifetime** span across every service day, not the
- * chosen day's, so it is worded as a property of the line. Saying "runs 05:37
- * to 21:09" beside a date would read as a claim about that date.
+ * What genuinely differs between the two directions is where the vehicle is
+ * *going*, so that is the line underneath: the headsign, which is what is
+ * written on the front of the vehicle and what a rider matches against. It
+ * changes on a flip because it is the thing the flip changes.
  */
-export function RouteHeader({ variant, onFlip }: Props) {
+export function RouteHeader({ variant, span, day, networkToday, onFlip }: Props) {
   const { locale, strings, t } = useLocale();
 
   const facts = [
@@ -39,13 +57,27 @@ export function RouteHeader({ variant, onFlip }: Props) {
     variant.tripCount === null
       ? null
       : t(strings.routes.tripCount, { count: variant.tripCount }),
-    variant.firstDeparture === null || variant.lastDeparture === null
+    span === null
       ? null
-      : t(strings.routes.operatingSpan, {
-          first: formatClockTime(variant.firstDeparture, locale),
-          last: formatClockTime(variant.lastDeparture, locale),
-        }),
+      : day === networkToday
+        ? t(strings.routes.spanToday, {
+            first: formatClockTime(span.first, locale),
+            last: formatClockTime(span.last, locale),
+          })
+        : t(strings.routes.spanOnDate, {
+            first: formatClockTime(span.first, locale),
+            last: formatClockTime(span.last, locale),
+            date: formatDate(day, locale, { weekday: 'short', day: 'numeric', month: 'short' }),
+          }),
   ].filter((fact): fact is string => fact !== null);
+
+  /*
+   * The sign, or the last stop when the feed carries none for this pattern.
+   * The fallback is our inference rather than the operator's word, so it is
+   * worded "towards" either way — a rider should not be told a vehicle is
+   * signed something we worked out ourselves.
+   */
+  const destination = variant.headsign ?? variant.terminusStopName;
 
   return (
     <header className="flex flex-col gap-3">
@@ -68,24 +100,23 @@ export function RouteHeader({ variant, onFlip }: Props) {
       </div>
 
       {/*
-        Where this variant runs, and the way back. The two sit on one line
-        because the flip acts on exactly this sentence — it is what turns
-        "Telakkakatu to Pohjolanaukio" into the other one.
+        Where this vehicle is heading, and the way round. The two sit on one
+        line because the flip acts on exactly this sentence — it is what turns
+        "towards Käpylä" into "towards Eira".
       */}
-      {(variant.originStopName !== null || variant.terminusStopName !== null) && (
+      {(destination !== null || onFlip !== null) && (
         <div className="flex items-center gap-2">
-          <p dir="auto" className="text-content min-w-0 flex-1 text-sm font-medium">
-            {t(strings.routes.originToTerminus, {
-              origin: variant.originStopName ?? '',
-              terminus: variant.terminusStopName ?? '',
-            })}
-          </p>
+          {destination !== null && (
+            <p dir="auto" className="text-content min-w-0 flex-1 text-sm font-medium">
+              {t(strings.routes.towards, { destination })}
+            </p>
+          )}
 
           {onFlip !== null && (
             <button
               type="button"
               onClick={onFlip}
-              className="rounded-control border-border-strong text-content hover:bg-surface-muted focus-visible:outline-brand-500 flex flex-none cursor-pointer items-center gap-1.5 border px-2.5 py-1.5 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
+              className="rounded-control border-border-strong text-content hover:bg-surface-muted focus-visible:outline-brand-500 ms-auto flex flex-none cursor-pointer items-center gap-1.5 border px-2.5 py-1.5 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
             >
               {/*
                 Mirrors in RTL: two arrows pointing opposite ways still have a

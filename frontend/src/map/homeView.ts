@@ -53,6 +53,20 @@ export function homeViewFor(network: string | null, bounds: GeoBounds | null): H
 export const STOPS_MIN_ZOOM = 13;
 
 /**
+ * How far out a *line's* map still draws the network's other stops.
+ *
+ * Two levels closer in than the stops page. There the stops are the subject and
+ * should appear as early as they can be told apart; here they are context
+ * behind a drawn line, and a line framed end to end is a whole corridor — at
+ * the stops page's threshold that fills with markers the reader did not ask
+ * for, and the line they came for is the thing competing for attention.
+ *
+ * The line's own stops are drawn at every zoom regardless: they belong to the
+ * subject, not to the layer underneath it.
+ */
+export const ROUTE_STOPS_MIN_ZOOM = STOPS_MIN_ZOOM + 2;
+
+/**
  * The zoom the stops page opens at, wherever it is looking.
  *
  * Comfortably inside {@link STOPS_MIN_ZOOM}, so the page opens on stops rather

@@ -59,6 +59,21 @@ export interface LineVariant {
    */
   firstDeparture: ClockTime | null;
   lastDeparture: ClockTime | null;
+  /**
+   * Exactly the days this variant runs, ascending.
+   *
+   * Narrower than `/api/valid-dates` on purpose: that is every day the *feed*
+   * covers, this is every day the *variant* moves. HSL's tram 1 runs on 31 of
+   * the 60, and the feed carries at least one covered day with no service at
+   * all. **Empty is a real answer** for a variant whose services have expired.
+   *
+   * Carried on the summary, not only on the variant in full, because choosing
+   * between variants needs it — a line's short workings are often seasonal.
+   *
+   * **Not necessarily contiguous.** The first and last entries are a range, not
+   * a promise about every day between them; ask `includes()` about a day.
+   */
+  serviceDates: IsoDate[];
 }
 
 /** A line with the variants behind it, ordered busiest first. */
@@ -104,15 +119,6 @@ export interface LineVariantDetail extends LineVariant {
    * `shapes.txt`, where a client draws stop to stop instead.
    */
   shape: Coordinates[] | null;
-  /**
-   * Exactly the days this variant runs, ascending.
-   *
-   * Narrower than `/api/valid-dates` on purpose: that is every day the *feed*
-   * covers, this is every day the *line* moves. HSL's tram 1 runs on 31 of the
-   * 60, and the feed carries at least one covered day with no service at all.
-   * **Empty is a real answer** for a variant whose services have all expired.
-   */
-  serviceDates: IsoDate[];
 }
 
 /** One vehicle at one stop: when it pulls in, and when it leaves again. */

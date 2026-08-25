@@ -407,10 +407,26 @@ export interface Dictionary {
     /** How many times it runs, across every service day. */
     tripCount: Message;
     /**
-     * The line's earliest and latest departure across every service day — not
-     * the chosen day's. Worded as a span of the line rather than of a date.
+     * When the first and last vehicle leave the origin **today**.
+     *
+     * The day's own span, not the pattern's lifetime one. Beside a date, a
+     * lifetime span reads as a claim about that date — and on a line whose
+     * weekend service is shorter it is a wrong one.
      */
-    operatingSpan: string;
+    spanToday: string;
+    /** The same, for a day that is not today, which therefore says which. */
+    spanOnDate: string;
+    /** The line does not run at all on the day being looked at. */
+    notRunningToday: string;
+    /** Points at the timetable, where another day can be chosen. */
+    notRunningTodayHint: string;
+    /**
+     * The calendar range a variant runs over — dates, not times. What tells a
+     * seasonal short working from the everyday service.
+     */
+    serviceRange: string;
+    /** A variant the feed's calendar says nothing about. */
+    noServiceDays: string;
 
     /* The other patterns of the same line. */
     /**
@@ -424,6 +440,10 @@ export interface Dictionary {
     hideAlternatives: string;
     /** The variant currently on screen, so the list says where you are. */
     currentVariant: string;
+    /* Variants grouped by whether they run on the day being looked at. */
+    runningNow: string;
+    startingLater: string;
+    noLongerRunning: string;
     /** A variant named by its sign, when the feed carries one. */
     towards: string;
 
@@ -456,8 +476,6 @@ export interface Dictionary {
     departs: string;
     /** Column heading: when it reaches the chosen destination. */
     arrives: string;
-    /** Column heading: how long that takes. */
-    journeyTime: string;
     /** The origin is the last stop, so there is nothing to travel to. */
     noOnwardStops: string;
     /** Inside the feed's window, but this line does not run that day. */

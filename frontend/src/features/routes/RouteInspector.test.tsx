@@ -41,6 +41,7 @@ const OUTBOUND = {
   tripCount: 450,
   firstDeparture: '05:37',
   lastDeparture: '21:09',
+  serviceDates: ['2026-09-10', '2026-09-11'],
 };
 
 const INBOUND = {
@@ -102,7 +103,6 @@ function stubFetch(feed: Feed = {}) {
     feed.timetable ?? {
       ...LINE_FIELDS,
       ...OUTBOUND,
-      date: '2026-09-10',
       stops: STOPS,
       stopCount: 3,
       trips: TRIPS,
@@ -113,15 +113,32 @@ function stubFetch(feed: Feed = {}) {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: RequestInfo | URL) => {
-      const path = new URL(String(url)).pathname;
+      const asked = new URL(String(url));
+      const path = asked.pathname;
       if (path.endsWith('/timetable')) {
-        return new Response(JSON.stringify(timetable), { status: 200 });
+        /*
+         * Echoes the date it was asked for, as the real endpoint does. The panel
+         * checks that an answer belongs to the day on screen before reading it,
+         * so a fixture with a fixed date would look like a stale response.
+         */
+        return new Response(
+          JSON.stringify({
+            ...timetable,
+            date: asked.searchParams.get('date') ?? timetable['date'],
+          }),
+          { status: 200 },
+        );
       }
       // `/api/routes/tram-1/0` — three segments after the prefix.
       if (/\/api\/routes\/[^/]+\/[^/]+$/.test(path)) {
-        return new Response(JSON.stringify(variant), {
-          status: feed.variantStatus ?? 200,
-        });
+        // The inbound pattern answers as itself, so a flip has somewhere to go.
+        const inbound = path.endsWith(`/${INBOUND.patternId}`);
+        return new Response(
+          JSON.stringify(
+            inbound ? { ...(variant as object), ...INBOUND } : variant,
+          ),
+          { status: feed.variantStatus ?? 200 },
+        );
       }
       return new Response(JSON.stringify(line), { status: 200 });
     }),
@@ -159,17 +176,64 @@ afterEach(() => {
 });
 
 describe('RouteInspector', () => {
-  it('names the line, and says where this variant runs', async () => {
+  it('names the line, and says where this vehicle is heading', async () => {
     stubFetch();
     show();
 
     expect(
       await screen.findByRole('heading', { level: 1, name: 'Eira - Käpylä' }),
     ).toBeTruthy();
-    expect(screen.getByText('Telakkakatu to Pohjolanaukio')).toBeTruthy();
+    expect(screen.getByText('towards Käpylä')).toBeTruthy();
     expect(screen.getByText('3 stops')).toBeTruthy();
     expect(screen.getByText('450 trips')).toBeTruthy();
-    expect(screen.getByText('Runs 5:37 AM to 9:09 PM')).toBeTruthy();
+  });
+
+  /*
+   * The day's own span, not the pattern's lifetime one. Beside a date the
+   * lifetime span reads as a claim about that date, and on a line whose weekend
+   * service is shorter it is a wrong one. Here the trips run 05:37 to 16:40 from
+   * the origin, while the variant's own `lastDeparture` says 21:09.
+   */
+  it('spans the day it is showing, not the pattern’s whole life', async () => {
+    stubFetch();
+    show();
+
+    expect(await screen.findByText('Runs 5:37 AM to 4:40 PM today')).toBeTruthy();
+    expect(screen.queryByText(/9:09 PM/)).toBeNull();
+  });
+
+  /*
+   * The long name is the operator's, written along the corridor rather than
+   * along a direction — the same road travelled either way. What flips is the
+   * destination, so that is what the header puts under it.
+   */
+  it('keeps the line’s name and flips the destination under it', async () => {
+    stubFetch();
+    const { rerender } = show({ patternId: 0 });
+    expect(await screen.findByText('towards Käpylä')).toBeTruthy();
+
+    rerender(
+      <LocaleProvider>
+        <MemoryRouter>
+          <RouteInspector
+            lineId="tram-1"
+            patternId={1}
+            timezone="Europe/Helsinki"
+            networkToday="2026-09-10"
+            onSelectVariant={() => {}}
+            onBack={() => {}}
+            backLabel="All lines"
+          />
+        </MemoryRouter>
+      </LocaleProvider>,
+    );
+
+    // The same heading; a different destination.
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Eira - Käpylä' }),
+    ).toBeTruthy();
+    expect(screen.queryByText('towards Käpylä')).toBeNull();
+    expect(screen.getByText('towards Eira')).toBeTruthy();
   });
 
   /*
@@ -292,10 +356,50 @@ describe('RouteInspector', () => {
     const disclose = await screen.findByRole('button', { name: 'Show alternative routes' });
     fireEvent.click(disclose);
 
-    expect(screen.getByRole('heading', { name: 'Alternative routes' })).toBeTruthy();
-    expect(screen.getByText('towards Käpylä')).toBeTruthy();
-    expect(screen.getByText('towards Eira')).toBeTruthy();
-    expect(screen.getByText('Showing now')).toBeTruthy();
+    const panel = within(screen.getByRole('heading', { name: 'Alternative routes' }).parentElement!);
+    expect(panel.getByText('towards Eira')).toBeTruthy();
+    expect(panel.getByText('Showing now')).toBeTruthy();
+  });
+
+  /*
+   * Flat, thirty-nine variants are a set of equally plausible wrong answers.
+   * Grouped by whether they run today, the choice is a choice.
+   */
+  it('groups the alternatives by whether they run today', async () => {
+    stubFetch({
+      line: {
+        ...LINE_FIELDS,
+        directions: [0, 1],
+        variants: [
+          OUTBOUND,
+          // Starts after today.
+          { ...INBOUND, patternId: 5, headsign: 'Autumn', serviceDates: ['2026-10-05'] },
+          // Finished before it.
+          { ...INBOUND, patternId: 6, headsign: 'Summer', serviceDates: ['2026-07-01'] },
+        ],
+      },
+    });
+    show();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Show alternative routes' }));
+
+    expect(screen.getByRole('heading', { name: 'Running now' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Starting later' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'No longer running' })).toBeTruthy();
+  });
+
+  /*
+   * Dates, not times. Two short workings both running "05:13 to 06:53" are told
+   * apart by the months they cover, never by the hours.
+   */
+  it('dates each alternative by its calendar range', async () => {
+    stubFetch();
+    show();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Show alternative routes' }));
+
+    expect(screen.getAllByText(/Runs Sep 10 to Sep 11/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Runs 5:37 AM to 9:09 PM/)).toBeNull();
   });
 
   it('offers no alternatives for a line with a single pattern', async () => {
@@ -310,9 +414,25 @@ describe('RouteInspector', () => {
    * The days the *line* runs, not the days the feed covers. A control offering
    * the other fifty invites a choice that comes back empty.
    */
-  it('offers only the variant’s own service days', async () => {
+  /*
+   * The stop list is about now — what is next at each stop, how far along the
+   * line the vehicle is — so its day is today and there is nothing to choose. A
+   * picker over both views would offer to move it off the one day it is for.
+   */
+  it('offers no day to pick on the stop list', async () => {
     stubFetch();
     show();
+
+    await screen.findByRole('heading', { level: 1 });
+    expect(screen.queryByRole('button', { name: /Service day/ })).toBeNull();
+  });
+
+  it('offers only the variant’s own service days, on the timetable', async () => {
+    stubFetch();
+    show();
+
+    await screen.findByRole('heading', { level: 1 });
+    fireEvent.click(screen.getByRole('radio', { name: 'Timetable' }));
 
     const picker = await screen.findByRole('button', { name: /Service day/ });
     fireEvent.click(picker);
@@ -322,30 +442,70 @@ describe('RouteInspector', () => {
     expect(within(list).getByRole('option', { name: /Sep 10/ })).toBeTruthy();
   });
 
-  it('opens on today when the line runs then', async () => {
+  it('opens the timetable on today when the line runs then', async () => {
     stubFetch();
     show();
+
+    await screen.findByRole('heading', { level: 1 });
+    fireEvent.click(screen.getByRole('radio', { name: 'Timetable' }));
 
     expect(await screen.findByRole('button', { name: /Today/ })).toBeTruthy();
   });
 
   /* Today is not a day this variant runs, so the picker opens on one that is. */
-  it('opens on the first day it runs when that is not today', async () => {
+  it('opens the timetable on the first day it runs when that is not today', async () => {
     stubFetch({
+      line: {
+        ...LINE_FIELDS,
+        directions: [0],
+        variants: [{ ...OUTBOUND, serviceDates: ['2026-09-14', '2026-09-15'] }],
+      },
       variant: {
         ...LINE_FIELDS,
         ...OUTBOUND,
+        serviceDates: ['2026-09-14', '2026-09-15'],
         stops: STOPS,
         stopCount: 3,
         shape: null,
-        serviceDates: ['2026-09-14', '2026-09-15'],
       },
     });
     show();
 
+    await screen.findByRole('heading', { level: 1 });
+    fireEvent.click(screen.getByRole('radio', { name: 'Timetable' }));
+
     const picker = await screen.findByRole('button', { name: /Service day/ });
     expect(picker.textContent).toContain('Sep 14');
     expect(picker.textContent).not.toContain('Today');
+  });
+
+  /*
+   * The line does not run today at all, so there is no "next" at any of its
+   * stops — said once, at the top, and pointing at the tab that can answer for
+   * another day rather than repeating itself down forty rows.
+   */
+  it('says so once when the line does not run today', async () => {
+    stubFetch({
+      line: {
+        ...LINE_FIELDS,
+        directions: [0],
+        variants: [{ ...OUTBOUND, serviceDates: ['2026-09-14'] }],
+      },
+      variant: {
+        ...LINE_FIELDS,
+        ...OUTBOUND,
+        serviceDates: ['2026-09-14'],
+        stops: STOPS,
+        stopCount: 3,
+        shape: null,
+      },
+    });
+    show();
+
+    expect(await screen.findByText('This line does not run today.')).toBeTruthy();
+    expect(screen.getAllByText('This line does not run today.')).toHaveLength(1);
+    // No span either: there is no day to span.
+    expect(screen.queryByText(/^Runs /)).toBeNull();
   });
 
   describe('the timetable', () => {
@@ -370,16 +530,23 @@ describe('RouteInspector', () => {
       expect(screen.getByText('3 trips between these stops.')).toBeTruthy();
     });
 
-    it('shows the departure, the arrival at the far end, and the time between', async () => {
+    /* Two columns, and no third. The duration was a number nobody asked for
+       between two they did. */
+    it('shows the departure and the arrival at the far end, and nothing else', async () => {
       stubFetch();
       show();
       await openTimetable();
 
       const rows = await screen.findAllByRole('row');
+      expect(within(rows[0]!).getAllByRole('columnheader').map((c) => c.textContent)).toEqual([
+        'Departs',
+        'Arrives',
+      ]);
+
       const early = within(rows[1]!);
       expect(early.getByText('5:37 AM')).toBeTruthy();
       expect(early.getByText('5:52 AM')).toBeTruthy();
-      expect(early.getByText('15 min')).toBeTruthy();
+      expect(early.queryByText('15 min')).toBeNull();
     });
 
     /* Only the stops the vehicle reaches after the chosen origin. */
@@ -412,7 +579,6 @@ describe('RouteInspector', () => {
         timetable: {
           ...LINE_FIELDS,
           ...OUTBOUND,
-          date: '2026-09-10',
           stops: STOPS,
           stopCount: 3,
           trips: [
@@ -435,7 +601,6 @@ describe('RouteInspector', () => {
         timetable: {
           ...LINE_FIELDS,
           ...OUTBOUND,
-          date: '2026-09-10',
           stops: STOPS,
           stopCount: 3,
           trips: [],
@@ -455,7 +620,6 @@ describe('RouteInspector', () => {
         timetable: {
           ...LINE_FIELDS,
           ...OUTBOUND,
-          date: '2027-01-05',
           stops: [],
           stopCount: 0,
           trips: [],
