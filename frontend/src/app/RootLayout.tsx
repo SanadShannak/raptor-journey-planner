@@ -28,13 +28,15 @@ export function RootLayout() {
    *
    * Matched against the *home* path for the planner, because that is where it
    * lives: `/plan` only redirects to it, so a page that never renders was the
-   * one being tested. The stops pages are matched by pattern, so the index and
-   * a single stop are both covered without listing them twice.
+   * one being tested. The stops and lines pages are matched by pattern, so an
+   * index and a single subject are both covered without listing them twice.
    */
   const fullHeight =
     pathname === paths.home ||
     matchPath(paths.stops, pathname) !== null ||
-    matchPath(paths.stopDetail, pathname) !== null;
+    matchPath(paths.stopDetail, pathname) !== null ||
+    matchPath(paths.routes, pathname) !== null ||
+    matchPath(paths.routeDetail, pathname) !== null;
   const showFooter = !fullHeight;
 
   return (

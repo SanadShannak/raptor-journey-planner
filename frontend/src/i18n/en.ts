@@ -92,9 +92,9 @@ export const en: Dictionary = {
       cardCard: 'Travel card',
       cardCardBody: 'Check the balance on your card.',
     },
-    plan: { title: 'Plan a journey', comingSoon: 'The journey planner is being built.' },
-    routes: { title: 'Lines', comingSoon: 'Line browsing is being built.' },
-    stops: { title: 'Stops', comingSoon: 'Stop search is being built.' },
+    plan: { title: 'Plan a journey' },
+    routes: { title: 'Lines' },
+    stops: { title: 'Stops' },
     card: {
       title: 'Travel card',
       needsAccount: 'Checking a card balance will need an account. Accounts are not available yet.',
@@ -257,6 +257,73 @@ export const en: Dictionary = {
     clearFilter: 'Show all lines',
     noMatchingLines: 'No departures match the lines you picked.',
 
+  },
+
+  routes: {
+    browseHint: 'Pick a line to see where it goes and when it runs.',
+    searchLines: 'Search lines',
+    searchPlaceholder: 'Number or destination',
+    noMatchingLines: 'No lines match that search.',
+    clearSearch: 'Clear search',
+    lineCount: {
+      one: 'One line.',
+      other: '{count} lines.',
+    },
+    variantCount: {
+      one: '1 route',
+      other: '{count} routes',
+    },
+    loadingLines: 'Loading lines…',
+
+    backToLines: 'All lines',
+    loadingLine: 'Loading line…',
+
+    originToTerminus: '{origin} to {terminus}',
+    flipDirection: 'Show the other direction',
+    stopCount: {
+      one: '1 stop',
+      other: '{count} stops',
+    },
+    tripCount: {
+      one: '1 trip',
+      other: '{count} trips',
+    },
+    operatingSpan: 'Runs {first} to {last}',
+
+    alternativeRoutes: 'Alternative routes',
+    showAlternatives: 'Show alternative routes',
+    hideAlternatives: 'Hide alternative routes',
+    currentVariant: 'Showing now',
+    towards: 'towards {destination}',
+
+    stopsView: 'Stops',
+    timetableView: 'Timetable',
+    viewLabel: 'What to show about this line',
+    date: 'Service day',
+
+    inspectStop: 'Open {stop}',
+    nextDeparture: 'Next departure',
+    noMoreToday: 'Nothing more today',
+    noCallHere: 'Does not call that day',
+    dayAnnouncement: {
+      one: 'One trip on this day.',
+      other: '{count} trips on this day.',
+    },
+
+    fromStop: 'From',
+    toStop: 'To',
+    departs: 'Departs',
+    arrives: 'Arrives',
+    journeyTime: 'Takes',
+    noOnwardStops: 'This is the end of the line, so there is nowhere further along to travel to. Pick an earlier stop.',
+    noTripsToday: 'This line does not run on the day you picked.',
+    outsideTimetableRange: 'Outside the timetable',
+    outsideTimetableRangeHint: 'The loaded timetable does not reach that far. Pick a day inside it.',
+    tripsBetween: {
+      one: 'One trip between these stops.',
+      other: '{count} trips between these stops.',
+    },
+    alreadyDeparted: 'Already gone',
   },
 
   card: {

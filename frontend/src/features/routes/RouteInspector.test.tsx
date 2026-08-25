@@ -1,0 +1,486 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
+import { LocaleProvider } from '../../i18n';
+import { RouteInspector } from './RouteInspector';
+
+/*
+ * The panel as somebody reads it, queried the way somebody reaches it — by role
+ * and accessible name. The API is stubbed at `fetch`, so what is under test is
+ * everything from the parser upward.
+ */
+
+const stop = (sequence: number, name: string, over: Record<string, unknown> = {}) => ({
+  id: `id-${sequence}`,
+  name,
+  code: `H000${sequence}`,
+  lat: 60.16 + sequence / 100,
+  lon: 24.94,
+  description: null,
+  fareZone: 'A',
+  platform: null,
+  wheelchairAccessible: null,
+  sequence,
+  distanceFromOriginMeters: sequence * 400,
+  ...over,
+});
+
+const STOPS = [
+  stop(0, 'Telakkakatu'),
+  stop(1, 'Lasipalatsi', { platform: '51', description: 'Mannerheimintie' }),
+  stop(2, 'Pohjolanaukio'),
+];
+
+const OUTBOUND = {
+  patternId: 0,
+  directionId: 0,
+  headsign: 'Käpylä',
+  originStopName: 'Telakkakatu',
+  terminusStopName: 'Pohjolanaukio',
+  stopCount: 3,
+  tripCount: 450,
+  firstDeparture: '05:37',
+  lastDeparture: '21:09',
+};
+
+const INBOUND = {
+  ...OUTBOUND,
+  patternId: 1,
+  directionId: 1,
+  headsign: 'Eira',
+  originStopName: 'Pohjolanaukio',
+  terminusStopName: 'Telakkakatu',
+  tripCount: 445,
+};
+
+/** Times are local wall clock in the network's zone; the day is 2026-09-10. */
+const call = (time: string, arrivalTime = time) => ({
+  date: '2026-09-10',
+  time,
+  arrivalDate: '2026-09-10',
+  arrivalTime,
+});
+
+const TRIPS = [
+  // Gone by 15:44.
+  { tripId: 'trip-early', headsign: 'Käpylä', calls: [call('05:37'), call('05:44'), call('05:52')] },
+  // Imminent at stop 1, and comfortably ahead at stop 2.
+  { tripId: 'trip-soon', headsign: 'Käpylä', calls: [call('15:40'), call('15:50'), call('16:20')] },
+  { tripId: 'trip-later', headsign: 'Käpylä', calls: [call('16:40'), call('16:50', '16:49'), call('17:20')] },
+];
+
+interface Feed {
+  line?: Record<string, unknown>;
+  variant?: Record<string, unknown> | undefined;
+  timetable?: Record<string, unknown> | undefined;
+  variantStatus?: number;
+}
+
+const LINE_FIELDS = {
+  lineId: 'tram-1',
+  routeShortName: '1',
+  routeType: 0,
+  routeLongName: 'Eira - Käpylä',
+};
+
+function stubFetch(feed: Feed = {}) {
+  const line = feed.line ?? {
+    ...LINE_FIELDS,
+    directions: [0, 1],
+    variants: [OUTBOUND, INBOUND],
+  };
+  const variant =
+    feed.variant ?? {
+      ...LINE_FIELDS,
+      ...OUTBOUND,
+      stops: STOPS,
+      stopCount: 3,
+      shape: null,
+      serviceDates: ['2026-09-10', '2026-09-11'],
+    };
+  const timetable =
+    feed.timetable ?? {
+      ...LINE_FIELDS,
+      ...OUTBOUND,
+      date: '2026-09-10',
+      stops: STOPS,
+      stopCount: 3,
+      trips: TRIPS,
+      totalTrips: TRIPS.length,
+      outsideTimetableRange: false,
+    };
+
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: RequestInfo | URL) => {
+      const path = new URL(String(url)).pathname;
+      if (path.endsWith('/timetable')) {
+        return new Response(JSON.stringify(timetable), { status: 200 });
+      }
+      // `/api/routes/tram-1/0` — three segments after the prefix.
+      if (/\/api\/routes\/[^/]+\/[^/]+$/.test(path)) {
+        return new Response(JSON.stringify(variant), {
+          status: feed.variantStatus ?? 200,
+        });
+      }
+      return new Response(JSON.stringify(line), { status: 200 });
+    }),
+  );
+}
+
+function show(props: Partial<Parameters<typeof RouteInspector>[0]> = {}) {
+  return render(
+    <LocaleProvider>
+      <MemoryRouter>
+        <RouteInspector
+          lineId="tram-1"
+          patternId={null}
+          timezone="Europe/Helsinki"
+          networkToday="2026-09-10"
+          onSelectVariant={() => {}}
+          onBack={() => {}}
+          backLabel="All lines"
+          {...props}
+        />
+      </MemoryRouter>
+    </LocaleProvider>,
+  );
+}
+
+beforeEach(() => {
+  localStorage.clear();
+  // 15:44 in Helsinki, which is inside the day the timetable describes.
+  vi.setSystemTime(new Date('2026-09-10T12:44:30Z'));
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
+
+describe('RouteInspector', () => {
+  it('names the line, and says where this variant runs', async () => {
+    stubFetch();
+    show();
+
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Eira - Käpylä' }),
+    ).toBeTruthy();
+    expect(screen.getByText('Telakkakatu to Pohjolanaukio')).toBeTruthy();
+    expect(screen.getByText('3 stops')).toBeTruthy();
+    expect(screen.getByText('450 trips')).toBeTruthy();
+    expect(screen.getByText('Runs 5:37 AM to 9:09 PM')).toBeTruthy();
+  });
+
+  /*
+   * GTFS gives a designation and never says what it names, so the word comes
+   * from the mode of the line being looked at — the same rule a stop's own page
+   * and the itinerary follow.
+   */
+  it('calls a tram designation a platform and a rail one a track', async () => {
+    stubFetch();
+    const { unmount } = show();
+    expect(await screen.findByText('Platform 51')).toBeTruthy();
+    unmount();
+
+    stubFetch({
+      line: { ...LINE_FIELDS, routeType: 2, directions: [], variants: [OUTBOUND] },
+      variant: {
+        ...LINE_FIELDS,
+        routeType: 2,
+        ...OUTBOUND,
+        stops: STOPS,
+        stopCount: 3,
+        shape: null,
+        serviceDates: ['2026-09-10'],
+      },
+    });
+    show();
+    expect(await screen.findByText('Track 51')).toBeTruthy();
+  });
+
+  it('makes every stop a link to its own page', async () => {
+    stubFetch();
+    show();
+
+    const link = await screen.findByRole('link', { name: 'Lasipalatsi' });
+    expect(link.getAttribute('href')).toBe('/stops/id-1');
+  });
+
+  /*
+   * Ten minutes here rather than the sixty a departure board uses: a column of
+   * stops with a chip on every row is a wall of numbers, and the only thing
+   * worth interrupting a reader for is that the vehicle is nearly here.
+   */
+  it('counts down only for a departure that is nearly here', async () => {
+    stubFetch();
+    show();
+
+    // Stop 1 at 15:50 is six minutes out, so it counts.
+    expect(await screen.findByText('Departs in 6 minutes')).toBeTruthy();
+    // Stop 2 at 16:20 is thirty-six, which a clock answers better than a chip.
+    expect(screen.queryByText('Departs in 36 minutes')).toBeNull();
+    expect(screen.getByText('4:20 PM')).toBeTruthy();
+  });
+
+  it('shows the arrival only where it differs from the departure', async () => {
+    stubFetch({
+      timetable: {
+        ...LINE_FIELDS,
+        ...OUTBOUND,
+        date: '2026-09-10',
+        stops: STOPS,
+        stopCount: 3,
+        // Only the middle stop waits.
+        trips: [{ tripId: 't', headsign: null, calls: [call('16:00'), call('16:10', '16:08'), call('16:20')] }],
+        totalTrips: 1,
+        outsideTimetableRange: false,
+      },
+    });
+    show();
+
+    expect(await screen.findByText('Arrives 4:08 PM')).toBeTruthy();
+    expect(screen.queryByText('Arrives 4:00 PM')).toBeNull();
+  });
+
+  it('says nothing more runs today once the last vehicle has gone', async () => {
+    stubFetch({
+      timetable: {
+        ...LINE_FIELDS,
+        ...OUTBOUND,
+        date: '2026-09-10',
+        stops: STOPS,
+        stopCount: 3,
+        trips: [TRIPS[0]],
+        totalTrips: 1,
+        outsideTimetableRange: false,
+      },
+    });
+    show();
+
+    await waitFor(() =>
+      expect(screen.getAllByText('Nothing more today')).toHaveLength(3),
+    );
+  });
+
+  /* A direction only exists if a pattern runs it. */
+  it('offers the flip when the other direction exists', async () => {
+    const onSelectVariant = vi.fn();
+    stubFetch();
+    show({ onSelectVariant });
+
+    const flip = await screen.findByRole('button', { name: 'Show the other direction' });
+    fireEvent.click(flip);
+
+    expect(onSelectVariant).toHaveBeenCalledWith(INBOUND.patternId);
+  });
+
+  it('offers no flip on a line that only runs one way', async () => {
+    stubFetch({
+      line: { ...LINE_FIELDS, directions: [0], variants: [OUTBOUND] },
+    });
+    show();
+
+    await screen.findByRole('heading', { level: 1 });
+    expect(screen.queryByRole('button', { name: 'Show the other direction' })).toBeNull();
+  });
+
+  it('lists the other patterns of the same line, and says which one is showing', async () => {
+    stubFetch();
+    show();
+
+    const disclose = await screen.findByRole('button', { name: 'Show alternative routes' });
+    fireEvent.click(disclose);
+
+    expect(screen.getByRole('heading', { name: 'Alternative routes' })).toBeTruthy();
+    expect(screen.getByText('towards Käpylä')).toBeTruthy();
+    expect(screen.getByText('towards Eira')).toBeTruthy();
+    expect(screen.getByText('Showing now')).toBeTruthy();
+  });
+
+  it('offers no alternatives for a line with a single pattern', async () => {
+    stubFetch({ line: { ...LINE_FIELDS, directions: [0], variants: [OUTBOUND] } });
+    show();
+
+    await screen.findByRole('heading', { level: 1 });
+    expect(screen.queryByRole('button', { name: 'Show alternative routes' })).toBeNull();
+  });
+
+  /*
+   * The days the *line* runs, not the days the feed covers. A control offering
+   * the other fifty invites a choice that comes back empty.
+   */
+  it('offers only the variant’s own service days', async () => {
+    stubFetch();
+    show();
+
+    const picker = await screen.findByRole('button', { name: /Service day/ });
+    fireEvent.click(picker);
+
+    const list = screen.getByRole('listbox', { name: 'Service day' });
+    expect(within(list).getAllByRole('option')).toHaveLength(2);
+    expect(within(list).getByRole('option', { name: /Sep 10/ })).toBeTruthy();
+  });
+
+  it('opens on today when the line runs then', async () => {
+    stubFetch();
+    show();
+
+    expect(await screen.findByRole('button', { name: /Today/ })).toBeTruthy();
+  });
+
+  /* Today is not a day this variant runs, so the picker opens on one that is. */
+  it('opens on the first day it runs when that is not today', async () => {
+    stubFetch({
+      variant: {
+        ...LINE_FIELDS,
+        ...OUTBOUND,
+        stops: STOPS,
+        stopCount: 3,
+        shape: null,
+        serviceDates: ['2026-09-14', '2026-09-15'],
+      },
+    });
+    show();
+
+    const picker = await screen.findByRole('button', { name: /Service day/ });
+    expect(picker.textContent).toContain('Sep 14');
+    expect(picker.textContent).not.toContain('Today');
+  });
+
+  describe('the timetable', () => {
+    const openTimetable = async () => {
+      await screen.findByRole('heading', { level: 1 });
+      fireEvent.click(await screen.findByRole('radio', { name: 'Timetable' }));
+    };
+
+    it('opens end to end, and lists a trip per row', async () => {
+      stubFetch();
+      show();
+      await openTimetable();
+
+      const from = await screen.findByLabelText('From');
+      const to = screen.getByLabelText('To');
+      expect((from as HTMLSelectElement).value).toBe('0');
+      expect((to as HTMLSelectElement).value).toBe('2');
+
+      const rows = screen.getAllByRole('row');
+      // A heading row plus one per trip.
+      expect(rows).toHaveLength(1 + TRIPS.length);
+      expect(screen.getByText('3 trips between these stops.')).toBeTruthy();
+    });
+
+    it('shows the departure, the arrival at the far end, and the time between', async () => {
+      stubFetch();
+      show();
+      await openTimetable();
+
+      const rows = await screen.findAllByRole('row');
+      const early = within(rows[1]!);
+      expect(early.getByText('5:37 AM')).toBeTruthy();
+      expect(early.getByText('5:52 AM')).toBeTruthy();
+      expect(early.getByText('15 min')).toBeTruthy();
+    });
+
+    /* Only the stops the vehicle reaches after the chosen origin. */
+    it('offers no destination the vehicle has already passed', async () => {
+      stubFetch();
+      show();
+      await openTimetable();
+
+      const from = await screen.findByLabelText('From');
+      fireEvent.change(from, { target: { value: '1' } });
+
+      const to = screen.getByLabelText('To') as HTMLSelectElement;
+      const names = [...to.options].map((option) => option.textContent);
+      expect(names).toEqual(['Pohjolanaukio']);
+    });
+
+    it('says so when the origin is the end of the line', async () => {
+      stubFetch();
+      show();
+      await openTimetable();
+
+      fireEvent.change(await screen.findByLabelText('From'), { target: { value: '2' } });
+
+      expect(screen.getByText(/end of the line/)).toBeTruthy();
+      expect(screen.queryByRole('table')).toBeNull();
+    });
+
+    it('drops a trip that does not make both of the chosen stops', async () => {
+      stubFetch({
+        timetable: {
+          ...LINE_FIELDS,
+          ...OUTBOUND,
+          date: '2026-09-10',
+          stops: STOPS,
+          stopCount: 3,
+          trips: [
+            { tripId: 'full', headsign: null, calls: [call('06:00'), call('06:10'), call('06:20')] },
+            // A short working that joins the line after the origin.
+            { tripId: 'short', headsign: null, calls: [null, call('06:40'), call('06:50')] },
+          ],
+          totalTrips: 2,
+          outsideTimetableRange: false,
+        },
+      });
+      show();
+      await openTimetable();
+
+      expect(await screen.findByText('One trip between these stops.')).toBeTruthy();
+    });
+
+    it('reports a day the line does not run as an empty day, not an error', async () => {
+      stubFetch({
+        timetable: {
+          ...LINE_FIELDS,
+          ...OUTBOUND,
+          date: '2026-09-10',
+          stops: STOPS,
+          stopCount: 3,
+          trips: [],
+          totalTrips: 0,
+          outsideTimetableRange: false,
+        },
+      });
+      show();
+      await openTimetable();
+
+      expect(await screen.findByText(/does not run on the day you picked/)).toBeTruthy();
+      expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('distinguishes a date outside the feed from a day with no service', async () => {
+      stubFetch({
+        timetable: {
+          ...LINE_FIELDS,
+          ...OUTBOUND,
+          date: '2027-01-05',
+          stops: [],
+          stopCount: 0,
+          trips: [],
+          totalTrips: 0,
+          outsideTimetableRange: true,
+        },
+      });
+      show();
+      await openTimetable();
+
+      expect(await screen.findByText('Outside the timetable')).toBeTruthy();
+      expect(screen.queryByText(/does not run on the day you picked/)).toBeNull();
+    });
+  });
+
+  /* The API's own `error` string is developer-facing English and never shown. */
+  it('reports a failure in the reader’s language, never the API’s', async () => {
+    stubFetch({
+      variant: { errorCode: 'PATTERN_NOT_FOUND', error: 'Variant not found on this line.' },
+      variantStatus: 404,
+    });
+    show();
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).not.toContain('Variant not found on this line.');
+    expect(alert.textContent).toBeTruthy();
+  });
+});

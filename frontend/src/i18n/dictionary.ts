@@ -109,9 +109,9 @@ export interface Dictionary {
       cardCard: string;
       cardCardBody: string;
     };
-    plan: { title: string; comingSoon: string };
-    routes: { title: string; comingSoon: string };
-    stops: { title: string; comingSoon: string };
+    plan: { title: string };
+    routes: { title: string };
+    stops: { title: string };
     card: { title: string; needsAccount: string };
     notFound: { title: string; body: string; backHome: string };
   };
@@ -358,6 +358,117 @@ export interface Dictionary {
     /** Every line is filtered out, which is the reader's own doing. */
     noMatchingLines: string;
 
+  };
+
+  /**
+   * Line inspection: where a line goes, when it calls, and what it costs in
+   * time between any two of its stops.
+   *
+   * A sibling of `stops` rather than part of it. The two are read from opposite
+   * ends of the same data — a stop asks what passes through it, a line asks
+   * where it passes — and the words differ accordingly.
+   */
+  routes: {
+    /* The index, where a line has not been chosen yet. */
+    browseHint: string;
+    /** Labels the search field. Says what it searches, not what it might. */
+    searchLines: string;
+    /** Placeholder, on top of the label and never instead of one. */
+    searchPlaceholder: string;
+    /** Nothing in the feed matches what was typed or ticked. */
+    noMatchingLines: string;
+    /** Clears the query and every mode at once. */
+    clearSearch: string;
+    /** How many lines the index is showing. */
+    lineCount: Message;
+    /**
+     * How many stop sequences a line runs — its directions and short workings.
+     * "Route" rather than "variant": the word a rider would use.
+     */
+    variantCount: Message;
+    loadingLines: string;
+
+    /* The panel's back control. */
+    backToLines: string;
+    loadingLine: string;
+
+    /* The line itself. */
+    /**
+     * Where the variant on screen runs, from end to end.
+     *
+     * One message rather than two labels and an arrow between them: word order
+     * differs between languages and an assembled sentence cannot follow it.
+     */
+    originToTerminus: string;
+    /** Turns the page around to the same line going the other way. */
+    flipDirection: string;
+    /** How many stops this variant calls at. */
+    stopCount: Message;
+    /** How many times it runs, across every service day. */
+    tripCount: Message;
+    /**
+     * The line's earliest and latest departure across every service day — not
+     * the chosen day's. Worded as a span of the line rather than of a date.
+     */
+    operatingSpan: string;
+
+    /* The other patterns of the same line. */
+    /**
+     * A line is one designation over several stop sequences: two directions,
+     * and often short workings that turn back early. Riders think of those as
+     * the same line, so they are offered as alternatives rather than as
+     * separate lines in the index.
+     */
+    alternativeRoutes: string;
+    showAlternatives: string;
+    hideAlternatives: string;
+    /** The variant currently on screen, so the list says where you are. */
+    currentVariant: string;
+    /** A variant named by its sign, when the feed carries one. */
+    towards: string;
+
+    /* The two views. */
+    stopsView: string;
+    timetableView: string;
+    /** Names the pair as a group for a screen reader. */
+    viewLabel: string;
+    /** Exactly the days this line runs, which is fewer than the feed covers. */
+    date: string;
+
+    /* The stops along the line. */
+    /** Read by a screen reader for the row's link: it opens the stop. */
+    inspectStop: string;
+    /** The next vehicle to leave this stop, on the day being looked at. */
+    nextDeparture: string;
+    /** Nothing more leaves this stop today; the day is not over elsewhere. */
+    noMoreToday: string;
+    /** Nothing calls at this stop on the chosen day at all. */
+    noCallHere: string;
+    /** Announced when a day's times arrive, so the change is not silent. */
+    dayAnnouncement: Message;
+
+    /* From one stop of the line to another. */
+    /** Labels the origin field of the timetable. */
+    fromStop: string;
+    /** Labels the destination field, which offers only stops further along. */
+    toStop: string;
+    /** Column heading: when a trip leaves the chosen origin. */
+    departs: string;
+    /** Column heading: when it reaches the chosen destination. */
+    arrives: string;
+    /** Column heading: how long that takes. */
+    journeyTime: string;
+    /** The origin is the last stop, so there is nothing to travel to. */
+    noOnwardStops: string;
+    /** Inside the feed's window, but this line does not run that day. */
+    noTripsToday: string;
+    /** The date falls outside the feed's calendar entirely. */
+    outsideTimetableRange: string;
+    outsideTimetableRangeHint: string;
+    /** How many trips make the chosen pair of stops that day. */
+    tripsBetween: Message;
+    /** A trip that has already left, on a board being read today. */
+    alreadyDeparted: string;
   };
 
   /**

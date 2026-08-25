@@ -59,4 +59,10 @@ export interface NetworkCapabilities {
   tripHeadsign: boolean;
   routeShape: boolean;
   transitDistance: boolean;
+  /**
+   * Whether the feed supplied `platform_code` at all — a property of the whole
+   * feed, which is what tells "this network does not publish them" apart from
+   * "not known for this stop".
+   */
+  platforms: boolean;
 }

@@ -181,6 +181,12 @@ describe('the footer', () => {
     expect(screen.queryByRole('contentinfo')).toBeNull();
   });
 
+  /* And the lines pages, which are the same shape for the same reason. */
+  it.each([paths.routes, '/routes/tram-1'])('is absent on %s', (path) => {
+    renderAt(path);
+    expect(screen.queryByRole('contentinfo')).toBeNull();
+  });
+
   it('is present on an ordinary page', () => {
     renderAt('/somewhere-else');
     expect(screen.getByRole('contentinfo')).toBeTruthy();

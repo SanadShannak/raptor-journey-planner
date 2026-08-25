@@ -29,6 +29,7 @@ const NO_CAPABILITIES: NetworkCapabilities = {
   tripHeadsign: false,
   routeShape: false,
   transitDistance: false,
+  platforms: false,
 };
 
 /** Standard GTFS route types only; anything else is dropped rather than kept. */

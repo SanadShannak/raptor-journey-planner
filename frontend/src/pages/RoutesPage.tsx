@@ -1,17 +1,165 @@
-import { useLocale } from '../i18n';
-import { PageContainer } from '../components/PageContainer';
+import { useCallback, useEffect, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
+import { useLocale, nowInZone } from '../i18n';
 import { usePageTitle } from '../app/usePageTitle';
+import { linePath, lineVariantPath, paths, stopPath } from '../app/routes';
+import { getNetwork } from '../api/network';
+import { boundsForNetwork, type GeoBounds } from '../config/geocoding';
+import type { GtfsRouteType } from '../types/journey';
+import type { LineVariantDetail } from '../types/route';
+import { LineBrowser } from '../features/routes/LineBrowser';
+import { RouteInspector } from '../features/routes/RouteInspector';
+import { RouteMap } from '../map/RouteMap';
 
+/**
+ * Lines, browsed and inspected.
+ *
+ * Two panes, like the planner and the stops page, and for the same reason: a
+ * line is a shape on the ground and a timetable at once, and reading one while
+ * looking at the other is the whole task.
+ *
+ * Without a `:lineId` the sidebar is the index. That is not decoration — a line
+ * is otherwise reachable only by pressing a designation on some stop's board,
+ * which means you can only find a line if you already know a stop it calls at.
+ *
+ * The variant lives in a **search param** rather than a path segment. Two
+ * reasons: the busiest variant is the right default so the param is usually
+ * absent, and a `patternId` is not stable across a pipeline re-run — a stale one
+ * should be a link that lands on the line rather than a path that 404s.
+ */
 export default function RoutesPage() {
   const { strings, t } = useLocale();
-  usePageTitle(t(strings.pages.routes.title));
+  const { lineId } = useParams<{ lineId: string }>();
+  const [search] = useSearchParams();
+  const navigate = useNavigate();
+
+  const [networkToday, setNetworkToday] = useState<string | null>(null);
+  const [timezone, setTimezone] = useState<string | null>(null);
+  const [network, setNetwork] = useState<string | null>(null);
+  const [bounds, setBounds] = useState<GeoBounds | null>(null);
+  const [networkModes, setNetworkModes] = useState<GtfsRouteType[]>([]);
+
+  /** The variant the inspector resolved, which is what the map draws. */
+  const [focused, setFocused] = useState<LineVariantDetail | null>(null);
+
+  /*
+   * Only the network, and no `/api/valid-dates`. The days a date control offers
+   * here are the *variant's* own service days, which arrive with the variant —
+   * the feed's whole window would include days this line does not run.
+   */
+  useEffect(() => {
+    const controller = new AbortController();
+
+    void getNetwork({ signal: controller.signal })
+      .then((info) => {
+        if (controller.signal.aborted) return;
+        setTimezone(info.timezone);
+        setNetwork(info.network);
+        setBounds(boundsForNetwork(info.network));
+        setNetworkToday(nowInZone(info.timezone).date);
+        setNetworkModes(info.modes);
+      })
+      .catch(() => {
+        /*
+         * Swallowed on purpose. Every panel below reports its own failure in
+         * the reader's language, and the only thing lost here is the clock and
+         * the mode chips — which degrade to no countdowns and no filter rather
+         * than to an error over a page that otherwise works.
+         */
+      });
+
+    return () => controller.abort();
+  }, []);
+
+  const patternParam = search.get('variant');
+  const patternId =
+    patternParam === null || !/^\d+$/.test(patternParam) ? null : Number(patternParam);
+
+  usePageTitle(
+    focused === null
+      ? t(strings.pages.routes.title)
+      : (focused.routeLongName ?? focused.routeShortName),
+  );
+
+  /*
+   * The resolved variant belongs to the line and variant in the URL, so it is
+   * dropped the moment either changes — otherwise the map holds the last line's
+   * geometry while the next one loads, which reads as the wrong line flashing up.
+   *
+   * Adjusted during render rather than in an effect: an effect would paint that
+   * wrong frame first and then correct it, which is the exact thing being
+   * avoided. The same shape as `StopsPage`.
+   */
+  const key = `${lineId ?? ''}?${patternId ?? ''}`;
+  const [lastKey, setLastKey] = useState(key);
+  if (key !== lastKey) {
+    setLastKey(key);
+    setFocused(null);
+  }
+
+  const openLine = useCallback(
+    (id: string) => {
+      void navigate(linePath(id));
+    },
+    [navigate],
+  );
+
+  /*
+   * Replaces rather than pushes. Flipping direction and picking an alternative
+   * are adjustments to the same question, not new ones — pushing them would
+   * make the back button walk through every variant somebody tried on the way
+   * to the one they wanted, instead of returning to the index.
+   */
+  const openVariant = useCallback(
+    (pattern: number) => {
+      if (lineId === undefined) return;
+      void navigate(lineVariantPath(lineId, pattern), { replace: true });
+    },
+    [navigate, lineId],
+  );
+
+  const openStop = useCallback(
+    (id: string) => {
+      void navigate(stopPath(id));
+    },
+    [navigate],
+  );
 
   return (
-    <PageContainer>
-      <h1 className="text-3xl font-semibold tracking-tight">
-        {t(strings.pages.routes.title)}
-      </h1>
-      <p className="text-content-muted">{t(strings.pages.routes.comingSoon)}</p>
-    </PageContainer>
+    <div className="flex flex-col lg:min-h-0 lg:flex-1 lg:flex-row">
+      <div className="border-border flex w-full flex-none flex-col border-e lg:min-h-0 lg:w-[30rem] lg:overflow-y-auto xl:w-[34rem]">
+        {lineId === undefined ? (
+          <LineBrowser availableModes={networkModes} onOpen={openLine} />
+        ) : (
+          <RouteInspector
+            lineId={lineId}
+            patternId={patternId}
+            timezone={timezone}
+            networkToday={networkToday}
+            onSelectVariant={openVariant}
+            onBack={() => void navigate(paths.routes)}
+            backLabel={t(strings.routes.backToLines)}
+            onResolved={setFocused}
+          />
+        )}
+      </div>
+
+      <section
+        aria-label={t(strings.planner.mapLabel)}
+        className="bg-surface-muted relative order-first h-56 flex-1 lg:order-none lg:h-auto"
+      >
+        <RouteMap
+          network={network}
+          area={bounds}
+          variant={focused}
+          /*
+            A line is wanted but has not loaded. Without this the map cannot
+            tell that from the index, and takes the chance to go home.
+          */
+          pending={lineId !== undefined && focused === null}
+          onStopSelect={openStop}
+        />
+      </section>
+    </div>
   );
 }
