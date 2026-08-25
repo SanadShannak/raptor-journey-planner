@@ -264,7 +264,7 @@ export const en: Dictionary = {
     searchLines: 'Search lines',
     searchPlaceholder: 'Number or destination',
     noMatchingLines: 'No lines match that search.',
-    clearSearch: 'Clear search',
+    clearSearch: 'Show all modes',
     lineCount: {
       one: 'One line.',
       other: '{count} lines.',

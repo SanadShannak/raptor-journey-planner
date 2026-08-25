@@ -217,6 +217,12 @@ export default function RoutesPage() {
               ? null
               : (trip) => openTrip({ tripId: trip, date: networkToday })
           }
+          /*
+            Following a run, the map holds the vehicle rather than the line. A
+            corridor with a badge somewhere inside it is not an answer to "where
+            is it" — you have to find the badge first.
+          */
+          chase={following}
         />
       </section>
     </div>

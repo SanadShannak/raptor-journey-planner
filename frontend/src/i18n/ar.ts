@@ -326,7 +326,7 @@ export const ar: Dictionary = {
     searchLines: 'ابحث في الخطوط',
     searchPlaceholder: 'الرقم أو الوجهة',
     noMatchingLines: 'لا خطوط تطابق هذا البحث.',
-    clearSearch: 'امسح البحث',
+    clearSearch: 'إظهار كل الوسائل',
     lineCount: {
       zero: 'لا خطوط.',
       one: 'خط واحد.',

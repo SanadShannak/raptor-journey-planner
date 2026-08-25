@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { tripPath } from '../app/routes';
 import { messageForApiError, nowInZone, useLocale } from '../i18n';
 import { usePageTitle } from '../app/usePageTitle';
@@ -18,6 +18,7 @@ import {
 import type { JourneyEnd } from '../features/journey/itineraryRows';
 import { ItineraryOverview } from '../features/journey/ItineraryOverview';
 import { ItineraryDetail } from '../features/journey/ItineraryDetail';
+import { fromSearchParams, toSearchParams } from '../features/journey/searchParams';
 import { JourneyMap } from '../map/JourneyMap';
 import { StopInspector } from '../features/stops/StopInspector';
 
@@ -101,24 +102,42 @@ export default function PlanPage() {
   const [service, setService] = useState<Service>('checking');
 
   /*
-   * The search no longer lives in the URL.
+   * The search lives in the URL again, and the reversal is worth recording
+   * because the removal was deliberate.
    *
-   * It used to, so a journey could be shared and reached with the back button
-   * — and the cost was a query string of coordinates and labels on screen for
-   * the whole session. That is the trade being made here, deliberately: no
-   * shareable link, and no bookmark that reopens a search.
+   * It was taken out because a query string of coordinates and labels sat on
+   * screen for the whole session and bought only a shareable link nobody had
+   * asked for. What changed is that this page now has somewhere to go: a leg of
+   * an itinerary opens the run it is riding, and so does a drawn line on the
+   * map. Coming back from either landed on an empty form with the journey
+   * gone — and a back button that does not work costs far more than a long
+   * address does.
    *
-   * One thing falls out of it. A stale `pace` in an old link used to outlive
-   * the search that set it, so the form could open on a pace nobody had
-   * chosen this time. The form now always opens on its own default.
+   * Written only when a search is *run*, never as the form is filled in. The
+   * address is a record of a question that was asked, not a transcript of one
+   * being typed.
    */
-  const [values, setValues] = useState<JourneyFormValues>({
-    origin: null,
-    destination: null,
-    date: '',
-    time: '',
-    pace: DEFAULT_WALKING_PACE,
-  });
+  const [searchP, setSearchParams] = useSearchParams();
+
+  const [values, setValues] = useState<JourneyFormValues>(
+    () => fromSearchParams(searchP, DEFAULT_WALKING_PACE) ?? {
+      origin: null,
+      destination: null,
+      date: '',
+      time: '',
+      pace: DEFAULT_WALKING_PACE,
+    },
+  );
+
+  /*
+   * A search restored from the address runs itself, once.
+   *
+   * Coming back to a planned journey and being shown the form that would find
+   * it, unpressed, is most of the way to not having come back at all. Guarded
+   * by a ref rather than by the results, because a search that legitimately
+   * finds nothing must not be retried for ever.
+   */
+  const restored = useRef(false);
 
   const [journeys, setJourneys] = useState<Journey[]>([]);
   const [state, setState] = useState<'idle' | 'searching' | 'failed'>('idle');
@@ -223,6 +242,24 @@ export default function PlanPage() {
   async function search(from: JourneyFormValues, mode: 'replace' | 'later') {
     if (from.origin === null || from.destination === null) return;
 
+    /*
+     * The address records the question, so leaving the page and coming back
+     * finds it still being asked.
+     *
+     * `replace`, not push: a search is an adjustment to the one question this
+     * page exists to answer, and pushing would make the back button walk out
+     * through every time and pace somebody tried on the way to the one they
+     * wanted, instead of leaving the page.
+     *
+     * `mode: 'later'` deliberately does not write. Asking for more departures
+     * shifts the time past the last result, which is a way of reading further
+     * down one answer rather than a different question — and recording it would
+     * mean returning to a search nobody typed.
+     */
+    if (mode === 'replace') {
+      setSearchParams(toSearchParams(from), { replace: true });
+    }
+
     const id = ++requestId.current;
     if (mode === 'replace') {
       setState('searching');
@@ -319,6 +356,25 @@ export default function PlanPage() {
       if (id === requestId.current) setExtending(false);
     }
   }
+
+  /*
+   * Runs a search the address already carries.
+   *
+   * Held until the service check has answered, so a restored search does not
+   * race the probe that gates the form — and once only, so an honest empty
+   * answer is not retried for ever.
+   */
+  useEffect(() => {
+    if (restored.current) return;
+    if (service !== 'up') return;
+    if (values.origin === null || values.destination === null) return;
+
+    restored.current = true;
+    void search(values, 'replace');
+    // Deliberately not depending on `values`: this fires for what arrived in
+    // the URL, and every later change is somebody typing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [service]);
 
   /**
    * Drops everything on screen that belongs to a question no longer being

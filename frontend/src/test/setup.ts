@@ -118,5 +118,18 @@ if (typeof window.matchMedia !== 'function') {
   })) as typeof window.matchMedia;
 }
 
+/*
+ * jsdom lays nothing out, so it implements no scrolling at all and
+ * `Element.prototype.scrollIntoView` is simply absent. Anything that calls it
+ * throws mid-render, which turns "the list did not scroll" — a thing that
+ * cannot be observed here anyway — into "the component did not render".
+ *
+ * A no-op rather than a spy: no test asserts on scrolling, because there is no
+ * viewport to scroll within.
+ */
+if (typeof Element !== 'undefined' && Element.prototype.scrollIntoView === undefined) {
+  Element.prototype.scrollIntoView = function scrollIntoView() {};
+}
+
 // jsdom is reused across tests in a file, so mounted trees must be torn down.
 afterEach(cleanup);

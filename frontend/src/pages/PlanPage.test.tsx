@@ -105,12 +105,12 @@ function stubApi() {
   );
 }
 
-function show() {
+function show(at: string = paths.home) {
   return render(
     <StrictMode>
       <LocaleProvider>
         <ThemeProvider>
-          <MemoryRouter initialEntries={[paths.home]}>
+          <MemoryRouter initialEntries={[at]}>
             <Routes>
               <Route path={paths.home} element={<PlanPage />} />
             </Routes>
@@ -179,5 +179,43 @@ describe('inspecting a stop from inside the planner', () => {
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Back to results' })).toBeTruthy(),
     );
+  });
+});
+
+/*
+ * The search in the address.
+ *
+ * This page can now be left — a leg of an itinerary opens the run it is riding
+ * — so coming back has to find the journey still there rather than an empty
+ * form.
+ */
+describe('PlanPage search in the address', () => {
+  const asked =
+    '/?from=Kamppi&fromLat=60.169&fromLon=24.931' +
+    '&to=Pasila&toLat=60.199&toLon=24.933' +
+    '&date=2026-08-25&time=09:00&pace=calm';
+
+  it('opens on the search the address carries, and runs it', async () => {
+    show(asked);
+
+    // The form is filled in from the URL, without anybody typing.
+    expect(await screen.findByDisplayValue('Kamppi', {}, { timeout: 3000 })).toBeTruthy();
+    expect(screen.getByDisplayValue('Pasila')).toBeTruthy();
+
+    // And the answer arrives without the button being pressed.
+    expect(
+      await screen.findByRole(
+        'button',
+        { name: /Show this journey/ },
+        { timeout: 3000 },
+      ),
+    ).toBeTruthy();
+  });
+
+  /* A half-filled address is not a search, so it opens an empty form. */
+  it('ignores an address missing an end', async () => {
+    show('/?from=Kamppi&fromLat=60.169&fromLon=24.931&date=2026-08-25&time=09:00');
+
+    await waitFor(() => expect(screen.queryByDisplayValue('Kamppi')).toBeNull());
   });
 });

@@ -693,7 +693,15 @@ function TransitBody({
       */}
       <Link
         to={tripPath(leg.lineId, leg.patternId, leg.tripId, leg.startDate)}
-        className="rounded-control hover:bg-surface-muted focus-visible:outline-brand-500 -mx-1 flex flex-wrap items-center gap-x-2 gap-y-1 px-1 py-0.5 focus-visible:outline-2 focus-visible:outline-offset-2"
+        /*
+          Padded out to a card rather than tight to the text. At a hair's
+          breadth the hover read as a highlight that had missed — a band of
+          colour clipping the bullet and stopping short of the words. Pulled
+          back into the row's own margin so the ink still lines up with
+          everything under it while the target is a good deal larger than what
+          it contains.
+        */
+        className="rounded-card hover:bg-surface-muted focus-visible:outline-brand-500 -mx-2 -my-1 flex flex-wrap items-center gap-x-2 gap-y-1.5 px-2 py-2 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
       >
         {/* The route bullet: transit's own way of naming a line. */}
         <span

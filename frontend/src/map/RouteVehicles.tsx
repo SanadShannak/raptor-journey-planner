@@ -4,7 +4,6 @@ import { Marker } from 'react-leaflet';
 import { familyFor } from '../features/journey/modeVisuals';
 import {
   pointBetweenStops,
-  projectShape,
   type ProjectedShape,
 } from '../features/routes/shapeProjection';
 import { VEHICLE_SIZE, vehicleMarkup } from '../features/routes/vehicleMarkup';
@@ -24,6 +23,14 @@ interface Props {
    * quietly eat presses meant for the line or a stop underneath it.
    */
   onFollow?: ((tripId: string) => void) | null | undefined;
+  /**
+   * The measured shape, from the map that owns it.
+   *
+   * Measured there rather than here because the map needs it too — to keep
+   * itself on a followed vehicle — and measuring the same line twice a tick is
+   * the one part of this that would actually cost something.
+   */
+  projected: ProjectedShape | null;
 }
 
 /**
@@ -44,16 +51,12 @@ interface Props {
  * should be — which the panel beside it says in words rather than leaving the
  * map to imply otherwise.
  */
-export function RouteVehicles({ variant, vehicles, onFollow = null }: Props) {
-  /*
-   * Measured once per variant. It is O(shape × stops) — a few hundred points
-   * against a few dozen stops — and it must not run on every tick of the clock.
-   */
-  const projected = useMemo<ProjectedShape | null>(
-    () => (variant.shape === null ? null : projectShape(variant.shape, variant.stops)),
-    [variant],
-  );
-
+export function RouteVehicles({
+  variant,
+  vehicles,
+  onFollow = null,
+  projected,
+}: Props) {
   const bySequence = useMemo(
     () => new Map(variant.stops.map((stop) => [stop.sequence, stop])),
     [variant],

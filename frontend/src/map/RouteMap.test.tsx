@@ -395,6 +395,55 @@ describe('RouteMap drawing', () => {
     expect(marker.classList.contains('leaflet-interactive')).toBe(false);
   });
 
+  /*
+   * Following one run, the map holds the vehicle instead of the line. A
+   * corridor with a badge somewhere inside it does not answer "where is it" —
+   * you have to find the badge before you can read anything from it.
+   */
+  it('holds the map on the vehicle when one run is being followed', () => {
+    const vehicle = {
+      trip: { tripId: 'the-one', headsign: null, calls: [] },
+      progress: { fromSequence: 0, toSequence: 1, fraction: 0.5, atStop: false },
+    };
+
+    const { rerender } = show({ variant: TRAM_1, vehicles: [vehicle], chase: true });
+
+    // The line's own box is never fitted; the vehicle is centred instead.
+    expect(fits).toEqual([]);
+    const centred = moves[moves.length - 1]!;
+    expect(centred.lat).toBeGreaterThan(TRAM_1.stops[0]!.lat);
+    expect(centred.lat).toBeLessThan(TRAM_1.stops[1]!.lat);
+    expect(centred.zoom).toBeGreaterThanOrEqual(15);
+
+    moves = [];
+    rerender(
+      <LocaleProvider>
+        <ThemeProvider>
+          <RouteMap
+            network="hsl"
+            area={null}
+            variant={TRAM_1}
+            pending={false}
+            onStopSelect={() => {}}
+            vehicles={[
+              { ...vehicle, progress: { ...vehicle.progress, fraction: 0.9 } },
+            ]}
+            chase
+          />
+        </ThemeProvider>
+      </LocaleProvider>,
+    );
+
+    // It moved along with it, rather than sitting where it first found it.
+    expect(moves[moves.length - 1]!.lat).toBeGreaterThan(centred.lat);
+  });
+
+  it('frames the whole line again once the run is let go', () => {
+    show({ variant: TRAM_1, vehicles: [], chase: false });
+
+    expect(fits.length).toBeGreaterThan(0);
+  });
+
   it('draws none when nothing is out', () => {
     const { container } = show({ variant: TRAM_1, vehicles: [] });
     expect(container.querySelectorAll('.route-vehicle')).toHaveLength(0);

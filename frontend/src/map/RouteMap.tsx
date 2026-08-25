@@ -1,9 +1,14 @@
-import { Fragment, useMemo } from 'react';
-import { CircleMarker, Polyline } from 'react-leaflet';
+import { Fragment, useEffect, useMemo } from 'react';
+import { CircleMarker, Polyline, useMap } from 'react-leaflet';
 import type { GeoBounds } from '../config/geocoding';
 import type { Coordinates } from '../types/journey';
 import type { LineVariantDetail } from '../types/route';
 import { familyFor, visualForFamily } from '../features/journey/modeVisuals';
+import {
+  pointBetweenStops,
+  projectShape,
+  type ProjectedShape,
+} from '../features/routes/shapeProjection';
 import type { Vehicle } from '../features/routes/vehicleProgress';
 import { MapCanvas, FitTo } from './MapCanvas';
 import { RouteVehicles } from './RouteVehicles';
@@ -29,6 +34,39 @@ interface Props {
   vehicles: Vehicle[];
   /** Follows the run a pressed vehicle is on. Null leaves them as pictures. */
   onFollowTrip?: ((tripId: string) => void) | null | undefined;
+  /**
+   * Keep the map on the vehicle rather than on the whole line.
+   *
+   * Set when one run is being followed. Framing the line end to end is right
+   * when the line is the subject; when one vehicle is, the corridor it is
+   * somewhere inside is not an answer — you have to find the badge before you
+   * can read anything from it.
+   */
+  chase?: boolean | undefined;
+}
+
+/**
+ * Keeps the map on a moving point.
+ *
+ * `panTo` rather than `setView`, and only once the point has actually changed:
+ * a vehicle a few metres further along should slide the map, not re-place it,
+ * and re-issuing the same centre on every render fights the reader's own
+ * dragging. The zoom is raised once, on arrival, and left alone after — a map
+ * that re-zoomed on every tick could never be pulled back out.
+ */
+function Chase({ point, animate }: { point: Coordinates; animate: boolean }) {
+  const map = useMap();
+  const [lat, lon] = point;
+
+  useEffect(() => {
+    // Close enough to read the street the vehicle is on, and never further out
+    // than wherever the reader has already taken the map.
+    map.setView([lat, lon], Math.max(map.getZoom(), 15), { animate });
+    // Deliberately keyed on the numbers rather than the array: a fresh tuple
+    // with the same coordinates is not a move.
+  }, [map, lat, lon, animate]);
+
+  return null;
 }
 
 /**
@@ -55,6 +93,7 @@ export function RouteMap({
   onStopSelect,
   vehicles,
   onFollowTrip = null,
+  chase = false,
 }: Props) {
   const home = useMemo(() => homeViewFor(network, area), [network, area]);
   const reduceMotion = useReducedMotion();
@@ -117,7 +156,46 @@ export function RouteMap({
    * from a bus line to a tram one repainted nothing: the second wore the
    * first's colours the whole way down.
    */
+  /*
+   * Measured once per variant, and shared with the layer that draws the
+   * vehicles — the same measurement answering the same question twice would be
+   * the expensive part of a tick.
+   */
+  const projected = useMemo<ProjectedShape | null>(
+    () =>
+      variant === null || variant.shape === null
+        ? null
+        : projectShape(variant.shape, variant.stops),
+    [variant],
+  );
+
   const scope = variant === null ? 'none' : `${variant.lineId}-${variant.patternId}`;
+
+  /**
+   * Where the followed vehicle is, when there is one to follow.
+   *
+   * Null the rest of the time, which is what hands framing back to the line.
+   * Only ever one: following a run, the inspector filters the vehicles down to
+   * that run's own, so a second here would mean something else had gone wrong.
+   */
+  const chasing = useMemo<Coordinates | null>(() => {
+    if (!chase || variant === null) return null;
+    const vehicle = vehicles[0];
+    if (vehicle === undefined) return null;
+
+    const from = variant.stops.find(
+      (stop) => stop.sequence === vehicle.progress.fromSequence,
+    );
+    if (from === undefined) return null;
+
+    const to =
+      vehicle.progress.toSequence === null
+        ? null
+        : (variant.stops.find((stop) => stop.sequence === vehicle.progress.toSequence) ??
+          null);
+
+    return pointBetweenStops(projected, from, to, vehicle.progress.fraction)?.point ?? null;
+  }, [chase, variant, vehicles, projected]);
 
   return (
     <MapCanvas network={network}>
@@ -138,7 +216,17 @@ export function RouteMap({
         and back — two animated moves collide, and what a reader sees is the
         zoom out and no zoom back in. The lesson the stops map recorded.
       */}
-      {!pending && <FitTo box={box} home={home} animate={!reduceMotion} />}
+      {/*
+        One or the other, never both. Two effects moving the same map race, and
+        the loser is whichever ran first — which is how a map ends up framing a
+        whole line for one frame and then snapping to a vehicle.
+      */}
+      {!pending &&
+        (chasing === null ? (
+          <FitTo box={box} home={home} animate={!reduceMotion} />
+        ) : (
+          <Chase point={chasing} animate={!reduceMotion} />
+        ))}
 
       {path !== null && (
         <Fragment key={`${scope}-line`}>
@@ -165,7 +253,12 @@ export function RouteMap({
 
       {/* Over the line and its stops, because it is travelling along them. */}
       {variant !== null && vehicles.length > 0 && (
-        <RouteVehicles variant={variant} vehicles={vehicles} onFollow={onFollowTrip} />
+        <RouteVehicles
+          variant={variant}
+          vehicles={vehicles}
+          onFollow={onFollowTrip}
+          projected={projected}
+        />
       )}
 
       {variant?.stops.map((stop, index) => {

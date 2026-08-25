@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { formatClockTime, formatDate, useLocale } from '../../i18n';
 import type { Dictionary, Message } from '../../i18n/dictionary';
@@ -56,6 +57,88 @@ interface Props {
    */
   onFollowTrip?: ((tripId: string) => void) | null | undefined;
 }
+
+/**
+ * Keeps a followed vehicle in view, until the reader would rather it did not.
+ *
+ * Only while one run is being followed. With five vehicles on a line there is
+ * no "the" vehicle to hold on screen, and a list that scrolled itself to one of
+ * them would be taking a decision nobody asked it to.
+ *
+ * **It gives up the moment the reader scrolls.** Reading ahead down the line is
+ * the obvious thing to do while following a run, and a list that hauls itself
+ * back every ten seconds is unusable — worse than one that never moved. Once
+ * they have taken over they keep it for as long as the run is followed.
+ *
+ * Intent is read from `wheel`, `touchstart` and the keys that scroll, rather
+ * than from scroll position. Position cannot tell our own smooth scroll from a
+ * person's, and every attempt to do so with a flag is a race with the animation
+ * it is trying to ignore.
+ */
+function useFollowInView(active: boolean): (node: HTMLElement | null) => void {
+  /*
+   * The node in state rather than in a ref. A ref read during render is a value
+   * React has not been told about, so the effect below would keep whichever
+   * node it first saw — and the whole point is that this one moves from row to
+   * row as the vehicle advances.
+   */
+  const [node, setNode] = useState<HTMLElement | null>(null);
+  const [surrendered, setSurrendered] = useState(false);
+
+  /*
+   * A new run is a new subject, so the list is allowed to move again. Adjusted
+   * during render rather than in an effect: an effect would paint one frame
+   * still surrendered and then re-render to correct it, and the correction is
+   * not a synchronisation with anything — it is what the value *is* for the new
+   * subject.
+   */
+  const [wasActive, setWasActive] = useState(active);
+  if (active !== wasActive) {
+    setWasActive(active);
+    if (!active) setSurrendered(false);
+  }
+
+  useEffect(() => {
+    if (!active) return;
+
+    const takeOver = () => setSurrendered(true);
+    const onKey = (event: KeyboardEvent) => {
+      if (SCROLL_KEYS.has(event.key)) takeOver();
+    };
+
+    window.addEventListener('wheel', takeOver, { passive: true });
+    window.addEventListener('touchstart', takeOver, { passive: true });
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('wheel', takeOver);
+      window.removeEventListener('touchstart', takeOver);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [active]);
+
+  useEffect(() => {
+    if (!active || surrendered || node === null) return;
+    /*
+     * `nearest` rather than `center`: a vehicle already on screen should not
+     * make the list twitch every tick just to sit it in the middle. It moves
+     * only once the badge has actually left the view.
+     */
+    node.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [active, surrendered, node]);
+
+  return setNode;
+}
+
+/** The keys that scroll a list, and therefore say the reader is driving. */
+const SCROLL_KEYS = new Set([
+  'ArrowUp',
+  'ArrowDown',
+  'PageUp',
+  'PageDown',
+  'Home',
+  'End',
+  ' ',
+]);
 
 /**
  * How far ahead a countdown earns its ink here.
@@ -146,6 +229,11 @@ export function RouteStopList({
   onOpenStop,
   onFollowTrip = null,
 }: Props) {
+  /*
+   * Only a followed run has a vehicle worth holding on screen, and only while
+   * the day actually has one out.
+   */
+  const holdInView = useFollowInView(focusTrip !== null && vehicles.length > 0);
   const { strings, t } = useLocale();
   const family = familyFor(routeType);
   const ink = visualForFamily(family).ink;
@@ -244,7 +332,15 @@ export function RouteStopList({
               same width, which keeps every circle on one axis instead of
               shifting the ends by two pixels.
             */}
-            <span className="relative flex flex-none flex-col items-center">
+            <span
+              /*
+                Referenced only where the followed vehicle is, so the hook has
+                exactly one node to keep on screen and no bookkeeping to do
+                about which row that is.
+              */
+              ref={here !== undefined || leaving !== undefined ? holdInView : undefined}
+              className="relative flex flex-none flex-col items-center"
+            >
               <Strut ink={leadSpent ? SPENT : ink} hidden={first} lead />
               {/*
                 A fixed 14px box around every marker, whatever size the marker
