@@ -24,13 +24,20 @@ import type { NetworkMoment } from './minutesUntil';
  * The value shown changes once a minute, so a slower tick would let a number
  * sit visibly wrong for up to that long, and a faster one buys nothing. Half a
  * minute bounds the error at thirty seconds for one render per departure.
+ *
+ * A caller placing something *between* two scheduled times rather than counting
+ * down to one wants a faster tick — see `tickMs`. That is the only reason this
+ * is a parameter and not a constant.
  */
 const TICK_MS = 30_000;
 
 const readClock = (timezone: string | null): NetworkMoment | null =>
   timezone === null ? null : nowInZone(timezone);
 
-export function useNetworkNow(timezone: string | null): NetworkMoment | null {
+export function useNetworkNow(
+  timezone: string | null,
+  tickMs: number = TICK_MS,
+): NetworkMoment | null {
   const [now, setNow] = useState<NetworkMoment | null>(() => readClock(timezone));
   const [lastZone, setLastZone] = useState(timezone);
 
@@ -49,7 +56,7 @@ export function useNetworkNow(timezone: string | null): NetworkMoment | null {
     if (timezone === null) return;
 
     const sync = () => setNow(nowInZone(timezone));
-    const timer = window.setInterval(sync, TICK_MS);
+    const timer = window.setInterval(sync, tickMs);
 
     /*
      * A background tab is throttled — a browser is free to hold an interval for
@@ -66,7 +73,7 @@ export function useNetworkNow(timezone: string | null): NetworkMoment | null {
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [timezone]);
+  }, [timezone, tickMs]);
 
   return now;
 }

@@ -7,6 +7,8 @@ import type { PatternStop, VariantTrip } from '../../types/route';
 import { familyFor, visualForFamily } from '../journey/modeVisuals';
 import type { NetworkMoment } from '../stops/minutesUntil';
 import { nextCallAt } from './nextCallAt';
+import { VehicleBadge } from './VehicleBadge';
+import type { Vehicle } from './vehicleProgress';
 
 interface Props {
   stops: PatternStop[];
@@ -24,6 +26,14 @@ interface Props {
    * has not arrived yet will have one in a moment.
    */
   now: NetworkMoment | null;
+  /**
+   * The vehicles out on this pattern right now, furthest along first.
+   *
+   * Empty on a day that is not today — a Sunday three weeks out has no vehicles
+   * on it, and drawing where one *would* be is a claim about a moment that is
+   * not happening.
+   */
+  vehicles: Vehicle[];
 }
 
 /**
@@ -37,6 +47,29 @@ interface Props {
  * reader for: the vehicle is nearly at this stop.
  */
 const IMMINENT_WITHIN_MINUTES = 10;
+
+/**
+ * How far down a row's spine column the marker's centre sits.
+ *
+ * The row's top padding plus half a line of text, less half the marker's box —
+ * 10 plus 12 less 7. It is a constant because every marker shares one box size;
+ * see {@link Strut} for the rest of the arithmetic.
+ */
+const MARKER_CENTRE = 22;
+
+/** Down the list is the way the vehicles travel: the stops are in order. */
+const DOWN = 180;
+
+/**
+ * A stop nothing will call at again today, and the line leading to it.
+ *
+ * `border-strong` rather than a faded mode colour: the point is that the line
+ * is *not* live here, and a paler tram green still reads as tram green. Both
+ * this and the muted name the spent rows take are tokens the contrast check
+ * already covers for exactly these roles — a boundary at 3:1, text at 4.5:1 —
+ * so a stop that has been passed is dimmed without becoming unreadable.
+ */
+const SPENT = 'text-border-strong';
 
 /**
  * What to call the number printed on the stop.
@@ -73,16 +106,75 @@ function platformLabel(routeType: GtfsRouteType, strings: Dictionary): Message {
  * page — so it should offer everything a link offers: a middle click, a copied
  * address, a visited colour.
  */
-export function RouteStopList({ stops, routeType, trips, viewedDate, now }: Props) {
+export function RouteStopList({
+  stops,
+  routeType,
+  trips,
+  viewedDate,
+  now,
+  vehicles,
+}: Props) {
   const { strings, t } = useLocale();
-  const ink = visualForFamily(familyFor(routeType)).ink;
+  const family = familyFor(routeType);
+  const ink = visualForFamily(family).ink;
+
+  /*
+   * The next departure at every stop, worked out once. It is read three times
+   * per row — for the time, for whether the row is spent, and for the struts
+   * either side of it — and `nextCallAt` walks every trip each time it is asked.
+   */
+  const nextCalls = stops.map((stop) =>
+    trips === null ? null : nextCallAt(trips, stop.sequence, now),
+  );
+
+  /**
+   * A stop nothing will call at again today.
+   *
+   * The line has gone past and nothing behind it will reach here before the
+   * service day ends. Greyed rather than hidden, because it is still a stop on
+   * this line and somebody reading the route wants to see it — it just cannot
+   * be boarded at any more.
+   *
+   * Read per stop rather than as a run. Coverage is *not* always a clean prefix:
+   * an evening of short workings that turn back early leaves the tail of the
+   * line unserved while its start is still running, so an assumption about the
+   * shape of it would grey the wrong end.
+   *
+   * Only ever true once the day's times are in hand. While they are loading
+   * nothing is spent — a blank list drawn entirely in grey says the line is
+   * finished when it has not been asked yet.
+   */
+  const spent = (index: number): boolean =>
+    trips !== null && now !== null && nextCalls[index] === null;
 
   return (
     <ul className="flex flex-col">
       {stops.map((stop, index) => {
-        const next = trips === null ? null : nextCallAt(trips, stop.sequence, now);
+        const next = nextCalls[index] ?? null;
         const first = index === 0;
         const last = index === stops.length - 1;
+
+        /*
+         * A strut is spent when the stops at *both* of its ends are — the leg
+         * between a spent stop and a live one is still going to be driven.
+         */
+        const leadSpent = spent(index) && (first || spent(index - 1));
+        const belowSpent = spent(index) && (last || spent(index + 1));
+
+        /*
+         * The vehicle standing at this stop, or the one running from it towards
+         * the next. At most one is drawn per position: two vehicles nose to tail
+         * on one leg is a real thing but two discs on top of each other is not a
+         * picture of it, and the one in front is the one that matters.
+         */
+        const here = vehicles.find(
+          (vehicle) =>
+            vehicle.progress.atStop && vehicle.progress.fromSequence === stop.sequence,
+        );
+        const leaving = vehicles.find(
+          (vehicle) =>
+            !vehicle.progress.atStop && vehicle.progress.fromSequence === stop.sequence,
+        );
 
         const facts = [
           stop.code === null ? null : t(strings.stops.stopCode, { code: stop.code }),
@@ -103,8 +195,8 @@ export function RouteStopList({ stops, routeType, trips, viewedDate, now }: Prop
               same width, which keeps every circle on one axis instead of
               shifting the ends by two pixels.
             */}
-            <span aria-hidden="true" className="flex flex-none flex-col items-center">
-              <Strut ink={ink} hidden={first} lead />
+            <span className="relative flex flex-none flex-col items-center">
+              <Strut ink={leadSpent ? SPENT : ink} hidden={first} lead />
               {/*
                 A fixed 14px box around every marker, whatever size the marker
                 inside it is.
@@ -114,15 +206,50 @@ export function RouteStopList({ stops, routeType, trips, viewedDate, now }: Prop
                 the two sit on axes two pixels apart — and because the ends are
                 the ones that differ, the bend showed up immediately under the
                 first stop and again above the last. One box, one axis.
+
+                It has no margin, and the struts overlap it by two pixels
+                instead — see {@link Strut}. Spaced apart, the line arrived at
+                the box rather than at the dot inside it, which left a hairline
+                of nothing on both sides of every intermediate stop. The marker
+                sits above the overlap, so the join cannot be seen.
               */}
-              <span className="my-0.5 flex h-3.5 w-3.5 flex-none items-center justify-center">
+              <span className="relative z-10 flex h-3.5 w-3.5 flex-none items-center justify-center">
                 <span
-                  className={`${ink} rounded-full border-current bg-current ${
-                    first || last ? 'h-3.5 w-3.5 border-[3px] bg-transparent' : 'h-2.5 w-2.5'
+                  className={`${spent(index) ? SPENT : ink} rounded-full border-current bg-current ${
+                    first || last ? 'h-3.5 w-3.5 border-[3px] bg-surface' : 'h-2.5 w-2.5'
                   }`}
                 />
               </span>
-              <Strut ink={ink} hidden={last} />
+              <Strut ink={belowSpent ? SPENT : ink} hidden={last} />
+
+              {/*
+                The vehicles, laid over the spine rather than in it.
+
+                Standing at a stop it covers that stop's marker, which is what
+                standing there looks like. Running, it sits a fraction of the way
+                down this row's own column — and because the column is stretched
+                to the row's height, a percentage of it *is* the distance to the
+                next marker, so no measuring is needed and rows of different
+                heights all work out.
+              */}
+              {here !== undefined && (
+                <span
+                  className="absolute z-20 -translate-x-1/2 -translate-y-1/2 start-1/2"
+                  style={{ top: `${MARKER_CENTRE}px` }}
+                >
+                  <VehicleBadge family={family} bearing={DOWN} />
+                </span>
+              )}
+              {leaving !== undefined && (
+                <span
+                  className="absolute z-20 -translate-x-1/2 -translate-y-1/2 start-1/2"
+                  style={{
+                    top: `calc(${MARKER_CENTRE}px + ${leaving.progress.fraction * 100}%)`,
+                  }}
+                >
+                  <VehicleBadge family={family} bearing={DOWN} />
+                </span>
+              )}
             </span>
 
             <div className="border-border flex min-w-0 flex-1 items-start gap-3 border-b py-2.5 last:border-b-0">
@@ -130,7 +257,9 @@ export function RouteStopList({ stops, routeType, trips, viewedDate, now }: Prop
                 <Link
                   to={stopPath(stop.id)}
                   dir="auto"
-                  className="rounded-control text-content hover:text-brand-700 focus-visible:outline-brand-500 max-w-full truncate font-medium hover:underline focus-visible:outline-2 focus-visible:outline-offset-2"
+                  className={`rounded-control hover:text-brand-700 focus-visible:outline-brand-500 max-w-full truncate font-medium hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 ${
+                    spent(index) ? 'text-content-muted' : 'text-content'
+                  }`}
                 >
                   {stop.name}
                 </Link>
@@ -150,6 +279,18 @@ export function RouteStopList({ stops, routeType, trips, viewedDate, now }: Prop
                 )}
               </div>
 
+              {/*
+                Discoverable by navigation, never announced. A live region here
+                would read a vehicle's position out every few seconds; a plain
+                note is found by anyone moving through the list and ignored by
+                everyone else.
+              */}
+              {(here !== undefined || leaving !== undefined) && (
+                <span className="sr-only">
+                  {t(here !== undefined ? strings.routes.vehicleHere : strings.routes.vehicleLeaving)}
+                </span>
+              )}
+
               <NextDeparture
                 next={next}
                 pending={trips === null}
@@ -167,11 +308,17 @@ export function RouteStopList({ stops, routeType, trips, viewedDate, now }: Prop
 /**
  * One half of the spine between two circles.
  *
- * `lead` is the stretch above a circle and has to land its centre on the middle
- * of the stop's name, or a stop is written above its own dot. That is the row's
- * top padding plus half a line — 10px plus 12px — less the marker's own 2px
- * margin and half its 14px box: thirteen pixels. It only holds because every
- * marker shares one box size.
+ * Both ends **overlap the marker box by two pixels**, which is what closes the
+ * hairline that used to show either side of every intermediate stop: a 10px dot
+ * inside a 14px box left 2px of nothing between the line and the dot. The
+ * marker is drawn above the overlap, so the join is invisible — and on an end
+ * ring the two pixels land inside its 3px border rather than in its hollow.
+ *
+ * `lead` is the stretch above a marker and has to land the marker's centre on
+ * the middle of the stop's name, or a stop is written above its own dot. That
+ * is the row's top padding plus half a line — 10px plus 12px — less half the
+ * 14px box, plus the 2px the strut gives back by overlapping: seventeen. It
+ * only holds because every marker shares one box size.
  *
  * Below it, the strut simply fills what is left.
  */
@@ -184,9 +331,11 @@ function Strut({
   hidden: boolean;
   lead?: boolean;
 }) {
-  const height = lead ? 'h-[0.8125rem]' : 'min-h-2 flex-1';
+  const height = lead ? 'h-[1.0625rem] -mb-0.5' : 'min-h-2 flex-1 -mt-0.5';
   if (hidden) return <span className={`w-1 ${height}`} />;
-  return <span className={`${ink} w-1 rounded-full bg-current ${height}`} />;
+  // Square-ended, not rounded: a rounded cap is a semicircle of nothing at the
+  // very join the overlap exists to close.
+  return <span className={`${ink} w-1 bg-current ${height}`} />;
 }
 
 /**

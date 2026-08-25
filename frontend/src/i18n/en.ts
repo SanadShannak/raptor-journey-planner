@@ -313,6 +313,9 @@ export const en: Dictionary = {
     nextDeparture: 'Next departure',
     noMoreToday: 'Nothing more today',
     noCallHere: 'Does not call that day',
+    vehicleHere: 'A vehicle is due at this stop now.',
+    vehicleLeaving: 'A vehicle is due to be on its way from this stop.',
+    scheduledPositions: 'Vehicles are shown where the timetable says they should be.',
     dayAnnouncement: {
       one: 'One trip on this day.',
       other: '{count} trips on this day.',

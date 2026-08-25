@@ -85,6 +85,7 @@ function show(props: Partial<Parameters<typeof RouteMap>[0]> = {}) {
           variant={null}
           pending={false}
           onStopSelect={() => {}}
+          vehicles={[]}
           {...props}
         />
       </ThemeProvider>
@@ -184,6 +185,7 @@ describe('RouteMap framing', () => {
             variant={null}
             pending
             onStopSelect={() => {}}
+            vehicles={[]}
           />
         </ThemeProvider>
       </LocaleProvider>,
@@ -208,6 +210,7 @@ describe('RouteMap framing', () => {
             variant={BUS_550}
             pending={false}
             onStopSelect={() => {}}
+            vehicles={[]}
           />
         </ThemeProvider>
       </LocaleProvider>,
@@ -241,6 +244,7 @@ describe('RouteMap drawing', () => {
             variant={BUS_550}
             pending={false}
             onStopSelect={() => {}}
+            vehicles={[]}
           />
         </ThemeProvider>
       </LocaleProvider>,
@@ -258,6 +262,53 @@ describe('RouteMap drawing', () => {
    */
   it('holds the network’s other stops back further than the stops page does', () => {
     expect(ROUTE_STOPS_MIN_ZOOM).toBe(STOPS_MIN_ZOOM + 2);
+  });
+
+  /*
+   * Placed along the drawn shape, not between the two stops either side. The
+   * elbow is the case that tells them apart: halfway from the first stop to the
+   * last, a straight cut lands inside the corner — off the road the vehicle
+   * actually drives.
+   */
+  it('puts a vehicle on the road rather than across the corner', () => {
+    const { container } = show({
+      variant: TRAM_1,
+      vehicles: [
+        {
+          trip: { tripId: 'running', headsign: 'Käpylä', calls: [] },
+          progress: { fromSequence: 0, toSequence: 2, fraction: 0.5, atStop: false },
+        },
+      ],
+    });
+
+    const marker = container.querySelector('.route-vehicle') as HTMLElement;
+    expect(marker).toBeTruthy();
+    // The silhouette and the nose, both there and both from one source.
+    expect(marker.querySelector('circle')).toBeTruthy();
+    expect(marker.innerHTML).toContain('rotate(');
+  });
+
+  it('draws one badge per vehicle out on the line', () => {
+    const { container } = show({
+      variant: TRAM_1,
+      vehicles: [
+        {
+          trip: { tripId: 'ahead', headsign: null, calls: [] },
+          progress: { fromSequence: 1, toSequence: 2, fraction: 0.2, atStop: false },
+        },
+        {
+          trip: { tripId: 'behind', headsign: null, calls: [] },
+          progress: { fromSequence: 0, toSequence: null, fraction: 0, atStop: true },
+        },
+      ],
+    });
+
+    expect(container.querySelectorAll('.route-vehicle')).toHaveLength(2);
+  });
+
+  it('draws none when nothing is out', () => {
+    const { container } = show({ variant: TRAM_1, vehicles: [] });
+    expect(container.querySelectorAll('.route-vehicle')).toHaveLength(0);
   });
 
   it('opens the stop somebody presses', () => {

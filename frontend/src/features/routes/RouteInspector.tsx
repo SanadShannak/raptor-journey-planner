@@ -10,6 +10,20 @@ import { RouteStopList } from './RouteStopList';
 import { TripTable } from './TripTable';
 import { VariantPicker } from './VariantPicker';
 import { reconcileSelection } from './stopSelection';
+import { activeVehicles, nowSeconds, type Vehicle } from './vehicleProgress';
+
+/**
+ * How often the vehicles are moved.
+ *
+ * Ten seconds. The countdowns beside them tick at thirty, which is right for a
+ * number that only ever changes once a minute — but a *position* between two
+ * scheduled times is continuous, and at thirty seconds a vehicle crossing a
+ * two-minute leg lurches through four places instead of gliding through twelve.
+ *
+ * It costs a re-render of the stop list, which is a few dozen rows of static
+ * markup either side of the thing that actually moved.
+ */
+const VEHICLE_TICK_MS = 10_000;
 
 interface Props {
   lineId: string;
@@ -28,6 +42,13 @@ interface Props {
   backLabel: string;
   /** Hands the variant to the host once it is known, so the map can draw it. */
   onResolved?: ((variant: LineVariantDetail) => void) | undefined;
+  /**
+   * Hands the vehicles up, so the map draws the same ones the spine does.
+   *
+   * Computed here rather than twice: the day's timetable lives here, and two
+   * independent clocks would put one vehicle in two places.
+   */
+  onVehicles?: ((vehicles: Vehicle[]) => void) | undefined;
 }
 
 type View = 'stops' | 'timetable';
@@ -64,6 +85,7 @@ export function RouteInspector({
   onBack,
   backLabel,
   onResolved,
+  onVehicles,
 }: Props) {
   const { strings, t } = useLocale();
   const viewLabelId = useId();
@@ -85,6 +107,9 @@ export function RouteInspector({
    */
   const resolved = useRef(onResolved);
   resolved.current = onResolved;
+
+  const reportVehicles = useRef(onVehicles);
+  reportVehicles.current = onVehicles;
 
   /* The line, and through it the variant. */
   useEffect(() => {
@@ -221,7 +246,7 @@ export function RouteInspector({
    * withheld by the *date* rather than by whether the zone has arrived: those
    * are different facts, and only one of them will resolve itself.
    */
-  const clock = useNetworkNow(timezone);
+  const clock = useNetworkNow(timezone, VEHICLE_TICK_MS);
   const now = shownDate !== '' && shownDate === networkToday ? clock : null;
 
   /*
@@ -236,6 +261,36 @@ export function RouteInspector({
     () => (dayTimetable === null ? null : daySpan(dayTimetable.trips)),
     [dayTimetable],
   );
+
+  /**
+   * The vehicles out on this pattern right now.
+   *
+   * Only on today. On any other day there are none to draw, and putting one
+   * where it *would* be at this hour on a Sunday three weeks out is a claim
+   * about a moment that is not happening.
+   *
+   * They are what explains something the stop list was already telling the
+   * truth about and could not say: read down the line and the next departure
+   * climbs and then drops, because the later stops are answered by a vehicle
+   * already halfway along while the earlier ones are answered by the one behind
+   * it. Two circles on the spine turn that from a glitch into the obvious
+   * consequence of where they are.
+   */
+  const vehicles = useMemo(() => {
+    if (dayTimetable === null || now === null) return [];
+    const seconds = nowSeconds(now);
+    if (seconds === null) return [];
+    return activeVehicles(dayTimetable.trips, seconds);
+  }, [dayTimetable, now]);
+
+  /*
+   * Handed up in an effect rather than during render: it is somebody else's
+   * state, and setting that while rendering is the one thing React will not
+   * forgive. The ref keeps the host's own re-renders out of the dependencies.
+   */
+  useEffect(() => {
+    reportVehicles.current?.(vehicles);
+  }, [vehicles]);
 
   /** Where the flip goes, or null when this line only runs one way. */
   const flipTarget = useMemo(() => {
@@ -386,6 +441,12 @@ export function RouteInspector({
                 </div>
               )}
 
+              {vehicles.length > 0 && (
+                <p className="text-content-muted text-xs">
+                  {t(strings.routes.scheduledPositions)}
+                </p>
+              )}
+
               <RouteStopList
                 stops={variant.stops}
                 routeType={variant.routeType}
@@ -397,6 +458,7 @@ export function RouteInspector({
                 trips={dayTimetable === null ? null : dayTimetable.trips}
                 viewedDate={shownDate}
                 now={now}
+                vehicles={vehicles}
               />
             </>
           ) : (

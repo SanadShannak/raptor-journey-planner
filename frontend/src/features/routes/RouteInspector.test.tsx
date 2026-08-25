@@ -635,6 +635,115 @@ describe('RouteInspector', () => {
     });
   });
 
+  /*
+   * The reported behaviour, and what now explains it.
+   *
+   * Two vehicles are out at 15:44: one between stops 0 and 1, one between 1 and
+   * 2. That is exactly why stop 2 shows 15:46 while stop 1 shows 15:50 — a later
+   * stop with an earlier time, because the two are answered by different
+   * vehicles. Nothing on screen said so; now two badges do.
+   */
+  it('draws a badge for every vehicle out on the line', async () => {
+    stubFetch({
+      timetable: {
+        ...LINE_FIELDS,
+        ...OUTBOUND,
+        stops: STOPS,
+        stopCount: 3,
+        trips: [
+          // Ahead: between stops 1 and 2 at 15:44.
+          { tripId: 'ahead', headsign: null, calls: [call('15:20'), call('15:38'), call('15:46')] },
+          // Behind: between stops 0 and 1.
+          { tripId: 'behind', headsign: null, calls: [call('15:40'), call('15:50'), call('16:01')] },
+          // Finished, so not drawn.
+          { tripId: 'gone', headsign: null, calls: [call('05:37'), call('05:44'), call('05:52')] },
+        ],
+        totalTrips: 3,
+        outsideTimetableRange: false,
+      },
+    });
+    show();
+
+    await screen.findByRole('heading', { level: 1 });
+    await waitFor(() =>
+      expect(document.querySelectorAll('svg circle[r="9.8"]').length).toBe(2),
+    );
+
+    // And says plainly that this is the timetable's word, not a live feed's.
+    expect(
+      screen.getByText('Vehicles are shown where the timetable says they should be.'),
+    ).toBeTruthy();
+  });
+
+  it('draws no vehicles on a day that is not today', async () => {
+    stubFetch({
+      line: {
+        ...LINE_FIELDS,
+        directions: [0],
+        variants: [{ ...OUTBOUND, serviceDates: ['2026-09-14'] }],
+      },
+      variant: {
+        ...LINE_FIELDS,
+        ...OUTBOUND,
+        serviceDates: ['2026-09-14'],
+        stops: STOPS,
+        stopCount: 3,
+        shape: null,
+      },
+    });
+    show();
+
+    await screen.findByRole('heading', { level: 1 });
+    fireEvent.click(screen.getByRole('radio', { name: 'Timetable' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Stops' }));
+
+    await waitFor(() =>
+      expect(document.querySelectorAll('svg circle[r="9.8"]')).toHaveLength(0),
+    );
+  });
+
+  /*
+   * A stop the line has finished with for the day is dimmed rather than hidden.
+   * It is still a stop on this route and somebody reading the line wants to see
+   * it — it just cannot be boarded at any more.
+   */
+  it('dims a stop nothing will call at again today', async () => {
+    stubFetch({
+      timetable: {
+        ...LINE_FIELDS,
+        ...OUTBOUND,
+        stops: STOPS,
+        stopCount: 3,
+        // One trip, already past the first two stops at 15:44.
+        trips: [{ tripId: 'last', headsign: null, calls: [call('15:20'), call('15:30'), call('15:50')] }],
+        totalTrips: 1,
+        outsideTimetableRange: false,
+      },
+    });
+    show();
+
+    // The stops arrive with the variant; the dimming waits on the day's times.
+    await waitFor(() =>
+      expect(screen.getAllByText('Nothing more today')).toHaveLength(2),
+    );
+
+    const passed = screen.getByRole('link', { name: 'Telakkakatu' });
+    const ahead = screen.getByRole('link', { name: 'Pohjolanaukio' });
+
+    expect(passed.className).toContain('text-content-muted');
+    expect(ahead.className).toContain('text-content');
+    expect(ahead.className).not.toContain('text-content-muted');
+  });
+
+  it('dims nothing while the day’s times are still on their way', async () => {
+    stubFetch();
+    show();
+
+    // The stops arrive with the variant, a request before the times do.
+    const first = await screen.findByRole('link', { name: 'Telakkakatu' });
+    expect(first.className).not.toContain('text-content-muted');
+  });
+
   /* The API's own `error` string is developer-facing English and never shown. */
   it('reports a failure in the reader’s language, never the API’s', async () => {
     stubFetch({

@@ -391,6 +391,9 @@ export const ar: Dictionary = {
     nextDeparture: 'الرحلة القادمة',
     noMoreToday: 'لا مزيد اليوم',
     noCallHere: 'لا يتوقف ذلك اليوم',
+    vehicleHere: 'من المقرر وجود مركبة عند هذه المحطة الآن.',
+    vehicleLeaving: 'من المقرر أن تكون مركبة في طريقها من هذه المحطة.',
+    scheduledPositions: 'تُعرض المركبات حيث يفترض الجدول أن تكون.',
     dayAnnouncement: {
       zero: 'لا رحلات في هذا اليوم.',
       one: 'رحلة واحدة في هذا اليوم.',

@@ -20,8 +20,39 @@ describe('useNetworkNow', () => {
     const helsinki = renderHook(() => useNetworkNow('Europe/Helsinki'));
     const newYork = renderHook(() => useNetworkNow('America/New_York'));
 
-    expect(helsinki.result.current).toEqual({ date: '2026-08-24', time: '15:44' });
-    expect(newYork.result.current).toEqual({ date: '2026-08-24', time: '08:44' });
+    expect(helsinki.result.current).toMatchObject({ date: '2026-08-24', time: '15:44' });
+    expect(newYork.result.current).toMatchObject({ date: '2026-08-24', time: '08:44' });
+  });
+
+  /*
+   * The seconds are for one job: placing something *between* two scheduled
+   * times, where minute steps make a moving thing look like a stuttering one.
+   * They belong to the same zone as the rest of the moment, which is the part
+   * worth pinning — 15:44:30 in Helsinki and 08:44:30 in New York are different
+   * numbers of seconds into their respective days.
+   */
+  it('counts the seconds in the network zone too', () => {
+    const helsinki = renderHook(() => useNetworkNow('Europe/Helsinki'));
+    const newYork = renderHook(() => useNetworkNow('America/New_York'));
+
+    expect(helsinki.result.current?.secondOfDay).toBe(15 * 3600 + 44 * 60 + 30);
+    expect(newYork.result.current?.secondOfDay).toBe(8 * 3600 + 44 * 60 + 30);
+  });
+
+  /*
+   * A caller placing a vehicle wants a faster tick than one counting a minute
+   * down. The default is unchanged for everyone who does not ask.
+   */
+  it('ticks as often as it is asked to', () => {
+    const { result } = renderHook(() => useNetworkNow('Europe/Helsinki', 10_000));
+
+    expect(result.current?.secondOfDay).toBe(15 * 3600 + 44 * 60 + 30);
+
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+    });
+
+    expect(result.current?.secondOfDay).toBe(15 * 3600 + 44 * 60 + 40);
   });
 
   it('keeps up as the minute turns', () => {

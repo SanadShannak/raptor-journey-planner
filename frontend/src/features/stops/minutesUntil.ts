@@ -17,6 +17,15 @@
 export interface NetworkMoment {
   date: string;
   time: string;
+  /**
+   * Seconds since that date's midnight, where the moment came from a clock
+   * rather than from a timetable.
+   *
+   * Optional because a scheduled call has no seconds to give — the API
+   * publishes whole minutes — and this interface describes both. Only a caller
+   * placing something between two scheduled times needs it.
+   */
+  secondOfDay?: number;
 }
 
 const DAY_MINUTES = 1440;

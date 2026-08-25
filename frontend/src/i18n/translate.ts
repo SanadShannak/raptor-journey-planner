@@ -265,7 +265,20 @@ export function formatDate(
  * Formatted through `Intl` rather than by arithmetic on a timestamp so that
  * daylight saving is the platform's problem, not ours.
  */
-export function nowInZone(timeZone: string): { date: string; time: string } {
+export function nowInZone(timeZone: string): {
+  date: string;
+  time: string;
+  /**
+   * Seconds since that date's midnight, on the same clock.
+   *
+   * `time` is minute-resolution because that is the resolution every timetable
+   * in this system publishes, and a countdown cannot be more precise than the
+   * thing it counts down to. Seconds are for the one job that needs them:
+   * placing a vehicle *between* two scheduled times, where minute steps make a
+   * moving thing look like a stuttering one.
+   */
+  secondOfDay: number;
+} {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone,
     year: 'numeric',
@@ -273,6 +286,7 @@ export function nowInZone(timeZone: string): { date: string; time: string } {
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
+    second: '2-digit',
     hourCycle: 'h23',
   })
     .formatToParts(new Date())
@@ -281,8 +295,13 @@ export function nowInZone(timeZone: string): { date: string; time: string } {
       return accumulator;
     }, {});
 
+  const hour = Number(parts['hour']);
+  const minute = Number(parts['minute']);
+  const second = Number(parts['second']);
+
   return {
     date: `${parts['year']}-${parts['month']}-${parts['day']}`,
     time: `${parts['hour']}:${parts['minute']}`,
+    secondOfDay: hour * 3600 + minute * 60 + second,
   };
 }

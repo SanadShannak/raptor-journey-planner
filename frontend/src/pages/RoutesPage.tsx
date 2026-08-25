@@ -7,6 +7,7 @@ import { getNetwork } from '../api/network';
 import { boundsForNetwork, type GeoBounds } from '../config/geocoding';
 import type { GtfsRouteType } from '../types/journey';
 import type { LineVariantDetail } from '../types/route';
+import type { Vehicle } from '../features/routes/vehicleProgress';
 import { LineBrowser } from '../features/routes/LineBrowser';
 import { RouteInspector } from '../features/routes/RouteInspector';
 import { RouteMap } from '../map/RouteMap';
@@ -41,6 +42,12 @@ export default function RoutesPage() {
 
   /** The variant the inspector resolved, which is what the map draws. */
   const [focused, setFocused] = useState<LineVariantDetail | null>(null);
+  /*
+   * The vehicles the inspector worked out, so the map draws the same ones the
+   * spine does. Computed once, over there, because the day's timetable lives
+   * there — two clocks would put one vehicle in two places.
+   */
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
 
   /*
    * Only the network, and no `/api/valid-dates`. The days a date control offers
@@ -95,6 +102,7 @@ export default function RoutesPage() {
   if (key !== lastKey) {
     setLastKey(key);
     setFocused(null);
+    setVehicles([]);
   }
 
   const openLine = useCallback(
@@ -140,6 +148,7 @@ export default function RoutesPage() {
             onBack={() => void navigate(paths.routes)}
             backLabel={t(strings.routes.backToLines)}
             onResolved={setFocused}
+            onVehicles={setVehicles}
           />
         )}
       </div>
@@ -158,6 +167,7 @@ export default function RoutesPage() {
           */
           pending={lineId !== undefined && focused === null}
           onStopSelect={openStop}
+          vehicles={vehicles}
         />
       </section>
     </div>

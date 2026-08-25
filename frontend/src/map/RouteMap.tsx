@@ -4,7 +4,9 @@ import type { GeoBounds } from '../config/geocoding';
 import type { Coordinates } from '../types/journey';
 import type { LineVariantDetail } from '../types/route';
 import { familyFor, visualForFamily } from '../features/journey/modeVisuals';
+import type { Vehicle } from '../features/routes/vehicleProgress';
 import { MapCanvas, FitTo } from './MapCanvas';
+import { RouteVehicles } from './RouteVehicles';
 import { StopLayer } from './StopLayer';
 import { homeViewFor, ROUTE_STOPS_MIN_ZOOM } from './homeView';
 import { useReducedMotion } from './useReducedMotion';
@@ -23,6 +25,8 @@ interface Props {
    */
   pending: boolean;
   onStopSelect: (stopId: string) => void;
+  /** The vehicles out on this pattern now. Empty on a day that is not today. */
+  vehicles: Vehicle[];
 }
 
 /**
@@ -41,7 +45,14 @@ interface Props {
  * in the list beside it, as a link, which is what lets the markers stay out of
  * the tab order without putting anything out of reach.
  */
-export function RouteMap({ network, area, variant, pending, onStopSelect }: Props) {
+export function RouteMap({
+  network,
+  area,
+  variant,
+  pending,
+  onStopSelect,
+  vehicles,
+}: Props) {
   const home = useMemo(() => homeViewFor(network, area), [network, area]);
   const reduceMotion = useReducedMotion();
 
@@ -147,6 +158,11 @@ export function RouteMap({ network, area, variant, pending, onStopSelect }: Prop
             interactive={false}
           />
         </Fragment>
+      )}
+
+      {/* Over the line and its stops, because it is travelling along them. */}
+      {variant !== null && vehicles.length > 0 && (
+        <RouteVehicles variant={variant} vehicles={vehicles} />
       )}
 
       {variant?.stops.map((stop, index) => {

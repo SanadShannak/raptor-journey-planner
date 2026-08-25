@@ -464,6 +464,15 @@ export interface Dictionary {
     noMoreToday: string;
     /** Nothing calls at this stop on the chosen day at all. */
     noCallHere: string;
+    /*
+     * The vehicles drawn on the spine and the map, for a reader who gets
+     * neither. Found by moving through the list, never announced — a position
+     * that changes every few seconds has no business interrupting anyone.
+     */
+    vehicleHere: string;
+    vehicleLeaving: string;
+    /** Says the drawing is the timetable's word, not a live feed's. */
+    scheduledPositions: string;
     /** Announced when a day's times arrive, so the change is not silent. */
     dayAnnouncement: Message;
 
