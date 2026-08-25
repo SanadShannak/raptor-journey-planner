@@ -57,7 +57,15 @@ const IMMINENT_WITHIN_MINUTES = 10;
  */
 const MARKER_CENTRE = 22;
 
-/** Down the list is the way the vehicles travel: the stops are in order. */
+/**
+ * Down the list is the way the vehicles travel, because the stops are in order.
+ *
+ * A compass bearing, like the map's — 0 north, 180 south — so the one arrow
+ * shape serves both renderers. It is fixed here rather than read from the
+ * geometry: a list has one direction whatever the road is doing, and an arrow
+ * that pointed north-east because the line does would be describing the wrong
+ * thing entirely. The map is where the road's own heading belongs.
+ */
 const DOWN = 180;
 
 /**
@@ -187,7 +195,12 @@ export function RouteStopList({
         ].filter((fact): fact is string => fact !== null);
 
         return (
-          <li key={`${stop.sequence}-${stop.id}`} className="flex gap-3">
+          /*
+            `gap-5` rather than the `gap-3` a plain spine needs. A vehicle badge
+            is 42px centred on a 14px column, so it hangs fourteen pixels past
+            each side — at the old gap it sat on top of the stop's own name.
+          */
+          <li key={`${stop.sequence}-${stop.id}`} className="flex gap-5">
             {/*
               The spine. Two struts and a circle between them, so the line
               enters and leaves at the circle's edge rather than showing through
@@ -234,7 +247,16 @@ export function RouteStopList({
               */}
               {here !== undefined && (
                 <span
-                  className="absolute z-20 -translate-x-1/2 -translate-y-1/2 start-1/2"
+                  /*
+                    Stretched across the column and flex-centred rather than
+                    offset from one edge. `start-1/2` with a negative
+                    `translate-x` centres in a left-to-right page and pushes the
+                    badge a whole width off the spine in a right-to-left one —
+                    the offset is logical and the translate is not. Two logical
+                    edges and `justify-center` need no translate at all, and the
+                    badge overflows the 14px column evenly on both sides.
+                  */
+                  className="absolute start-0 end-0 z-20 flex -translate-y-1/2 justify-center"
                   style={{ top: `${MARKER_CENTRE}px` }}
                 >
                   <VehicleBadge family={family} bearing={DOWN} />
@@ -242,7 +264,7 @@ export function RouteStopList({
               )}
               {leaving !== undefined && (
                 <span
-                  className="absolute z-20 -translate-x-1/2 -translate-y-1/2 start-1/2"
+                  className="absolute start-0 end-0 z-20 flex -translate-y-1/2 justify-center"
                   style={{
                     top: `calc(${MARKER_CENTRE}px + ${leaving.progress.fraction * 100}%)`,
                   }}

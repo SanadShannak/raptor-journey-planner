@@ -96,7 +96,9 @@ export function RouteVehicles({ variant, vehicles }: Props) {
  */
 function iconFor(routeType: GtfsRouteType, bearing: number): L.DivIcon {
   return L.divIcon({
-    className: 'route-vehicle',
+    // The badge inside carries `route-vehicle`; this is only Leaflet's wrapper,
+    // and naming both the same would double every count of them.
+    className: 'route-vehicle-marker',
     html: vehicleMarkup(familyFor(routeType), bearing),
     iconSize: [VEHICLE_SIZE, VEHICLE_SIZE],
     iconAnchor: [VEHICLE_SIZE / 2, VEHICLE_SIZE / 2],

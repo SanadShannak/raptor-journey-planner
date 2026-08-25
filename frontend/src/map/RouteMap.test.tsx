@@ -95,6 +95,12 @@ function show(props: Partial<Parameters<typeof RouteMap>[0]> = {}) {
 
 const wentToTheCity = () => moves.some((move) => Math.abs(move.lat - CITY_LAT) < 0.001);
 
+/** The degrees the first vehicle badge's arrow is turned by. */
+function rotationOf(container: HTMLElement): number {
+  const html = container.querySelector('.route-vehicle')?.innerHTML ?? '';
+  return Number(/rotate\(([-\d.]+)/.exec(html)?.[1] ?? NaN);
+}
+
 beforeEach(() => {
   localStorage.clear();
   moves = [];
@@ -283,8 +289,9 @@ describe('RouteMap drawing', () => {
 
     const marker = container.querySelector('.route-vehicle') as HTMLElement;
     expect(marker).toBeTruthy();
-    // The silhouette and the nose, both there and both from one source.
-    expect(marker.querySelector('circle')).toBeTruthy();
+    // A rounded square rather than a circle, so it is not read as another stop.
+    expect(marker.querySelector('rect[rx]')).toBeTruthy();
+    // And an arrow, turned to the heading of the stretch it is on.
     expect(marker.innerHTML).toContain('rotate(');
   });
 
@@ -304,6 +311,46 @@ describe('RouteMap drawing', () => {
     });
 
     expect(container.querySelectorAll('.route-vehicle')).toHaveLength(2);
+  });
+
+  /*
+   * The arrow follows the road, not the straight line between two stops — and
+   * this fixture is built to tell those apart. All three stops sit on the same
+   * meridian, so interpolating between them would point every vehicle due north
+   * whatever the line was doing. The shape bows west out of the first stop and
+   * back east to the last, so the two legs have headings a long way apart and a
+   * long way from north.
+   */
+  it('turns the arrow to the heading of the stretch it is on', () => {
+    const onTheFirstLeg = show({
+      variant: TRAM_1,
+      vehicles: [
+        {
+          trip: { tripId: 'a', headsign: null, calls: [] },
+          progress: { fromSequence: 0, toSequence: 1, fraction: 0.5, atStop: false },
+        },
+      ],
+    });
+    const north = rotationOf(onTheFirstLeg.container);
+    onTheFirstLeg.unmount();
+
+    const onTheSecondLeg = show({
+      variant: TRAM_1,
+      vehicles: [
+        {
+          trip: { tripId: 'b', headsign: null, calls: [] },
+          progress: { fromSequence: 1, toSequence: 2, fraction: 0.5, atStop: false },
+        },
+      ],
+    });
+    const east = rotationOf(onTheSecondLeg.container);
+
+    // North-west out of the first stop, north-east into the last.
+    expect(north).toBeCloseTo(305.4, 0);
+    expect(east).toBeCloseTo(26.4, 0);
+    // Neither is the due north a stop-to-stop line would have given.
+    expect(Math.abs(north - 360)).toBeGreaterThan(20);
+    expect(east).toBeGreaterThan(20);
   });
 
   it('draws none when nothing is out', () => {

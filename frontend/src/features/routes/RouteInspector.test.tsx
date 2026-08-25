@@ -666,7 +666,7 @@ describe('RouteInspector', () => {
 
     await screen.findByRole('heading', { level: 1 });
     await waitFor(() =>
-      expect(document.querySelectorAll('svg circle[r="9.8"]').length).toBe(2),
+      expect(document.querySelectorAll('.route-vehicle').length).toBe(2),
     );
 
     // And says plainly that this is the timetable's word, not a live feed's.
@@ -698,7 +698,7 @@ describe('RouteInspector', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Stops' }));
 
     await waitFor(() =>
-      expect(document.querySelectorAll('svg circle[r="9.8"]')).toHaveLength(0),
+      expect(document.querySelectorAll('.route-vehicle')).toHaveLength(0),
     );
   });
 
