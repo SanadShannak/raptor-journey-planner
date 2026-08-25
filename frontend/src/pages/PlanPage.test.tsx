@@ -5,6 +5,13 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { LocaleProvider } from '../i18n';
 import { ThemeProvider } from '../theme';
 import PlanPage from './PlanPage';
+import { forgetPlanner } from '../features/journey/plannerMemory';
+
+/**
+ * How many times the engine has been asked, so "came back without asking" can
+ * be checked rather than assumed — which is the whole claim being made.
+ */
+let plannerCalls = 0;
 import { paths } from '../app/routes';
 
 /*
@@ -88,7 +95,10 @@ function stubApi() {
       if (pathname === '/api/network')
         return json({ network: 'hsl', timezone: 'Europe/Helsinki', modes: [3] });
       if (pathname === '/api/valid-dates') return json(['2026-08-25', '2026-08-26']);
-      if (pathname === '/api/planner') return json(JOURNEY);
+      if (pathname === '/api/planner') {
+        plannerCalls += 1;
+        return json(JOURNEY);
+      }
       if (pathname === '/api/stops') return json({ stops: [], truncated: false });
       if (pathname.startsWith('/api/stop/')) {
         // Keyed by id, so a test that opens Kamppi is not handed Lasipalatsi.
@@ -134,7 +144,15 @@ async function fill(label: string) {
   fireEvent.pointerDown(option);
 }
 
+/*
+ * The planner holds what it was showing in a module-level value, which is what
+ * lets it be left and come back to. One module is shared by every test in a
+ * file, so it has to be emptied between them or the second test opens on the
+ * first one's journey.
+ */
 beforeEach(() => {
+  forgetPlanner();
+  plannerCalls = 0;
   localStorage.clear();
   stubApi();
 });
@@ -250,6 +268,43 @@ describe('PlanPage search in the address', () => {
 
     await screen.findByRole('button', { name: /Show this journey/ }, { timeout: 3000 });
     expect(screen.queryByRole('button', { name: 'Back to results' })).toBeNull();
+  });
+
+  /*
+   * The case that kept being missed: leaving through the nav bar, which is not
+   * a back button and carries no state — the page is simply unmounted. What was
+   * on screen has to be there on the way back, and without asking again.
+   */
+  it('is still there after wandering off and coming back', async () => {
+    const { unmount } = show(asked);
+    await screen.findByRole('button', { name: /Show this journey/ }, { timeout: 3000 });
+    const asks = plannerCalls;
+
+    // Somewhere else in the app, then back to `/` with nothing in the address.
+    unmount();
+    show(paths.home);
+
+    expect(
+      await screen.findByRole('button', { name: /Show this journey/ }, { timeout: 3000 }),
+    ).toBeTruthy();
+    expect(plannerCalls).toBe(asks);
+  });
+
+  /*
+   * And a reload is not that. It is a new context, so the held answer is gone
+   * with it and the page asks again — which is the half of the bargain that
+   * keeps a stale timetable from outliving the session.
+   */
+  it('asks again after a reload', async () => {
+    const { unmount } = show(asked);
+    await screen.findByRole('button', { name: /Show this journey/ }, { timeout: 3000 });
+    const asks = plannerCalls;
+
+    unmount();
+    forgetPlanner();
+    show(asked);
+
+    await waitFor(() => expect(plannerCalls).toBeGreaterThan(asks), { timeout: 3000 });
   });
 
   /* A half-filled address is not a search, so it opens an empty form. */

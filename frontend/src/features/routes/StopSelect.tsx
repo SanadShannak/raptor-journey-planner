@@ -120,10 +120,19 @@ export function StopSelect({ label, value, onChange, stops, disabled }: Props) {
                 The code printed on the pole, which is what tells six stops
                 called "Pasila" apart — the one thing a list of names alone
                 cannot do.
+
+                Bare, not "Stop H0446". Every row in this list is a stop, so the
+                word is true of all of them and distinguishes none, and it
+                doubles the width of a column whose whole job is a short code
+                beside a long name. It stays in the spoken version, where there
+                is no column to read it off.
               */}
               {stop.code !== null && (
                 <span className="text-content-muted flex-none text-xs tabular-nums">
-                  {t(strings.stops.stopCode, { code: stop.code })}
+                  <span aria-hidden="true">{stop.code}</span>
+                  <span className="sr-only">
+                    {t(strings.stops.stopCode, { code: stop.code })}
+                  </span>
                 </span>
               )}
             </button>

@@ -19,7 +19,11 @@ import type { JourneyEnd } from '../features/journey/itineraryRows';
 import { ItineraryOverview } from '../features/journey/ItineraryOverview';
 import { ItineraryDetail } from '../features/journey/ItineraryDetail';
 import { fromSearchParams, toSearchParams } from '../features/journey/searchParams';
-import { recall, remember } from '../features/journey/journeyCache';
+import {
+  recallPlanner,
+  rememberPlanner,
+  type PlannerMemory,
+} from '../features/journey/plannerMemory';
 import { JourneyMap } from '../map/JourneyMap';
 import { StopInspector } from '../features/stops/StopInspector';
 
@@ -120,15 +124,57 @@ export default function PlanPage() {
    */
   const [searchP, setSearchParams] = useSearchParams();
 
-  const [values, setValues] = useState<JourneyFormValues>(
-    () => fromSearchParams(searchP, DEFAULT_WALKING_PACE) ?? {
-      origin: null,
-      destination: null,
-      date: '',
-      time: '',
-      pace: DEFAULT_WALKING_PACE,
-    },
-  );
+  /**
+   * What to open on: where you left off, or what the address asks for.
+   *
+   * The address wins only when it asks for a *different* search from the one
+   * being held — a link somebody followed, or a reload. Coming back from a run,
+   * or in through the nav bar, the two agree and what was left off is richer:
+   * it has the answer, and which itinerary was open.
+   *
+   * Computed once. Later renders must not reconsider it, or typing in the form
+   * would be undone by the address it was last written to.
+   */
+  const [seed] = useState<PlannerMemory>(() => {
+    const asked = fromSearchParams(searchP, DEFAULT_WALKING_PACE);
+    const held = recallPlanner();
+
+    const blank: PlannerMemory = {
+      values: {
+        origin: null,
+        destination: null,
+        date: '',
+        time: '',
+        pace: DEFAULT_WALKING_PACE,
+      },
+      journeys: [],
+      searched: false,
+      openIndex: null,
+      selectedIndex: null,
+      inspectStopId: null,
+      exhausted: null,
+    };
+
+    if (asked === null) return held ?? blank;
+    if (held !== null && searchSignature(asked) === searchSignature(held.values)) {
+      return held;
+    }
+
+    /*
+     * A search this session has not seen — a link, or a reload. Its view comes
+     * from the address too, which is the only place it can: there is no answer
+     * yet and nothing held to take a view from.
+     */
+    const open = searchP.get('open');
+    return {
+      ...blank,
+      values: asked,
+      openIndex: open !== null && /^\d+$/.test(open) ? Number(open) : null,
+      inspectStopId: searchP.get('stop'),
+    };
+  });
+
+  const [values, setValues] = useState<JourneyFormValues>(seed.values);
 
   /*
    * A search restored from the address runs itself, once.
@@ -140,7 +186,7 @@ export default function PlanPage() {
    */
   const restored = useRef(false);
 
-  const [journeys, setJourneys] = useState<Journey[]>([]);
+  const [journeys, setJourneys] = useState<Journey[]>(seed.journeys);
 
   /**
    * Opens or closes the detail panel, and records which in the address.
@@ -188,23 +234,17 @@ export default function PlanPage() {
   );
   const [state, setState] = useState<'idle' | 'searching' | 'failed'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [searched, setSearched] = useState(false);
+  const [searched, setSearched] = useState(seed.searched);
   const [extending, setExtending] = useState(false);
-  const [exhausted, setExhausted] = useState<string | null>(null);
-  /** Which result is open in full, by index; null while the list is showing. */
+  const [exhausted, setExhausted] = useState<string | null>(seed.exhausted);
   /*
    * Which result is open in full, by index; null while the list is showing.
    *
-   * In the address alongside the search, for the same reason the search itself
-   * is: this page can be left — a leg opens the run it is riding — and coming
-   * back to the *list* when you left from the *detail* is coming back to the
-   * wrong place. An index rather than anything richer because the list it
-   * indexes is restored first, from the same address and the same cache.
+   * Seeded from what was left off, and written to the address as well so a
+   * shared or reloaded link opens the same view. An index rather than anything
+   * richer because the list it indexes is restored alongside it.
    */
-  const [openIndex, setOpenIndexState] = useState<number | null>(() => {
-    const raw = searchP.get('open');
-    return raw !== null && /^\d+$/.test(raw) ? Number(raw) : null;
-  });
+  const [openIndex, setOpenIndexState] = useState<number | null>(seed.openIndex);
   /**
    * Which card the traveller has actually chosen, as opposed to grazed.
    *
@@ -214,7 +254,7 @@ export default function PlanPage() {
    * way to ask for that: pointing at a card showed it and moving away took it
    * straight back.
    */
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(seed.selectedIndex);
 
   /*
    * A stop pressed on the map, opened in the sidebar rather than navigated to.
@@ -231,7 +271,7 @@ export default function PlanPage() {
    * is coming back to the wrong place.
    */
   const [inspectStopId, setInspectStopIdState] = useState<string | null>(
-    () => searchP.get('stop'),
+    seed.inspectStopId,
   );
 
   const requestId = useRef(0);
@@ -371,14 +411,6 @@ export default function PlanPage() {
       if (mode === 'replace') {
         setJourneys(result);
         setSearched(true);
-        /*
-         * Kept for the tab's lifetime, so leaving this page for a run's own
-         * timetable and coming back does not blink the answer out and fetch it
-         * again. Only a whole search: "later" appends to an answer rather than
-         * being one, and caching the half of it that happened to be on screen
-         * would restore a list nobody asked for.
-         */
-        remember(searchSignature(from), result);
       } else if (result.length === 0) {
         setExhausted(t(strings.planner.noLater));
       } else {
@@ -394,15 +426,6 @@ export default function PlanPage() {
         const before = journeys;
         const merged = mergeJourneys(before, result);
         setJourneys(merged);
-        /*
-         * Kept under the *original* search's signature, not this request's.
-         * "Later" shifts the time past the last result, so it has a signature
-         * of its own — but what is on screen is still the answer to the
-         * question that was typed, and that is the question somebody comes back
-         * to. Without this, returning from a run's page threw away every batch
-         * after the first.
-         */
-        remember(searchSignature(values), merged);
 
         /*
          * The first of the new ones becomes the chosen one. Pressing "Later"
@@ -441,6 +464,25 @@ export default function PlanPage() {
   }
 
   /*
+   * Everything worth coming back to, held for as long as the tab lives.
+   *
+   * Written on every change rather than on the way out: there is no "way out"
+   * to hook — a nav link unmounts this page without warning, and a leg of an
+   * itinerary is an ordinary link.
+   */
+  useEffect(() => {
+    rememberPlanner({
+      values,
+      journeys,
+      searched,
+      openIndex,
+      selectedIndex,
+      inspectStopId,
+      exhausted,
+    });
+  }, [values, journeys, searched, openIndex, selectedIndex, inspectStopId, exhausted]);
+
+  /*
    * Runs a search the address already carries.
    *
    * Held until the service check has answered, so a restored search does not
@@ -455,18 +497,22 @@ export default function PlanPage() {
     restored.current = true;
 
     /*
-     * The same answer, if it is still the same question. Coming back to a
-     * journey you were already looking at should not blink out and reload —
-     * see `journeyCache`.
+     * Already answered — this is what was left off, not a link being opened —
+     * so there is nothing to ask. Asking anyway would blink the results out and
+     * fetch the same ones back.
      */
-    const kept = recall(searchSignature(values));
-    if (kept !== null) {
-      setJourneys(kept);
-      setSearched(true);
-      return;
-    }
+    if (searched) return;
 
-    void search(values, 'replace');
+    /*
+     * A search starts by closing whatever was open, because index 2 of the old
+     * list is a different journey in the new one. That is right for a search
+     * somebody asks for and wrong for this one: the address named both the
+     * question *and* the view, so the view is put back once the answer lands.
+     */
+    void search(values, 'replace').then(() => {
+      if (seed.openIndex !== null) setOpenIndex(seed.openIndex);
+      if (seed.inspectStopId !== null) setInspectStopId(seed.inspectStopId);
+    });
     // Deliberately not depending on `values`: this fires for what arrived in
     // the URL, and every later change is somebody typing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
