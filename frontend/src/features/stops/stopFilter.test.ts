@@ -16,35 +16,33 @@ const stop = (modes: GtfsRouteType[]): NetworkStop => ({
   modes,
 });
 
-const off = (...modes: GtfsRouteType[]) => new Set<GtfsRouteType>(modes);
+const chosen = (...modes: GtfsRouteType[]) => new Set<GtfsRouteType>(modes);
 const BUS = 3;
 const TRAM = 0;
 
 describe('passesModeFilter', () => {
-  // Everything is on until something is switched off.
-  it('keeps everything when nothing is switched off', () => {
-    expect(passesModeFilter(stop([BUS]), off())).toBe(true);
-    expect(passesModeFilter(stop([]), off())).toBe(true);
+  // An empty choice is "all", never "none".
+  it('keeps everything when nothing is chosen', () => {
+    expect(passesModeFilter(stop([BUS]), chosen())).toBe(true);
+    expect(passesModeFilter(stop([]), chosen())).toBe(true);
   });
 
-  it('drops a stop whose only mode is switched off', () => {
-    expect(passesModeFilter(stop([BUS]), off(BUS))).toBe(false);
+  it('keeps only stops served by a chosen mode', () => {
+    expect(passesModeFilter(stop([BUS]), chosen(BUS))).toBe(true);
+    expect(passesModeFilter(stop([BUS]), chosen(TRAM))).toBe(false);
+  });
+
+  // An interchange answers to either of the modes calling there.
+  it('keeps an interchange matching any one chosen mode', () => {
+    expect(passesModeFilter(stop([BUS, TRAM]), chosen(TRAM))).toBe(true);
+    expect(passesModeFilter(stop([BUS, TRAM]), chosen(BUS, TRAM))).toBe(true);
   });
 
   /*
-   * The case a naive `some(mode => off.has(mode))` gets backwards: an
-   * interchange is still a tram stop after the buses are switched off.
+   * The bounding-box endpoint no longer returns these — nothing calls there,
+   * so there is nothing to travel from — but the rule still has to be right.
    */
-  it('keeps an interchange that still has a mode switched on', () => {
-    expect(passesModeFilter(stop([BUS, TRAM]), off(BUS))).toBe(true);
-    expect(passesModeFilter(stop([BUS, TRAM]), off(BUS, TRAM))).toBe(false);
-  });
-
-  /*
-   * A stop nothing serves is not a stop of the kind being hidden — switching
-   * off buses says nothing about it, so it stays.
-   */
-  it('keeps a stop nothing serves, whatever is switched off', () => {
-    expect(passesModeFilter(stop([]), off(BUS))).toBe(true);
+  it('drops a stop nothing serves once a mode is chosen', () => {
+    expect(passesModeFilter(stop([]), chosen(BUS))).toBe(false);
   });
 });

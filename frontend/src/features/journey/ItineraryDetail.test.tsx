@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { LocaleProvider } from '../../i18n/LocaleProvider';
 import type { Journey, Stop, TransitLeg, WalkLeg } from '../../types/journey';
 import { ItineraryDetail } from './ItineraryDetail';
@@ -262,5 +262,104 @@ describe('ItineraryDetail platforms', () => {
     expect(screen.queryByText(/Track/)).toBeNull();
     // The stop code beside it is unaffected.
     expect(screen.getByText('H0201')).toBeTruthy();
+  });
+});
+
+/*
+ * A stop in an itinerary is a place you can ask about, not just a name on a
+ * line. The panel raises the id and the page decides what to do with it, so
+ * what matters here is that the right id leaves by the right press.
+ */
+describe('ItineraryDetail stop inspection', () => {
+  const withInspect = (journey: Journey, onInspectStop: (stopId: string) => void) =>
+    render(
+      <LocaleProvider>
+        <ItineraryDetail
+          journey={journey}
+          origin={kamppi}
+          destination={kamppi}
+          searchedDate="2026-08-24"
+          onBack={() => {}}
+          onInspectStop={onInspectStop}
+        />
+      </LocaleProvider>,
+    );
+
+  it('opens the stop behind a name', () => {
+    const opened: string[] = [];
+    withInspect(
+      journeyOf([ride(stop('1', 'Lasipalatsi'), stop('2', 'Kamppi'), '18:00', '18:10')]),
+      (id) => opened.push(id),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Lasipalatsi' }));
+    expect(opened).toEqual(['1']);
+  });
+
+  /*
+   * The code is the same stop as the name above it. Somebody scanning for
+   * "H0101" should not have to find the name to press.
+   */
+  it('opens the same stop behind its code', () => {
+    const opened: string[] = [];
+    withInspect(
+      journeyOf([
+        ride(stop('1', 'Lasipalatsi', 'H0101'), stop('2', 'Kamppi'), '18:00', '18:10'),
+      ]),
+      (id) => opened.push(id),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'H0101' }));
+    expect(opened).toEqual(['1']);
+  });
+
+  /*
+   * A stop ridden through is as inspectable as one changed at — arguably more
+   * so, since "what else calls there" is what somebody deciding where to get
+   * off is asking.
+   */
+  it('opens an intermediate stop', () => {
+    const opened: string[] = [];
+    const leg = ride(stop('1', 'A'), stop('2', 'B'), '18:00', '18:20');
+    leg.intermediateStops = [
+      {
+        stopId: '99',
+        stopName: 'Töölöntori',
+        stopCode: 'H0199',
+        stopLat: 60,
+        stopLon: 24,
+        stopArrivalTime: '18:10',
+      },
+    ];
+
+    withInspect(journeyOf([leg]), (id) => opened.push(id));
+
+    fireEvent.click(screen.getByRole('button', { name: 'One stop on the way' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Töölöntori' }));
+    expect(opened).toEqual(['99']);
+  });
+
+  /*
+   * A journey from a dropped pin ends at a coordinate the engine resolved, not
+   * at a place in the timetable. A name that is a button and leads nowhere is
+   * worse than a name that is text.
+   */
+  it('leaves a dropped pin as text, with nothing to press', () => {
+    withInspect(
+      journeyOf([walk(originPin, stop('2', 'Kamppi'), '18:00', '18:05')]),
+      () => {},
+    );
+
+    expect(screen.queryByRole('button', { name: 'Kamppi' })).toBeTruthy();
+    // The origin renders under the traveller's own label, and is not a control.
+    expect(screen.getAllByRole('button').map((b) => b.textContent)).not.toContain(
+      'Kamppi (Start)',
+    );
+  });
+
+  // Without a host that can open one, a name is just a name.
+  it('is not a control when nothing can open a stop', () => {
+    show(journeyOf([ride(stop('1', 'Lasipalatsi'), stop('2', 'Kamppi'), '18:00', '18:10')]));
+    expect(screen.queryByRole('button', { name: 'Lasipalatsi' })).toBeNull();
   });
 });

@@ -2,6 +2,7 @@ import { useLocale } from '../../i18n';
 import type { ServingLine } from '../../types/stop';
 import { ModeIcon } from '../journey/modeIcons';
 import { modeVisual } from '../journey/modeVisuals';
+import { toggleSelection } from './toggleSelection';
 
 interface Props {
   lines: ServingLine[];
@@ -31,11 +32,14 @@ export function LineFilter({ lines, selected, onChange }: Props) {
 
   if (lines.length < 2) return null;
 
-  const toggle = (lineId: string) => {
-    const next = new Set(selected);
-    if (!next.delete(lineId)) next.add(lineId);
-    onChange(next);
-  };
+  const toggle = (lineId: string) =>
+    onChange(
+      toggleSelection(
+        selected,
+        lineId,
+        lines.map((line) => line.lineId),
+      ),
+    );
 
   return (
     <fieldset>

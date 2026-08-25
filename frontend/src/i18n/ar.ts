@@ -77,6 +77,9 @@ export const ar: Dictionary = {
     destinationOutOfBounds: 'الوجهة خارج المنطقة التي تغطيها الجداول الزمنية.',
     destinationStopNotFound: 'محطة الوجهة غير موجودة في الجداول الزمنية.',
     stopNotFound: 'لا توجد محطة بهذا المعرّف في هذه الجداول الزمنية.',
+    cardNotFound: 'لا توجد بطاقة بهذا الرقم. تحقّق من الأرقام وحاول مرة أخرى.',
+    badCardNumber: 'هذا ليس رقم بطاقة. رقم البطاقة أحد عشر رقمًا.',
+    cardStoreUnavailable: 'الاستعلام عن الرصيد غير متاح حاليًا. أما بقية الموقع فيعمل كالمعتاد.',
   },
 
   nav: {
@@ -316,15 +319,25 @@ export const ar: Dictionary = {
     clearFilter: 'إظهار كل الخطوط',
     noMatchingLines: 'لا رحلات تطابق الخطوط التي اخترتها.',
 
-    departFromHere: 'ابدأ من هنا',
-    arriveHere: 'انتهِ هنا',
   },
 
   card: {
     inquiryTitle: 'استعلم عن رصيد بطاقة',
     inquiryIntro: 'أدخل الرقم المطبوع على البطاقة. لا يُحفظ شيء، ولا تحتاج إلى حساب.',
     numberLabel: 'رقم البطاقة',
-    numberHint: 'أحد عشر رقمًا كما هي مطبوعة: 12345-67890-1',
+    /*
+     * The example is wrapped in U+2066 LRI … U+2069 PDI.
+     *
+     * Without them the hyphens in `12345-67890-1` are bidi-neutral, so
+     * inside a right-to-left sentence the algorithm reorders the groups
+     * and the example renders as `1-67890-12345` — a different number,
+     * shown to somebody being told how to type theirs. The isolate says
+     * "this run is left-to-right and does not interact with its
+     * surroundings", which is exactly what a card number is.
+     *
+     * Invisible in an editor. Do not "clean up" the string.
+     */
+    numberHint: 'أحد عشر رقمًا كما هي مطبوعة: ⁦12345-67890-1⁩',
     check: 'استعلم عن الرصيد',
     checking: 'جارٍ الاستعلام…',
 
@@ -334,9 +347,14 @@ export const ar: Dictionary = {
     emptyCard: 'هذه البطاقة فارغة. اشحنها قبل السفر.',
     checkAnother: 'استعلم عن بطاقة أخرى',
 
+    activity: 'الحركات الأخيرة',
+    fare: 'أجرة',
+    topUp: 'شحن رصيد',
+    noActivity: 'لا توجد حركات مسجّلة على هذه البطاقة بعد.',
+    unknownPlace: 'رحلة',
+
     numberRequired: 'أدخل رقم البطاقة.',
     numberIncomplete: 'هذا الرقم قصير جدًا. رقم البطاقة أحد عشر رقمًا.',
-    notFound: 'لا توجد بطاقة بهذا الرقم. تحقّق من الأرقام وحاول مرة أخرى.',
   },
 
   auth: {

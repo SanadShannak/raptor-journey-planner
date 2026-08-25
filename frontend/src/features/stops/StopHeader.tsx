@@ -59,14 +59,20 @@ export function StopHeader({ stop, servingLines }: Props) {
   return (
     <header className="flex flex-col gap-3">
       <div className="flex flex-col gap-1">
-        <h1 dir="auto" className="text-2xl font-semibold tracking-tight text-balance">
+        {/*
+          No `dir="auto"`. It resolves from the first strong character, so a
+          Latin stop name turned the whole heading left-to-right and pushed it
+          to the far side of an Arabic page, away from everything under it.
+          Inheriting the page's direction anchors it where the panel starts,
+          and bidi still renders the name itself left-to-right inside — the box
+          follows the page, the text follows itself.
+        */}
+        <h1 className="text-2xl font-semibold tracking-tight text-balance">
           {stop.name}
         </h1>
 
         {stop.description !== null && (
-          <p dir="auto" className="text-content-muted text-sm">
-            {stop.description}
-          </p>
+          <p className="text-content-muted text-sm">{stop.description}</p>
         )}
       </div>
 

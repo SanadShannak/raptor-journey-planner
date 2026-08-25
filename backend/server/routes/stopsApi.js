@@ -365,15 +365,14 @@ router.get("/", (req, res) => {
     }
 
     const grid = cache.spatialGrid ?? {};
-    const stops = [];
-    let truncated = false;
+    const candidates = [];
 
     const minLatCell = Math.floor(minLat / GRID_SIZE_DEGREES);
     const maxLatCell = Math.floor(maxLat / GRID_SIZE_DEGREES);
     const minLonCell = Math.floor(minLon / GRID_SIZE_DEGREES);
     const maxLonCell = Math.floor(maxLon / GRID_SIZE_DEGREES);
 
-    outer: for (let latCell = minLatCell; latCell <= maxLatCell; latCell++) {
+    for (let latCell = minLatCell; latCell <= maxLatCell; latCell++) {
       for (let lonCell = minLonCell; lonCell <= maxLonCell; lonCell++) {
         const cell = grid[`${latCell}_${lonCell}`];
         if (!cell) continue;
@@ -390,18 +389,60 @@ router.get("/", (req, res) => {
             continue;
           }
 
-          if (stops.length >= MAX_STOPS) {
-            truncated = true;
-            break outer;
-          }
+          const modes = modesAt(entry.id);
 
-          stops.push({
-            ...describeStop(entry.id, String(entry.id)),
-            modes: modesAt(entry.id),
-          });
+          /*
+           * Nothing calls here, so there is nothing to travel from.
+           *
+           * Almost all of these are GTFS *stations* — `location_type=1`, the
+           * parent record for a set of platforms. No trip stops at one (none
+           * appear in stop_times at all), no footpath leads to one, and the
+           * engine can neither board nor alight there. On a map they are a
+           * marker with no mode, and opening one gives a board that is empty
+           * forever.
+           *
+           * A handful are ordinary stops that outlived their routes, which is
+           * a real thing in a feed and just as unusable.
+           *
+           * They are excluded from *this* endpoint only. `/api/stop/:id` still
+           * describes any id it knows, so an existing link keeps working.
+           */
+          if (modes.length === 0) continue;
+
+          candidates.push({ id: entry.id, modes });
         }
       }
     }
+
+    /*
+     * Over the cap, take an even stride rather than the first N.
+     *
+     * The walk above runs latitude band by latitude band, so cutting off at
+     * the cap returned a *southern slice* of whatever was asked for — a wide
+     * box came back with its northern half simply missing, and a map drawn
+     * from it showed empty ground where there were stops. A stride keeps the
+     * answer spread across the whole box, which is what "some of them" should
+     * mean.
+     *
+     * `describeStop` runs only for what survives, so a big box costs the walk
+     * and not the formatting.
+     */
+    const truncated = candidates.length > MAX_STOPS;
+    const kept = [];
+
+    if (!truncated) {
+      kept.push(...candidates);
+    } else {
+      const stride = candidates.length / MAX_STOPS;
+      for (let index = 0; index < MAX_STOPS; index++) {
+        kept.push(candidates[Math.floor(index * stride)]);
+      }
+    }
+
+    const stops = kept.map((entry) => ({
+      ...describeStop(entry.id, String(entry.id)),
+      modes: entry.modes,
+    }));
 
     return res.json({ stops, total: stops.length, truncated, capabilities });
   } catch (error) {

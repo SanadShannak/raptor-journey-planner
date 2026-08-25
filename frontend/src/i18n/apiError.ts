@@ -36,6 +36,9 @@ const MESSAGE_FOR_CODE: Record<string, keyof Dictionary['errors']> = {
   STOP_NOT_FOUND: 'stopNotFound',
   LINE_NOT_FOUND: 'generic',
   PATTERN_NOT_FOUND: 'generic',
+  CARD_NOT_FOUND: 'cardNotFound',
+  BAD_CARD_NUMBER: 'badCardNumber',
+  CARD_STORE_UNAVAILABLE: 'cardStoreUnavailable',
   INTERNAL_SERVER_ERROR: 'serverError',
 };
 

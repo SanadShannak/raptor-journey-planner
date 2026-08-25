@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatClockHour, formatDate, formatNumber, parseIsoDate, translate } from './translate';
+import { formatClockHour, formatDate, formatMoney, formatNumber, parseIsoDate, translate } from './translate';
 import { LOCALES, type Locale, type PluralForms } from './dictionary';
 import { en } from './en';
 import { ar } from './ar';
@@ -142,5 +142,62 @@ describe('formatClockHour', () => {
   it('returns an unreadable hour unchanged', () => {
     expect(formatClockHour('99', 'en')).toBe('99');
     expect(formatClockHour('', 'en')).toBe('');
+  });
+});
+
+describe('formatMoney', () => {
+  /*
+   * The space `Intl` puts between a currency *word* and its number is a
+   * non-breaking one, and stays that way — it is what stops "JOD" and "1.300"
+   * landing on two different lines.
+   */
+  const NBSP = '\u00a0';
+
+  /*
+   * How many decimals is a property of the currency, never a choice: a dinar
+   * has three, a euro two.
+   */
+  it('uses the decimals the currency has', () => {
+    expect(formatMoney(1.3, 'JOD', 'en')).toBe(`JOD${NBSP}1.300`);
+    expect(formatMoney(1.3, 'EUR', 'en')).toBe('€1.30');
+  });
+
+  /*
+   * A symbol is pulled tight against the number in both languages, because
+   * `€1.30` beside `1.30 €` reads as an inconsistency rather than as two
+   * conventions. The side each locale puts it on is left alone.
+   */
+  it('gives a symbol no space, in either direction', () => {
+    expect(formatMoney(1.3, 'EUR', 'en')).toBe('€1.30');
+    expect(formatMoney(1.3, 'EUR', 'ar')).toContain('1.30€');
+  });
+
+  /*
+   * A word is not a symbol. `JOD1.300` is not tidier than `JOD 1.300`, it is
+   * harder to read, so the space survives wherever the locale prints a code or
+   * an abbreviation instead of a sign.
+   */
+  it('leaves a word its space', () => {
+    expect(formatMoney(1.3, 'JOD', 'en')).toBe(`JOD${NBSP}1.300`);
+    expect(formatMoney(1.3, 'JOD', 'ar')).toContain(`1.300${NBSP}`);
+  });
+
+  it('signs an amount when asked, and not otherwise', () => {
+    expect(formatMoney(-3.3, 'EUR', 'en', { signed: true })).toBe('-€3.30');
+    expect(formatMoney(20, 'EUR', 'en', { signed: true })).toBe('+€20.00');
+    expect(formatMoney(20, 'EUR', 'en')).toBe('€20.00');
+  });
+
+  // Null is a real answer: print the number, invent no currency.
+  it('prints a bare number when no currency is established', () => {
+    expect(formatMoney(1.3, null, 'en')).toBe('1.3');
+  });
+
+  /*
+   * The code comes from a feed rather than from us, and `Intl` throws on one
+   * it does not know. A number beats an exception thrown out of a render.
+   */
+  it('falls back to a plain number for a currency Intl rejects', () => {
+    expect(formatMoney(1.3, 'NOTACURRENCY', 'en')).toBe('1.3');
   });
 });

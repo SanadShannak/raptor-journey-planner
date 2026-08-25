@@ -1,11 +1,16 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { formatDate, formatMoney, messageForApiError, useLocale } from '../i18n';
+import {
+  formatClockTime,
+  formatDate,
+  formatMoney,
+  messageForApiError,
+  useLocale,
+} from '../i18n';
 import { PageContainer } from '../components/PageContainer';
 import { usePageTitle } from '../app/usePageTitle';
 import { getNetwork } from '../api/network';
-import { CARD_NOT_FOUND, lookupCard } from '../api/card';
-import { isApiError } from '../api/errors';
-import type { TravelCard } from '../types/card';
+import { lookupCard } from '../api/card';
+import type { CardUsage, TravelCard } from '../types/card';
 import {
   cardNumberProblem,
   formatCardNumber,
@@ -102,16 +107,11 @@ export default function CardPage() {
         setCard(null);
         setState('failed');
         /*
-         * A number nobody holds is not a fault — it is almost always a
-         * mistyped digit — so it gets its own words rather than the generic
-         * failure message. Everything else goes through the shared mapping,
-         * which never shows the API's own English.
+         * Through the shared mapping, which turns `CARD_NOT_FOUND` into "check
+         * the digits" and a store that is down into "this part is unavailable"
+         * — and never shows the API's own developer-facing English.
          */
-        setErrorMessage(
-          isApiError(error) && error.code === CARD_NOT_FOUND
-            ? t(strings.card.notFound)
-            : t(messageForApiError(error, strings)),
-        );
+        setErrorMessage(t(messageForApiError(error, strings)));
       });
   }
 
@@ -169,7 +169,7 @@ export default function CardPage() {
             // Eleven digits and two dashes.
             maxLength={13}
             placeholder="12345-67890-1"
-            className="rounded-control border-border-strong bg-surface text-content placeholder:text-content-muted focus-visible:outline-brand-500 min-w-0 flex-1 px-3 py-2 font-medium tabular-nums placeholder:font-normal focus-visible:outline-2 focus-visible:outline-offset-2"
+            className="rounded-control border-border-strong bg-surface text-content placeholder:text-content-muted focus-visible:outline-brand-500 min-w-0 flex-1 border px-3 py-2 font-medium tabular-nums placeholder:font-normal focus-visible:outline-2 focus-visible:outline-offset-2"
             dir="ltr"
           />
 
@@ -184,7 +184,12 @@ export default function CardPage() {
 
         {/* The format, as a hint under the field rather than as its label —
             a placeholder disappears exactly when it is needed. */}
-        <p id={hintId} className="text-content-muted text-xs" dir="ltr">
+        {/*
+          No `dir` here. Forcing the paragraph left-to-right laid the whole
+          Arabic sentence out backwards to fix one number inside it; the number
+          is isolated in the string instead, where the problem actually is.
+        */}
+        <p id={hintId} className="text-content-muted text-xs">
           {t(strings.card.numberHint)}
         </p>
       </form>
@@ -245,9 +250,99 @@ export default function CardPage() {
                 {t(strings.card.emptyCard)}
               </p>
             )}
+
+            <Activity usages={card.usages} currency={currency} />
           </div>
         )}
       </div>
     </PageContainer>
+  );
+}
+
+
+/**
+ * What has happened to the balance.
+ *
+ * The balance answers "can I board"; this answers "why is it that". A charge
+ * somebody does not recognise is the reason anybody looks a card up twice, so
+ * the list leads with where and when rather than with the amount.
+ *
+ * Direction is never carried by colour alone: every row states its kind in
+ * words, and the sign is part of the formatted number rather than a coloured
+ * arrow. Green and red here are emphasis on something already said.
+ */
+function Activity({
+  usages,
+  currency,
+}: {
+  usages: CardUsage[];
+  currency: string | null;
+}) {
+  const { locale, strings, t } = useLocale();
+
+  if (usages.length === 0) {
+    return (
+      <p className="border-border text-content-muted border-t pt-3 text-sm">
+        {t(strings.card.noActivity)}
+      </p>
+    );
+  }
+
+  return (
+    <section className="border-border flex flex-col gap-2 border-t pt-3">
+      <h2 className="text-content-muted text-xs font-semibold tracking-wide uppercase">
+        {t(strings.card.activity)}
+      </h2>
+
+      <ul className="flex flex-col">
+        {usages.map((usage, index) => {
+          const topUp = usage.kind === 'topUp';
+
+          return (
+            <li
+              /*
+               * Two taps can share a minute — a machine that charges twice, a
+               * card read at a gate and a reader — so the index is part of the
+               * key. There is no id on a usage to use instead.
+               */
+              key={`${usage.date ?? ''}-${usage.time ?? ''}-${index}`}
+              className="border-border flex items-baseline gap-3 border-b py-2 last:border-b-0"
+            >
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span dir="auto" className="truncate text-sm font-medium">
+                  {usage.description ??
+                    t(topUp ? strings.card.topUp : strings.card.unknownPlace)}
+                </span>
+                <span className="text-content-muted text-xs">
+                  {t(topUp ? strings.card.topUp : strings.card.fare)}
+                  {usage.date === null
+                    ? ''
+                    : ` · ${formatDate(usage.date, locale, {
+                        day: 'numeric',
+                        month: 'short',
+                      })}`}
+                  {usage.time === null ? '' : ` · ${formatClockTime(usage.time, locale)}`}
+                </span>
+              </span>
+
+              <span
+                className={`flex-none text-sm font-semibold tabular-nums ${
+                  topUp ? 'text-success' : 'text-content'
+                }`}
+              >
+                {/*
+                  Signed through `Intl`, not by gluing a character on: a
+                  locale's minus is not always the ASCII hyphen, and the sign
+                  belongs on the side the locale puts it.
+                */}
+                {formatMoney(topUp ? usage.amount : -usage.amount, currency, locale, {
+                  signed: true,
+                })}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

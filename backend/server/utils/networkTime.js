@@ -98,8 +98,68 @@ function resolveDateAndTime(baseIsoDate, seconds) {
   };
 }
 
+/**
+ * A calendar date on the network's clock, from an absolute instant.
+ *
+ * A `Date` is a moment, not a day, and which day it falls on depends on where
+ * you ask. A tap at 23:30 in Helsinki is the previous day in Virginia, so
+ * `toISOString().slice(0, 10)` — the obvious thing — reports the wrong date for
+ * part of every day. `en-CA` is asked because it writes `YYYY-MM-DD` natively.
+ *
+ * @param {Date|null|undefined} instant
+ * @returns {string|null} `YYYY-MM-DD`, or null when there is no instant.
+ */
+function isoDateInNetwork(instant) {
+  if (!(instant instanceof Date) || Number.isNaN(instant.getTime())) return null;
+
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: networkTimezone(),
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(instant);
+}
+
+/**
+ * The wall-clock date and time of an instant, on the network's clock.
+ *
+ * The pair rather than one or the other, because a card tap is a moment and
+ * both halves of it are read together — and asking twice would format the same
+ * instant twice through two `Intl` instances.
+ *
+ * @param {Date|null|undefined} instant
+ * @returns {{date: string, time: string}|null}
+ */
+function wallClockInNetwork(instant) {
+  if (!(instant instanceof Date) || Number.isNaN(instant.getTime())) return null;
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: networkTimezone(),
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  })
+    .formatToParts(instant)
+    .reduce((accumulator, part) => {
+      accumulator[part.type] = part.value;
+      return accumulator;
+    }, {});
+
+  return {
+    date: `${parts.year}-${parts.month}-${parts.day}`,
+    // 24-hour on the wire, like every other time this API returns. Only the
+    // display is localised.
+    time: `${parts.hour}:${parts.minute}`,
+  };
+}
+
 module.exports = {
   networkTimezone,
+  isoDateInNetwork,
+  wallClockInNetwork,
   nowInNetwork,
   shiftIsoDate,
   toDateId,

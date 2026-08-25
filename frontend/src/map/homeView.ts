@@ -43,13 +43,21 @@ export function homeViewFor(network: string | null, bounds: GeoBounds | null): H
 }
 
 /**
+ * How far out the stops page still draws stops.
+ *
+ * Two levels further out than the journey map's own threshold. There the stops
+ * are scenery over somebody's route and must not crowd it; here they are the
+ * subject and nothing else is competing for the ground, so they can appear as
+ * soon as they are far enough apart to tell apart.
+ */
+export const STOPS_MIN_ZOOM = 13;
+
+/**
  * The zoom the stops page opens at, wherever it is looking.
  *
- * `StopLayer` draws nothing below its own `MIN_ZOOM`, so a page whose subject
- * *is* the stops cannot open at the journey map's resting zoom — it would show
- * a city with no stops on it and no indication that going closer would help.
- * One step in from that threshold: stops are already drawn, and there is still
- * room to pull out a little before they go.
+ * Comfortably inside {@link STOPS_MIN_ZOOM}, so the page opens on stops rather
+ * than on a city with none drawn and no hint that going closer would help —
+ * and with room to pull out a good way before they go.
  */
 const STOPS_ZOOM = 16;
 

@@ -17,6 +17,7 @@ import { modeLabel } from '../i18n';
 import type { GtfsRouteType } from '../types/journey';
 import { NearbyStopsButton, type At } from '../features/stops/NearbyStopsButton';
 import { passesModeFilter } from '../features/stops/stopFilter';
+import { toggleSelection } from '../features/stops/toggleSelection';
 
 /**
  * Stops, browsed and inspected.
@@ -48,13 +49,14 @@ export default function StopsPage() {
   const [belowZoom, setBelowZoom] = useState(false);
 
   /**
-   * The modes switched **off**, and every mode this network runs.
+   * The modes chosen, and every mode this network runs.
    *
-   * Exclusions rather than selections: everything starts on, and a press takes
-   * one away. Empty therefore means "all of them" in the only way that needs no
-   * explaining — nothing has been switched off yet.
+   * A selection with **empty meaning all**, the same as the line filter inside
+   * a stop — so a press does the same thing in both: from the resting state it
+   * narrows to what was pressed, and choosing every one of them is the resting
+   * state again.
    */
-  const [modesOff, setModesOff] = useState<ReadonlySet<GtfsRouteType>>(new Set());
+  const [modes, setModes] = useState<ReadonlySet<GtfsRouteType>>(new Set());
   const [networkModes, setNetworkModes] = useState<GtfsRouteType[]>([]);
   /** Where the visitor last asked the map to look. Starts on the city. */
   const [view, setView] = useState<ViewRequest>(HOME_VIEW);
@@ -141,8 +143,8 @@ export default function StopsPage() {
    * function each render would re-thin every marker on every keystroke.
    */
   const matches = useCallback(
-    (stop: NetworkStop) => passesModeFilter(stop, modesOff),
-    [modesOff],
+    (stop: NetworkStop) => passesModeFilter(stop, modes),
+    [modes],
   );
 
   const shown = useMemo(
@@ -162,8 +164,8 @@ export default function StopsPage() {
             totalInView={visible.length}
             availableModes={networkModes}
             belowZoom={belowZoom}
-            modesOff={modesOff}
-            onModesOffChange={setModesOff}
+            modes={modes}
+            onModesChange={setModes}
             onOpen={openStop}
             onLocated={goToLocation}
             onHome={goHome}
@@ -220,8 +222,8 @@ function StopBrowser({
   totalInView,
   availableModes,
   belowZoom,
-  modesOff,
-  onModesOffChange,
+  modes,
+  onModesChange,
   onOpen,
   onLocated,
   onHome,
@@ -232,8 +234,8 @@ function StopBrowser({
   totalInView: number;
   availableModes: GtfsRouteType[];
   belowZoom: boolean;
-  modesOff: ReadonlySet<GtfsRouteType>;
-  onModesOffChange: (modesOff: ReadonlySet<GtfsRouteType>) => void;
+  modes: ReadonlySet<GtfsRouteType>;
+  onModesChange: (modes: ReadonlySet<GtfsRouteType>) => void;
   onOpen: (stopId: string) => void;
   onLocated: (at: At) => void;
   onHome: () => void;
@@ -242,11 +244,8 @@ function StopBrowser({
 }) {
   const { strings, t } = useLocale();
 
-  const toggleMode = (mode: GtfsRouteType) => {
-    const next = new Set(modesOff);
-    if (!next.delete(mode)) next.add(mode);
-    onModesOffChange(next);
-  };
+  const toggleMode = (mode: GtfsRouteType) =>
+    onModesChange(toggleSelection(modes, mode, availableModes));
 
   return (
     <div className="flex flex-col gap-4 p-5">
@@ -312,7 +311,7 @@ function StopBrowser({
 
           <div className="flex flex-wrap gap-1.5">
             {availableModes.map((mode) => {
-              const on = !modesOff.has(mode);
+              const on = modes.size === 0 || modes.has(mode);
 
               return (
                 /*
@@ -378,7 +377,12 @@ function StopBrowser({
             <button
               type="button"
               onClick={() => onOpen(stop.id)}
-              className="border-border hover:bg-surface-muted focus-visible:outline-brand-500 flex w-full cursor-pointer items-center gap-3 border-b py-2.5 text-start focus-visible:outline-2 focus-visible:outline-offset-2"
+              /*
+                Pulled out into the sidebar's own padding and rounded, so the
+                hover reads as a row rather than as a box drawn tightly around
+                the icons at one end and the code at the other.
+              */
+              className="border-border hover:bg-surface-muted focus-visible:outline-brand-500 rounded-control -mx-2 flex w-[calc(100%+1rem)] cursor-pointer items-center gap-3 border-b px-2 py-2.5 text-start focus-visible:outline-2 focus-visible:outline-offset-2"
             >
               {/*
                 The modes, as the same silhouettes the marker wears — so a stop
@@ -393,12 +397,22 @@ function StopBrowser({
                 ))}
               </span>
 
-              <span dir="auto" className="min-w-0 flex-1 truncate font-medium">
+              {/*
+                Sized to the name rather than filling the row.
+                
+                Stretched, `dir="auto"` made the *box* left-to-right for a
+                Latin name, so the name sat at the far left of it — against the
+                code — while its icons stayed at the right of an Arabic page,
+                with the width of the sidebar in between. Sized to its own text
+                it sits beside the icons whichever way the page runs, and the
+                code is pushed to the far end by its own margin instead.
+              */}
+              <span dir="auto" className="min-w-0 truncate font-medium">
                 {stop.name}
               </span>
 
               {stop.code !== null && (
-                <span className="text-content-muted flex-none text-xs tabular-nums">
+                <span className="text-content-muted ms-auto flex-none text-xs tabular-nums">
                   {stop.code}
                 </span>
               )}
@@ -407,10 +421,10 @@ function StopBrowser({
         ))}
       </ul>
 
-      {modesOff.size > 0 && stops.length > 0 && (
+      {modes.size > 0 && stops.length > 0 && (
         <button
           type="button"
-          onClick={() => onModesOffChange(new Set())}
+          onClick={() => onModesChange(new Set())}
           className="rounded-control border-border-strong text-content hover:bg-surface-muted focus-visible:outline-brand-500 cursor-pointer self-start px-3 py-1.5 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
         >
           {t(strings.stops.showAllModes)}

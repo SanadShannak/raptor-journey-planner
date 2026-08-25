@@ -115,37 +115,82 @@ export function formatClockTime(time: string, locale: Locale): string {
  * Through `Intl` for the usual reason and one more: **how many decimal places
  * a currency has is a property of the currency**, not something to choose. A
  * dinar has three — 1.300 JOD — and a euro two, and hard-coding either would
- * print the wrong thing on half the networks this app can load. `Intl` knows,
- * and it also puts the symbol on the side the locale writes it: "€1.30" in
- * English, "1.30 €" in Arabic.
+ * print the wrong thing on half the networks this app can load.
  *
  * With no currency established, a bare number with no symbol at all. Inventing
  * one would state a fact nobody supplied, and a balance in the wrong money is
  * worse than a balance in none.
+ *
+ * ---------------------------------------------------------------------------
+ * One thing here is deliberately *not* what CLDR says.
+ *
+ * English writes `€1.30` and Arabic writes `1.30 €` — symbol on the side each
+ * language puts it, and Arabic separates it with a space. Both are correct, and
+ * side by side in one interface they read as an inconsistency rather than as
+ * two conventions. So a **symbol** is pulled tight against the number in both.
+ *
+ * Only a symbol. Where the locale has no symbol it prints the code or an
+ * abbreviation — `JOD 1.300` in English, `1.300 د.أ.` in Arabic — and those are
+ * words: `JOD1.300` is not tidier, it is harder to read. The test is whether
+ * the currency token contains a letter.
+ *
+ * The *side* is left alone either way. Which side a symbol sits on is not a
+ * spacing preference — moving `€` in front of an Arabic number would read as a
+ * mistake to somebody who reads Arabic, where the spacing merely reads as
+ * tidier. So: `€1.30` and `1.30€`.
+ * ---------------------------------------------------------------------------
  */
 export function formatMoney(
   amount: number,
   currency: string | null,
   locale: Locale,
+  options: { signed?: boolean } = {},
 ): string {
   if (!Number.isFinite(amount)) return '';
 
+  /*
+   * `always` rather than a hand-written "+" or "−": the sign is part of how a
+   * locale writes a number, and Arabic's minus is not the ASCII hyphen.
+   */
+  const sign = options.signed === true ? { signDisplay: 'always' as const } : {};
+
   if (currency === null) {
-    return new Intl.NumberFormat(INTL_LOCALE[locale]).format(amount);
+    return new Intl.NumberFormat(INTL_LOCALE[locale], sign).format(amount);
   }
 
   try {
-    return new Intl.NumberFormat(INTL_LOCALE[locale], {
+    const parts = new Intl.NumberFormat(INTL_LOCALE[locale], {
       style: 'currency',
       currency,
-    }).format(amount);
+      ...sign,
+    }).formatToParts(amount);
+
+    // A word keeps its space; a symbol does not get one.
+    const symbolic =
+      !/\p{L}/u.test(parts.find((part) => part.type === 'currency')?.value ?? 'x');
+
+    return parts
+      .filter((part, index) => {
+        if (!symbolic || part.type !== 'literal') return true;
+        /*
+         * Whitespace only — never a directional mark. `\s` does not match the
+         * RLM and LRM that Arabic formatting wraps its numbers in, and dropping
+         * those would let the digits reorder inside a right-to-left sentence.
+         */
+        if (!/^\s+$/.test(part.value)) return true;
+        return (
+          parts[index - 1]?.type !== 'currency' && parts[index + 1]?.type !== 'currency'
+        );
+      })
+      .map((part) => part.value)
+      .join('');
   } catch {
     /*
      * `Intl` throws on a code it does not recognise, and the code comes from a
      * feed rather than from us. A number the reader can still act on beats an
      * exception thrown out of a render.
      */
-    return new Intl.NumberFormat(INTL_LOCALE[locale]).format(amount);
+    return new Intl.NumberFormat(INTL_LOCALE[locale], sign).format(amount);
   }
 }
 

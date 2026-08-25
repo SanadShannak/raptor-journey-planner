@@ -23,6 +23,7 @@
     "csv-parser": "^3.2.1",
     "express": "^5.2.1",
     "leaflet": "^1.9.4",
+    "mongoose": "^9.9.3",
     "react-leaflet": "^5.0.0"
   }
 }

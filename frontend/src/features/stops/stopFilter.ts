@@ -2,28 +2,22 @@ import type { GtfsRouteType } from '../../types/journey';
 import type { NetworkStop } from '../../types/stop';
 
 /**
- * Whether a stop survives the modes that have been switched off.
+ * Whether a stop is served by one of the chosen modes.
  *
- * The filter is a set of **exclusions**, not selections. Every mode the network
- * runs starts switched on, and pressing one turns it off — so the resting state
- * shows everything and each press takes something away. The alternative, where
- * an empty selection secretly means "all", asks a reader to hold two meanings
- * for the same empty set.
+ * A **selection**, with an empty one meaning all — the same bargain the line
+ * filter on a stop's own page makes, and now the same behaviour: from the
+ * resting state a press narrows to the mode pressed rather than switching it
+ * off. Two filters side by side that answered a press differently were a
+ * puzzle with no reward for solving it.
  *
- * Two cases the obvious one-liner gets wrong:
- *
- * - **An interchange keeps its other modes.** Switching off buses must not
- *   remove a stop where buses and trams both call — it is still a tram stop,
- *   and it is still the one somebody is looking for.
- * - **A stop nothing serves is not a stop of the kind being hidden.** Those are
- *   real in a feed, where a stop outlives its routes. Switching off buses says
- *   nothing about it, so it stays.
+ * A stop nothing serves cannot match a chosen mode, but the bounding-box
+ * endpoint no longer returns any — nothing calls there, so there is nothing to
+ * travel from.
  */
 export function passesModeFilter(
   stop: NetworkStop,
-  modesOff: ReadonlySet<GtfsRouteType>,
+  chosen: ReadonlySet<GtfsRouteType>,
 ): boolean {
-  if (modesOff.size === 0) return true;
-  if (stop.modes.length === 0) return true;
-  return stop.modes.some((mode) => !modesOff.has(mode));
+  if (chosen.size === 0) return true;
+  return stop.modes.some((mode) => chosen.has(mode));
 }

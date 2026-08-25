@@ -62,6 +62,9 @@ export const en: Dictionary = {
     destinationOutOfBounds: 'The destination is outside the area this timetable covers.',
     destinationStopNotFound: 'That destination stop is not in the timetable.',
     stopNotFound: 'No stop with that identifier is in this timetable.',
+    cardNotFound: 'No card has that number. Check the digits and try again.',
+    badCardNumber: 'That is not a card number. A card number has eleven digits.',
+    cardStoreUnavailable: 'Balance checks are unavailable right now. Everything else still works.',
   },
 
   nav: {
@@ -254,8 +257,6 @@ export const en: Dictionary = {
     clearFilter: 'Show all lines',
     noMatchingLines: 'No departures match the lines you picked.',
 
-    departFromHere: 'Depart from here',
-    arriveHere: 'Arrive here',
   },
 
   card: {
@@ -272,9 +273,14 @@ export const en: Dictionary = {
     emptyCard: 'This card is empty. Top it up before you travel.',
     checkAnother: 'Check another card',
 
+    activity: 'Recent activity',
+    fare: 'Fare',
+    topUp: 'Top-up',
+    noActivity: 'Nothing recorded on this card yet.',
+    unknownPlace: 'Journey',
+
     numberRequired: 'Enter the card number.',
     numberIncomplete: 'That number is too short. A card number has eleven digits.',
-    notFound: 'No card has that number. Check the digits and try again.',
   },
 
   auth: {

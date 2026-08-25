@@ -5,7 +5,7 @@ import type { NetworkStop, StopIdentity } from '../types/stop';
 import { MapCanvas } from './MapCanvas';
 import type { ViewRequest } from './viewRequest';
 import { StopLayer } from './StopLayer';
-import { stopsViewFor } from './homeView';
+import { stopsViewFor, STOPS_MIN_ZOOM } from './homeView';
 import { useReducedMotion } from './useReducedMotion';
 
 interface Props {
@@ -53,6 +53,13 @@ export function StopsMap({
         onStopSelect={onStopSelect}
         selectedStopId={focused?.id ?? null}
         filter={filter}
+        /*
+         * Two zoom levels further out than the journey map. Here the stops are
+         * the subject rather than scenery over somebody's route, so there is
+         * nothing for them to crowd — and a page about stops that opens on an
+         * empty city is asking the visitor to guess that zooming would help.
+         */
+        minZoom={STOPS_MIN_ZOOM}
         onVisibleStopsChange={onVisibleStopsChange}
         onBelowZoomChange={onBelowZoomChange}
       />

@@ -338,7 +338,7 @@ export interface Dictionary {
     towards: string;
     /** The trip ends here, so there is no onward destination to name. */
     terminatesHere: string;
-    /** Its arrival, where a vehicle waits before leaving again. */
+    /** When it pulls in, shown only where that differs from when it leaves. */
     arrivesAt: string;
     /** A departure falling on a different day from the one being viewed. */
     onDate: string;
@@ -358,9 +358,6 @@ export interface Dictionary {
     /** Every line is filtered out, which is the reader's own doing. */
     noMatchingLines: string;
 
-    /* Onward. */
-    departFromHere: string;
-    arriveHere: string;
   };
 
   /**
@@ -388,10 +385,18 @@ export interface Dictionary {
     emptyCard: string;
     checkAnother: string;
 
+    /* What has happened to the balance. */
+    activity: string;
+    fare: string;
+    topUp: string;
+    /** A card nobody has used, and a card whose history was never kept. */
+    noActivity: string;
+    /** A tap with a date but nothing said about where. */
+    unknownPlace: string;
+
     /* What went wrong, in the reader's terms rather than the server's. */
     numberRequired: string;
     numberIncomplete: string;
-    notFound: string;
   };
 
   /**
@@ -500,5 +505,10 @@ export interface Dictionary {
      * which is nonsense on a stop page where nothing is being planned yet.
      */
     stopNotFound: string;
+    /** A number nobody holds — usually a mistyped digit rather than a fault. */
+    cardNotFound: string;
+    badCardNumber: string;
+    /** The card store is down. Nothing else in the app depends on it. */
+    cardStoreUnavailable: string;
   };
 }

@@ -30,13 +30,17 @@ import {
 /**
  * Below this the answer is a texture rather than a map.
  *
- * Neighbourhood level. Far enough out to be useful while looking at a journey
- * rather than only while looking at a corner, and close enough in that the
- * thinning below has room to leave most of them standing. Further out than
- * this they read as a pattern rather than as places, and they crowd the
- * journey, which is what the map is for.
+ * Neighbourhood level, and the default because it suits the journey map: far
+ * enough out to be useful while looking at a journey rather than only while
+ * looking at a corner, and close enough in that the thinning below has room to
+ * leave most of them standing. Further out they read as a pattern rather than
+ * as places, and they crowd the journey, which is what that map is for.
+ *
+ * A map whose subject *is* the stops wants them sooner, and passes its own —
+ * see the `minZoom` prop. It can afford to: nothing else is competing for the
+ * ground there.
  */
-const MIN_ZOOM = 15;
+const DEFAULT_MIN_ZOOM = 15;
 
 /**
  * How close two stops may be drawn before one of them is left out.
@@ -156,6 +160,15 @@ interface Props {
   onVisibleStopsChange?: ((stops: NetworkStop[]) => void) | undefined;
   /** Says the map is pulled out too far to draw any, which is not "none". */
   onBelowZoomChange?: ((belowZoom: boolean) => void) | undefined;
+  /**
+   * How far out this map still draws stops.
+   *
+   * A property of what the map is *for* rather than of the layer: over a
+   * journey they are scenery and should not crowd it, and on a page about
+   * stops they are the subject and should appear as early as they can be told
+   * apart.
+   */
+  minZoom?: number | undefined;
 }
 
 export function StopLayer({
@@ -165,6 +178,7 @@ export function StopLayer({
   filter,
   onVisibleStopsChange,
   onBelowZoomChange,
+  minZoom = DEFAULT_MIN_ZOOM,
 }: Props) {
   const map = useMap();
   const [stops, setStops] = useState<NetworkStop[]>([]);
@@ -192,7 +206,7 @@ export function StopLayer({
     window.clearTimeout(timer.current);
 
     timer.current = window.setTimeout(() => {
-      if (map.getZoom() < MIN_ZOOM) {
+      if (map.getZoom() < minZoom) {
         request.current?.abort();
         covered.current = null;
         // "Too far out to draw any" is not "there are none here", and a list
@@ -269,8 +283,21 @@ export function StopLayer({
     const placed: L.Point[] = [];
     const keep: NetworkStop[] = [];
 
+    /*
+     * Order decides who survives a crowded corner, so the stop being inspected
+     * goes first — it is the one thing on this map somebody has actually asked
+     * about, and it must not be thinned away in favour of a neighbour.
+     *
+     * Without it a pair like Vuosaari's two platforms, three metres apart and
+     * therefore the same pixel at any readable zoom, resolved the tie by id
+     * forever: one of them was drawn and the other could not be seen at all
+     * until the map was zoomed to the point of absurdity.
+     */
     const byImportance = [...(filter === undefined ? stops : stops.filter(filter))].sort(
-      (a, b) => b.modes.length - a.modes.length || a.id.localeCompare(b.id),
+      (a, b) =>
+        Number(b.id === selectedStopId) - Number(a.id === selectedStopId) ||
+        b.modes.length - a.modes.length ||
+        a.id.localeCompare(b.id),
     );
 
     for (const stop of byImportance) {
@@ -281,7 +308,7 @@ export function StopLayer({
       }
     }
     return keep;
-  }, [stops, map, settled, filter]);
+  }, [stops, map, settled, filter, selectedStopId]);
 
   // Reported after render rather than during it: setting another component's
   // state is not something a render is allowed to do.

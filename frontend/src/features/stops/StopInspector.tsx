@@ -26,8 +26,6 @@ interface Props {
   backLabel: string;
   /** Hands the stop to the host once it is known, so a map can frame it. */
   onResolved?: ((stop: StopIdentity) => void) | undefined;
-  onPlanFrom?: ((stop: StopIdentity) => void) | undefined;
-  onPlanTo?: ((stop: StopIdentity) => void) | undefined;
 }
 
 /**
@@ -64,8 +62,6 @@ export function StopInspector({
   onBack,
   backLabel,
   onResolved,
-  onPlanFrom,
-  onPlanTo,
 }: Props) {
   const { strings, t } = useLocale();
   const now = useNetworkNow(timezone);
@@ -306,28 +302,6 @@ export function StopInspector({
                 <DayTimetable timetable={timetable} selectedLines={selectedLines} />
               )}
 
-          {(onPlanFrom !== undefined || onPlanTo !== undefined) && (
-            <div className="border-border flex flex-wrap gap-2 border-t pt-4">
-              {onPlanFrom !== undefined && (
-                <button
-                  type="button"
-                  onClick={() => onPlanFrom(stop)}
-                  className="rounded-control bg-action text-on-action hover:bg-action-hover hover:text-on-action-hover focus-visible:outline-brand-500 cursor-pointer px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
-                >
-                  {t(strings.stops.departFromHere)}
-                </button>
-              )}
-              {onPlanTo !== undefined && (
-                <button
-                  type="button"
-                  onClick={() => onPlanTo(stop)}
-                  className="rounded-control border-border-strong text-content hover:bg-surface-muted focus-visible:outline-brand-500 cursor-pointer border px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
-                >
-                  {t(strings.stops.arriveHere)}
-                </button>
-              )}
-            </div>
-          )}
         </>
       )}
     </div>

@@ -284,6 +284,43 @@ describe('StopInspector', () => {
     expect(screen.queryByText('Departs in 8 minutes')).toBeNull();
   });
 
+  /*
+   * Choosing every line one at a time leaves the whole board showing, which is
+   * where the filter started — so the control offering to undo it has to go
+   * away. It used to stay, over a board identical to the unfiltered one.
+   */
+  it('is back to resting once every line has been chosen', async () => {
+    stubFetch(() => ({
+      body: board({
+        departures: [
+          departure(),
+          departure({
+            tripId: 'trip-2',
+            lineId: 'bus-550',
+            routeShortName: '550',
+            routeType: 3,
+            headsign: 'Itäkeskus',
+            destination: 'Itäkeskus',
+          }),
+        ],
+      }),
+    }));
+    show();
+
+    await screen.findByText('Itäkeskus');
+    expect(screen.queryByRole('button', { name: 'Show all lines' })).toBeNull();
+
+    screen.getByRole('checkbox', { name: 'E' }).click();
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Show all lines' })).toBeTruthy(),
+    );
+
+    screen.getByRole('checkbox', { name: '550' }).click();
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Show all lines' })).toBeNull(),
+    );
+  });
+
   it('narrows the board to the lines that are left switched on', async () => {
     stubFetch(() => ({
       body: board({
@@ -311,15 +348,39 @@ describe('StopInspector', () => {
     expect(screen.getByText('Itäkeskus')).toBeTruthy();
   });
 
-  it('offers the stop as an end of a journey when the host can take one', async () => {
-    const from = vi.fn();
-    stubFetch(() => ({ body: board() }));
-    show({ onPlanFrom: from });
+  /*
+   * A departure board prints departures. Where a vehicle waits — a terminus, a
+   * timing point — the moment it pulls in is a different and useful fact, and
+   * where it does not the two numbers would say the same thing twice.
+   */
+  it('names the arrival only where it differs from the departure', async () => {
+    stubFetch(() => ({
+      body: board({
+        departures: [
+          departure({ arrivalTime: '15:48', time: '15:52' }),
+          departure({ tripId: 'trip-2', arrivalTime: '16:10', time: '16:10' }),
+        ],
+      }),
+    }));
+    show();
 
-    const button = await screen.findByRole('button', { name: 'Depart from here' });
-    button.click();
+    expect(await screen.findByText('3:52 PM')).toBeTruthy();
+    expect(screen.getByText('Arrives 3:48 PM')).toBeTruthy();
 
-    expect(from).toHaveBeenCalledWith(expect.objectContaining({ id: '2611502' }));
+    // The one that does not wait says nothing twice.
+    expect(screen.getByText('4:10 PM')).toBeTruthy();
+    expect(screen.queryByText('Arrives 4:10 PM')).toBeNull();
+  });
+
+  /* The countdown measures to the departure, which is the headline. */
+  it('counts down to the departure', async () => {
+    stubFetch(() => ({
+      body: board({ departures: [departure({ arrivalTime: '15:48', time: '15:52' })] }),
+    }));
+    show();
+
+    // 15:44 on the Helsinki clock, from the system time set above.
+    expect(await screen.findByText('8 min')).toBeTruthy();
   });
 
   // Nothing behind it to return to, so no control claiming there is.

@@ -18,7 +18,6 @@ import { ItineraryOverview } from '../features/journey/ItineraryOverview';
 import { ItineraryDetail } from '../features/journey/ItineraryDetail';
 import { JourneyMap } from '../map/JourneyMap';
 import { StopInspector } from '../features/stops/StopInspector';
-import type { StopIdentity } from '../types/stop';
 
 /**
  * Whether two results are the same journey.
@@ -71,34 +70,6 @@ const hold = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 /** The two ends as the traveller chose them, for the strip map's end nodes. */
 function endOf(place: Place | null): JourneyEnd {
   return { name: place?.label ?? null, context: place?.context ?? null };
-}
-
-/**
- * A stop, as one end of a search.
- *
- * Carries the coordinates rather than the stop id, even though the id is right
- * there and the API accepts one. A stop-id query hits the engine's documented
- * "No Direct Start" limitation — Round-0 footpath expansion is not applied to
- * exact stop nodes, so a stop without a direct connection can fail to route at
- * all — and a coordinate on the same spot does not. The id is kept on the place
- * so the field can still show what it is.
- */
-function placeForStop(stop: StopIdentity): Place {
-  return {
-    key: `stop-${stop.id}`,
-    label: stop.name,
-    context: stop.description,
-    lat: stop.lat,
-    lon: stop.lon,
-    kind: 'stop',
-    stopId: stop.id,
-    stopCode: stop.code,
-    platform: stop.platform,
-    // Empty rather than null: this *is* a stop, and the geocoder's distinction
-    // between "not a stop" and "a stop whose modes were not reported" is the
-    // one being honoured. The stop endpoint does not carry modes.
-    modes: [],
-  };
 }
 
 /**
@@ -385,19 +356,6 @@ export default function PlanPage() {
     setValues(next);
   }
 
-  /**
-   * Puts an inspected stop into the form as one of the two ends.
-   *
-   * Through `updateValues` like every other change: the search has moved, so
-   * whatever is on screen answered a different question and goes with it. The
-   * panel closes too — the stop was a detour, and staying on it would hide the
-   * results the press just asked for.
-   */
-  function openStopAsEnd(stop: StopIdentity, end: 'origin' | 'destination') {
-    updateValues({ ...values, [end]: placeForStop(stop) });
-    setInspectStopId(null);
-  }
-
   /*
    * Run when the form is submitted, and only then. It needs no guard against
    * repeating itself: nothing calls it but a press, and a press is a request
@@ -529,10 +487,6 @@ export default function PlanPage() {
             backLabel={t(
               open !== null ? strings.stops.backToJourney : strings.stops.backToResults,
             )}
-            onPlanFrom={(stop) =>
-              openStopAsEnd(stop, 'origin')
-            }
-            onPlanTo={(stop) => openStopAsEnd(stop, 'destination')}
           />
         ) : open !== null ? (
           <div className="flex flex-col gap-5 p-5">
@@ -542,6 +496,13 @@ export default function PlanPage() {
               destination={endOf(values.destination)}
               searchedDate={values.date}
               onBack={() => setOpenIndex(null)}
+              /*
+                Pressing a stop while reading a journey is a question about
+                that stop, not a decision to abandon the journey — so it swaps
+                the panel and leaves `openIndex` alone. Back returns to the
+                itinerary, which is what the inspector's own label says.
+              */
+              onInspectStop={setInspectStopId}
             />
           </div>
         ) : (

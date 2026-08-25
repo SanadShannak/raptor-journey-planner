@@ -36,6 +36,14 @@ interface Props {
   /** The day that was asked about, so a departure on another one can say so. */
   searchedDate: string;
   onBack: () => void;
+  /**
+   * Opens a stop, when the host has somewhere to open one.
+   *
+   * Absent rather than a no-op where it does not: a name that is a button and
+   * does nothing is worse than a name that is text, and this is what decides
+   * whether it is one at all.
+   */
+  onInspectStop?: ((stopId: string) => void) | undefined;
 }
 
 /**
@@ -63,6 +71,7 @@ export function ItineraryDetail({
   destination,
   searchedDate,
   onBack,
+  onInspectStop,
 }: Props) {
   const locale = useLocale();
   const { strings, t } = locale;
@@ -219,11 +228,11 @@ export function ItineraryDetail({
         <ol className="flex flex-col px-5 py-4">
           {rows.map((row) =>
             row.type === 'node' ? (
-              <NodeLine key={row.key} row={row} />
+              <NodeLine key={row.key} row={row} onInspect={onInspectStop} />
             ) : row.type === 'wait' ? (
               <WaitLine key={row.key} row={row} />
             ) : (
-              <SegmentLine key={row.key} row={row} />
+              <SegmentLine key={row.key} row={row} onInspect={onInspectStop} />
             ),
           )}
         </ol>
@@ -329,7 +338,14 @@ function platformLabel(row: NodeRow, strings: Dictionary): Message {
  * the line to nothing when its label is a single short line of text — without
  * it, two adjacent nodes would touch.
  */
-function NodeLine({ row }: { row: NodeRow }) {
+function NodeLine({
+  row,
+  onInspect,
+}: {
+  row: NodeRow;
+  onInspect?: ((stopId: string) => void) | undefined;
+}) {
+  const inspectable = row.stopId !== null && onInspect !== undefined;
   const locale = useLocale();
   const { strings, t } = locale;
   const ink = nodeInk(row);
@@ -410,7 +426,27 @@ function NodeLine({ row }: { row: NodeRow }) {
             instead. The time is pushed to the far end by its own margin.
           */}
           <span dir="auto" className="min-w-0 truncate font-semibold">
-            {row.name}
+            {/*
+              A button only where there is a stop to open. A journey planned
+              from a dropped pin ends at a coordinate the engine resolved, not
+              at a place in the timetable — so those two names stay text rather
+              than becoming controls that lead nowhere.
+
+              Styled as a link rather than a button: it sits inside a line of
+              running text, and a filled control there would read as the row's
+              purpose instead of as one word in it.
+            */}
+            {inspectable ? (
+              <button
+                type="button"
+                onClick={() => onInspect?.(row.stopId as string)}
+                className="rounded-control hover:text-brand-500 focus-visible:outline-brand-500 cursor-pointer text-start underline decoration-dotted underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
+              >
+                {row.name}
+              </button>
+            ) : (
+              row.name
+            )}
             {/*
               The ends are named for a screen reader rather than on the page:
               the marker says which is which to anyone who can see it, and the
@@ -452,11 +488,26 @@ function NodeLine({ row }: { row: NodeRow }) {
         */}
         {(row.detail !== null || row.platform !== null) && (
           <span className="-ms-1.5 mt-1 flex flex-wrap items-center gap-1.5">
-            {row.detail !== null && (
-              <span className="bg-surface-muted text-content-muted rounded-control px-1.5 py-0.5 text-xs font-medium">
-                <span dir="auto">{row.detail}</span>
-              </span>
-            )}
+            {row.detail !== null &&
+              /*
+                The code is the same stop as the name above it, so it opens the
+                same thing — a rider looking for "H0101" should not have to
+                find the name to press. On a pin the second line is a
+                geocoder's context rather than a code, and stays text.
+              */
+              (inspectable ? (
+                <button
+                  type="button"
+                  onClick={() => onInspect?.(row.stopId as string)}
+                  className="bg-surface-muted text-content-muted rounded-control hover:text-brand-500 focus-visible:outline-brand-500 cursor-pointer px-1.5 py-0.5 text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
+                >
+                  <span dir="auto">{row.detail}</span>
+                </button>
+              ) : (
+                <span className="bg-surface-muted text-content-muted rounded-control px-1.5 py-0.5 text-xs font-medium">
+                  <span dir="auto">{row.detail}</span>
+                </span>
+              ))}
             {/* Null across a whole feed rather than at odd stops: plenty of
                 networks publish no designations at all. */}
             {row.platform !== null && (
@@ -552,7 +603,13 @@ function RideIcon({ size = 17 }: { size?: number }) {
  * The legs
  * ------------------------------------------------------------------ */
 
-function SegmentLine({ row }: { row: SegmentRow }) {
+function SegmentLine({
+  row,
+  onInspect,
+}: {
+  row: SegmentRow;
+  onInspect?: ((stopId: string) => void) | undefined;
+}) {
   return (
     <li className="flex items-stretch gap-3.5">
       <span aria-hidden="true" className="flex w-7 flex-none flex-col items-center">
@@ -566,7 +623,7 @@ function SegmentLine({ row }: { row: SegmentRow }) {
         {row.leg.mode === 'WALK' ? (
           <WalkBody leg={row.leg} />
         ) : (
-          <TransitBody leg={row.leg} />
+          <TransitBody leg={row.leg} onInspect={onInspect} />
         )}
       </div>
 
@@ -605,7 +662,13 @@ function WalkBody({ leg }: { leg: WalkLeg }) {
   );
 }
 
-function TransitBody({ leg }: { leg: TransitLeg }) {
+function TransitBody({
+  leg,
+  onInspect,
+}: {
+  leg: TransitLeg;
+  onInspect?: ((stopId: string) => void) | undefined;
+}) {
   const locale = useLocale();
   const { strings, t } = locale;
   const [showStops, setShowStops] = useState(false);
@@ -674,9 +737,25 @@ function TransitBody({ leg }: { leg: TransitLeg }) {
                     of the sidebar in between. The time is pushed to the end
                     instead, which is where it was going anyway.
                   */}
-                  <span dir="auto" className="min-w-0 truncate">
-                    {stop.stopName}
-                  </span>
+                  {onInspect === undefined ? (
+                    <span dir="auto" className="min-w-0 truncate">
+                      {stop.stopName}
+                    </span>
+                  ) : (
+                    /*
+                      A stop ridden through is as inspectable as one changed at
+                      — often more so, since "what else calls there" is exactly
+                      what somebody deciding where to get off is asking.
+                    */
+                    <button
+                      type="button"
+                      onClick={() => onInspect(stop.stopId)}
+                      dir="auto"
+                      className="rounded-control hover:text-brand-500 focus-visible:outline-brand-500 min-w-0 cursor-pointer truncate text-start underline decoration-dotted underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
+                    >
+                      {stop.stopName}
+                    </button>
+                  )}
                   <span className="ms-auto flex-none tabular-nums">
                     {formatClockTime(stop.stopArrivalTime, locale.locale)}
                   </span>

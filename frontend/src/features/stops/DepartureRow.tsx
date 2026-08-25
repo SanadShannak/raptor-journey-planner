@@ -79,8 +79,15 @@ export function DepartureRow({ departure, now, viewedDate, countdown }: Props) {
         linked
       />
 
-      <span className="flex min-w-0 flex-1 flex-col">
-        <span dir="auto" className="truncate font-medium">
+      {/*
+        `items-start`, so each line is sized to its own text rather than to the
+        column. Stretched, `dir="auto"` made the *box* left-to-right for a
+        Latin destination, so the words sat at the far left of it — beside the
+        time — while the line badge stayed at the right of an Arabic page. The
+        box follows the page; only the text inside it follows itself.
+      */}
+      <span className="flex min-w-0 flex-1 flex-col items-start">
+        <span dir="auto" className="max-w-full truncate font-medium">
           {departure.terminatesHere
             ? t(strings.stops.terminatesHere)
             : departure.headsign !== null
@@ -91,9 +98,13 @@ export function DepartureRow({ departure, now, viewedDate, countdown }: Props) {
         </span>
 
         {/*
-          The arrival, only where it differs from the departure — which is where
-          a vehicle stands for a while, and the difference is worth knowing if
-          you are already on it.
+          The arrival, only where it differs from the departure.
+          
+          The board is a departure board: the headline time is when a vehicle
+          leaves, which is what somebody standing at the stop is waiting for.
+          Where it waits — a terminus, a timing point — the moment it pulls in
+          is a different and useful fact, and where it does not wait the two
+          numbers would say the same thing twice.
         */}
         {departure.arrivalTime !== departure.time && (
           <span className="text-content-muted text-xs">

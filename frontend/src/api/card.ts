@@ -1,87 +1,95 @@
 /**
  * Travel-card inquiry.
  *
- * ---------------------------------------------------------------------------
- * **The backend for this does not exist yet.** Everything below the boundary
- * is a stand-in, and it is deliberately shaped like the real thing so that
- * swapping it is one function body rather than a rewrite of the page:
- *
- * - it is async and can be aborted, like every other client here;
- * - it fails with `ApiError`, carrying a `code` the i18n layer already maps;
- * - "no such card" is an error code rather than a null, because that is how
- *   this API reports outcomes.
- *
- * When `GET /api/card/:number` lands, delete `STUB_CARDS` and the delay, and
- * put a `getJson` call in `lookupCard`. Nothing outside this file changes.
- * ---------------------------------------------------------------------------
+ * The only endpoint in this app backed by a database rather than by the
+ * compiled feed, which is why it is the only one that can be unavailable on its
+ * own — `CARD_STORE_UNAVAILABLE` is a real answer and means "this part is down",
+ * not "your card is wrong".
  */
 
+import { getJson } from './client';
 import { ApiError } from './errors';
-import { digitsOf, formatCardNumber, isCompleteCardNumber } from '../features/card/cardNumber';
-import type { TravelCard } from '../types/card';
+import { digitsOf, isCompleteCardNumber } from '../features/card/cardNumber';
+import type { CardUsage, TravelCard } from '../types/card';
 
 interface CallOptions {
   signal?: AbortSignal | undefined;
 }
 
-/** The code a real backend would send for a number it does not hold. */
+/** No card has that number — almost always a mistyped digit, not a fault. */
 export const CARD_NOT_FOUND = 'CARD_NOT_FOUND';
-
-/**
- * Cards this stand-in knows about, keyed by their digits.
- *
- * Three of them, chosen so every state the page has to render is reachable
- * without a backend: a healthy balance, an empty card, and one that has never
- * been used and so has no date to show.
- */
-const STUB_CARDS: Record<string, Omit<TravelCard, 'number'>> = {
-  '12345678901': { balance: 10.7, lastUsedDate: '2026-08-23' },
-  '99999999999': { balance: 1.3, lastUsedDate: '2026-08-11' },
-  '11111111111': { balance: 0, lastUsedDate: null },
-};
-
-/**
- * How long the stand-in pretends to take.
- *
- * Not realism for its own sake: a lookup that returns in the same frame as the
- * press means the loading state is never seen, and a state nobody has looked
- * at is a state nobody has designed. The real endpoint will not be instant
- * either.
- */
-const STUB_DELAY_MS = 500;
 
 /**
  * The balance on a card.
  *
- * @param cardNumber As typed — grouped or not; only the digits are read.
+ * @param cardNumber As typed — grouped or not. Only the digits identify a card;
+ *   the `XXXXX-XXXXX-X` grouping is punctuation for reading it aloud.
  */
+/** A movement of the balance, or null when it is too broken to draw a row. */
+function toUsage(raw: unknown): CardUsage | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const usage = raw as Record<string, unknown>;
+
+  const amount = usage['amount'];
+  const kind = usage['kind'];
+
+  // A row with no amount or no direction says nothing; a row with no date can
+  // still be shown, because the amount is the part being read.
+  if (typeof amount !== 'number' || (kind !== 'fare' && kind !== 'topUp')) return null;
+
+  const text = (value: unknown): string | null =>
+    typeof value === 'string' && value.length > 0 ? value : null;
+
+  return {
+    date: text(usage['date']),
+    time: text(usage['time']),
+    amount,
+    kind,
+    description: text(usage['description']),
+  };
+}
+
 export async function lookupCard(
   cardNumber: string,
   options: CallOptions = {},
 ): Promise<TravelCard> {
+  /*
+   * Checked here rather than sent. A short number is a question the backend
+   * would refuse anyway, and answering it locally means no round trip and no
+   * flash of a loading state on the way to an error the form already knew
+   * about.
+   */
   if (!isCompleteCardNumber(cardNumber)) {
     throw new ApiError('malformed', 'Card number is not eleven digits.');
   }
 
-  const digits = digitsOf(cardNumber);
-
-  await new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(resolve, STUB_DELAY_MS);
-    // Aborting has to actually stop the wait, or a page that has moved on
-    // still resolves into state nobody is looking at any more.
-    options.signal?.addEventListener('abort', () => {
-      clearTimeout(timer);
-      reject(options.signal?.reason ?? new DOMException('Aborted', 'AbortError'));
-    });
+  const body = await getJson(`/api/card/${encodeURIComponent(digitsOf(cardNumber))}`, {
+    ...(options.signal ? { signal: options.signal } : {}),
   });
 
-  const found = STUB_CARDS[digits];
-  if (found === undefined) {
-    throw new ApiError('http', 'Card not found.', {
-      status: 404,
-      code: CARD_NOT_FOUND,
-    });
+  const card = (typeof body === 'object' && body !== null ? body : {}) as Record<
+    string,
+    unknown
+  >;
+
+  const number = card['number'];
+  const balance = card['balance'];
+
+  /*
+   * A balance is the whole answer, so a response without a readable one is not
+   * a card with an unknown balance — it is a response this app cannot read, and
+   * saying so is better than rendering a blank where a number belongs.
+   */
+  if (typeof number !== 'string' || typeof balance !== 'number') {
+    throw new ApiError('malformed', 'Card response carried no balance.');
   }
 
-  return { number: formatCardNumber(digits), ...found };
+  const usages = Array.isArray(card['usages']) ? card['usages'] : [];
+
+  return {
+    number,
+    balance,
+    lastUsedDate: typeof card['lastUsedDate'] === 'string' ? card['lastUsedDate'] : null,
+    usages: usages.map(toUsage).filter((usage): usage is CardUsage => usage !== null),
+  };
 }

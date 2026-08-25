@@ -21,6 +21,7 @@ The authoritative sources, in order: a live response, then `backend/server/utils
 | GET | `/api/routes` | Line index — inspection, not planning |
 | GET | `/api/routes/:lineId` | One line and its variants |
 | GET | `/api/routes/:lineId/:patternId` | One variant, with stops and geometry |
+| GET | `/api/card/:number` | Travel-card balance |
 | GET | `/api/health` | `{ status, message }` liveness probe |
 
 ## Optional data is a manifest, not a guess
@@ -329,11 +330,20 @@ together answer 404, not 400.
 
 The stops inside a bounding box, for a map. Same router as `/api/stop/:id`, mounted twice: the singular is one stop, the plural is the set of them in an area.
 
-Each entry is `describeStop` plus `modes` — the standard GTFS `route_type`s of everything calling there, de-duplicated and ascending. **`modes` may be empty**, which is a real state: a stop can outlive the routes that used it. Do not fall back to a default mode; a bus icon on a tram stop sends someone to the wrong side of the street.
+Each entry is `describeStop` plus `modes` — the standard GTFS `route_type`s of everything calling there, de-duplicated and ascending. Never fall back to a default mode; a bus icon on a tram stop sends someone to the wrong side of the street.
+
+**Only stops something actually calls at are returned.** A stop with no routes is excluded, which removes two things that were previously drawn and could not be used:
+
+- GTFS **stations** (`location_type=1`), the parent record for a set of platforms. HSL's feed has 122, none of them appear in `stop_times` at all, no footpath leads to one, and the engine can neither board nor alight there. On a map they were a marker with no mode whose departure board was empty forever.
+- Ordinary stops that outlived their routes — a real thing in a feed, and just as unusable.
+
+This applies to **this endpoint only**. `/api/stop/:id` still describes any id it knows, so an existing link to one keeps working.
 
 All four corners are required and must parse as numbers, and the minimum corner must not exceed the maximum — otherwise `400 BAD_DATE`-style `{ errorCode: "BAD_BOUNDS" }`. A box spanning more than **1.5 degrees** on a side is refused with `BOUNDS_TOO_LARGE`: that is a request for the whole network wearing a bounding box.
 
 The answer is **capped at 400 stops and never paged**. A map asks again on every pan, so an answer that arrives late is worth less than one that arrives small; a client wanting more detail asks for a smaller box, which is what zooming in is. `truncated` is `true` when the cap was reached — do not infer it from the count, and do not cache a truncated answer as covering its box.
+
+**A truncated answer is spread across the box, not cut off partway.** The grid is walked latitude band by latitude band, so returning the first 400 handed back a *southern slice* of what was asked for — a wide box came back with its northern half simply missing, and a map drawn from it showed empty ground where there were stops. Over the cap, an even stride is taken instead, so the sample covers the whole box at lower density.
 
 Answered from the spatial grid the routing engine already holds in memory, so the cost follows the size of the box rather than the size of the feed.
 
@@ -382,6 +392,63 @@ an id is missing, `describeStop` falls back to `{ id, name: null, code: null,
 lat: null, lon: null }` and the remaining keys are **absent rather than null**.
 The `:gtfsId` routes 404 before they can reach it, but a parser should default
 the missing keys rather than assume the full shape.
+
+## Travel card
+
+`GET /api/card/:number` → `{ number, balance, lastUsedDate, usages[] }`
+
+**The only endpoint backed by a database rather than by the compiled feed**, and
+therefore the only one that can be unavailable on its own. Everything else is
+served from RAM and keeps working when Mongo is down.
+
+`:number` is eleven digits, and the `XXXXX-XXXXX-X` grouping is optional —
+`12345-67890-1`, `12345 67890 1` and `12345678901` are the same card. The
+grouping is punctuation for reading a long number aloud, not part of the
+identity: it is stripped on the way in and reapplied on the way out, so
+`number` always comes back grouped however it was asked for.
+
+`balance` is a **number in major units** — `10.7` is ten dinars seven hundred
+fils. How many decimals to print is a property of the currency, never a choice:
+`/api/network` reports which currency, and `Intl.NumberFormat` gives three for a
+dinar and two for a euro. Never format it by hand.
+
+`lastUsedDate` is `YYYY-MM-DD` on the **network's** clock, or `null` for a card
+never used. A tap at 23:30 in Helsinki is the previous day in Virginia, so this
+is resolved through the network zone rather than by slicing an ISO timestamp.
+
+`usages` is what has moved the balance, **newest first** and capped at 20 —
+enough to recognise a charge, not an account statement. Each entry is:
+
+```
+{ date, time, amount, kind, description }
+```
+
+`amount` is a **magnitude and never negative**; `kind` is `"fare"` or
+`"topUp"` and is what carries the direction. A sign cannot tell a top-up from a
+refund — both are money arriving — so a client that wants `−1.300` builds it
+from the two rather than reading it off the wire.
+
+`date` and `time` are network-local wall clock, 24-hour, like every other time
+this API returns. Either may be `null` if the store held no instant.
+`description` is where it happened — a line, a machine — and is `null` when
+unknown.
+
+`lastUsedDate` is **derived from the newest usage** when there is one, falling
+back to the stored `lastUsedAt`, so the summary and the list can never disagree.
+
+An empty `usages` is a real answer, and is indistinguishable from a card whose
+history was never kept — say "nothing recorded" rather than "never used".
+
+Errors:
+
+- **400 `BAD_CARD_NUMBER`** — not eleven digits. Validated before the store is
+  touched.
+- **404 `CARD_NOT_FOUND`** — no card with that number. Almost always a mistyped
+  digit rather than a fault, and worth its own wording.
+- **503 `CARD_STORE_UNAVAILABLE`** — the database is not connected. Distinct
+  from a 500 on purpose: nothing is broken, this one feature cannot answer, and
+  the rest of the app is unaffected.
+- **500 `INTERNAL_SERVER_ERROR`**.
 
 ## Route inspection
 
