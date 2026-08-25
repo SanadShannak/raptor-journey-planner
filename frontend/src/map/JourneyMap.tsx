@@ -340,6 +340,15 @@ interface Badge {
   ends: [L.LatLngExpression, L.LatLngExpression];
   /** Transit before walking, when only one of the two can be shown. */
   rank: number;
+  /**
+   * Opens the run this badge names, or null on a walk — which has none.
+   *
+   * The badge is the obvious thing to press: it is the line's number, drawn at
+   * a comfortable size, sitting on the leg it belongs to. Before this the only
+   * target was the drawn line itself, six pixels of it, and a reader who aimed
+   * at the number found nothing there.
+   */
+  follow: (() => void) | null;
 }
 
 /**
@@ -407,7 +416,29 @@ function LegBadges({ badges }: { badges: Badge[] }) {
   return (
     <>
       {shown.map((badge) => (
-        <Marker key={badge.key} position={badge.point} icon={badge.icon} interactive={false} />
+        <Marker
+          key={badge.key}
+          position={badge.point}
+          icon={badge.icon}
+          /*
+           * A walk's badge stays a label. Interactive with nothing to do it
+           * would still swallow the press, and the point chooser underneath is
+           * what a press on empty ground is for.
+           */
+          interactive={badge.follow !== null}
+          keyboard={false}
+          {...(badge.follow === null
+            ? {}
+            : {
+                eventHandlers: {
+                  click: (event: L.LeafletMouseEvent) => {
+                    // Or the pin chooser opens under the page already leaving.
+                    L.DomEvent.stopPropagation(event);
+                    badge.follow?.();
+                  },
+                },
+              })}
+        />
       ))}
     </>
   );
@@ -494,10 +525,14 @@ export function JourneyMap({
           ends: segment.ends,
           icon: legBadge(segment.family, label),
           rank: segment.kind === 'transit' ? 0 : 1,
+          follow:
+            onSelectLeg === undefined || leg.mode !== 'TRANSIT'
+              ? null
+              : () => onSelectLeg(leg),
         },
       ];
     });
-  }, [geometry, journey, scope, locale]);
+  }, [geometry, journey, scope, locale, onSelectLeg]);
 
   return (
     <MapCanvas network={network}>

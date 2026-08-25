@@ -149,20 +149,42 @@ export default function PlanPage() {
    * not a new question, and pushing would make the back button walk out through
    * every itinerary somebody glanced at before it left the page.
    */
-  const setOpenIndex = useCallback(
-    (next: number | null) => {
-      setOpenIndexState(next);
+  /**
+   * Records which of the sidebar's three views is showing.
+   *
+   * `replace` throughout: changing view is a change within one answer, not a
+   * new question, and pushing would make the back button walk out through every
+   * itinerary and stop somebody glanced at before it left the page.
+   */
+  const rememberPanel = useCallback(
+    (key: 'open' | 'stop', value: string | null) => {
       setSearchParams(
         (params) => {
           const copy = new URLSearchParams(params);
-          if (next === null) copy.delete('open');
-          else copy.set('open', String(next));
+          if (value === null) copy.delete(key);
+          else copy.set(key, value);
           return copy;
         },
         { replace: true },
       );
     },
     [setSearchParams],
+  );
+
+  const setOpenIndex = useCallback(
+    (next: number | null) => {
+      setOpenIndexState(next);
+      rememberPanel('open', next === null ? null : String(next));
+    },
+    [rememberPanel],
+  );
+
+  const setInspectStopId = useCallback(
+    (next: string | null) => {
+      setInspectStopIdState(next);
+      rememberPanel('stop', next);
+    },
+    [rememberPanel],
   );
   const [state, setState] = useState<'idle' | 'searching' | 'failed'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -202,7 +224,15 @@ export default function PlanPage() {
    * leaving would throw it away and the back button would return to an empty
    * form. Swapping the sidebar keeps the question intact behind the answer.
    */
-  const [inspectStopId, setInspectStopId] = useState<string | null>(null);
+  /*
+   * The stop open in the sidebar, in the address for the same reason the open
+   * itinerary is: a departure on that board opens the run it belongs to, which
+   * leaves the page — and coming back to the itinerary you were not looking at
+   * is coming back to the wrong place.
+   */
+  const [inspectStopId, setInspectStopIdState] = useState<string | null>(
+    () => searchP.get('stop'),
+  );
 
   const requestId = useRef(0);
   /** Bumped to re-run the startup effect when the visitor retries. */

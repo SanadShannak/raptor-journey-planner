@@ -231,6 +231,19 @@ describe('PlanPage search in the address', () => {
     expect(screen.queryByRole('button', { name: 'Back to results' })).toBeNull();
   });
 
+  /*
+   * The stop board is the third of the sidebar's views, and a departure on it
+   * leaves the page too — so it has to be restorable the same way the detail
+   * panel is.
+   */
+  it('reopens the stop that was being inspected', async () => {
+    show(`${asked}&stop=1020445`);
+
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Kamppi' }, { timeout: 3000 }),
+    ).toBeTruthy();
+  });
+
   /* An index the restored list does not reach is not an itinerary. */
   it('shows the list for an index that is not there', async () => {
     show(`${asked}&open=99`);

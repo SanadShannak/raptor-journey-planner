@@ -34,24 +34,24 @@ import { visualForFamily } from '../journey/modeVisuals';
  * one more dot in a column of dots — the movement was the only thing telling
  * them apart, and movement is exactly what a glance does not catch.
  */
-export const VEHICLE_SIZE = 48;
+export const VEHICLE_SIZE = 56;
 
 /**
  * The arrow, pointing due north before it is rotated.
  *
- * A dart rather than a plain triangle — the notch in its back is what makes it
- * read as an arrowhead rather than as a roof on the badge.
- *
- * **It stands clear of the badge rather than touching it.** Overlapping, most
- * of the arrow was inside the square and the same colour as it, so what showed
- * was a small bump on one edge — the direction was something you could work out
- * rather than something the sign told you. Detached, with a gap the surface
- * colour shows through, it is unmistakably an arrow pointing somewhere.
+ * A dart, and it **overlaps the badge rather than standing off it**. Detached
+ * it read as two signs — a square, and a separate triangle floating above it —
+ * and which square the triangle belonged to was a guess on a crowded stretch of
+ * line. Its wings and its notch all sit inside the badge's top edge, so the two
+ * fuse into one filled shape with a point on it.
  *
  * Only the arrow turns. Rotating the whole badge would turn the silhouette with
  * it and leave a bus lying on its side halfway round a bend.
  */
-const ARROW = 'M24 0.5 L35.5 12 L24 7.5 L12.5 12 Z';
+const ARROW = 'M28 3 L39.5 19 L28 15.5 L16.5 19 Z';
+
+/** The badge, as attributes rather than a path, so the corners stay rounded. */
+const BADGE = 'x="16" y="16" width="24" height="24" rx="7.5"';
 
 /**
  * @param family The visual family — `bus`, `tram`, … — not a raw route type.
@@ -60,24 +60,23 @@ const ARROW = 'M24 0.5 L35.5 12 L24 7.5 L12.5 12 Z';
  */
 export function vehicleMarkup(family: string, bearing: number): string {
   const ink = visualForFamily(family).ink;
+  const turn = `rotate(${bearing.toFixed(1)} 28 28)`;
 
   /*
-   * `route-vehicle` is a hook, not a style — nothing in the stylesheet matches
-   * it. It is what lets one selector find a vehicle whether it was drawn into
-   * the sidebar by React or into the map by Leaflet, which is the only way to
-   * assert that the two renderers agree.
+   * Outlined by drawing everything twice: once thickly in the outline colour,
+   * once filled on top. A stroke on each shape separately would draw a seam
+   * straight across the join where the arrow meets the badge — the two overlap,
+   * and each one's outline runs through the other. Painted behind the fills,
+   * only the half of the stroke that lies outside the union ever shows, which
+   * is an outline around the whole sign and nothing across its middle.
    */
-  /*
-   * The arrow turns about the badge's centre, so its tip traces a circle of
-   * radius 23.5 — just inside the 24 the frame allows. Any further out and it
-   * would be clipped at the diagonals and nowhere else, which reads as the
-   * arrow shrinking on bends.
-   */
-  return `<svg viewBox="0 0 48 48" width="${VEHICLE_SIZE}" height="${VEHICLE_SIZE}" class="route-vehicle ${ink}" aria-hidden="true">
-  <g transform="rotate(${bearing.toFixed(1)} 24 24)">
-    <path d="${ARROW}" fill="currentColor" class="stroke-border-strong" stroke-width="2.5" stroke-linejoin="round" />
+  return `<svg viewBox="0 0 56 56" width="${VEHICLE_SIZE}" height="${VEHICLE_SIZE}" class="route-vehicle ${ink}" aria-hidden="true">
+  <g fill="none" class="stroke-brand-500" stroke-width="5" stroke-linejoin="round">
+    <g transform="${turn}"><path d="${ARROW}" /></g>
+    <rect ${BADGE} />
   </g>
-  <rect x="13" y="13" width="22" height="22" rx="7" fill="currentColor" class="stroke-border-strong" stroke-width="2.5" />
-  <svg x="17" y="17" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" class="text-on-mode">${modeIconMarkup(family)}</svg>
+  <g transform="${turn}"><path d="${ARROW}" fill="currentColor" /></g>
+  <rect ${BADGE} fill="currentColor" />
+  <svg x="21" y="21" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" class="text-on-mode">${modeIconMarkup(family)}</svg>
 </svg>`;
 }

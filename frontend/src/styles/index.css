@@ -481,6 +481,20 @@
   pointer-events: none;
 }
 
+/*
+ * The same bargain for a leg's badge on the journey map: the wrapper takes
+ * every press across its whole box, and the drawing inside refuses them all.
+ * Otherwise the padding around the line number captures nothing and a press
+ * lands on the map behind, opening the point chooser instead of the run.
+ */
+.journey-badge {
+  pointer-events: auto;
+}
+
+.journey-badge svg {
+  pointer-events: none;
+}
+
 /* Leaflet's own CSS is entirely physical, so RTL needs telling. */
 .leaflet-popup-content-wrapper,
 .leaflet-popup-content {
