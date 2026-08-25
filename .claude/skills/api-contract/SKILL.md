@@ -21,6 +21,7 @@ The authoritative sources, in order: a live response, then `backend/server/utils
 | GET | `/api/routes` | Line index — inspection, not planning |
 | GET | `/api/routes/:lineId` | One line and its variants |
 | GET | `/api/routes/:lineId/:patternId` | One variant, with stops and geometry |
+| GET | `/api/routes/:lineId/:patternId/timetable?date=` | One variant's trips for one service day |
 | GET | `/api/card/:number` | Travel-card balance |
 | GET | `/api/health` | `{ status, message }` liveness probe |
 
@@ -241,7 +242,8 @@ Non-2xx responses carry `{ errorCode, error }`. `error` is developer-facing Engl
 `SAME_ORIGIN_TARGET`, `NO_ACTIVE_SERVICES`, `ORIGIN_OUT_OF_BOUNDS`, `ORIGIN_STOP_NOT_FOUND`, `DESTINATION_OUT_OF_BOUNDS`, `DESTINATION_STOP_NOT_FOUND`, `NO_ROUTE_FOUND`
 
 **Outside the planner**, the stop and route routers add their own:
-`STOP_NOT_FOUND` (404, both stop endpoints), `BAD_DATE` (400, the timetable),
+`STOP_NOT_FOUND` (404, both stop endpoints), `BAD_DATE` (400, either timetable
+— a stop's or a line variant's),
 `BAD_BOUNDS` and `BOUNDS_TOO_LARGE` (400, the bounding box), `LINE_NOT_FOUND`
 and `PATTERN_NOT_FOUND` (404). These are ordinary HTTP failures — the 200-with-an-
 `errorCode` behaviour below belongs to the planner alone.
@@ -474,12 +476,69 @@ client should then label variants by their end points instead.
 dataset but **not across a pipeline re-run**, so a client holding one across a
 data refresh should fall back to the line's first variant rather than error.
 
-`GET /api/routes/:lineId/:patternId` adds `stops[]` and `shape`. `shape` is the
-pattern's *representative* geometry — trips on one pattern can use different
-shapes, so the most-used is stored; it is `null` for a feed without shapes.txt.
-Journey legs do not use it, slicing the trip's own shape instead.
+`GET /api/routes/:lineId/:patternId` adds `stops[]`, `stopCount`, `shape` and
+`serviceDates[]`. `shape` is the pattern's *representative* geometry — trips on
+one pattern can use different shapes, so the most-used is stored; it is `null`
+for a feed without shapes.txt. Journey legs do not use it, slicing the trip's
+own shape instead.
 
-Errors: `LINE_NOT_FOUND`, `PATTERN_NOT_FOUND`, `STOP_NOT_FOUND` (404).
+A stop is `describeStop`'s shape — `platform` included — plus `sequence` and
+`distanceFromOriginMeters` (`null` for a feed without `shape_dist_traveled`).
+
+**`sequence` is the stop's position in the pattern, and `stops[]` can have
+holes.** A stop whose internal record is missing is dropped from the list, so
+array position and `sequence` are not the same number. `sequence` is the key to
+join on — it is what indexes a timetable trip's `calls`.
+
+`serviceDates` is exactly the days this variant runs, ascending, and is
+**narrower than `/api/valid-dates`** — that is every day the feed covers, this
+is every day this line moves. HSL: 31 of 60 for tram 1's main pattern, and the
+feed carries at least one covered date whose service list is empty altogether.
+A date control on a line page should offer these and nothing else.
+
+Yesterday's spillover is deliberately excluded: a pattern whose last trip is
+00:30 is finishing the previous service day, not running on this one.
+
+### `GET /api/routes/:lineId/:patternId/timetable?date=`
+
+One variant's whole service day, a trip per row and a time per stop. The stop
+timetable answers "what calls at this pole"; this answers "when does the line
+run, and how long between any two of its stops", which no board of a single stop
+can.
+
+```
+{ …line fields, …variant fields, date,
+  stops[], stopCount,
+  trips: [ { tripId, headsign, calls[] } ],
+  totalTrips, outsideTimetableRange, capabilities }
+```
+
+`date` is **required** and validated by the same bare `/^\d{4}-\d{2}-\d{2}$/`
+the stop timetable uses, with the same consequence: `2026-99-99` is not a
+`BAD_DATE`, it is an ordinary empty board with `outsideTimetableRange: true`.
+The line and variant are resolved **before** the date, so a bad id and a bad
+date together answer 404.
+
+**`calls` is indexed by `sequence`, is always `stopCount` long, and an entry may
+be `null`** — a trip short a stop time leaves a hole rather than shifting every
+stop after it. A non-null call is
+`{ date, time, arrivalDate, arrivalTime }`, each carrying its own date for the
+usual reason.
+
+`trips` is ascending by first departure, merged across every service running
+that day, and **uncapped** — the largest pattern on HSL is 143 trips over 34
+stops, which is ~440 kB served in single-digit milliseconds from RAM.
+
+Which calendar date a trip belongs to is decided by **where it starts**. A trip
+leaving 23:30 and arriving 00:01 is tonight's, and its last call resolves onto
+tomorrow by itself; yesterday's 25:10 trip is this date's 01:10 and appears
+here, not on yesterday's board. Both offsets are walked for exactly that reason.
+
+`headsign` is the trip's own sign, falling back to the pattern's — a pattern's
+trips do not always share one.
+
+Errors: `LINE_NOT_FOUND`, `PATTERN_NOT_FOUND`, `STOP_NOT_FOUND` (404),
+`BAD_DATE` (400, the timetable).
 
 ## Verifying feed-agnosticism
 

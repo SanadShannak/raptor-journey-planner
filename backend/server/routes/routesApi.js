@@ -1,12 +1,24 @@
 const express = require("express");
 const router = express.Router();
 
-const { getCache, getCapabilities } = require("../../memoryCache");
+const {
+  getCache,
+  getCapabilities,
+  getTripHeadsign,
+} = require("../../memoryCache");
 const convertSecondsToTimeOfDay = require("../utils/convertSecondsToTimeOfDay");
 const { lineIdFor } = require("../utils/lineIdentity");
+const { isValidDate } = require("../utils/inputValidator");
+const {
+  shiftIsoDate,
+  toDateId,
+  resolveDateAndTime,
+} = require("../utils/networkTime");
 
 const cache = getCache();
 const capabilities = getCapabilities();
+
+const SECONDS_PER_DAY = 86400;
 
 /*
  * Route inspection.
@@ -61,6 +73,53 @@ const linesById = (() => {
 
   return lines;
 })();
+
+/**
+ * Every date the feed covers, paired with that date's services as a Set.
+ *
+ * Built once, for the same reason `linesById` is: the calendar cannot change
+ * while the process runs. Sixty Sets is nothing to hold, and it turns "which
+ * days does this pattern run" from a scan of the whole calendar per request
+ * into sixty cheap membership tests.
+ *
+ * Ascending, because `Object.keys` on `YYYYMMDD` strings sorts lexically into
+ * chronological order — the same trick `validDatesApi` relies on.
+ */
+const serviceDays = Object.keys(cache.activeServices)
+  .sort()
+  .map((dateId) => ({
+    isoDate: `${dateId.slice(0, 4)}-${dateId.slice(4, 6)}-${dateId.slice(6, 8)}`,
+    services: new Set(cache.activeServices[dateId]),
+  }));
+
+/**
+ * Exactly the dates this pattern runs, ascending.
+ *
+ * Narrower than `/api/valid-dates`, and deliberately so: that is every day the
+ * feed covers, which includes days this line does not run and at least one HSL
+ * day whose service list is empty altogether. A date picker offering those
+ * invites a choice that comes back empty.
+ *
+ * The pattern's **own** services only, with no yesterday offset. A pattern
+ * whose last trip is 00:30 is not "running" on the following day — it is
+ * finishing the previous one — and the thing being chosen here is a service
+ * day, not a window of wall clock.
+ */
+function serviceDatesFor(route) {
+  const own = Object.keys(route.service_buckets ?? {}).map((serviceKey) =>
+    Number.parseInt(serviceKey, 10),
+  );
+  if (own.length === 0) return [];
+
+  return serviceDays
+    .filter((day) => own.some((serviceId) => day.services.has(serviceId)))
+    .map((day) => day.isoDate);
+}
+
+/** The services running on a given date, as a Set for cheap membership tests. */
+function servicesOn(isoDate) {
+  return new Set(cache.activeServices[toDateId(isoDate)] ?? []);
+}
 
 /**
  * The window a pattern operates in, across every service it runs on.
@@ -133,6 +192,19 @@ function describePatternStop(internalStopId, index, route) {
     fareZone: stop.zone ?? null,
     wheelchairAccessible:
       stop.wheelchair === undefined ? null : stop.wheelchair === 1,
+    /*
+     * The designation printed on the stop, the same field a journey leg and a
+     * departure board already carry. It was the one thing `describeStop` had
+     * that this did not, which meant a line's own stop list was the only place
+     * in the API where a track number went missing.
+     */
+    platform: stop.platform ?? null,
+    /*
+     * The stop's true position in `stop_ids`, which is **not** its position in
+     * the array this ends up in: a stop whose record is missing is dropped, so
+     * the list can have holes. This is the key to join against — the `calls`
+     * array on a timetable trip is indexed by it.
+     */
     sequence: index,
   };
 
@@ -230,10 +302,7 @@ router.get("/:lineId", (req, res) => {
       .sort((a, b) => (b.tripCount ?? 0) - (a.tripCount ?? 0));
 
     res.json({
-      lineId: line.lineId,
-      routeShortName: line.routeShortName,
-      routeType: line.routeType,
-      routeLongName: line.routeLongName,
+      ...describeLine(line),
       directions: [
         ...new Set(
           variants
@@ -253,30 +322,242 @@ router.get("/:lineId", (req, res) => {
   }
 });
 
+/**
+ * The line and variant a request names, or null once the 404 has been sent.
+ *
+ * Shared by the two handlers that take a `:patternId`, so a variant that does
+ * not belong to the line it was asked for is refused the same way on both.
+ * Returning null rather than throwing keeps the caller's `if` in the same shape
+ * as `resolveStop` in the stops router.
+ */
+function resolvePattern(req, res) {
+  const line = linesById.get(req.params.lineId);
+  if (!line) {
+    res
+      .status(404)
+      .json({ errorCode: "LINE_NOT_FOUND", error: "Line not found." });
+    return null;
+  }
+
+  const patternId = Number.parseInt(req.params.patternId, 10);
+  const pattern = line.patterns.find(
+    (candidate) => candidate.patternId === patternId,
+  );
+  if (!pattern) {
+    res.status(404).json({
+      errorCode: "PATTERN_NOT_FOUND",
+      error: "Variant not found on this line.",
+    });
+    return null;
+  }
+
+  return { line, pattern };
+}
+
+/** The line-level fields every variant response repeats. */
+function describeLine(line) {
+  return {
+    lineId: line.lineId,
+    routeShortName: line.routeShortName,
+    routeType: line.routeType,
+    routeLongName: line.routeLongName,
+  };
+}
+
+/**
+ * One trip of a pattern, as a time at every stop of it.
+ *
+ * Read from `cache.timetables`, which holds a trip's own stop times parallel to
+ * the pattern's `stop_ids` and carries **arrivals**. The service bucket has
+ * departures only, and the two agree, so there is no reason to consult both.
+ *
+ * `offset` converts the trip's own clock onto the requested date's. Which
+ * calendar date a trip belongs to is decided by **where it starts**: a trip
+ * leaving at 23:50 and arriving 00:20 is tonight's, and its last call resolves
+ * onto tomorrow by itself. That is the same rule the stop timetable applies,
+ * and it is why a service is walked under both offsets — yesterday's 25:10 trip
+ * is this date's 01:10 and belongs here, not on yesterday's board.
+ *
+ * Null when the trip has no stop times at all, or when it starts outside the
+ * requested date.
+ */
+function describeTrip(route, flatTripId, baseIsoDate, offset) {
+  const stopTimes = cache.timetables[flatTripId];
+  if (!Array.isArray(stopTimes)) return null;
+
+  const stopCount = route.stop_ids.length;
+
+  /*
+   * Where the trip starts, which is not always index 0: a pattern's trip can be
+   * short a stop time, in which case the parser left a hole rather than a time.
+   */
+  let originSeconds = null;
+  for (let index = 0; index < stopCount; index += 1) {
+    const stopTime = stopTimes[index];
+    if (stopTime) {
+      originSeconds = stopTime.departure - offset;
+      break;
+    }
+  }
+  if (
+    originSeconds === null ||
+    originSeconds < 0 ||
+    originSeconds >= SECONDS_PER_DAY
+  ) {
+    return null;
+  }
+
+  const calls = [];
+  for (let index = 0; index < stopCount; index += 1) {
+    const stopTime = stopTimes[index];
+    /*
+     * A hole, not a dropped entry. `calls` is indexed by the stop's position in
+     * the pattern, so removing one would silently shift every stop after it.
+     */
+    if (!stopTime) {
+      calls.push(null);
+      continue;
+    }
+
+    const departure = resolveDateAndTime(baseIsoDate, stopTime.departure - offset);
+    const arrival = resolveDateAndTime(baseIsoDate, stopTime.arrival - offset);
+
+    calls.push({
+      // Its own date, because GTFS counts past midnight and a time alone
+      // cannot say which side of it a call falls on.
+      date: departure.date,
+      time: departure.time,
+      arrivalDate: arrival.date,
+      arrivalTime: arrival.time,
+    });
+  }
+
+  return {
+    originSeconds,
+    trip: {
+      tripId: cache.reverseTripMapping[flatTripId] ?? null,
+      /*
+       * The trip's own sign wins over the pattern's, because a pattern's trips
+       * do not always share one — HSL's rail H runs a single pattern whose
+       * trips are signed both "Siuntio-Hanko" and "Siuntio".
+       */
+      headsign: getTripHeadsign(flatTripId) ?? route.headsign ?? null,
+      calls,
+    },
+  };
+}
+
+/*
+ * One variant's timetable for one service date.
+ * GET /api/routes/:lineId/:patternId/timetable?date=YYYY-MM-DD
+ *
+ * A trip per row, a time per stop. The stop timetable answers "what calls at
+ * this pole all day"; this answers "when does this line run, and how long does
+ * it take between any two of its stops", which is the question a line page
+ * exists for and which no board of a single stop can answer.
+ *
+ * Registered before the two-segment handler for legibility only — Express
+ * matches segment counts exactly, so `/:lineId/:patternId` was never going to
+ * swallow a three-segment path.
+ */
+router.get("/:lineId/:patternId/timetable", (req, res) => {
+  try {
+    const resolved = resolvePattern(req, res);
+    if (resolved === null) return;
+
+    const { line, pattern } = resolved;
+    const { date } = req.query;
+
+    if (!date || !isValidDate(date)) {
+      return res.status(400).json({
+        errorCode: "BAD_DATE",
+        error: "Missing or invalid date (YYYY-MM-DD).",
+      });
+    }
+
+    const { route } = pattern;
+    const today = servicesOn(date);
+    const yesterday = servicesOn(shiftIsoDate(date, -1));
+
+    const found = [];
+    for (const [serviceKey, bucket] of Object.entries(
+      route.service_buckets ?? {},
+    )) {
+      const serviceId = Number.parseInt(serviceKey, 10);
+
+      /*
+       * A service can qualify under both offsets and must then be walked twice.
+       * A service running on consecutive days supplies this date's ordinary
+       * trips (offset 0) and yesterday's small-hours spillover (offset a day);
+       * treating them as exclusive drops every after-midnight trip of every
+       * everyday service, which is most of them.
+       */
+      const offsets = [];
+      if (today.has(serviceId)) offsets.push(0);
+      if (yesterday.has(serviceId)) offsets.push(SECONDS_PER_DAY);
+      if (offsets.length === 0) continue;
+
+      // Defensive: the current parser always emits an object with `trip_ids`,
+      // but the engine and the stops router both tolerate a bare array.
+      const tripIds = Array.isArray(bucket) ? bucket : bucket?.trip_ids;
+      if (!Array.isArray(tripIds)) continue;
+
+      for (const offset of offsets) {
+        for (const flatTripId of tripIds) {
+          const described = describeTrip(route, flatTripId, date, offset);
+          if (described !== null) found.push(described);
+        }
+      }
+    }
+
+    // Buckets are each sorted by origin departure, but several of them are
+    // being merged here, so the whole list has to be put in order again.
+    found.sort((a, b) => a.originSeconds - b.originSeconds);
+
+    res.json({
+      ...describeLine(line),
+      ...describeVariant(pattern),
+      date,
+      /*
+       * Carried so the response stands on its own, and because `calls` is
+       * indexed by a stop's true position in the pattern while this list can
+       * have holes. `sequence` is the key that joins the two.
+       */
+      stops: route.stop_ids
+        .map((internalStopId, index) =>
+          describePatternStop(internalStopId, index, route),
+        )
+        .filter((stop) => stop !== null),
+      stopCount: route.stop_ids.length,
+      trips: found.map((entry) => entry.trip),
+      totalTrips: found.length,
+      /*
+       * The date falls outside the feed's calendar altogether, which is a limit
+       * of the data rather than a fact about this line — and worth different
+       * words from "nothing runs that day".
+       */
+      outsideTimetableRange: cache.activeServices[toDateId(date)] === undefined,
+      capabilities,
+    });
+  } catch (error) {
+    console.error("[Line Timetable Endpoint Error]:", error);
+    res.status(500).json({
+      errorCode: "INTERNAL_SERVER_ERROR",
+      error: "Failed to resolve line timetable.",
+    });
+  }
+});
+
 /*
  * One variant in full — its stop sequence and geometry.
  * GET /api/routes/:lineId/:patternId
  */
 router.get("/:lineId/:patternId", (req, res) => {
   try {
-    const line = linesById.get(req.params.lineId);
-    if (!line) {
-      return res
-        .status(404)
-        .json({ errorCode: "LINE_NOT_FOUND", error: "Line not found." });
-    }
+    const resolved = resolvePattern(req, res);
+    if (resolved === null) return;
 
-    const patternId = Number.parseInt(req.params.patternId, 10);
-    const pattern = line.patterns.find(
-      (candidate) => candidate.patternId === patternId,
-    );
-    if (!pattern) {
-      return res.status(404).json({
-        errorCode: "PATTERN_NOT_FOUND",
-        error: "Variant not found on this line.",
-      });
-    }
-
+    const { line, pattern } = resolved;
     const { route } = pattern;
 
     /*
@@ -290,17 +571,20 @@ router.get("/:lineId/:patternId", (req, res) => {
         : null;
 
     res.json({
-      lineId: line.lineId,
-      routeShortName: line.routeShortName,
-      routeType: line.routeType,
-      routeLongName: line.routeLongName,
+      ...describeLine(line),
       ...describeVariant(pattern),
       stops: route.stop_ids
         .map((internalStopId, index) =>
           describePatternStop(internalStopId, index, route),
         )
         .filter((stop) => stop !== null),
+      stopCount: route.stop_ids.length,
       shape,
+      /*
+       * Exactly the days this variant runs. A date control asking about this
+       * line has no business offering the other fifty.
+       */
+      serviceDates: serviceDatesFor(route),
       capabilities,
     });
   } catch (error) {
@@ -323,4 +607,9 @@ Variant URLs take a patternId belonging to that line — read one from the
 line's own `variants`, do not guess. tram-4T owns patterns 51 and 52; pattern 12
 belongs to tram-1T, so asking for it under 0-4T is correctly a 404:
 http://localhost:3000/api/routes/tram-4T/51
+
+A variant's timetable for one service day. The date is required, and the days
+worth asking for are the variant's own `serviceDates` rather than every date the
+feed covers:
+http://localhost:3000/api/routes/tram-4T/51/timetable?date=2026-09-10
 */
