@@ -275,18 +275,21 @@ export default function RoutesPage() {
           pending={lineId !== undefined && focused === null}
           onStopSelect={openStop}
           vehicles={vehicles}
-          /* Already following one? Then its badge is a picture, not a door. */
           /*
-            Already following one? Then its badge is a picture, not a door.
+            Already following one? Then `vehicles` above is narrowed to just
+            it, so the one badge the map draws is the one being followed —
+            pressing it again is the way out, back to the whole route.
 
             The day is today, and provably: `vehicles` is only ever non-empty
             when the inspector is showing today, so a vehicle on screen cannot
             belong to any other service day.
           */
           onFollowTrip={
-            following || networkToday === null
+            networkToday === null
               ? null
-              : (trip) => openTrip({ tripId: trip, date: networkToday })
+              : following
+                ? () => openTrip(null)
+                : (trip) => openTrip({ tripId: trip, date: networkToday })
           }
           /*
             Following a run, the map holds the vehicle rather than the line. A

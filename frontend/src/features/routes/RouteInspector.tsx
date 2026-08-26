@@ -525,14 +525,20 @@ export function RouteInspector({
                 routeType={variant.routeType}
                 routeShortName={variant.routeShortName}
                 /*
-                  Null while a day is on its way, and null when there is no day
-                  to ask about — the list draws no time either way rather than
-                  claiming nothing runs.
+                  Null when there is no day to ask about — the list draws no
+                  time either way rather than claiming nothing runs.
+
+                  Following one run, `vehicles` above is already narrowed to
+                  it, so the one badge on screen is the one being followed —
+                  and pressing it again is the way out, back to the whole
+                  route, rather than a press that does nothing.
                 */
                 onFollowTrip={
-                  focusTrip !== null || shownDate === ''
+                  shownDate === ''
                     ? null
-                    : (trip) => onSelectTrip({ tripId: trip, date: shownDate })
+                    : focusTrip !== null
+                      ? () => onSelectTrip(null)
+                      : (trip) => onSelectTrip({ tripId: trip, date: shownDate })
                 }
                 trips={dayTimetable === null ? null : dayTimetable.trips}
                 viewedDate={shownDate}
