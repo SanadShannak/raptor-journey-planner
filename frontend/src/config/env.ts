@@ -47,4 +47,12 @@ export const env = {
    * mean the quota belongs to whoever deploys this.
    */
   digitransitKey: optional(import.meta.env.VITE_DIGITRANSIT_SUBSCRIPTION_KEY),
+
+  /*
+   * CARTO's basemap tiles. Optional in the same shape as the Digitransit key
+   * above: without one the map still renders, on whatever CARTO's anonymous
+   * tier currently allows, which has grown less reliable than the "no key
+   * needed" it once was — see `map/tileSource.ts`.
+   */
+  cartoKey: optional(import.meta.env.VITE_CARTO_API_KEY),
 } as const;

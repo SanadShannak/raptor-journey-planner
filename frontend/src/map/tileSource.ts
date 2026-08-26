@@ -1,3 +1,5 @@
+import { env } from '../config/env';
+
 /**
  * Where the basemap under a journey comes from.
  *
@@ -7,11 +9,10 @@
  * URL.
  *
  * The default is CARTO's Positron and Dark Matter — a matched light and dark
- * pair, no API key, and deliberately desaturated. That last point is the reason
- * they are here rather than a general-purpose style: they are drawn to sit
- * *under* data, so the mode colours of a route stay the loudest thing on the
- * screen. A reference basemap is a busier and more colourful map, and it
- * competes.
+ * pair, deliberately desaturated. That point is the reason they are here
+ * rather than a general-purpose style: they are drawn to sit *under* data, so
+ * the mode colours of a route stay the loudest thing on the screen. A
+ * reference basemap is a busier and more colourful map, and it competes.
  *
  * Two schemes rather than one filtered scheme, because a filter over a light
  * basemap inverts everything drawn under it. It also cannot be undone
@@ -20,6 +21,13 @@
  *
  * Attribution is a condition of use, not decoration. It is rendered by the map
  * and must stay visible.
+ *
+ * These used to need no key at all — CARTO's anonymous tier answered every
+ * request. It has since grown unreliable, some tiles now coming back as a
+ * "API KEY REQUIRED" watermark rather than a map, so `VITE_CARTO_API_KEY`
+ * (optional, the same shape as the Digitransit key) is appended to every tile
+ * request when it is set. Unset, tiles still ask the same anonymous endpoint
+ * and may still watermark.
  */
 export interface TileSource {
   /** Tile template for the light scheme; `{r}` expands to `@2x` on retina. */
@@ -30,9 +38,11 @@ export interface TileSource {
   maxZoom: number;
 }
 
+const key = env.cartoKey === null ? '' : `?api_key=${encodeURIComponent(env.cartoKey)}`;
+
 const CARTO: TileSource = {
-  light: 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-  dark: 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+  light: `https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png${key}`,
+  dark: `https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png${key}`,
   attribution:
     '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
   maxZoom: 20,
