@@ -637,6 +637,14 @@
    * to the wrong end of it.
    */
   direction: ltr;
+  /*
+   * Smaller than the map's own base size (`.leaflet-container`'s 12px),
+   * which is what it inherits with nothing said here. Still legible, and
+   * still exactly the credit both providers require — only quieter about it,
+   * the way most map products already render theirs.
+   */
+  font-size: 10px;
+  padding: 0 4px;
 }
 
 .leaflet-control-attribution a {
