@@ -488,6 +488,15 @@
 }
 
 /*
+ * The designation inside the badge is markup, not JSX, so it cannot reach a
+ * Tailwind utility the way a `LineBadge` does — it has to name the same
+ * token by hand to read as the same digits.
+ */
+.route-vehicle text {
+  font-family: var(--font-sans);
+}
+
+/*
  * The halo beats, and it is the only thing on either surface that moves on its
  * own. That is the point of it: a vehicle is findable among forty stops without
  * reading any of them.
