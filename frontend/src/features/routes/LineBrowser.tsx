@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { getLines } from '../../api/routes';
 import { messageForApiError, modeLabel, useLocale } from '../../i18n';
 import type { GtfsRouteType } from '../../types/journey';
@@ -6,6 +6,7 @@ import type { LineSummary } from '../../types/route';
 import { ModeIcon } from '../journey/modeIcons';
 import { modeVisual } from '../journey/modeVisuals';
 import { LineBadge } from '../stops/LineBadge';
+import { toggleSelection } from '../stops/toggleSelection';
 
 interface Props {
   /** Every mode this network runs, so the filter offers a stable set. */
@@ -26,16 +27,15 @@ const SETTLE_MS = 250;
 /**
  * The lines this network runs.
  *
- * Filtered at the API rather than in the browser, which is the opposite of what
- * the departure boards do — and for a reason. A stop's whole board is already in
- * hand, so narrowing it costs nothing; the line index is 464 entries and ~70 kB
- * for HSL, and the backend already folds diacritics and matches long names.
- *
- * One mode at a time, not a set. `/api/routes` takes a single `mode`, and a
- * multi-select that had to be re-implemented client-side over a server-filtered
- * list would disagree with itself the moment the two filters were both active.
- * So this control is a radio group wearing chips: pressing the active one
- * releases it back to all.
+ * The text search is server-side — the backend already folds diacritics and
+ * matches long names, which is not something to reimplement here — but the
+ * mode filter is not. `/api/routes` takes a single `mode`, while the stop
+ * boards' own mode filter is a set with the empty set meaning "all". Sending
+ * only one at a time to the API and filtering the rest client-side would give
+ * this control two different behaviours depending on how many modes were
+ * picked, so the request only ever carries `q`, and every mode on the answer
+ * is narrowed here — the same client-side filtering the boards already do,
+ * just over a server-searched list instead of a server-fetched stop.
  */
 export function LineBrowser({ availableModes, onOpen }: Props) {
   const { strings, t } = useLocale();
@@ -43,7 +43,7 @@ export function LineBrowser({ availableModes, onOpen }: Props) {
   const modeLabelId = useId();
 
   const [query, setQuery] = useState('');
-  const [mode, setMode] = useState<GtfsRouteType | null>(null);
+  const [modes, setModes] = useState<ReadonlySet<GtfsRouteType>>(new Set());
   const [lines, setLines] = useState<LineSummary[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -53,11 +53,7 @@ export function LineBrowser({ availableModes, onOpen }: Props) {
     setLoading(true);
 
     const timer = window.setTimeout(() => {
-      void getLines({
-        q: query,
-        ...(mode === null ? {} : { mode }),
-        signal: controller.signal,
-      })
+      void getLines({ q: query, signal: controller.signal })
         .then((answer) => {
           if (controller.signal.aborted) return;
           setLines(answer.lines);
@@ -79,9 +75,17 @@ export function LineBrowser({ availableModes, onOpen }: Props) {
     };
     // `t` and `strings` are stable for a locale; the query is what this is about.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, mode]);
+  }, [query]);
 
-  const filtered = query !== '' || mode !== null;
+  const shown = useMemo(
+    () => (lines ?? []).filter((line) => modes.size === 0 || modes.has(line.routeType)),
+    [lines, modes],
+  );
+
+  const toggleMode = (mode: GtfsRouteType) =>
+    setModes(toggleSelection(modes, mode, availableModes));
+
+  const filtered = query !== '' || modes.size > 0;
 
   return (
     <div className="flex flex-col gap-4 p-5">
@@ -113,47 +117,47 @@ export function LineBrowser({ availableModes, onOpen }: Props) {
 
       {availableModes.length > 1 && (
         /*
-          A radio group, because `/api/routes` takes one mode. Chips rather than
-          circles, so this row reads as the map's legend does elsewhere — each
-          wears the colour its lines wear — but the semantics underneath are the
-          honest ones: exactly one of these is true at a time.
+          Real checkboxes, the same set the stop boards filter by: the empty
+          set means every mode, and picking one narrows to it without letting
+          go of the others — pressing a second mode adds to the first rather
+          than replacing it.
         */
-        <div role="radiogroup" aria-labelledby={modeLabelId} className="flex flex-col gap-2">
-          <span
+        <fieldset>
+          <legend
             id={modeLabelId}
-            className="text-content-muted text-xs font-semibold tracking-wide uppercase"
+            className="text-content-muted mb-2 text-xs font-semibold tracking-wide uppercase"
           >
             {t(strings.stops.filterByMode)}
-          </span>
+          </legend>
 
           <div className="flex flex-wrap gap-1.5">
             {availableModes.map((option) => {
-              const on = mode === option;
+              const on = modes.size === 0 || modes.has(option);
 
               return (
-                <button
+                <label
                   key={option}
-                  type="button"
-                  role="radio"
-                  aria-checked={on}
-                  // Pressing the chosen one releases it. Without that the group
-                  // has no way back to "every mode" once a mode is picked.
-                  onClick={() => setMode(on ? null : option)}
-                  className={`rounded-control focus-visible:outline-brand-500 flex cursor-pointer items-center gap-1.5 border px-2.5 py-1.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 ${
+                  className={`rounded-control focus-within:outline-brand-500 flex cursor-pointer items-center gap-1.5 border px-2.5 py-1.5 text-sm font-medium transition-colors focus-within:outline-2 focus-within:outline-offset-2 ${
                     on
                       ? `${modeVisual(option).fill} text-on-mode border-transparent`
                       : 'border-border-strong text-content-muted hover:bg-surface-muted'
                   }`}
                 >
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    onChange={() => toggleMode(option)}
+                    className="sr-only"
+                  />
                   <ModeIcon routeType={option} size={16} />
                   {/* The name beside the silhouette: mode is never carried by
                       shape or colour alone. */}
                   {modeLabel(option, strings)}
-                </button>
+                </label>
               );
             })}
           </div>
-        </div>
+        </fieldset>
       )}
 
       {errorMessage !== null && (
@@ -167,10 +171,10 @@ export function LineBrowser({ availableModes, onOpen }: Props) {
           ? t(strings.routes.loadingLines)
           : lines === null
             ? ''
-            : t(strings.routes.lineCount, { count: lines.length })}
+            : t(strings.routes.lineCount, { count: shown.length })}
       </p>
 
-      {lines !== null && lines.length === 0 && (
+      {lines !== null && shown.length === 0 && (
         <p className="text-content-muted rounded-card border-border border px-4 py-5 text-sm">
           {/* Their own search emptied it, which they can undo. A feed with no
               lines at all is a different sentence, and not one HSL can produce. */}
@@ -179,7 +183,7 @@ export function LineBrowser({ availableModes, onOpen }: Props) {
       )}
 
       <ul className="flex flex-col">
-        {(lines ?? []).map((line) => (
+        {shown.map((line) => (
           <li key={line.lineId}>
             <button
               type="button"
@@ -217,7 +221,7 @@ export function LineBrowser({ availableModes, onOpen }: Props) {
           type="button"
           onClick={() => {
             setQuery('');
-            setMode(null);
+            setModes(new Set());
           }}
           className="rounded-control border-border-strong text-content hover:bg-surface-muted focus-visible:outline-brand-500 cursor-pointer self-start px-3 py-1.5 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
         >
