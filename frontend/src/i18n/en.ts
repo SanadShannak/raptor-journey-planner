@@ -182,6 +182,7 @@ export const en: Dictionary = {
     mapLabel: 'Map of the journey',
     zoomIn: 'Zoom in',
     zoomOut: 'Zoom out',
+    scheduledPositions: 'Vehicles are shown where the timetable says they should be.',
 
     showOnMap: 'Show this journey on the map',
     viewDetails: 'Show this journey step by step',

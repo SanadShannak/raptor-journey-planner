@@ -235,6 +235,12 @@ export interface Dictionary {
     /** Leaflet writes these as both `title` and `aria-label` on its buttons. */
     zoomIn: string;
     zoomOut: string;
+    /**
+     * Said once, over the map, whenever a ridden leg's own vehicle is drawn on
+     * it — the same wording the line inspector uses for the same badge, so a
+     * reader who has seen it once recognises the other.
+     */
+    scheduledPositions: string;
 
     /* The overview list, and the detail panel one itinerary opens into. */
     /**

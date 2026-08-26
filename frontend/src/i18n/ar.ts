@@ -212,6 +212,7 @@ export const ar: Dictionary = {
     mapLabel: 'خريطة الرحلة',
     zoomIn: 'تكبير',
     zoomOut: 'تصغير',
+    scheduledPositions: 'تُعرض المركبات حيث يفترض الجدول أن تكون.',
 
     showOnMap: 'عرض هذه الرحلة على الخريطة',
     viewDetails: 'عرض هذه الرحلة خطوة بخطوة',
@@ -229,7 +230,6 @@ export const ar: Dictionary = {
     totalRiding: 'ركوب {duration}',
     journeySummary: 'المغادرة {start}، والوصول {end}، {duration}.',
 
-    serviceUnavailable: 'خدمة تخطيط الرحلات لا تستجيب',
     serviceUnavailableHint: 'تخطيط الرحلات يحتاج إليها، لذا توقّف البحث مؤقتًا. أما بقية عناصر الصفحة فتعمل كالمعتاد.',
     retryConnection: 'حاول مرة أخرى',
     checkingService: 'جارٍ التحقّق من خدمة تخطيط الرحلات…',

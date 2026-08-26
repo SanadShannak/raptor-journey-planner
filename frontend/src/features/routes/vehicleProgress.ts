@@ -62,7 +62,7 @@ function secondOfDay(clockTime: string): number | null {
  * involved — the day number is only there to keep 00:10 tomorrow *after* 23:50
  * tonight rather than fourteen hundred minutes before it.
  */
-function absoluteSeconds(date: string, time: string, extraSeconds = 0): number | null {
+export function absoluteSeconds(date: string, time: string, extraSeconds = 0): number | null {
   const day = dayNumber(date);
   const withinDay = secondOfDay(time);
   if (day === null || withinDay === null) return null;
