@@ -27,7 +27,7 @@ import {
   journeyGeometry,
   type BoundingBox,
 } from '../features/journey/journeyGeometry';
-import { legVehiclePosition } from '../features/journey/legVehicle';
+import { useLegVehicles } from '../features/journey/useLegVehicles';
 import { useNetworkNow } from '../features/stops/useNetworkNow';
 import { nowSeconds } from '../features/routes/vehicleProgress';
 import { VEHICLE_SIZE, vehicleMarkup } from '../features/routes/vehicleMarkup';
@@ -572,32 +572,27 @@ export function JourneyMap({
   }, [geometry, journey, scope, locale, onSelectLeg]);
 
   /*
-   * The vehicle on a ridden leg, if this itinerary is running right now.
+   * The vehicle on a ridden leg, tracked over its whole trip rather than only
+   * the stretch this itinerary rides — out from whichever terminus it really
+   * set off from, through this rider's own leg, and on to wherever it really
+   * finishes, so it is on the map before boarding and after alighting too.
    *
    * Scheduled position, not observed — the same badge `RouteVehicles` draws
    * on a line's own page, and the same honesty applies: the compiled feed
    * carries no live vehicle data, only where the timetable says a vehicle
-   * should be. Drawn only for a leg whose own start and end bracket the
-   * current moment, so a past or future itinerary shows none.
+   * should be.
    */
-  const vehicles = useMemo<TripVehicle[]>(() => {
-    if (journey === null || atSeconds === null) return [];
-
-    return journey.legs.flatMap((leg) => {
-      if (leg.mode !== 'TRANSIT') return [];
-      const found = legVehiclePosition(leg, atSeconds);
-      if (found === null) return [];
-
-      return [
-        {
-          key: `${scope}-vehicle-${leg.tripId}`,
-          point: found.point,
-          icon: tripVehicleIcon(familyFor(leg.routeType), found.bearing, leg.routeShortName),
-          follow: onSelectLeg === undefined ? null : () => onSelectLeg(leg),
-        },
-      ];
-    });
-  }, [journey, atSeconds, scope, onSelectLeg]);
+  const legVehicles = useLegVehicles(journey, atSeconds);
+  const vehicles = useMemo<TripVehicle[]>(
+    () =>
+      legVehicles.map(({ leg, point, bearing }) => ({
+        key: `${scope}-vehicle-${leg.tripId}`,
+        point,
+        icon: tripVehicleIcon(familyFor(leg.routeType), bearing, leg.routeShortName),
+        follow: onSelectLeg === undefined ? null : () => onSelectLeg(leg),
+      })),
+    [legVehicles, scope, onSelectLeg],
+  );
 
   return (
     <MapCanvas network={network}>

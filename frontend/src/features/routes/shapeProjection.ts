@@ -30,7 +30,7 @@ export interface ProjectedShape {
 }
 
 /** Longitude compressed by latitude, so a diagonal is not measured as longer. */
-export function distance(a: Coordinates, b: Coordinates): number {
+function distance(a: Coordinates, b: Coordinates): number {
   const meanLat = ((a[0] + b[0]) / 2) * (Math.PI / 180);
   const dLat = b[0] - a[0];
   const dLon = (b[1] - a[1]) * Math.cos(meanLat);
@@ -41,7 +41,7 @@ export function distance(a: Coordinates, b: Coordinates): number {
  * How far along the segment `a`→`b` the closest point to `p` lies, 0 to 1,
  * together with the squared distance to it.
  */
-export function projectOnSegment(
+function projectOnSegment(
   p: Coordinates,
   a: Coordinates,
   b: Coordinates,
