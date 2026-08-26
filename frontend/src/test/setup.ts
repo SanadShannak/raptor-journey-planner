@@ -103,6 +103,14 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
   globalThis.ResizeObserver = NoopResizeObserver;
 }
 
+/*
+ * jsdom lays nothing out, so a real scroll has nowhere to go — but its own
+ * `scrollTo` logs "not implemented" instead of quietly doing nothing. Replaced
+ * with a no-op here; a test that cares what it was called with reassigns its
+ * own, as `useFollowInView.test.tsx` does, which simply overrides this one.
+ */
+window.scrollTo = (() => {}) as typeof window.scrollTo;
+
 if (typeof window.matchMedia !== 'function') {
   // Answers "no" to every query, which is the right default for a preference
   // nobody expressed. A test that cares stubs its own.

@@ -45,6 +45,24 @@ function withPanelGeometry() {
   return calls;
 }
 
+/**
+ * The narrow layout: no `overflow-y-auto` ancestor at all, the way the sidebar
+ * is unadorned below the breakpoint — `scrollingAncestor` finds nothing and
+ * the hook has to fall back to the window itself.
+ */
+function BareBadge({ tripId }: { tripId: string | null }) {
+  const holdInView = useFollowInView(tripId);
+  return <div ref={holdInView} data-testid="badge" style={{ height: '20px' }} />;
+}
+
+function withWindowScroll() {
+  const calls: unknown[] = [];
+  window.scrollTo = ((options: unknown) => {
+    calls.push(options);
+  }) as typeof window.scrollTo;
+  return calls;
+}
+
 describe('useFollowInView', () => {
   it('scrolls once for the first trip tracked', () => {
     const calls = withPanelGeometry();
@@ -103,5 +121,27 @@ describe('useFollowInView', () => {
     const calls = withPanelGeometry();
     render(<Panel tripId={null} />);
     expect(calls).toHaveLength(0);
+  });
+
+  /*
+   * Below the breakpoint there is no panel to scroll, and the reported bug was
+   * that nothing filled in for it — the hook simply gave up. It should fall
+   * back to scrolling the window instead.
+   */
+  it('scrolls the window when there is no panel to scroll', () => {
+    const calls = withWindowScroll();
+    render(<BareBadge tripId="a" />);
+
+    expect(calls).toHaveLength(1);
+  });
+
+  it('gives up the window scroll too, once the reader has taken over', () => {
+    const calls = withWindowScroll();
+    const { rerender } = render(<BareBadge tripId="a" />);
+    expect(calls).toHaveLength(1);
+
+    fireEvent.wheel(window);
+    rerender(<BareBadge tripId="a" />);
+    expect(calls).toHaveLength(1);
   });
 });

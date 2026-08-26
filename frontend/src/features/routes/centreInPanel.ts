@@ -14,13 +14,14 @@
 /**
  * The nearest ancestor that actually scrolls, or null when nothing does.
  *
- * Null is a real answer and the right one. Below the breakpoint where the
- * sidebar becomes its own scrolling column, the page itself is what scrolls —
- * and hauling a phone's viewport around under somebody's thumb every ten
- * seconds is not a courtesy. Nothing moves there.
- *
- * The document is never returned, for the same reason: on the wide layout it is
- * the thing that must not move, and on the narrow one moving it is unwelcome.
+ * Null is a real answer, for the layout where it is true: below the breakpoint
+ * the sidebar is not its own scrolling column, and there genuinely is no
+ * element here that scrolls. The document is never returned as a substitute —
+ * on the wide layout it is the thing that must not move (see the file
+ * comment), and on the narrow one it is a *different* kind of scroll, driven
+ * by `window.scrollTo` rather than an element's, which is why the caller
+ * branches on this answer instead of being handed the document to treat the
+ * same way.
  */
 export function scrollingAncestor(node: Element): HTMLElement | null {
   let candidate = node.parentElement;
@@ -59,6 +60,18 @@ export function offsetWithin(node: HTMLElement, container: HTMLElement): number 
     container.getBoundingClientRect().top +
     container.scrollTop
   );
+}
+
+/**
+ * How far `node` sits below the top of the *document*.
+ *
+ * The same sum `offsetWithin` computes, specialised to the one container that
+ * is never an element: the viewport's own rect top is always 0 and its scroll
+ * position is `window.scrollY`, so this is what `offsetWithin` would compute
+ * if a container could be the window itself.
+ */
+export function documentOffsetTop(node: HTMLElement): number {
+  return node.getBoundingClientRect().top + window.scrollY;
 }
 
 /**

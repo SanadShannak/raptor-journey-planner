@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react';
-import { centringScrollTop, offsetWithin, scrollingAncestor } from './centreInPanel';
+import {
+  centringScrollTop,
+  documentOffsetTop,
+  offsetWithin,
+  scrollingAncestor,
+} from './centreInPanel';
 
 /** The keys that scroll a list, and therefore say the reader is driving. */
 const SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ']);
@@ -81,34 +86,41 @@ export function useFollowInView(
     if (!active || surrendered || node === null) return;
 
     /*
-     * The panel, and only the panel. `scrollIntoView` would take the document
-     * with it, and these pages pin their shell to the viewport with no
-     * scrollbar to undo that — see `centreInPanel`.
+     * The panel, where there is one. `scrollIntoView` would take the document
+     * with it too, and on the wide layout that means sliding the whole
+     * `fixed inset-0` shell down with no scrollbar to undo it — see
+     * `centreInPanel`. So the wide layout scrolls only the panel it finds.
      *
-     * Null on the narrow layout, deliberately: below the breakpoint where the
-     * sidebar becomes its own scrolling column, the page itself is what
-     * scrolls, and hauling a phone's viewport around under somebody's thumb is
-     * not a courtesy.
+     * Below the breakpoint the sidebar is not its own scrolling column — the
+     * page itself is — so there is no panel to find, and centring falls back
+     * to the window. It is still the reader's own gesture that gives this up,
+     * the same wheel/touch/key listeners above, so a phone under someone's
+     * thumb is asked to move once per run rather than fought over.
      */
     const box = scrollingAncestor(node);
-    if (box === null) return;
+    const height = node.getBoundingClientRect().height;
 
-    box.scrollTo({
-      /*
-       * Centred rather than merely brought into view. The least a browser can
-       * get away with is the badge just past the edge of the panel, with none
-       * of the line ahead of it — and the stops either side are the whole
-       * reason for following a run.
-       *
-       * An absolute target in the panel's own coordinates, so issuing it while
-       * an earlier smooth scroll is still running retargets that scroll instead
-       * of adding to wherever it had got to.
-       */
-      top: centringScrollTop(
-        offsetWithin(node, box),
-        node.getBoundingClientRect().height,
-        box.clientHeight,
-      ),
+    if (box !== null) {
+      box.scrollTo({
+        /*
+         * Centred rather than merely brought into view. The least a browser
+         * can get away with is the badge just past the edge of the panel,
+         * with none of the line ahead of it — and the stops either side are
+         * the whole reason for following a run.
+         *
+         * An absolute target in the panel's own coordinates, so issuing it
+         * while an earlier smooth scroll is still running retargets that
+         * scroll instead of adding to wherever it had got to.
+         */
+        top: centringScrollTop(offsetWithin(node, box), height, box.clientHeight),
+        behavior: 'smooth',
+      });
+      return;
+    }
+
+    window.scrollTo({
+      // Same centring, in document coordinates instead of a panel's own.
+      top: centringScrollTop(documentOffsetTop(node), height, window.innerHeight),
       behavior: 'smooth',
     });
   }, [active, surrendered, node]);
