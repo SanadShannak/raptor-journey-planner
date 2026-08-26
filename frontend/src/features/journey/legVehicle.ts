@@ -119,9 +119,18 @@ function distancesAlongShape(shape: ProjectedShape, waypoints: Waypoint[]): numb
 }
 
 /**
- * Where this leg's vehicle is at `atSeconds`, or null when it is not out —
- * before it sets off, after it finishes, or when the leg's own times cannot
- * be read at all.
+ * Where this leg's vehicle is at `atSeconds`, or null when it has not set off
+ * yet, or when the leg's own times cannot be read at all.
+ *
+ * No upper bound. A leg's own last call is where *this traveller* gets off,
+ * not where the vehicle's run ends — the trip carries on, and a rider still
+ * approaching the stop or already aboard has every reason to find it on the
+ * map right up to the moment they board and for as long as it stays theirs to
+ * watch, not only while `atSeconds` sits inside the narrow window between
+ * boarding and alighting. Past the last call this leg has data for, the
+ * vehicle is pinned at that final point — the last place this leg's own
+ * record can actually put it — rather than vanishing the instant the
+ * timetable says this rider's own stretch of the ride is over.
  */
 export function legVehiclePosition(
   leg: TransitLeg,
@@ -132,10 +141,24 @@ export function legVehiclePosition(
 
   const first = waypoints[0] as Waypoint;
   const last = waypoints[waypoints.length - 1] as Waypoint;
-  if (atSeconds < first.atSeconds || atSeconds > last.atSeconds) return null;
+  if (atSeconds < first.atSeconds) return null;
 
   const shape = measuredShape(leg);
   const along = shape === null ? null : distancesAlongShape(shape, waypoints);
+
+  if (atSeconds >= last.atSeconds) {
+    const secondLast = waypoints[waypoints.length - 2] as Waypoint;
+
+    if (shape !== null && along !== null) {
+      const found = pointAtDistance(shape, along[along.length - 1] as number);
+      if (found !== null) return found;
+    }
+
+    return {
+      point: [last.lat, last.lon],
+      bearing: bearingBetween([secondLast.lat, secondLast.lon], [last.lat, last.lon]),
+    };
+  }
 
   for (let index = 0; index < waypoints.length - 1; index += 1) {
     const a = waypoints[index] as Waypoint;

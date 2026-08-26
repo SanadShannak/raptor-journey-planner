@@ -79,10 +79,18 @@ const at = (time: string) => {
 };
 
 describe('legVehiclePosition', () => {
-  it('is nowhere before it sets off and after it finishes', () => {
-    const run = leg();
-    expect(legVehiclePosition(run, at('09:59'))).toBeNull();
-    expect(legVehiclePosition(run, at('10:21'))).toBeNull();
+  it('is nowhere before it sets off', () => {
+    expect(legVehiclePosition(leg(), at('09:59'))).toBeNull();
+  });
+
+  /*
+   * A leg's own last call is where this traveller gets off, not where the
+   * vehicle's run ends — so it stays on the map, pinned at the last point
+   * this leg's own data can place it, rather than vanishing at that instant.
+   */
+  it('stays pinned at the destination once past its own last call, rather than disappearing', () => {
+    const found = legVehiclePosition(leg(), at('10:45'));
+    expect(found?.point).toEqual([0, 2]);
   });
 
   it('stands at the origin at the moment it departs', () => {
