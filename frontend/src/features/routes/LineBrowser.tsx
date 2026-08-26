@@ -200,14 +200,19 @@ export function LineBrowser({ availableModes, onOpen }: Props) {
                 Sized to its own text rather than stretched. Stretched,
                 `dir="auto"` makes the *box* left-to-right for a Latin name, so
                 the words sit at the far left of it while the badge stays at the
-                right of an Arabic page.
+                right of an Arabic page. Unstretched it shrinks and truncates
+                inside whatever the row leaves it — `min-w-0` overrides a flex
+                item's default `min-width: auto`, which would otherwise refuse
+                to shrink below the text's own width and stop `truncate` ever
+                firing — and sits flush against the badge either way the page
+                runs, with the count pushed to the far end by its own margin.
               */}
-              <span dir="auto" className="min-w-0 flex-1 truncate text-sm font-medium">
+              <span dir="auto" className="min-w-0 truncate text-sm font-medium">
                 {line.routeLongName ?? line.routeShortName}
               </span>
 
               {line.variantCount > 1 && (
-                <span className="text-content-muted flex-none text-xs tabular-nums">
+                <span className="text-content-muted ms-auto flex-none text-xs tabular-nums">
                   {t(strings.routes.variantCount, { count: line.variantCount })}
                 </span>
               )}

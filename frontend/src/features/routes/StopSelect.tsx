@@ -76,14 +76,25 @@ export function StopSelect({ label, value, onChange, stops, disabled }: Props) {
         */
         className="rounded-control border-border-strong bg-surface hover:border-brand-500 focus-visible:outline-brand-500 flex cursor-pointer items-center gap-2 border py-2.5 ps-3 pe-3 text-start focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
       >
+        {/*
+          Sized to the name rather than stretched across the button.
+          Stretched, `dir="auto"` makes the *box* left-to-right for a Latin
+          name, so the words sit at the far left of it — next to the caret —
+          while the button's own start edge, where a chosen stop's name
+          belongs, is left empty on an Arabic page. Unstretched it truncates
+          against whatever the row leaves it, and the caret is pushed to the
+          true end by its own margin instead of by the text filling the rest.
+        */}
         <span
           id={`${labelId}-value`}
           dir="auto"
-          className="min-w-0 flex-1 truncate text-sm font-medium"
+          className="min-w-0 truncate text-sm font-medium"
         >
           {chosen?.name ?? ''}
         </span>
-        <Chevron open={open} />
+        <span className="ms-auto flex-none">
+          <Chevron open={open} />
+        </span>
       </button>
 
       <Popover
@@ -112,7 +123,7 @@ export function StopSelect({ label, value, onChange, stops, disabled }: Props) {
               }}
               className="rounded-control hover:bg-surface-muted aria-selected:bg-brand-50 aria-selected:text-brand-700 flex w-full cursor-pointer items-baseline gap-2 px-3 py-2 text-start text-sm aria-selected:font-semibold"
             >
-              <span dir="auto" className="min-w-0 flex-1 truncate">
+              <span dir="auto" className="min-w-0 truncate">
                 {stop.name}
               </span>
               {/*
@@ -125,9 +136,14 @@ export function StopSelect({ label, value, onChange, stops, disabled }: Props) {
                 doubles the width of a column whose whole job is a short code
                 beside a long name. It stays in the spoken version, where there
                 is no column to read it off.
+
+                `ms-auto` rather than the name being stretched to reach it: the
+                same fix as the trigger's own value, and for the same reason —
+                a Latin name would otherwise sit against the code rather than
+                against the start edge a chosen row's name belongs at.
               */}
               {stop.code !== null && (
-                <span className="flex-none">
+                <span className="ms-auto flex-none">
                   <StopCode code={stop.code} />
                 </span>
               )}
