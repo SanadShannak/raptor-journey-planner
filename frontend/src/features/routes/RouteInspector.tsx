@@ -379,6 +379,7 @@ export function RouteInspector({
         <RouteHeader
           variant={variant}
           span={span}
+          tripsOnDay={dayTimetable === null ? null : dayTimetable.totalTrips}
           day={shownDate}
           networkToday={networkToday}
           onFlip={

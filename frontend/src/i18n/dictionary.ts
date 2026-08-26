@@ -450,14 +450,29 @@ export interface Dictionary {
     stopCount: Message;
     /**
      * How many distinct trips the compiled timetable carries for this
-     * variant — not how many times a vehicle actually departs across the
-     * feed's whole date range. A trip recurs on every day its own service
-     * calendar covers, so a pattern with, say, five distinct weekday trips
-     * and a service calendar spanning nine weeks runs far more than five
-     * times in total; this counts the *rows*, not the *departures*, which is
-     * why the string says "in the timetable" rather than leaving it bare.
+     * variant, over its whole lifetime — used only in the alternatives list,
+     * where several variants are compared at once and there is no single day
+     * to count any one of them against. Not how many times a vehicle actually
+     * departs across the feed's date range: a trip recurs on every day its
+     * own service calendar covers, so a pattern with five distinct weekday
+     * trips and a service calendar spanning nine weeks runs far more than
+     * five times in total. This counts the *rows*, not the *departures*,
+     * which is why the string says "in the timetable" rather than leaving it
+     * bare. The header itself uses {@link tripCountToday}/
+     * {@link tripCountOnDate} instead — a count of one specific day's own
+     * trips, the number a reader can actually check by opening that day's
+     * timetable and counting rows, rather than this lifetime total.
      */
     tripCount: Message;
+    /**
+     * How many trips run **today** — counted the same way the timetable tab
+     * itself counts them, so it agrees with what counting rows there would
+     * give. The day's own count, not the pattern's lifetime one, for the same
+     * reason {@link spanToday} exists rather than a lifetime span.
+     */
+    tripCountToday: Message;
+    /** The same, for a day that is not today, which therefore says which. */
+    tripCountOnDate: Message;
     /**
      * When the first and last vehicle leave the origin **today**.
      *

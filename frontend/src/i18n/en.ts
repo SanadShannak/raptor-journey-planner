@@ -297,6 +297,14 @@ export const en: Dictionary = {
       one: '1 trip in the timetable',
       other: '{count} trips in the timetable',
     },
+    tripCountToday: {
+      one: '1 trip today',
+      other: '{count} trips today',
+    },
+    tripCountOnDate: {
+      one: '1 trip on {date}',
+      other: '{count} trips on {date}',
+    },
     spanToday: 'Runs {first} to {last} today',
     spanOnDate: 'Runs {first} to {last} on {date}',
     notRunningToday: 'This route does not run today.',

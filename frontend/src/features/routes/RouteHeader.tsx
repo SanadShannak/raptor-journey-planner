@@ -15,6 +15,19 @@ interface Props {
    * date.
    */
   span: DaySpan | null;
+  /**
+   * How many trips run on the day being looked at, or null while that day's
+   * timetable has not arrived (or has none to report).
+   *
+   * The day's own count, not the pattern's lifetime one — {@link
+   * LineVariantDetail.tripCount} is every distinct trip the compiled
+   * timetable carries across the whole feed, which a trip recurring on many
+   * calendar days makes far larger than what runs on any one of them, and
+   * reads as a claim about today that is not true of it. This is the number
+   * a reader can check by opening the timetable tab for this same day and
+   * counting rows.
+   */
+  tripsOnDay: number | null;
   /** The day the span belongs to, so it can say which day it is talking about. */
   day: string;
   /** Today on the network's clock, so "today" is only said when it is true. */
@@ -49,14 +62,19 @@ interface Props {
  * written on the front of the vehicle and what a rider matches against. It
  * changes on a flip because it is the thing the flip changes.
  */
-export function RouteHeader({ variant, span, day, networkToday, onFlip }: Props) {
+export function RouteHeader({ variant, span, tripsOnDay, day, networkToday, onFlip }: Props) {
   const { locale, strings, t } = useLocale();
 
   const facts = [
     t(strings.routes.stopCount, { count: variant.stopCount }),
-    variant.tripCount === null
+    tripsOnDay === null
       ? null
-      : t(strings.routes.tripCount, { count: variant.tripCount }),
+      : day === networkToday
+        ? t(strings.routes.tripCountToday, { count: tripsOnDay })
+        : t(strings.routes.tripCountOnDate, {
+            count: tripsOnDay,
+            date: formatDate(day, locale, { weekday: 'short', day: 'numeric', month: 'short' }),
+          }),
     span === null
       ? null
       : day === networkToday
