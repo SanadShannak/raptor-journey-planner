@@ -866,15 +866,24 @@ export default function PlanPage() {
       */}
       <section
         aria-label={t(strings.planner.mapLabel)}
-        className="bg-surface-muted relative order-first h-56 shrink-0 lg:order-none lg:h-auto lg:flex-1"
+        className="bg-surface-muted relative isolate order-first h-half-viewport shrink-0 lg:order-none lg:h-auto lg:flex-1"
         /*
-          `flex-1` on this element clobbered its own `h-56` on the narrow
+          `flex-1` on this element clobbered its own fixed height on the narrow
           layout: Tailwind's flex-1 sets `flex-basis: 0%`, and on mobile the
           containing column has no defined height for it to grow into, so
           the section collapsed to nothing — the map was never drawn, not
           merely small. `shrink-0` gives the explicit height back its say;
           `lg:flex-1` restores the grow behaviour once the desktop layout
           pins the page and there is real space to fill.
+
+          `isolate` boxes in Leaflet's own stacking order. Its panes carry
+          z-index up to 1000 so controls sit over tiles sit over the map's own
+          background, but `.leaflet-container` never claims a z-index of its
+          own to hold that ordering inside — so without this, those numbers
+          compete directly with whatever the rest of the page uses, and a
+          value meant to beat a marker beats the mobile navigation panel too.
+          `isolation: isolate` gives the map its own stacking context, so
+          nothing inside it can out-rank an element sitting outside it.
         */
       >
         <JourneyMap

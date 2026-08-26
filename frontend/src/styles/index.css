@@ -661,6 +661,18 @@
 }
 
 /*
+ * Half the viewport, for the map on a phone. The stacked mobile layout gives
+ * it no natural height of its own — unlike the desktop pane, which fills
+ * whatever the pinned layout leaves over — so it has to be told one, and a
+ * fraction of the screen scales with the device rather than fixing the same
+ * number of pixels on a compact phone and a tall one.
+ */
+@utility h-half-viewport {
+  height: 50vh;
+  height: 50dvh;
+}
+
+/*
  * Base element styles. `dir` is set on <html> so the document flips wholesale
  * between English and Arabic; components must use logical properties
  * (ms-*, pe-*, text-start) rather than left/right ones.
