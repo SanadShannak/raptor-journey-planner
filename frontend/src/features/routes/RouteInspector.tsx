@@ -4,6 +4,7 @@ import { DateSelect } from '../../components/DateSelect';
 import { messageForApiError, useLocale } from '../../i18n';
 import type { Line, LineVariantDetail, VariantTimetable } from '../../types/route';
 import { useNetworkNow } from '../stops/useNetworkNow';
+import { familyFor, visualForFamily } from '../journey/modeVisuals';
 import { daySpan } from './daySpan';
 import { RouteHeader } from './RouteHeader';
 import { RouteStopList } from './RouteStopList';
@@ -474,14 +475,24 @@ export function RouteInspector({
           {view === 'stops' ? (
             <>
               {/*
-                A run is a lens over the line, so it says so and offers the way
-                out. Without this the page looks like the line itself with a
-                strangely sparse set of times, and there is nothing to press to
-                get back.
+                A trip is a lens over the route, so it says so and offers the
+                way out. Without this the page looks like the route itself
+                with a strangely sparse set of times, and there is nothing to
+                press to get back.
+
+                Outlined in the route's own mode colour rather than the brand
+                wine, which on this card read as a warning rather than a
+                state somebody chose — wine is reserved for pressable controls
+                and this is neither pressed nor wrong. The body text stays
+                `text-content`: a mode's own colour is verified at 3:1 for a
+                border or an icon, not at the 4.5:1 a paragraph needs, so the
+                colour carries the accent and the words carry the reading.
               */}
               {focusTrip !== null && (
-                <div className="rounded-card border-brand-500 bg-brand-50 flex flex-wrap items-center gap-x-3 gap-y-2 border px-4 py-3">
-                  <p className="text-brand-700 min-w-0 flex-1 text-sm font-medium">
+                <div
+                  className={`rounded-card bg-surface-muted flex flex-wrap items-center gap-x-3 gap-y-2 border px-4 py-3 ${visualForFamily(familyFor(variant.routeType)).border}`}
+                >
+                  <p className="text-content min-w-0 flex-1 text-sm font-medium">
                     {focusTrip.headsign === null
                       ? t(strings.routes.followingRun)
                       : t(strings.routes.followingRunTowards, {
@@ -491,7 +502,7 @@ export function RouteInspector({
                   <button
                     type="button"
                     onClick={() => onSelectTrip(null)}
-                    className="rounded-control border-brand-500 text-brand-700 hover:bg-brand-100 focus-visible:outline-brand-500 flex-none cursor-pointer border px-2.5 py-1 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
+                    className="rounded-control border-border-strong text-content hover:bg-surface focus-visible:outline-brand-500 flex-none cursor-pointer border px-2.5 py-1 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
                   >
                     {t(strings.routes.showWholeLine)}
                   </button>

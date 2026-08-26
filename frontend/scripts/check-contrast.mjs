@@ -76,6 +76,13 @@ const PAIRS = [
   ['mode-metro', 'surface-raised', AA_UI],
   ['mode-train', 'surface-raised', AA_UI],
   ['mode-ferry', 'surface-raised', AA_UI],
+  // The "following one trip" card outlines itself in the route's own mode,
+  // on `surface-muted` rather than `surface-raised`.
+  ['mode-bus', 'surface-muted', AA_UI],
+  ['mode-tram', 'surface-muted', AA_UI],
+  ['mode-metro', 'surface-muted', AA_UI],
+  ['mode-train', 'surface-muted', AA_UI],
+  ['mode-ferry', 'surface-muted', AA_UI],
   ['border-strong', 'surface', AA_UI],
   ['border-strong', 'surface-raised', AA_UI],
 ];

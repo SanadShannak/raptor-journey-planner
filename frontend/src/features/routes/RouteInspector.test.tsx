@@ -774,7 +774,7 @@ describe('RouteInspector', () => {
   });
 
   /*
-   * Following one run of the line rather than the line itself.
+   * Following one trip of the route rather than the route itself.
    *
    * The ordinary list answers "what leaves here next", which on a busy line is
    * a different vehicle at every row. Following a run asks the opposite — "when
@@ -826,7 +826,7 @@ describe('RouteInspector', () => {
       show({ tripId: 'the-one', tripDate: '2026-09-10', onSelectTrip });
 
       expect(
-        await screen.findByText('Following one run, towards Käpylä.'),
+        await screen.findByText('Following one trip, towards Käpylä.'),
       ).toBeTruthy();
 
       fireEvent.click(screen.getByRole('button', { name: 'Show the whole route' }));
@@ -930,7 +930,7 @@ describe('RouteInspector', () => {
       show({ tripId: 'no-such-trip', tripDate: '2026-09-10' });
 
       await screen.findByRole('heading', { level: 1 });
-      expect(screen.queryByText(/Following one run/)).toBeNull();
+      expect(screen.queryByText(/Following one trip/)).toBeNull();
       // And the ordinary "what leaves next" answer is back.
       expect(await screen.findByText('3:52 PM')).toBeTruthy();
     });

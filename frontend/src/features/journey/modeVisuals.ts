@@ -20,14 +20,41 @@ export interface ModeVisual {
   ink: string;
   /** `stroke` for the line diagram. */
   stroke: string;
+  /** Border for a card outlined in the mode's own colour, e.g. a follow banner. */
+  border: string;
 }
 
 const VISUALS: Record<string, ModeVisual> = {
-  bus: { fill: 'bg-mode-bus', ink: 'text-mode-bus', stroke: 'stroke-mode-bus' },
-  tram: { fill: 'bg-mode-tram', ink: 'text-mode-tram', stroke: 'stroke-mode-tram' },
-  metro: { fill: 'bg-mode-metro', ink: 'text-mode-metro', stroke: 'stroke-mode-metro' },
-  train: { fill: 'bg-mode-train', ink: 'text-mode-train', stroke: 'stroke-mode-train' },
-  ferry: { fill: 'bg-mode-ferry', ink: 'text-mode-ferry', stroke: 'stroke-mode-ferry' },
+  bus: {
+    fill: 'bg-mode-bus',
+    ink: 'text-mode-bus',
+    stroke: 'stroke-mode-bus',
+    border: 'border-mode-bus',
+  },
+  tram: {
+    fill: 'bg-mode-tram',
+    ink: 'text-mode-tram',
+    stroke: 'stroke-mode-tram',
+    border: 'border-mode-tram',
+  },
+  metro: {
+    fill: 'bg-mode-metro',
+    ink: 'text-mode-metro',
+    stroke: 'stroke-mode-metro',
+    border: 'border-mode-metro',
+  },
+  train: {
+    fill: 'bg-mode-train',
+    ink: 'text-mode-train',
+    stroke: 'stroke-mode-train',
+    border: 'border-mode-train',
+  },
+  ferry: {
+    fill: 'bg-mode-ferry',
+    ink: 'text-mode-ferry',
+    stroke: 'stroke-mode-ferry',
+    border: 'border-mode-ferry',
+  },
 };
 
 /**
