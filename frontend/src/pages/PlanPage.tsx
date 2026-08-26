@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { tripPath } from '../app/routes';
+import { ScheduleEstimateNotice } from '../components/ScheduleEstimateNotice';
 import { messageForApiError, nowInZone, useLocale } from '../i18n';
 import { usePageTitle } from '../app/usePageTitle';
 import { getValidDates, planJourney } from '../api/journey';
@@ -800,14 +801,6 @@ export default function PlanPage() {
 
               {journeys.length > 0 && (
                 <>
-                  {/*
-                    Said once, above the list — every card's own times come
-                    from the published timetable, not from tracking anything.
-                  */}
-                  <p className="text-content-muted text-xs">
-                    {t(strings.common.scheduleEstimateNotice)}
-                  </p>
-
                   {journeys.map((journey, index) => (
                     <ItineraryOverview
                       key={`${journey.startDate}-${journey.startTime}-${index}`}
@@ -848,6 +841,8 @@ export default function PlanPage() {
                       {exhausted}
                     </p>
                   )}
+
+                  <ScheduleEstimateNotice />
                 </>
               )}
             </section>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { getStopBoard, getStopTimetable } from '../../api/stops';
 import { DateSelect } from '../../components/DateSelect';
+import { ScheduleEstimateNotice } from '../../components/ScheduleEstimateNotice';
 import { messageForApiError, useLocale } from '../../i18n';
 import type { StopBoard, StopIdentity, StopTimetable } from '../../types/stop';
 import { DayTimetable } from './DayTimetable';
@@ -273,14 +274,6 @@ export function StopInspector({
           />
 
           {/*
-            Said once, above both the live board and the whole-day timetable —
-            both are the published schedule, not an observed one.
-          */}
-          <p className="text-content-muted text-xs">
-            {t(strings.common.scheduleEstimateNotice)}
-          </p>
-
-          {/*
             Announced politely, and deliberately narrow: it wraps a sentence
             that changes only when an answer arrives, never the ticking list.
             A live region around the board itself would re-announce every
@@ -310,6 +303,7 @@ export function StopInspector({
                 <DayTimetable timetable={timetable} selectedLines={selectedLines} />
               )}
 
+          <ScheduleEstimateNotice />
         </>
       )}
     </div>

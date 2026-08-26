@@ -600,157 +600,137 @@ export function JourneyMap({
   }, [journey, atSeconds, scope, onSelectLeg]);
 
   return (
-    <>
-      <MapCanvas network={network}>
-        {/* Drawn under everything the journey puts on the map. */}
-        <StopLayer
-          onStopHover={() => setPick(null)}
-          onStopSelect={onStopSelect}
-          selectedStopId={selectedStopId}
-        />
+    <MapCanvas network={network}>
+      {/* Drawn under everything the journey puts on the map. */}
+      <StopLayer
+        onStopHover={() => setPick(null)}
+        onStopSelect={onStopSelect}
+        selectedStopId={selectedStopId}
+      />
 
-        <PickPoint pick={pick} setPick={setPick} onPick={onPick} onRename={onRename} />
-        <FitTo box={box} home={home} animate={!reduceMotion} />
+      <PickPoint pick={pick} setPick={setPick} onPick={onPick} onRename={onRename} />
+      <FitTo box={box} home={home} animate={!reduceMotion} />
 
-        {geometry?.segments.map((segment) => {
-          const walking = segment.kind === 'walk';
-          const ink =
-            segment.family === null ? '' : visualForFamily(segment.family).stroke;
+      {geometry?.segments.map((segment) => {
+        const walking = segment.kind === 'walk';
+        const ink =
+          segment.family === null ? '' : visualForFamily(segment.family).stroke;
 
+        /*
+         * A ridden leg opens its own run; a walk has none to open.
+         *
+         * The press is stopped from reaching the map, or the pin chooser opens
+         * underneath the page that is already on its way — Leaflet delivers a
+         * click to the layer *and* to the map unless a handler says otherwise.
+         */
+        const ridden = journey?.legs[segment.legIndex];
+        const follow =
+          onSelectLeg === undefined || ridden === undefined || ridden.mode !== 'TRANSIT'
+            ? undefined
+            : (event: L.LeafletMouseEvent) => {
+                L.DomEvent.stopPropagation(event);
+                onSelectLeg(ridden);
+              };
+
+        // Both strokes take the press: the casing is the wider of the two and
+        // is what makes a six-pixel line a target worth aiming at.
+        const pressable =
+          follow === undefined
+            ? { interactive: false as const }
+            : { interactive: true as const, eventHandlers: { click: follow } };
+
+        return (
           /*
-           * A ridden leg opens its own run; a walk has none to open.
-           *
-           * The press is stopped from reaching the map, or the pin chooser opens
-           * underneath the page that is already on its way — Leaflet delivers a
-           * click to the layer *and* to the map unless a handler says otherwise.
+           * Drawn twice. The casing underneath is the page's own surface
+           * colour, which is what keeps a dark blue bus line from disappearing
+           * into dark water, and a pale one from washing out over a light map.
+           * It is ordinary transit cartography and it leaves the colour itself
+           * untouched.
            */
-          const ridden = journey?.legs[segment.legIndex];
-          const follow =
-            onSelectLeg === undefined || ridden === undefined || ridden.mode !== 'TRANSIT'
-              ? undefined
-              : (event: L.LeafletMouseEvent) => {
-                  L.DomEvent.stopPropagation(event);
-                  onSelectLeg(ridden);
-                };
+          <Fragment key={`${scope}-${segment.key}`}>
+            <Polyline
+              positions={segment.path}
+              className="stroke-surface"
+              pathOptions={{ weight: walking ? 8 : 10, opacity: 0.9 }}
+              {...pressable}
+            />
+            <Polyline
+              positions={segment.path}
+              className={ink}
+              pathOptions={{
+                weight: walking ? 3 : 6,
+                opacity: 1,
+                // A walk is a straight line the engine measured as the crow
+                // flies, so it is dashed here exactly as it is in the strip
+                // map — the drawing says it is an estimate.
+                ...(walking ? { dashArray: '1 9', lineCap: 'round' as const } : {}),
+              }}
+              {...pressable}
+            />
+          </Fragment>
+        );
+      })}
 
-          // Both strokes take the press: the casing is the wider of the two and
-          // is what makes a six-pixel line a target worth aiming at.
-          const pressable =
-            follow === undefined
-              ? { interactive: false as const }
-              : { interactive: true as const, eventHandlers: { click: follow } };
-
-          return (
-            /*
-             * Drawn twice. The casing underneath is the page's own surface
-             * colour, which is what keeps a dark blue bus line from disappearing
-             * into dark water, and a pale one from washing out over a light map.
-             * It is ordinary transit cartography and it leaves the colour itself
-             * untouched.
-             */
-            <Fragment key={`${scope}-${segment.key}`}>
-              <Polyline
-                positions={segment.path}
-                className="stroke-surface"
-                pathOptions={{ weight: walking ? 8 : 10, opacity: 0.9 }}
-                {...pressable}
-              />
-              <Polyline
-                positions={segment.path}
-                className={ink}
-                pathOptions={{
-                  weight: walking ? 3 : 6,
-                  opacity: 1,
-                  // A walk is a straight line the engine measured as the crow
-                  // flies, so it is dashed here exactly as it is in the strip
-                  // map — the drawing says it is an estimate.
-                  ...(walking ? { dashArray: '1 9', lineCap: 'round' as const } : {}),
-                }}
-                {...pressable}
-              />
-            </Fragment>
-          );
-        })}
-
-        {geometry?.calls.map((call) => (
-          <CircleMarker
-            key={`${scope}-${call.key}`}
-            center={call.point}
-            radius={6}
-            className={`${call.family === null ? '' : visualForFamily(call.family).stroke} fill-surface`}
-            pathOptions={{ weight: 3, opacity: 1, fillOpacity: 1 }}
-            interactive={false}
-          />
-        ))}
-
-        {/*
-          The stops ridden through. Small and quiet — they are information rather
-          than a decision, and the itinerary lists them in words. Drawn before
-          the badges so a badge is never lost behind one.
-        */}
-        {geometry?.passed.map((stop) => (
-          <CircleMarker
-            key={`${scope}-${stop.key}`}
-            center={stop.point}
-            radius={3.5}
-            className={`${stop.family === null ? '' : visualForFamily(stop.family).stroke} fill-surface`}
-            pathOptions={{ weight: 2, opacity: 1, fillOpacity: 1 }}
-            interactive={false}
-          />
-        ))}
-
-        {/* The badge naming each leg, halfway along it by length. */}
-        <LegBadges badges={badges} />
-
-        {/* A ridden leg's own vehicle, drawn only while it is actually out. */}
-        {vehicles.map((vehicle) => (
-          <Marker
-            key={vehicle.key}
-            position={vehicle.point}
-            icon={vehicle.icon}
-            interactive={vehicle.follow !== null}
-            keyboard={false}
-            {...(vehicle.follow === null
-              ? {}
-              : {
-                  eventHandlers: {
-                    click: (event: L.LeafletMouseEvent) => {
-                      L.DomEvent.stopPropagation(event);
-                      vehicle.follow?.();
-                    },
-                  },
-                })}
-            // Above the line and the leg badges, which it is travelling over.
-            zIndexOffset={1000}
-          />
-        ))}
-
-        {geometry?.origin && (
-          <Marker position={geometry.origin} icon={originIcon} interactive={false} />
-        )}
-
-        {geometry?.destination && (
-          <Marker position={geometry.destination} icon={destinationIcon} interactive={false} />
-        )}
-      </MapCanvas>
+      {geometry?.calls.map((call) => (
+        <CircleMarker
+          key={`${scope}-${call.key}`}
+          center={call.point}
+          radius={6}
+          className={`${call.family === null ? '' : visualForFamily(call.family).stroke} fill-surface`}
+          pathOptions={{ weight: 3, opacity: 1, fillOpacity: 1 }}
+          interactive={false}
+        />
+      ))}
 
       {/*
-        Said whenever there is a journey drawn to say it about — every transit
-        leg's timing on this map comes from the published schedule, whether or
-        not a vehicle happens to be running right now, so this does not wait
-        on one being drawn. A plain sibling of `MapCanvas` in DOM order, which
-        is not enough on its own: `isolate` on the map section keeps Leaflet's
-        own panes from out-ranking anything *outside* that section, but this
-        caption sits *inside* it, alongside `.leaflet-control-attribution` at
-        z-index 1000 — the highest Leaflet itself ever reaches. `z-[1001]` is
-        the one number that has to beat, the same way Leaflet's own zoom
-        control beats the tiles underneath it.
+        The stops ridden through. Small and quiet — they are information rather
+        than a decision, and the itinerary lists them in words. Drawn before
+        the badges so a badge is never lost behind one.
       */}
-      {journey !== null && (
-        <p className="rounded-control bg-surface shadow-card text-content-muted pointer-events-none absolute inset-x-0 bottom-2 z-[1001] mx-auto w-fit px-2.5 py-1 text-xs">
-          {locale.t(locale.strings.common.scheduleEstimateNotice)}
-        </p>
+      {geometry?.passed.map((stop) => (
+        <CircleMarker
+          key={`${scope}-${stop.key}`}
+          center={stop.point}
+          radius={3.5}
+          className={`${stop.family === null ? '' : visualForFamily(stop.family).stroke} fill-surface`}
+          pathOptions={{ weight: 2, opacity: 1, fillOpacity: 1 }}
+          interactive={false}
+        />
+      ))}
+
+      {/* The badge naming each leg, halfway along it by length. */}
+      <LegBadges badges={badges} />
+
+      {/* A ridden leg's own vehicle, drawn only while it is actually out. */}
+      {vehicles.map((vehicle) => (
+        <Marker
+          key={vehicle.key}
+          position={vehicle.point}
+          icon={vehicle.icon}
+          interactive={vehicle.follow !== null}
+          keyboard={false}
+          {...(vehicle.follow === null
+            ? {}
+            : {
+                eventHandlers: {
+                  click: (event: L.LeafletMouseEvent) => {
+                    L.DomEvent.stopPropagation(event);
+                    vehicle.follow?.();
+                  },
+                },
+              })}
+          // Above the line and the leg badges, which it is travelling over.
+          zIndexOffset={1000}
+        />
+      ))}
+
+      {geometry?.origin && (
+        <Marker position={geometry.origin} icon={originIcon} interactive={false} />
       )}
-    </>
+
+      {geometry?.destination && (
+        <Marker position={geometry.destination} icon={destinationIcon} interactive={false} />
+      )}
+    </MapCanvas>
   );
 }
