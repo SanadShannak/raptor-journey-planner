@@ -59,28 +59,40 @@ export function daySpan(trips: VariantTrip[], serviceDate: string): DaySpan | nu
 }
 
 /**
- * Where a variant sits relative to a day: running, finished, or not yet started.
+ * Where a variant sits relative to a day: running, finished, not yet started,
+ * or in service without calling on this particular day.
  *
  * Answered from the variant's own service days rather than from a range, so a
  * variant that ran in August and runs again in October is correctly "not
  * running today" in September rather than "running" because the day falls
  * between its ends.
  *
+ * `onOtherDays` is that same "not today" answer for a day that is neither
+ * before the first service day nor after the last — a Sunday-only variant
+ * checked on a Wednesday, say, or the September gap above. It has already
+ * started and has not finished, so it is neither `upcoming` (which promises a
+ * day that has not come yet) nor `past` — it runs, just not today.
+ *
  * `unknown` is for a variant with no service days at all — the feed's calendar
  * has nothing to say about it, which is not the same as it having stopped.
  */
-export type ServiceStanding = 'running' | 'past' | 'upcoming' | 'unknown';
+export type ServiceStanding = 'running' | 'past' | 'upcoming' | 'onOtherDays' | 'unknown';
 
 export function standingOn(serviceDates: string[], day: string | null): ServiceStanding {
   if (serviceDates.length === 0) return 'unknown';
   if (day === null) return 'unknown';
   if (serviceDates.includes(day)) return 'running';
 
+  const first = serviceDates[0];
+  if (first !== undefined && day < first) return 'upcoming';
+
   const last = serviceDates[serviceDates.length - 1];
   if (last !== undefined && last < day) return 'past';
 
-  // Somewhere ahead: either it has not started, or it is between two seasons.
-  return 'upcoming';
+  // Within its own first-to-last span, but not one of its actual service
+  // days — a rest day in an otherwise recurring pattern, or a genuine
+  // seasonal gap. Either way it has already started and has not finished.
+  return 'onOtherDays';
 }
 
 /** The two ends of a variant's service, for a "runs from … to …" line. */

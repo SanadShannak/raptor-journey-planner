@@ -93,14 +93,28 @@ describe('standingOn', () => {
   /*
    * The reason this asks the days rather than a range. A seasonal variant that
    * ran in August and runs again in October is not running in September, and a
-   * range would call it "running" because the day falls between its ends.
+   * range would call it "running" because the day falls between its ends — but
+   * it has already started and has not finished, so "upcoming" is not honest
+   * either.
    */
-  it('is not running in a gap between two seasons', () => {
+  it('is on other days in a gap between two seasons', () => {
     const seasonal = ['2026-08-10', '2026-08-11', '2026-10-05', '2026-10-06'];
 
-    expect(standingOn(seasonal, '2026-09-10')).toBe('upcoming');
+    expect(standingOn(seasonal, '2026-09-10')).toBe('onOtherDays');
     expect(standingOn(seasonal, '2026-08-11')).toBe('running');
     expect(standingOn(seasonal, '2026-11-01')).toBe('past');
+  });
+
+  /*
+   * The same "not today" answer for an ordinary recurring pattern, not only a
+   * seasonal one — a variant running every Monday, checked on a Thursday that
+   * falls between two Mondays it already has and one still ahead, is neither
+   * starting later nor finished.
+   */
+  it('is on other days for a day between two of an otherwise recurring pattern', () => {
+    const weekly = ['2026-08-17', '2026-08-24', '2026-08-31', '2026-09-07'];
+
+    expect(standingOn(weekly, '2026-08-20')).toBe('onOtherDays');
   });
 
   /* A variant the calendar says nothing about has not "stopped"; it is unknown. */

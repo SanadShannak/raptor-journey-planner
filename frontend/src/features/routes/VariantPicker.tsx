@@ -14,12 +14,14 @@ interface Props {
 }
 
 /** The order the groups read in: what you can ride, then what you cannot yet. */
-const ORDER: ServiceStanding[] = ['running', 'upcoming', 'past', 'unknown'];
+const ORDER: ServiceStanding[] = ['running', 'onOtherDays', 'upcoming', 'past', 'unknown'];
 
 function headingFor(standing: ServiceStanding, strings: Dictionary): Message {
   switch (standing) {
     case 'running':
       return strings.routes.runningNow;
+    case 'onOtherDays':
+      return strings.routes.runsOnOtherDays;
     case 'upcoming':
       return strings.routes.startingLater;
     case 'past':

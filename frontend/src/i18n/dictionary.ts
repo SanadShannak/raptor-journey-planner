@@ -448,7 +448,15 @@ export interface Dictionary {
     flipDirection: string;
     /** How many stops this variant calls at. */
     stopCount: Message;
-    /** How many times it runs, across every service day. */
+    /**
+     * How many distinct trips the compiled timetable carries for this
+     * variant — not how many times a vehicle actually departs across the
+     * feed's whole date range. A trip recurs on every day its own service
+     * calendar covers, so a pattern with, say, five distinct weekday trips
+     * and a service calendar spanning nine weeks runs far more than five
+     * times in total; this counts the *rows*, not the *departures*, which is
+     * why the string says "in the timetable" rather than leaving it bare.
+     */
     tripCount: Message;
     /**
      * When the first and last vehicle leave the origin **today**.
@@ -486,6 +494,12 @@ export interface Dictionary {
     currentVariant: string;
     /* Variants grouped by whether they run on the day being looked at. */
     runningNow: string;
+    /**
+     * In service — its own first-to-last service days already bracket the one
+     * being looked at — but not calling on this particular day. Distinct from
+     * `startingLater`, which has not begun at all.
+     */
+    runsOnOtherDays: string;
     /** Not running yet — its first service day is still ahead. */
     startingLater: string;
     noLongerRunning: string;

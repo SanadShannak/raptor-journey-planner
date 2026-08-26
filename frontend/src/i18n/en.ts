@@ -294,8 +294,8 @@ export const en: Dictionary = {
       other: '{count} stops',
     },
     tripCount: {
-      one: '1 trip',
-      other: '{count} trips',
+      one: '1 trip in the timetable',
+      other: '{count} trips in the timetable',
     },
     spanToday: 'Runs {first} to {last} today',
     spanOnDate: 'Runs {first} to {last} on {date}',
@@ -309,6 +309,7 @@ export const en: Dictionary = {
     hideAlternatives: 'Hide alternative variants',
     currentVariant: 'Showing now',
     runningNow: 'Running now',
+    runsOnOtherDays: 'Runs on other days',
     startingLater: 'Future',
     noLongerRunning: 'No longer running',
     towards: 'towards {destination}',

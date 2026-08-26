@@ -186,7 +186,7 @@ describe('RouteInspector', () => {
     ).toBeTruthy();
     expect(screen.getByText('towards Käpylä')).toBeTruthy();
     expect(screen.getByText('3 stops')).toBeTruthy();
-    expect(screen.getByText('450 trips')).toBeTruthy();
+    expect(screen.getByText('450 trips in the timetable')).toBeTruthy();
   });
 
   /*
