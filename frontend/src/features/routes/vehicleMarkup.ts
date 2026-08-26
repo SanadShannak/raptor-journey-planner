@@ -77,6 +77,18 @@ function labelSize(designation: string): number {
   return 10;
 }
 
+/**
+ * A single glyph at its own size sits nowhere near `LABEL_WIDTH` — a bold
+ * digit or letter at font-size 17 is maybe half of it — so forcing one out to
+ * fill the same 20 units every longer designation is held to does not "hold
+ * the width", it stretches the one glyph sideways into an oval. The squeeze
+ * exists to stop several characters overflowing the disc; a single one was
+ * never at risk of that, so it is drawn at its natural width instead.
+ */
+function fitsWithoutStretching(designation: string): boolean {
+  return designation.length <= 1;
+}
+
 /** Markup is assembled by hand here, so a designation is data until it is not. */
 function escapeText(value: string): string {
   return value
@@ -99,6 +111,9 @@ export function vehicleMarkup(
   const ink = visualForFamily(family).ink;
   const turn = `rotate(${bearing.toFixed(1)} 32 32)`;
   const label = escapeText(designation);
+  const fit = fitsWithoutStretching(designation)
+    ? ''
+    : ` textLength="${LABEL_WIDTH}" lengthAdjust="spacingAndGlyphs"`;
 
   /*
    * The pin is outlined by drawing it twice — thickly in the outline colour,
@@ -123,6 +138,6 @@ export function vehicleMarkup(
   </g>
   <circle cx="32" cy="32" r="16" class="fill-surface" />
   <circle cx="32" cy="32" r="12.5" fill="currentColor" />
-  <text x="32" y="32" dy="0.36em" text-anchor="middle" textLength="${LABEL_WIDTH}" lengthAdjust="spacingAndGlyphs" font-size="${labelSize(designation)}" font-weight="700" class="fill-on-mode">${label}</text>
+  <text x="32" y="32" dy="0.36em" text-anchor="middle"${fit} font-size="${labelSize(designation)}" font-weight="700" class="fill-on-mode">${label}</text>
 </svg>`;
 }

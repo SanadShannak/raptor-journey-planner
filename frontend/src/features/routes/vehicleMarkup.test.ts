@@ -53,6 +53,26 @@ describe('vehicleMarkup', () => {
     expect(size(long)).toBeLessThan(size(vehicleMarkup('bus', 0, '2')));
   });
 
+  /*
+   * A single glyph is nowhere near `LABEL_WIDTH` at its own size, so forcing
+   * it out to fill the same width every longer designation is squeezed to
+   * stretches the one character sideways instead of holding a width nothing
+   * was overflowing.
+   */
+  it('draws a single character at its own width, unstretched', () => {
+    const digit = vehicleMarkup('bus', 0, '7');
+    const letter = vehicleMarkup('bus', 0, 'A');
+
+    expect(digit).not.toContain('textLength');
+    expect(digit).not.toContain('lengthAdjust');
+    expect(letter).not.toContain('textLength');
+    expect(letter).not.toContain('lengthAdjust');
+
+    // A two-character designation still gets the squeeze, so it never
+    // overflows the disc.
+    expect(vehicleMarkup('bus', 0, '56')).toContain('textLength="20"');
+  });
+
   /* A designation is data until it is markup, and this file writes markup. */
   it('escapes a designation that would otherwise be markup', () => {
     expect(vehicleMarkup('bus', 0, 'A&<B')).toContain('A&amp;&lt;B');
