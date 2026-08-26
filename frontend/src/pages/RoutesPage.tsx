@@ -244,7 +244,16 @@ export default function RoutesPage() {
 
       <section
         aria-label={t(strings.planner.mapLabel)}
-        className="bg-surface-muted relative order-first h-56 flex-1 lg:order-none lg:h-auto"
+        className="bg-surface-muted relative order-first h-56 shrink-0 lg:order-none lg:h-auto lg:flex-1"
+        /*
+          `flex-1` on this element clobbered its own `h-56` on the narrow
+          layout: Tailwind's flex-1 sets `flex-basis: 0%`, and on mobile the
+          containing column has no defined height for it to grow into, so
+          the section collapsed to nothing — the map was never drawn, not
+          merely small. `shrink-0` gives the explicit height back its say;
+          `lg:flex-1` restores the grow behaviour once the desktop layout
+          pins the page and there is real space to fill.
+        */
       >
         <RouteMap
           network={network}

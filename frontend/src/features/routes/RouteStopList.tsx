@@ -430,7 +430,20 @@ export function RouteStopList({
                   />
                 )}
               </span>
-              <Strut ink={belowSpent ? SPENT : ink} hidden={last} />
+              {/*
+                The leg the vehicle is *currently on* is drawn as two pieces
+                rather than one colour, split at exactly how far along it the
+                vehicle has got — grey above, still lit below. A boolean
+                "spent" cannot say this: it only knows whether the *call* at the
+                far stop is past, so a vehicle three-quarters of the way down a
+                two-minute leg still read as fully lit until the very instant it
+                arrived, when the whole leg flipped grey in one jump.
+              */}
+              {leaving !== undefined ? (
+                <SplitStrut ink={ink} fraction={leaving.progress.fraction} />
+              ) : (
+                <Strut ink={belowSpent ? SPENT : ink} hidden={last} />
+              )}
 
               {/*
                 The vehicles, laid over the spine rather than in it.
@@ -665,6 +678,31 @@ function Strut({
   // Square-ended, not rounded: a rounded cap is a semicircle of nothing at the
   // very join the overlap exists to close.
   return <span className={`${ink} w-1 bg-current ${height}`} />;
+}
+
+/**
+ * The strut between two stops, where the line between them is where a followed
+ * vehicle actually is.
+ *
+ * Stacked rather than blended: a hard edge at the fraction reads as "here is
+ * exactly how far it has got", which is the honest picture — the timetable
+ * gives a position, not a gradient of confidence. `overflow-hidden` on the
+ * frame is what lets the two children's percentage heights sum to a strut
+ * whose own height is a `flex-1` nobody can put a percentage against directly.
+ */
+function SplitStrut({ ink, fraction }: { ink: string; fraction: number }) {
+  const passed = Math.round(Math.max(0, Math.min(1, fraction)) * 1000) / 10;
+
+  return (
+    <span className="-mt-0.5 flex min-h-2 w-1 flex-1 flex-col overflow-hidden">
+      <span
+        aria-hidden="true"
+        className={`${SPENT} w-full flex-none bg-current`}
+        style={{ height: `${passed}%` }}
+      />
+      <span className={`${ink} w-full flex-1 bg-current`} />
+    </span>
+  );
 }
 
 /**

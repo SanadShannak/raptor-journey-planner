@@ -881,6 +881,29 @@ describe('RouteInspector', () => {
       );
     });
 
+    /*
+     * The leg the vehicle is *on* is split exactly where it has got to, rather
+     * than staying lit until the instant it completes. At 15:44:30 on a trip
+     * that left stop 1 at 15:38 and reaches stop 2 at 16:30, six and a half of
+     * the fifty-two minutes have gone — an eighth of the leg, precisely.
+     */
+    it('splits the current leg at the vehicle’s own position', async () => {
+      followed();
+      show({ tripId: 'the-one', tripDate: '2026-09-10' });
+
+      await screen.findByText('3:20 PM');
+
+      const grey = document.querySelector('[style*="height"]') as HTMLElement | null;
+      expect(grey).toBeTruthy();
+      expect(grey?.style.height).toBe('12.5%');
+      expect(grey?.className).toContain('text-border-strong');
+
+      // The rest of the same leg stays lit, not merely "not yet grey".
+      const lit = grey?.nextElementSibling as HTMLElement | null;
+      expect(lit?.className).toContain('text-mode-tram');
+      expect(lit?.style.height).toBe('');
+    });
+
     /* A stop this run drives past is a different fact from the end of service. */
     it('says a skipped stop is not on this run', async () => {
       stubFetch({

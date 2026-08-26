@@ -277,6 +277,9 @@
     --color-border-strong: var(--dark-border-strong);
     --color-danger: var(--dark-danger);
     --color-success: var(--dark-success);
+    --vehicle-halo-peak: 0.85;
+    --vehicle-halo-steady: 0.55;
+    --vehicle-halo-steady-still: 0.6;
   }
 }
 
@@ -311,6 +314,9 @@
   --color-border-strong: var(--dark-border-strong);
   --color-danger: var(--dark-danger);
   --color-success: var(--dark-success);
+  --vehicle-halo-peak: 0.85;
+  --vehicle-halo-steady: 0.55;
+  --vehicle-halo-steady-still: 0.6;
 }
 
 /*
@@ -490,10 +496,28 @@
  * circle's own centre rather than the SVG's user-space origin — without it the
  * halo grows out of the top-left corner of the badge and swings.
  */
+/*
+ * The three opacities the halo runs at, as custom properties rather than bare
+ * numbers — because they need a second, brighter value in the dark scheme and
+ * the two schemes have to move together.
+ *
+ * A dark scheme's mode colours are already lightened for their own contrast
+ * requirements (`--dark-mode-tram` and the rest), which sounds like it should
+ * be enough. It was not: the same opacity over near-black cartography reads as
+ * fainter than it does over a light basemap, because a translucent layer's
+ * apparent strength is relative to what is behind it, and what is behind it
+ * here is far darker in one scheme than the other.
+ */
+:root {
+  --vehicle-halo-peak: 0.6;
+  --vehicle-halo-steady: 0.3;
+  --vehicle-halo-steady-still: 0.36;
+}
+
 @keyframes vehicle-pulse {
   0% {
     transform: scale(0.5);
-    opacity: 0.6;
+    opacity: var(--vehicle-halo-peak);
   }
 
   75% {
@@ -534,7 +558,7 @@
  * badge blinked out of its own surroundings twice every couple of seconds.
  */
 .vehicle-halo-steady {
-  opacity: 0.3;
+  opacity: var(--vehicle-halo-steady);
 }
 
 /*
@@ -548,7 +572,7 @@
   }
 
   .vehicle-halo-steady {
-    opacity: 0.36;
+    opacity: var(--vehicle-halo-steady-still);
   }
 }
 
