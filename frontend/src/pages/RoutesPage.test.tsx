@@ -145,10 +145,10 @@ describe('RoutesPage back', () => {
   it('goes to the line index when it was reached by its own address', async () => {
     show('/routes/tram-1');
 
-    const back = await screen.findByRole('button', { name: 'All lines' });
+    const back = await screen.findByRole('button', { name: 'All routes' });
     expect(screen.queryByRole('button', { name: /Back to the journey/ })).toBeNull();
 
     fireEvent.click(back);
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Lines' })).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Routes' })).toBeTruthy());
   });
 });

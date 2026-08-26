@@ -364,10 +364,10 @@ describe('RouteInspector', () => {
     stubFetch();
     show();
 
-    const disclose = await screen.findByRole('button', { name: 'Show alternative routes' });
+    const disclose = await screen.findByRole('button', { name: 'Show alternative variants' });
     fireEvent.click(disclose);
 
-    const panel = within(screen.getByRole('heading', { name: 'Alternative routes' }).parentElement!);
+    const panel = within(screen.getByRole('heading', { name: 'Alternative variants' }).parentElement!);
     /*
      * Both ends, never the destination alone. Variants of one line share
      * headsigns constantly — tram 1 has two patterns both signed "Käpylä" — so
@@ -399,7 +399,7 @@ describe('RouteInspector', () => {
     });
     show();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Show alternative routes' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Show alternative variants' }));
 
     expect(screen.getByRole('heading', { name: 'Running now' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Future' })).toBeTruthy();
@@ -414,7 +414,7 @@ describe('RouteInspector', () => {
     stubFetch();
     show();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Show alternative routes' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Show alternative variants' }));
 
     expect(screen.getAllByText(/Runs Sep 10 to Sep 11/).length).toBeGreaterThan(0);
     expect(screen.queryByText(/Runs 5:37 AM to 9:09 PM/)).toBeNull();
@@ -425,7 +425,7 @@ describe('RouteInspector', () => {
     show();
 
     await screen.findByRole('heading', { level: 1 });
-    expect(screen.queryByRole('button', { name: 'Show alternative routes' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Show alternative variants' })).toBeNull();
   });
 
   /*
@@ -520,8 +520,8 @@ describe('RouteInspector', () => {
     });
     show();
 
-    expect(await screen.findByText('This line does not run today.')).toBeTruthy();
-    expect(screen.getAllByText('This line does not run today.')).toHaveLength(1);
+    expect(await screen.findByText('This route does not run today.')).toBeTruthy();
+    expect(screen.getAllByText('This route does not run today.')).toHaveLength(1);
     // No span either: there is no day to span.
     expect(screen.queryByText(/^Runs /)).toBeNull();
   });
@@ -599,7 +599,7 @@ describe('RouteInspector', () => {
         }),
       );
 
-      expect(screen.getByText(/end of the line/)).toBeTruthy();
+      expect(screen.getByText(/end of the route/)).toBeTruthy();
       expect(screen.queryByRole('table')).toBeNull();
     });
 
@@ -829,7 +829,7 @@ describe('RouteInspector', () => {
         await screen.findByText('Following one run, towards Käpylä.'),
       ).toBeTruthy();
 
-      fireEvent.click(screen.getByRole('button', { name: 'Show the whole line' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Show the whole route' }));
       expect(onSelectTrip).toHaveBeenCalledWith(null);
     });
 

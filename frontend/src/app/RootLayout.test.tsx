@@ -112,7 +112,7 @@ describe('auth', () => {
       .getAllByRole('link')
       .map((link) => link.textContent);
     expect(new Set(names)).toEqual(
-      new Set(['Plan a journey', 'Lines', 'Stops', 'Travel card']),
+      new Set(['Plan a journey', 'Routes', 'Stops', 'Travel card']),
     );
   });
 

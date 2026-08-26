@@ -309,16 +309,16 @@ describe('StopInspector', () => {
     show();
 
     await screen.findByText('Itäkeskus');
-    expect(screen.queryByRole('button', { name: 'Show all lines' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Show all routes' })).toBeNull();
 
     screen.getByRole('checkbox', { name: 'E' }).click();
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Show all lines' })).toBeTruthy(),
+      expect(screen.getByRole('button', { name: 'Show all routes' })).toBeTruthy(),
     );
 
     screen.getByRole('checkbox', { name: '550' }).click();
     await waitFor(() =>
-      expect(screen.queryByRole('button', { name: 'Show all lines' })).toBeNull(),
+      expect(screen.queryByRole('button', { name: 'Show all routes' })).toBeNull(),
     );
   });
 

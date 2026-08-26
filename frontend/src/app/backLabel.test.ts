@@ -17,10 +17,10 @@ describe('backLabel', () => {
   });
 
   it('names a line when a line is what is behind', () => {
-    expect(said('/routes/tram-1')).toBe('Back to the line');
+    expect(said('/routes/tram-1')).toBe('Back to the route');
     // A variant or a followed run is still a line.
     expect(said('/routes/tram-1?variant=0&trip=abc&date=2026-09-10')).toBe(
-      'Back to the line',
+      'Back to the route',
     );
   });
 
@@ -32,7 +32,7 @@ describe('backLabel', () => {
   /* The indexes name themselves, in the same words a control uses when it has
      nowhere to step back to and goes there instead. */
   it('names an index as the index', () => {
-    expect(said('/routes')).toBe('All lines');
+    expect(said('/routes')).toBe('All routes');
     expect(said('/stops')).toBe('Back to stops');
   });
 
