@@ -5,7 +5,8 @@ import { messageForApiError, nowInZone, useLocale } from '../i18n';
 import { usePageTitle } from '../app/usePageTitle';
 import { getValidDates, planJourney } from '../api/journey';
 import { getNetwork } from '../api/network';
-import { checkHealth } from '../api/health';
+import { markServiceUp } from '../app/backendHealth';
+import { useBackendHealth } from '../app/useBackendHealth';
 import { boundsForNetwork, type GeoBounds } from '../config/geocoding';
 import { DEFAULT_WALKING_PACE, WALKING_PACES } from '../config/journey';
 import type { Journey } from '../types/journey';
@@ -53,9 +54,6 @@ function mergeJourneys(current: Journey[], added: Journey[]): Journey[] {
       `${a.startDate}${a.startTime}`.localeCompare(`${b.startDate}${b.startTime}`),
     );
 }
-
-/** Whether the routing service is answering at all. */
-type Service = 'checking' | 'up' | 'down';
 
 /**
  * How long the searching state stays up, at the least.
@@ -109,7 +107,7 @@ export default function PlanPage() {
   const [timezone, setTimezone] = useState<string | null>(null);
   const [bounds, setBounds] = useState<GeoBounds | null>(null);
   const [network, setNetwork] = useState<string | null>(null);
-  const [service, setService] = useState<Service>('checking');
+  const { service } = useBackendHealth();
 
   /*
    * The search lives in the URL again, and the reversal is worth recording
@@ -280,21 +278,28 @@ export default function PlanPage() {
   );
 
   const requestId = useRef(0);
-  /** Bumped to re-run the startup effect when the visitor retries. */
+  /** Bumped to re-run the startup effect when the service comes back. */
   const [attempt, setAttempt] = useState(0);
+
+  /*
+   * The network and the valid dates fail together with the health probe —
+   * "everything below it fails together when the backend is down" is why
+   * that comment used to sit right above a call to `checkHealth` here — so a
+   * recovery is worth the same retry, even though the probe itself now lives
+   * in the header rather than on this page. Adjusted during render rather
+   * than in an effect, and only on the transition *out of* `'down'`: `service`
+   * starts at `'checking'` on every ordinary load and resolves to `'up'`
+   * within a few seconds of that, which is not a recovery and would otherwise
+   * queue a second, redundant fetch behind the one already in flight.
+   */
+  const [lastService, setLastService] = useState(service);
+  if (service !== lastService) {
+    setLastService(service);
+    if (service === 'up' && lastService === 'down') setAttempt((count) => count + 1);
+  }
 
   useEffect(() => {
     const controller = new AbortController();
-
-    /*
-     * The probe answers first and cheaply: everything below it fails together
-     * when the backend is down, and there is no point showing three separate
-     * failures for one cause. It never rejects — "down" is an answer.
-     */
-    void checkHealth({ signal: controller.signal }).then((alive) => {
-      if (controller.signal.aborted) return;
-      setService(alive ? 'up' : 'down');
-    });
 
     /*
      * Both are needed before the form can be seeded: the network states which
@@ -447,7 +452,7 @@ export default function PlanPage() {
       setErrorMessage(null);
       // A search that got through is proof the service is up, whatever an
       // earlier probe concluded.
-      setService('up');
+      markServiceUp();
     } catch (error) {
       if (id !== requestId.current) return;
       setState('failed');
@@ -724,33 +729,18 @@ export default function PlanPage() {
             </div>
 
             {/*
-              The service being down is stated once, at the top, and the form
-              below it is turned off rather than left to fail on submit. Every
-              other control on the page — theme, language, navigation — keeps
-              working, because none of them needs the backend.
+              The service being down is stated once, in the header every page
+              shares — this used to be said again here, but a visitor already
+              seeing it above the form does not need it repeated below the
+              same fold. What still belongs to this page is the one thing the
+              header cannot say: the form itself is off rather than left to
+              fail on submit, and everything else on this page — theme,
+              language, navigation — keeps working regardless.
             */}
             {offline && (
-              <div
-                role="alert"
-                className="rounded-card border-danger bg-surface-muted flex flex-col items-start gap-2 border px-4 py-3"
-              >
-                <p className="text-danger font-medium">
-                  {t(strings.planner.serviceUnavailable)}
-                </p>
-                <p className="text-content-muted text-sm">
-                  {t(strings.planner.serviceUnavailableHint)}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setService('checking');
-                    setAttempt((count) => count + 1);
-                  }}
-                  className="rounded-control border-border-strong text-content hover:bg-surface hover:border-brand-500 focus-visible:outline-brand-500 cursor-pointer px-3 py-1.5 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
-                >
-                  {t(strings.planner.retryConnection)}
-                </button>
-              </div>
+              <p className="text-content-muted text-sm">
+                {t(strings.planner.serviceUnavailableHint)}
+              </p>
             )}
 
             <JourneyForm
@@ -890,6 +880,7 @@ export default function PlanPage() {
           journey={shown}
           network={network}
           area={bounds}
+          timezone={timezone}
           /*
             Straight into the form, through the same path a typed place takes —
             so it clears the results, runs the same guard, and the field shows

@@ -199,7 +199,6 @@ export const en: Dictionary = {
     totalRiding: 'Ride {duration}',
     journeySummary: 'Departs {start}, arrives {end}, {duration}.',
 
-    serviceUnavailable: 'The routing service is not responding',
     serviceUnavailableHint: 'Journey planning needs it, so searching is paused. Everything else on this page still works.',
     retryConnection: 'Try again',
     checkingService: 'Checking the routing service…',

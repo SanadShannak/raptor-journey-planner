@@ -5,6 +5,7 @@ import { ThemeToggle } from '../theme';
 import { AuthDialog, type AuthMode } from './AuthDialog';
 import { PrimaryNav } from './PrimaryNav';
 import { paths } from './routes';
+import { useBackendHealth } from './useBackendHealth';
 
 /**
  * The wine app bar.
@@ -25,6 +26,7 @@ import { paths } from './routes';
 export function AppHeader() {
   const { strings, t } = useLocale();
   const [authMode, setAuthMode] = useState<AuthMode | null>(null);
+  const { service, retry } = useBackendHealth();
 
   return (
     <header className="bg-chrome text-on-chrome relative">
@@ -84,6 +86,34 @@ export function AppHeader() {
           </button>
         </div>
       </div>
+
+      {/*
+        The routing service being down is stated once, here, rather than on
+        whichever page happens to need it that day — a visitor browsing stops
+        or a card balance never touches it, but the planner does, and finding
+        out only by opening that one page meant the other three looked fine
+        for a service that was not.
+
+        On `surface` rather than `chrome`: `border-danger`/`text-danger` is
+        verified against `surface` and `surface-raised` only, and a strip in
+        the brand colour would need its own pairing invented for no reason
+        when the page's own ground already has one that works.
+      */}
+      {service === 'down' && (
+        <div
+          role="alert"
+          className="bg-surface border-danger text-danger flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t px-4 py-2 text-sm"
+        >
+          <span className="font-medium">{t(strings.status.backendUnreachable)}</span>
+          <button
+            type="button"
+            onClick={retry}
+            className="rounded-control border-border-strong text-content hover:bg-surface-muted focus-visible:outline-brand-500 cursor-pointer px-2.5 py-1 text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            {t(strings.planner.retryConnection)}
+          </button>
+        </div>
+      )}
 
       {authMode !== null && (
         <AuthDialog

@@ -280,7 +280,6 @@ export interface Dictionary {
     journeySummary: string;
 
     /* The planner depends on a backend that may not be running. */
-    serviceUnavailable: string;
     serviceUnavailableHint: string;
     retryConnection: string;
     checkingService: string;

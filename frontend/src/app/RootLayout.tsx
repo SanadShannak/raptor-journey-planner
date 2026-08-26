@@ -4,6 +4,7 @@ import { useLocale } from '../i18n';
 import { AppHeader } from './AppHeader';
 import { paths } from './routes';
 import { useTrackNavigationDepth } from './useBackStack';
+import { useStartHealthCheck } from './useBackendHealth';
 import { useRouteFocus } from './useRouteFocus';
 
 /**
@@ -38,6 +39,13 @@ export function RootLayout() {
    * entry of ours behind the current one.
    */
   useTrackNavigationDepth();
+
+  /*
+   * Started here for the same reason: the probe belongs to the app, not to
+   * whichever page happens to render first, and the header right below reads
+   * its answer regardless of which page that was.
+   */
+  useStartHealthCheck();
 
   const fullHeight =
     pathname === paths.home ||
