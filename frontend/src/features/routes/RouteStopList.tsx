@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router';
 import { formatClockTime, formatDate, useLocale } from '../../i18n';
 import type { Dictionary, Message } from '../../i18n/dictionary';
@@ -13,7 +12,7 @@ import {
 import { FareZone, StopCode } from '../stops/StopFacts';
 import type { NetworkMoment } from '../stops/minutesUntil';
 import { callOnTrip, nextCallAt } from './nextCallAt';
-import { centringScrollTop, offsetWithin, scrollingAncestor } from './centreInPanel';
+import { useFollowInView } from './useFollowInView';
 import { VehicleBadge } from './VehicleBadge';
 import type { Vehicle } from './vehicleProgress';
 
@@ -64,109 +63,6 @@ interface Props {
    */
   onFollowTrip?: ((tripId: string) => void) | null | undefined;
 }
-
-/**
- * Keeps a followed vehicle in view, until the reader would rather it did not.
- *
- * Only while one run is being followed. With five vehicles on a line there is
- * no "the" vehicle to hold on screen, and a list that scrolled itself to one of
- * them would be taking a decision nobody asked it to.
- *
- * **It gives up the moment the reader scrolls.** Reading ahead down the line is
- * the obvious thing to do while following a run, and a list that hauls itself
- * back every ten seconds is unusable — worse than one that never moved. Once
- * they have taken over they keep it for as long as the run is followed.
- *
- * Intent is read from `wheel`, `touchstart` and the keys that scroll, rather
- * than from scroll position. Position cannot tell our own smooth scroll from a
- * person's, and every attempt to do so with a flag is a race with the animation
- * it is trying to ignore.
- */
-function useFollowInView(active: boolean): (node: HTMLElement | null) => void {
-  /*
-   * The node in state rather than in a ref. A ref read during render is a value
-   * React has not been told about, so the effect below would keep whichever
-   * node it first saw — and the whole point is that this one moves from row to
-   * row as the vehicle advances.
-   */
-  const [node, setNode] = useState<HTMLElement | null>(null);
-  const [surrendered, setSurrendered] = useState(false);
-
-  /*
-   * A new run is a new subject, so the list is allowed to move again. Adjusted
-   * during render rather than in an effect: an effect would paint one frame
-   * still surrendered and then re-render to correct it, and the correction is
-   * not a synchronisation with anything — it is what the value *is* for the new
-   * subject.
-   */
-  const [wasActive, setWasActive] = useState(active);
-  if (active !== wasActive) {
-    setWasActive(active);
-    if (!active) setSurrendered(false);
-  }
-
-  useEffect(() => {
-    if (!active) return;
-
-    const takeOver = () => setSurrendered(true);
-    const onKey = (event: KeyboardEvent) => {
-      if (SCROLL_KEYS.has(event.key)) takeOver();
-    };
-
-    window.addEventListener('wheel', takeOver, { passive: true });
-    window.addEventListener('touchstart', takeOver, { passive: true });
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('wheel', takeOver);
-      window.removeEventListener('touchstart', takeOver);
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [active]);
-
-  useEffect(() => {
-    if (!active || surrendered || node === null) return;
-
-    /*
-     * The panel, and only the panel. `scrollIntoView` would take the document
-     * with it, and these pages pin their shell to the viewport with no
-     * scrollbar to undo that — see `centreInPanel`.
-     */
-    const box = scrollingAncestor(node);
-    if (box === null) return;
-
-    box.scrollTo({
-      /*
-       * Centred rather than merely brought into view. The least a browser can
-       * get away with is the badge just past the edge of the panel, with none
-       * of the line ahead of it — and the stops either side are the whole
-       * reason for following a run.
-       *
-       * An absolute target in the panel's own coordinates, so issuing it while
-       * an earlier smooth scroll is still running retargets that scroll instead
-       * of adding to wherever it had got to.
-       */
-      top: centringScrollTop(
-        offsetWithin(node, box),
-        node.getBoundingClientRect().height,
-        box.clientHeight,
-      ),
-      behavior: 'smooth',
-    });
-  }, [active, surrendered, node]);
-
-  return setNode;
-}
-
-/** The keys that scroll a list, and therefore say the reader is driving. */
-const SCROLL_KEYS = new Set([
-  'ArrowUp',
-  'ArrowDown',
-  'PageUp',
-  'PageDown',
-  'Home',
-  'End',
-  ' ',
-]);
 
 /**
  * How far ahead a countdown earns its ink here.
@@ -258,10 +154,12 @@ export function RouteStopList({
   onFollowTrip = null,
 }: Props) {
   /*
-   * Only a followed run has a vehicle worth holding on screen, and only while
-   * the day actually has one out.
+   * Keyed on the trip's own id, not on whether one is being followed. See
+   * `useFollowInView` for why: this component does not remount just because
+   * the trip being tracked changes, so re-arming has to notice a different
+   * subject directly rather than inferring it from an active/inactive flip.
    */
-  const holdInView = useFollowInView(focusTrip !== null && vehicles.length > 0);
+  const holdInView = useFollowInView(focusTrip?.tripId ?? null);
   const { strings, t } = useLocale();
   const at = useLocation();
   const family = familyFor(routeType);
@@ -294,14 +192,42 @@ export function RouteStopList({
    * nothing is spent — a blank list drawn entirely in grey says the line is
    * finished when it has not been asked yet.
    */
+  /*
+   * Following one run, "behind" is read off the vehicle's own position rather
+   * than off the calls again — and the difference matters for up to fifty-nine
+   * seconds out of every minute.
+   *
+   * `nextCalls` is minute-rounded, because that is the resolution the timetable
+   * itself publishes. The badge is not: it moves on the network clock's own
+   * seconds, the same ones `activeVehicles` places it with. So for most of a
+   * minute after a departure the vehicle has plainly left — the badge has
+   * already slid onto the next leg — while the call it departed on has not yet
+   * rounded down to a past minute, and a stop it had visibly left still showed
+   * as not-yet-spent. Reading the vehicle's own `fromSequence` instead answers
+   * the same question the picture on screen is already answering.
+   */
+  const trackedVehicle = focusTrip !== null ? (vehicles[0] ?? null) : null;
+
   const spent = (index: number): boolean => {
     if (trips === null || now === null) return false;
-    /*
-     * Following one run, "spent" means this vehicle has been and gone — not
-     * that nothing will ever call again. A stop the trip skips is not spent
-     * either; it is simply not on this run, which the row says in words.
-     */
+
     if (focusTrip !== null) {
+      if (trackedVehicle !== null) {
+        const sequence = stops[index]?.sequence;
+        if (sequence === undefined) return false;
+        const { fromSequence, atStop } = trackedVehicle.progress;
+        // Standing at a stop, that stop is still being served, not behind you
+        // yet — only strictly earlier ones are. Mid-leg, you have already left
+        // the one you set off from, so it counts too.
+        return atStop ? sequence < fromSequence : sequence <= fromSequence;
+      }
+
+      /*
+       * No live position — the run has not started today, or it is already
+       * finished, or the day being looked at is not today at all. The minute
+       * check is exact in both of those states: every call reads as still
+       * ahead, or every call reads as already gone.
+       */
       const call = nextCalls[index];
       return call !== null && call !== undefined && call.minutes !== null && call.minutes < 0;
     }
