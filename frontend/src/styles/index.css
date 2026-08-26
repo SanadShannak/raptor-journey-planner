@@ -629,8 +629,21 @@
 }
 
 .leaflet-control-attribution {
-  background: color-mix(in oklab, var(--color-surface-raised) 82%, transparent);
+  /*
+   * No box. A solid chip sat on top of the tiles as its own opaque shape,
+   * which read as a UI element rather than a credit quietly sitting on the
+   * map it names. A soft halo in the page's own surface colour — light on
+   * the light scheme, dark on the dark one, so it always reads as "the map's
+   * own colour" rather than a fixed shade fighting whichever tile is under
+   * it — keeps the text legible over both CARTO styles without drawing a
+   * shape of its own.
+   */
+  background: transparent;
   color: var(--color-content-muted);
+  text-shadow:
+    0 0 3px var(--color-surface),
+    0 0 3px var(--color-surface),
+    0 0 3px var(--color-surface);
   /*
    * Held to left-to-right whatever the page is doing. The credit is a fixed
    * string ending in a Latin name, and in an RTL paragraph the "©" migrates
