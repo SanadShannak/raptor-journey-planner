@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo } from 'react';
 import L from 'leaflet';
 import { CircleMarker, Marker, Polyline, useMap } from 'react-leaflet';
+import { useLocale } from '../i18n';
 import type { GeoBounds } from '../config/geocoding';
 import type { Coordinates } from '../types/journey';
 import type { LineVariantDetail } from '../types/route';
@@ -125,6 +126,7 @@ export function RouteMap({
   onFollowTrip = null,
   chase = false,
 }: Props) {
+  const { t, strings } = useLocale();
   const home = useMemo(() => homeViewFor(network, area), [network, area]);
   const reduceMotion = useReducedMotion();
 
@@ -234,126 +236,140 @@ export function RouteMap({
   }, [chase, variant, vehicles, projected]);
 
   return (
-    <MapCanvas network={network}>
-      {/*
-        Drawn under the line: context, not the subject — and held back two zoom
-        levels further in than the stops page for exactly that reason. A line
-        framed end to end covers a whole corridor, and filling it with every
-        other stop in the city buries the one thing the reader came for.
-      */}
-      <StopLayer
-        onStopHover={() => {}}
-        onStopSelect={onStopSelect}
-        minZoom={ROUTE_STOPS_MIN_ZOOM}
-      />
-
-      {/*
-        A variant on its way holds the map still rather than sending it home
-        and back — two animated moves collide, and what a reader sees is the
-        zoom out and no zoom back in. The lesson the stops map recorded.
-      */}
-      {/*
-        One or the other, never both. Two effects moving the same map race, and
-        the loser is whichever ran first — which is how a map ends up framing a
-        whole line for one frame and then snapping to a vehicle.
-      */}
-      {!pending &&
-        (chasing === null ? (
-          <FitTo box={box} home={home} animate={!reduceMotion} />
-        ) : (
-          <Chase point={chasing} animate={!reduceMotion} />
-        ))}
-
-      {path !== null && (
-        <Fragment key={`${scope}-line`}>
-          {/*
-            Drawn twice. The casing underneath is the page's own surface
-            colour, which is what keeps a dark blue line from disappearing into
-            dark water and a pale one from washing out over a light map. It is
-            ordinary transit cartography and it leaves the colour untouched.
-          */}
-          <Polyline
-            positions={path}
-            className="stroke-surface"
-            pathOptions={{ weight: 10, opacity: 0.9 }}
-            interactive={false}
-          />
-          <Polyline
-            positions={path}
-            className={ink}
-            pathOptions={{ weight: 6, opacity: 1 }}
-            interactive={false}
-          />
-        </Fragment>
-      )}
-
-      {/* Over the line and its stops, because it is travelling along them. */}
-      {variant !== null && vehicles.length > 0 && (
-        <RouteVehicles
-          variant={variant}
-          vehicles={vehicles}
-          onFollow={onFollowTrip}
-          projected={projected}
+    <>
+      <MapCanvas network={network}>
+        {/*
+          Drawn under the line: context, not the subject — and held back two zoom
+          levels further in than the stops page for exactly that reason. A line
+          framed end to end covers a whole corridor, and filling it with every
+          other stop in the city buries the one thing the reader came for.
+        */}
+        <StopLayer
+          onStopHover={() => {}}
+          onStopSelect={onStopSelect}
+          minZoom={ROUTE_STOPS_MIN_ZOOM}
         />
-      )}
 
-      {/*
-        The two ends, as the marks this app already uses for them.
+        {/*
+          A variant on its way holds the map still rather than sending it home
+          and back — two animated moves collide, and what a reader sees is the
+          zoom out and no zoom back in. The lesson the stops map recorded.
+        */}
+        {/*
+          One or the other, never both. Two effects moving the same map race, and
+          the loser is whichever ran first — which is how a map ends up framing a
+          whole line for one frame and then snapping to a vehicle.
+        */}
+        {!pending &&
+          (chasing === null ? (
+            <FitTo box={box} home={home} animate={!reduceMotion} />
+          ) : (
+            <Chase point={chasing} animate={!reduceMotion} />
+          ))}
 
-        A slightly larger circle among circles is not a distinction anybody
-        reads — on a line that doubles back you could not tell which end you
-        were looking at without following the whole thing. These are the same
-        target and pin the planner puts on a journey's ends.
+        {path !== null && (
+          <Fragment key={`${scope}-line`}>
+            {/*
+              Drawn twice. The casing underneath is the page's own surface
+              colour, which is what keeps a dark blue line from disappearing into
+              dark water and a pale one from washing out over a light map. It is
+              ordinary transit cartography and it leaves the colour untouched.
+            */}
+            <Polyline
+              positions={path}
+              className="stroke-surface"
+              pathOptions={{ weight: 10, opacity: 0.9 }}
+              interactive={false}
+            />
+            <Polyline
+              positions={path}
+              className={ink}
+              pathOptions={{ weight: 6, opacity: 1 }}
+              interactive={false}
+            />
+          </Fragment>
+        )}
 
-        The origin takes the line's colour, because where a line *starts* is a
-        fact about that line; the destination keeps the brand pin it wears
-        everywhere, because an end is an end.
-      */}
-      {variant !== null && variant.stops.length > 0 && (
-        <Fragment key={`${scope}-ends`}>
-          <Marker
-            position={[variant.stops[0]!.lat, variant.stops[0]!.lon]}
-            icon={endIcon('origin', text)}
-            interactive={false}
-            keyboard={false}
+        {/* Over the line and its stops, because it is travelling along them. */}
+        {variant !== null && vehicles.length > 0 && (
+          <RouteVehicles
+            variant={variant}
+            vehicles={vehicles}
+            onFollow={onFollowTrip}
+            projected={projected}
           />
-          {variant.stops.length > 1 && (
+        )}
+
+        {/*
+          The two ends, as the marks this app already uses for them.
+
+          A slightly larger circle among circles is not a distinction anybody
+          reads — on a line that doubles back you could not tell which end you
+          were looking at without following the whole thing. These are the same
+          target and pin the planner puts on a journey's ends.
+
+          The origin takes the line's colour, because where a line *starts* is a
+          fact about that line; the destination keeps the brand pin it wears
+          everywhere, because an end is an end.
+        */}
+        {variant !== null && variant.stops.length > 0 && (
+          <Fragment key={`${scope}-ends`}>
             <Marker
-              position={[
-                variant.stops[variant.stops.length - 1]!.lat,
-                variant.stops[variant.stops.length - 1]!.lon,
-              ]}
-              icon={endIcon('destination', text)}
+              position={[variant.stops[0]!.lat, variant.stops[0]!.lon]}
+              icon={endIcon('origin', text)}
               interactive={false}
               keyboard={false}
             />
-          )}
-        </Fragment>
+            {variant.stops.length > 1 && (
+              <Marker
+                position={[
+                  variant.stops[variant.stops.length - 1]!.lat,
+                  variant.stops[variant.stops.length - 1]!.lon,
+                ]}
+                icon={endIcon('destination', text)}
+                interactive={false}
+                keyboard={false}
+              />
+            )}
+          </Fragment>
+        )}
+
+        {variant?.stops.map((stop, index) => {
+          // The ends have their own markers above; a circle under them would
+          // show through the pin's cut-out centre.
+          if (index === 0 || index === variant.stops.length - 1) return null;
+
+          return (
+            <CircleMarker
+              key={`${scope}-${stop.sequence}-${stop.id}`}
+              center={[stop.lat, stop.lon]}
+              radius={3.5}
+              className={`${ink} fill-surface`}
+              pathOptions={{ weight: 2, opacity: 1, fillOpacity: 1 }}
+              /*
+                Pressable, and out of the tab order without being asked: a Leaflet
+                path is an SVG element with no tabindex, unlike a marker, which
+                needs `keyboard={false}` to be kept out. Either way the list
+                beside the map is the keyboard's way to every one of these.
+              */
+              interactive
+              eventHandlers={{ click: () => onStopSelect(stop.id) }}
+            />
+          );
+        })}
+      </MapCanvas>
+
+      {/*
+        Said whenever a route is drawn — its own line and every vehicle on it
+        both come from the published timetable. `z-[1001]` beats Leaflet's own
+        highest z-index (1000, its attribution control), which `isolate` on the
+        map section keeps contained but does not itself outrank.
+      */}
+      {variant !== null && (
+        <p className="rounded-control bg-surface shadow-card text-content-muted pointer-events-none absolute inset-x-0 bottom-2 z-[1001] mx-auto w-fit px-2.5 py-1 text-xs">
+          {t(strings.common.scheduleEstimateNotice)}
+        </p>
       )}
-
-      {variant?.stops.map((stop, index) => {
-        // The ends have their own markers above; a circle under them would
-        // show through the pin's cut-out centre.
-        if (index === 0 || index === variant.stops.length - 1) return null;
-
-        return (
-          <CircleMarker
-            key={`${scope}-${stop.sequence}-${stop.id}`}
-            center={[stop.lat, stop.lon]}
-            radius={3.5}
-            className={`${ink} fill-surface`}
-            pathOptions={{ weight: 2, opacity: 1, fillOpacity: 1 }}
-            /*
-              Pressable, and out of the tab order without being asked: a Leaflet
-              path is an SVG element with no tabindex, unlike a marker, which
-              needs `keyboard={false}` to be kept out. Either way the list
-              beside the map is the keyboard's way to every one of these.
-            */
-            interactive
-            eventHandlers={{ click: () => onStopSelect(stop.id) }}
-          />
-        );
-      })}
-    </MapCanvas>
+    </>
   );
 }

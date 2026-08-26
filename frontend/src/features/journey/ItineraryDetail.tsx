@@ -213,9 +213,18 @@ export function ItineraryDetail({
           </ul>
         </header>
 
-        {totals.rides.length === 0 && (
+        {totals.rides.length === 0 ? (
           <p className="text-content-muted bg-surface-muted border-border border-b px-4 py-2.5 text-sm">
             {t(strings.planner.walkOnly)}
+          </p>
+        ) : (
+          /*
+            Only when the journey actually rides something — a walk's own
+            timing is a straight-line calculation, not the published schedule,
+            and has nothing this would be caveating.
+          */
+          <p className="text-content-muted bg-surface-muted border-border border-b px-4 py-2.5 text-sm">
+            {t(strings.common.scheduleEstimateNotice)}
           </p>
         )}
 

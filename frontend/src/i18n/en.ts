@@ -1,6 +1,10 @@
 import type { Dictionary } from './dictionary';
 
 export const en: Dictionary = {
+  common: {
+    scheduleEstimateNotice:
+      'Times and locations are estimates from the published timetable, not live tracking — actual times may differ.',
+  },
   app: {
     title: 'Journey Planner',
   },
@@ -182,7 +186,6 @@ export const en: Dictionary = {
     mapLabel: 'Map of the journey',
     zoomIn: 'Zoom in',
     zoomOut: 'Zoom out',
-    scheduledPositions: 'Vehicles are shown where the timetable says they should be.',
 
     showOnMap: 'Show this journey on the map',
     viewDetails: 'Show this journey step by step',
@@ -326,7 +329,6 @@ export const en: Dictionary = {
     followThisRun: 'Follow this vehicle’s trip',
     vehicleHere: 'A vehicle is due at this stop now.',
     vehicleLeaving: 'A vehicle is due to be on its way from this stop.',
-    scheduledPositions: 'Vehicles are shown where the timetable says they should be.',
     dayAnnouncement: {
       one: 'One trip on this day.',
       other: '{count} trips on this day.',

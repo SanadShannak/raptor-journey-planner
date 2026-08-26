@@ -472,6 +472,13 @@ export function RouteInspector({
               : t(strings.routes.dayAnnouncement, { count: dayTimetable.totalTrips })}
           </p>
 
+          {/*
+            Said once, above both tabs, because both are the published
+            timetable — a next-call countdown on the stops tab is no less an
+            estimate than a whole day's trips on the other one.
+          */}
+          <p className="text-content-muted text-xs">{t(strings.common.scheduleEstimateNotice)}</p>
+
           {view === 'stops' ? (
             <>
               {/*
@@ -522,12 +529,6 @@ export function RouteInspector({
                     {t(strings.routes.notRunningTodayHint)}
                   </p>
                 </div>
-              )}
-
-              {vehicles.length > 0 && (
-                <p className="text-content-muted text-xs">
-                  {t(strings.routes.scheduledPositions)}
-                </p>
               )}
 
               <RouteStopList

@@ -12,6 +12,10 @@ import type { Dictionary } from './dictionary';
  * speaker before release.
  */
 export const ar: Dictionary = {
+  common: {
+    scheduleEstimateNotice:
+      'الأوقات والمواقع المعروضة هنا تقديرية من الجدول الزمني المنشور، وليست تتبعًا مباشرًا. قد تختلف الأوقات الفعلية عنها.',
+  },
   app: {
     title: 'مخطط الرحلات',
   },
@@ -212,7 +216,6 @@ export const ar: Dictionary = {
     mapLabel: 'خريطة الرحلة',
     zoomIn: 'تكبير',
     zoomOut: 'تصغير',
-    scheduledPositions: 'تُعرض المركبات حيث يفترض الجدول أن تكون.',
 
     showOnMap: 'عرض هذه الرحلة على الخريطة',
     viewDetails: 'عرض هذه الرحلة خطوة بخطوة',
@@ -404,7 +407,6 @@ export const ar: Dictionary = {
     followThisRun: 'تتبَّع رحلة هذه المركبة',
     vehicleHere: 'من المقرر وجود مركبة عند هذه المحطة الآن.',
     vehicleLeaving: 'من المقرر أن تكون مركبة في طريقها من هذه المحطة.',
-    scheduledPositions: 'تُعرض المركبات حيث يفترض الجدول أن تكون.',
     dayAnnouncement: {
       zero: 'لا رحلات في هذا اليوم.',
       one: 'رحلة واحدة في هذا اليوم.',

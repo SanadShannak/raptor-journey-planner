@@ -700,7 +700,9 @@ describe('RouteInspector', () => {
 
     // And says plainly that this is the timetable's word, not a live feed's.
     expect(
-      screen.getByText('Vehicles are shown where the timetable says they should be.'),
+      screen.getByText(
+        'Times and locations are estimates from the published timetable, not live tracking — actual times may differ.',
+      ),
     ).toBeTruthy();
   });
 

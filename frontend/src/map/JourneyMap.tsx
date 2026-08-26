@@ -735,18 +735,20 @@ export function JourneyMap({
       </MapCanvas>
 
       {/*
-        Said only while there is a vehicle to say it about — a map with none
-        drawn on it has nothing this would explain. A plain sibling of
-        `MapCanvas` in DOM order, which is not enough on its own: `isolate` on
-        the map section keeps Leaflet's own panes from out-ranking anything
-        *outside* that section, but this caption sits *inside* it, alongside
-        `.leaflet-control-attribution` at z-index 1000 — the highest Leaflet
-        itself ever reaches. `z-[1001]` is the one number that has to beat,
-        the same way Leaflet's own zoom control beats the tiles underneath it.
+        Said whenever there is a journey drawn to say it about — every transit
+        leg's timing on this map comes from the published schedule, whether or
+        not a vehicle happens to be running right now, so this does not wait
+        on one being drawn. A plain sibling of `MapCanvas` in DOM order, which
+        is not enough on its own: `isolate` on the map section keeps Leaflet's
+        own panes from out-ranking anything *outside* that section, but this
+        caption sits *inside* it, alongside `.leaflet-control-attribution` at
+        z-index 1000 — the highest Leaflet itself ever reaches. `z-[1001]` is
+        the one number that has to beat, the same way Leaflet's own zoom
+        control beats the tiles underneath it.
       */}
-      {vehicles.length > 0 && (
+      {journey !== null && (
         <p className="rounded-control bg-surface shadow-card text-content-muted pointer-events-none absolute inset-x-0 bottom-2 z-[1001] mx-auto w-fit px-2.5 py-1 text-xs">
-          {locale.t(locale.strings.planner.scheduledPositions)}
+          {locale.t(locale.strings.common.scheduleEstimateNotice)}
         </p>
       )}
     </>

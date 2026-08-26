@@ -70,6 +70,19 @@ export interface PluralForms {
 export type Message = string | PluralForms;
 
 export interface Dictionary {
+  /** Cross-cutting text that belongs to no one page — shown wherever it applies. */
+  common: {
+    /**
+     * Said wherever a time or a vehicle's position comes from the published
+     * timetable rather than a live feed — a departure board, a route's stop
+     * list or its own timetable, an itinerary's times, and any map that
+     * places a stop or a vehicle by it. The compiled feed carries no live
+     * running data at all, so this is true everywhere in the app without
+     * exception, which is what licenses saying it in one shared string
+     * rather than composing it fresh, and slightly differently, per screen.
+     */
+    scheduleEstimateNotice: string;
+  };
   app: {
     title: string;
   };
@@ -235,12 +248,6 @@ export interface Dictionary {
     /** Leaflet writes these as both `title` and `aria-label` on its buttons. */
     zoomIn: string;
     zoomOut: string;
-    /**
-     * Said once, over the map, whenever a ridden leg's own vehicle is drawn on
-     * it — the same wording the line inspector uses for the same badge, so a
-     * reader who has seen it once recognises the other.
-     */
-    scheduledPositions: string;
 
     /* The overview list, and the detail panel one itinerary opens into. */
     /**
@@ -517,8 +524,6 @@ export interface Dictionary {
      */
     vehicleHere: string;
     vehicleLeaving: string;
-    /** Says the drawing is the timetable's word, not a live feed's. */
-    scheduledPositions: string;
     /** Announced when a day's times arrive, so the change is not silent. */
     dayAnnouncement: Message;
 

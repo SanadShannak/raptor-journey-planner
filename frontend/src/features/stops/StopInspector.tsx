@@ -273,6 +273,14 @@ export function StopInspector({
           />
 
           {/*
+            Said once, above both the live board and the whole-day timetable —
+            both are the published schedule, not an observed one.
+          */}
+          <p className="text-content-muted text-xs">
+            {t(strings.common.scheduleEstimateNotice)}
+          </p>
+
+          {/*
             Announced politely, and deliberately narrow: it wraps a sentence
             that changes only when an answer arrives, never the ticking list.
             A live region around the board itself would re-announce every
