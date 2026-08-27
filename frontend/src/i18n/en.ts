@@ -406,6 +406,15 @@ export const en: Dictionary = {
     openNamed: 'Open {name}',
     moveEarlier: 'Move earlier',
     moveLater: 'Move later',
+    dragHint: 'Drag to reorder, or hold Alt and press the arrow keys.',
+
+    showEarlier: 'Show earlier departures',
+    showMore: 'Show later departures',
+
+    journeyFallback: 'Saved journey',
+    fromLabel: 'From',
+    toLabel: 'To',
+    speedLabel: 'Walking',
 
     loadingDepartures: 'Loading departures…',
     noDepartures: 'Nothing more today.',

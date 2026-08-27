@@ -10,20 +10,30 @@ import type { NetworkMoment } from '../stops/minutesUntil';
 import { nextCallsAt, type NextCall } from '../routes/nextCallAt';
 import { identity, type RouteFavourite } from './favourite';
 import { refreshFavourite } from './favouritesStore';
-import { FavouriteCard } from './FavouriteCard';
+import { DeparturePager, FavouriteCard } from './FavouriteCard';
 
 interface Props {
   favourite: RouteFavourite;
   now: NetworkMoment | null;
   /** Today on the network's clock. Null until `/api/network` answers. */
   networkToday: string | null;
-  canMoveEarlier: boolean;
-  canMoveLater: boolean;
   onRemoved: () => void;
+  dragging: boolean;
+  onDragStart: () => void;
+  onDragEnter: () => void;
+  onDragEnd: () => void;
 }
 
-/** How many departures a row shows. A glance, not a timetable. */
-const SHOWN = 3;
+/** Two at a time, matching the stop card and for the same reason. */
+const PAGE = 2;
+
+/**
+ * How far down the day the card can page.
+ *
+ * The whole service day is already in hand — this costs no extra request, it
+ * only bounds how much arithmetic is done over trips nobody will page to.
+ */
+const REACHABLE = 15;
 
 /**
  * A saved line, in the direction it was saved in, and what leaves next.
@@ -47,9 +57,11 @@ export function FavouriteRouteRow({
   favourite,
   now,
   networkToday,
-  canMoveEarlier,
-  canMoveLater,
   onRemoved,
+  dragging,
+  onDragStart,
+  onDragEnter,
+  onDragEnd,
 }: Props) {
   const { locale, strings, t } = useLocale();
   const { service } = useBackendHealth();
@@ -58,6 +70,7 @@ export function FavouriteRouteRow({
   const [loading, setLoading] = useState(true);
   const [gone, setGone] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [page, setPage] = useState(0);
 
   const { lineId, patternId } = favourite;
   const key = identity(favourite);
@@ -134,7 +147,19 @@ export function FavouriteRouteRow({
   const upcoming: NextCall[] =
     timetable === null || originSequence === null
       ? []
-      : nextCallsAt(timetable.trips, originSequence, now, SHOWN);
+      : nextCallsAt(timetable.trips, originSequence, now, REACHABLE);
+
+  const pages = Math.max(1, Math.ceil(upcoming.length / PAGE));
+
+  /*
+   * The list shortens as the day goes on — a departure that has gone is no
+   * longer "next" — so a page can stop existing underneath somebody. Clamped
+   * during render, which is what this value simply *is* for this list.
+   */
+  const shownPage = Math.min(page, pages - 1);
+  if (shownPage !== page) setPage(shownPage);
+
+  const visible = upcoming.slice(shownPage * PAGE, shownPage * PAGE + PAGE);
 
   const destination = favourite.headsign ?? favourite.routeLongName;
 
@@ -143,9 +168,12 @@ export function FavouriteRouteRow({
       favourite={favourite}
       to={lineVariantPath(lineId, patternId)}
       fallbackLabel={favourite.routeLongName ?? favourite.routeShortName}
-      canMoveEarlier={canMoveEarlier}
-      canMoveLater={canMoveLater}
       onRemoved={onRemoved}
+      dragging={dragging}
+      onDragStart={onDragStart}
+      onDragEnter={onDragEnter}
+      onDragEnd={onDragEnd}
+      pager={<DeparturePager page={shownPage} pages={pages} onPage={setPage} />}
       emblem={
         <LineBadge
           lineId={lineId}
@@ -177,15 +205,23 @@ export function FavouriteRouteRow({
         ) : upcoming.length === 0 ? (
           <p className="text-content-muted text-sm">{t(strings.favourites.noDepartures)}</p>
         ) : (
-          <ul className="flex flex-col gap-0.5">
-            {upcoming.map((next) => (
+          /*
+            The countdown sits at the far end rather than beside the time. It
+            is the part that moves, and a number that changes in the middle of
+            a row drags the eye off the column of times it belongs to — the
+            same arrangement a stop's own departure row uses.
+          */
+          <ul className="flex flex-col">
+            {visible.map((next) => (
               <li
                 key={`${next.call.date}-${next.call.time}`}
-                className="text-content text-sm font-medium tabular-nums"
+                className="border-border flex items-center justify-between gap-2 border-b py-0.5 text-sm tabular-nums last:border-b-0"
               >
-                {formatClockTime(next.call.time, locale)}
+                <span className="text-content font-medium">
+                  {formatClockTime(next.call.time, locale)}
+                </span>
                 {next.minutes !== null && next.minutes <= 60 && (
-                  <span className="text-content-muted ms-1.5 font-normal">
+                  <span className="bg-surface-muted text-content-muted rounded-control flex-none px-1.5 py-0.5 text-xs font-medium">
                     {t(strings.units.minutes, { minutes: next.minutes })}
                   </span>
                 )}

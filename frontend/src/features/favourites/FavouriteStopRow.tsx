@@ -9,14 +9,16 @@ import type { NetworkMoment } from '../stops/minutesUntil';
 import { StopCode } from '../stops/StopFacts';
 import { identity, type StopFavourite } from './favourite';
 import { refreshFavourite } from './favouritesStore';
-import { FavouriteCard } from './FavouriteCard';
+import { DeparturePager, FavouriteCard } from './FavouriteCard';
 
 interface Props {
   favourite: StopFavourite;
   now: NetworkMoment | null;
-  canMoveEarlier: boolean;
-  canMoveLater: boolean;
   onRemoved: () => void;
+  dragging: boolean;
+  onDragStart: () => void;
+  onDragEnter: () => void;
+  onDragEnd: () => void;
 }
 
 /**
@@ -30,13 +32,24 @@ interface Props {
 const REFRESH_MS = 60_000;
 
 /**
- * How many departures a row shows.
+ * How many departures fit on a card at once.
  *
- * Far fewer than the inspector's forty. This is a glance — the next few — and
- * asking for forty per saved stop would be forty times the payload for rows
- * nobody scrolls.
+ * Two, which is what lets all three rows sit on a laptop screen without
+ * scrolling — the page is meant to be taken in at a glance, and a page you
+ * have to scroll to see the bottom row of is not that. The rest are fetched
+ * alongside and reached with the pager, so nothing is lost: what would have
+ * been the third departure is now one press away rather than one scroll.
  */
-const SHOWN = 3;
+const PAGE = 2;
+
+/**
+ * How deep the board is fetched.
+ *
+ * Enough to page through a while without ever asking again, and still a
+ * fraction of the inspector's forty — a saved stop is a summary, and every one
+ * of these is its own request on its own timer.
+ */
+const FETCHED = 15;
 
 /**
  * A saved stop, and what leaves it next.
@@ -48,9 +61,11 @@ const SHOWN = 3;
 export function FavouriteStopRow({
   favourite,
   now,
-  canMoveEarlier,
-  canMoveLater,
   onRemoved,
+  dragging,
+  onDragStart,
+  onDragEnter,
+  onDragEnd,
 }: Props) {
   const { strings, t } = useLocale();
   const { service } = useBackendHealth();
@@ -58,6 +73,7 @@ export function FavouriteStopRow({
   const [board, setBoard] = useState<StopBoard | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const [page, setPage] = useState(0);
 
   const { stopId } = favourite;
   const key = identity(favourite);
@@ -67,7 +83,7 @@ export function FavouriteStopRow({
 
     const load = (quiet: boolean) => {
       if (!quiet) setLoading(true);
-      void getStopBoard(stopId, { limit: SHOWN, signal: controller.signal })
+      void getStopBoard(stopId, { limit: FETCHED, signal: controller.signal })
         .then((answer) => {
           if (controller.signal.aborted) return;
           setBoard(answer);
@@ -108,15 +124,30 @@ export function FavouriteStopRow({
   }, [stopId, key]);
 
   const departures = board?.departures ?? [];
+  const pages = Math.max(1, Math.ceil(departures.length / PAGE));
+
+  /*
+   * The board is re-asked every minute and departures drop off the front as
+   * they leave, so a page that was the last one can stop existing underneath
+   * somebody. Clamped during render rather than in an effect, which would
+   * paint one frame of an empty page first.
+   */
+  const shownPage = Math.min(page, pages - 1);
+  if (shownPage !== page) setPage(shownPage);
+
+  const visible = departures.slice(shownPage * PAGE, shownPage * PAGE + PAGE);
 
   return (
     <FavouriteCard
       favourite={favourite}
       to={stopPath(stopId)}
       fallbackLabel={favourite.name}
-      canMoveEarlier={canMoveEarlier}
-      canMoveLater={canMoveLater}
       onRemoved={onRemoved}
+      dragging={dragging}
+      onDragStart={onDragStart}
+      onDragEnter={onDragEnter}
+      onDragEnd={onDragEnd}
+      pager={<DeparturePager page={shownPage} pages={pages} onPage={setPage} />}
       subtitle={
         favourite.code === null ? null : <StopCode code={favourite.code} />
       }
@@ -134,7 +165,7 @@ export function FavouriteStopRow({
           <p className="text-content-muted text-sm">{t(strings.favourites.noDepartures)}</p>
         ) : (
           <ul className="flex flex-col text-sm">
-            {departures.map((departure, index) => (
+            {visible.map((departure, index) => (
               <DepartureRow
                 key={`${departure.tripId ?? departure.lineId}-${departure.date}-${departure.time}-${index}`}
                 departure={departure}

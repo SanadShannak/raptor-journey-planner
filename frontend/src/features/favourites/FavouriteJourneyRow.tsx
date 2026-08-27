@@ -9,9 +9,11 @@ import { journeyFavouritePath } from './journeyFavouritePath';
 interface Props {
   favourite: ItineraryFavourite;
   now: NetworkMoment | null;
-  canMoveEarlier: boolean;
-  canMoveLater: boolean;
   onRemoved: () => void;
+  dragging: boolean;
+  onDragStart: () => void;
+  onDragEnter: () => void;
+  onDragEnd: () => void;
 }
 
 const PACE_LABEL = {
@@ -27,45 +29,76 @@ const PACE_LABEL = {
  * No live data of its own — it is a saved *question*, and the answer only
  * exists once somebody presses it. That is also why nothing here polls: there
  * is nothing to keep current until the planner is asked.
+ *
+ * Where the other two cards fill with departures, this one has only three
+ * facts, so it **names them**. "Eira to Käpylä · walking calm · 3.5 km/h" run
+ * together reads as one long label where a reader is actually looking for one
+ * of three specific things; From, To and Walking down the side answer that at
+ * a glance, and the two place names line up under each other where they can be
+ * compared.
  */
 export function FavouriteJourneyRow({
   favourite,
   now,
-  canMoveEarlier,
-  canMoveLater,
   onRemoved,
+  dragging,
+  onDragStart,
+  onDragEnter,
+  onDragEnd,
 }: Props) {
   const { strings, t } = useLocale();
 
   const target = journeyFavouritePath(favourite, now);
   const pace = t(strings.planner[PACE_LABEL[favourite.pace]]);
 
-  const summary = t(strings.favourites.journeyRoute, {
-    origin: favourite.origin.label,
-    destination: favourite.destination.label,
-  });
+  const field = (label: string, value: string, strong: boolean) => (
+    <div className="flex items-baseline gap-2">
+      <span className="text-content-muted w-12 flex-none text-xs">{label}</span>
+      {/*
+        No `dir="auto"` on the value. It resolves from the first strong
+        character, so on an Arabic page a Latin place name turned its own box
+        left-to-right and sat against the far edge, while the pace beside it —
+        being Arabic — stayed against the near one. Three values in a column,
+        two of them flush left and one flush right. Inheriting the page's
+        direction anchors all three where the labels are, and bidi still renders
+        "Eira" left-to-right inside: the box follows the page, the text follows
+        itself. The same rule the stop heading already documents.
+      */}
+      <span
+        className={`min-w-0 flex-1 truncate text-sm ${
+          strong ? 'text-content font-medium' : 'text-content-muted'
+        }`}
+      >
+        {value}
+      </span>
+    </div>
+  );
 
   return (
     <FavouriteCard
       favourite={favourite}
       /*
        * Until the clock is known there is nowhere honest to send anyone, so the
-       * row points at the planner itself rather than at a search timed by the
+       * card points at the planner itself rather than at a search timed by the
        * browser's city. In practice `/api/network` answers well before anyone
        * presses.
        */
       to={target ?? paths.home}
-      fallbackLabel={summary}
-      canMoveEarlier={canMoveEarlier}
-      canMoveLater={canMoveLater}
+      fallbackLabel={t(strings.favourites.journeyFallback)}
       onRemoved={onRemoved}
+      dragging={dragging}
+      onDragStart={onDragStart}
+      onDragEnter={onDragEnter}
+      onDragEnd={onDragEnd}
       emblem={
         <span
           aria-hidden="true"
-          className="text-content-muted mt-0.5 flex h-6 w-6 flex-none items-center justify-center"
+          className="bg-brand-50 text-brand-700 rounded-control mt-0.5 flex h-8 w-8 flex-none items-center justify-center"
         >
-          {/* Two ends and the line between them. Not directional — it is a
-              journey, not an arrow — so it does not mirror in RTL. */}
+          {/* Two ends and the route between them, in the brand's own colour so
+              the card is as identifiable at a glance as a mode badge makes the
+              other two. Not directional — a journey, not an arrow — so it does
+              not mirror in RTL. */}
           <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
             <circle cx="5" cy="5" r="2.2" />
             <circle cx="15" cy="15" r="2.2" />
@@ -73,29 +106,32 @@ export function FavouriteJourneyRow({
           </svg>
         </span>
       }
-      subtitle={
-        <div className="flex flex-col gap-0.5">
-          {/*
-            When the row has a nickname the ends are no longer in the title, so
-            they are said here — a favourite called "Home" still has to show
-            which two points it means.
-          */}
-          {favourite.nickname !== null && (
-            <span dir="auto" className="block truncate">
-              {summary}
-            </span>
-          )}
-          <span className="text-xs">
-            {t(strings.favourites.paceLabel, { pace: pace.toLowerCase() })}
-            {' · '}
-            {t(strings.planner.kmh, {
-              value: (WALKING_PACES[favourite.pace] * 3.6).toFixed(1),
-            })}
-          </span>
-        </div>
-      }
+      subtitle={null}
     >
-      <p className="text-content-muted text-xs">{t(strings.favourites.openJourney)}</p>
+      <div className="flex flex-col gap-0.5">
+        {field(t(strings.favourites.fromLabel), favourite.origin.label, true)}
+        {field(t(strings.favourites.toLabel), favourite.destination.label, true)}
+        {field(
+          t(strings.favourites.speedLabel),
+          `${pace} · ${t(strings.planner.kmh, {
+            value: (WALKING_PACES[favourite.pace] * 3.6).toFixed(1),
+          })}`,
+          false,
+        )}
+      </div>
+
+      {/*
+        Not a button: the whole card is already the link that runs this search,
+        and a second control inside it pointing at the same place would be two
+        answers to one press. It says what the card does.
+      */}
+      <p className="text-brand-500 flex items-center gap-1 text-xs font-medium">
+        <svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <circle cx="8.5" cy="8.5" r="5.5" />
+          <path d="M12.5 12.5L18 18" />
+        </svg>
+        {t(strings.favourites.openJourney)}
+      </p>
     </FavouriteCard>
   );
 }

@@ -17,6 +17,7 @@ import {
   refreshFavourite,
   removeFavourite,
   renameFavourite,
+  reorderFavourite,
   toggleFavourite,
 } from './favouritesStore';
 import { readFavourites, writeFavourites } from './favouritesStorage';
@@ -254,5 +255,44 @@ describe('opening a saved journey', () => {
     expect(restored?.pace).toBe('slow');
     expect(restored?.date).toBe('2026-09-10');
     expect(restored?.time).toBe('14:05');
+  });
+});
+
+describe('reorderFavourite', () => {
+  it('drops a card where another one sits', () => {
+    addFavourite(stop('A'));
+    addFavourite(stop('B'));
+    addFavourite(stop('C'));
+
+    reorderFavourite(identity(stop('A')), identity(stop('C')));
+
+    expect(getFavourites().map((f) => (f as StopFavourite).stopId)).toEqual([
+      'B',
+      'C',
+      'A',
+    ]);
+  });
+
+  it('ignores entries of another kind sitting between them', () => {
+    addFavourite(stop('A'));
+    addFavourite(route(1));
+    addFavourite(stop('B'));
+
+    reorderFavourite(identity(stop('B')), identity(stop('A')));
+
+    const kinds = getFavourites().map((f) => f.kind);
+    expect(kinds).toEqual(['stop', 'route', 'stop']);
+    expect(
+      getFavourites()
+        .filter((f): f is StopFavourite => f.kind === 'stop')
+        .map((f) => f.stopId),
+    ).toEqual(['B', 'A']);
+  });
+
+  it('refuses to move a card into another kind', () => {
+    addFavourite(stop('A'));
+    addFavourite(route(1));
+    reorderFavourite(identity(stop('A')), identity(route(1)));
+    expect(getFavourites().map((f) => f.kind)).toEqual(['stop', 'route']);
   });
 });

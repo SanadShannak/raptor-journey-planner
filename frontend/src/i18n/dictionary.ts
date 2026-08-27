@@ -648,9 +648,30 @@ export interface Dictionary {
     renamePlaceholder: string;
     /** Names the stretched link covering a card. */
     openNamed: string;
-    /** The cards sit in a horizontal row, so they move along it, not up it. */
+    /**
+     * Reordering is a drag, so these name the *keyboard* path to the same
+     * thing — a drag with no keyboard equivalent is not operable at all.
+     */
     moveEarlier: string;
     moveLater: string;
+    dragHint: string;
+
+    /* Paging through a card's own departures. */
+    showEarlier: string;
+    showMore: string;
+
+    /* The journey card names its parts rather than running them together. */
+    /**
+     * What an unnamed saved journey is called.
+     *
+     * Deliberately not the route itself: the card lists From and To on their
+     * own labelled lines directly below, and a heading repeating them made the
+     * card say the same thing twice over.
+     */
+    journeyFallback: string;
+    fromLabel: string;
+    toLabel: string;
+    speedLabel: string;
 
     /* Live departures inside a row. */
     loadingDepartures: string;

@@ -8,14 +8,10 @@ interface Props {
   /**
    * What pressing it would save, or null when there is nothing to save yet —
    * a journey form that is not filled in.
-   *
-   * Built fresh by the caller on each render, which is why the hook below
-   * depends on its *identity string* rather than the object.
    */
   favourite: Favourite | null;
   /** Why it cannot be saved, when the caller knows better than this component. */
   unavailableReason?: string | undefined;
-  /** A larger target where the control stands alone rather than beside a title. */
   size?: 'sm' | 'md';
 }
 
@@ -23,13 +19,20 @@ interface Props {
  * The star.
  *
  * One component in three places — a stop's header, a route's header, and the
- * journey form — because they are the same act and should look and sound the
- * same everywhere.
+ * planner's — because they are the same act and should look, sound, and sit
+ * the same everywhere.
  *
  * **Never disabled, even when it cannot save.** A `disabled` button is
  * unfocusable and screen readers skip past it, so the one person who most needs
  * to know *why* the star is off would never find out. It stays focusable,
- * carries `aria-disabled`, and points at a hint that says what is missing.
+ * carries `aria-disabled`, and is described by the reason.
+ *
+ * When it cannot save, three things say so at once and none of them is colour:
+ * the cursor turns to `not-allowed`, the star dims, and the reason appears on
+ * hover or focus **immediately**. The tooltip is a CSS one rather than the
+ * `title` attribute deliberately — a native tooltip waits about a second before
+ * appearing, which is long enough for somebody to press the control again and
+ * conclude it is simply broken.
  */
 export function FavouriteButton({ favourite, unavailableReason, size = 'md' }: Props) {
   const { strings, t } = useLocale();
@@ -49,7 +52,11 @@ export function FavouriteButton({ favourite, unavailableReason, size = 'md' }: P
   const box = size === 'sm' ? 'h-8 w-8' : 'h-9 w-9';
 
   return (
-    <>
+    /*
+     * `relative` so the bubble can hang off the control, and `group` so it can
+     * react to the button's own hover and focus rather than needing script.
+     */
+    <span className="group relative flex flex-none">
       <button
         type="button"
         aria-pressed={saved}
@@ -59,12 +66,12 @@ export function FavouriteButton({ favourite, unavailableReason, size = 'md' }: P
           if (off || favourite === null) return;
           toggleFavourite(favourite);
         }}
-        className={`rounded-control focus-visible:outline-brand-500 ${box} flex flex-none cursor-pointer items-center justify-center focus-visible:outline-2 focus-visible:outline-offset-2 ${
+        className={`rounded-control focus-visible:outline-brand-500 ${box} flex flex-none items-center justify-center focus-visible:outline-2 focus-visible:outline-offset-2 ${
           off
-            ? 'text-content-muted cursor-not-allowed opacity-60'
+            ? 'text-content-muted cursor-not-allowed opacity-50'
             : saved
-              ? 'text-accent-strong hover:bg-surface-muted'
-              : 'text-content-muted hover:text-accent-strong hover:bg-surface-muted'
+              ? 'text-accent-strong hover:bg-surface-muted cursor-pointer'
+              : 'text-content-muted hover:text-accent-strong hover:bg-surface-muted cursor-pointer'
         }`}
       >
         <span className="sr-only">{label}</span>
@@ -89,10 +96,20 @@ export function FavouriteButton({ favourite, unavailableReason, size = 'md' }: P
       </button>
 
       {reason !== null && (
-        <span id={hintId} className="sr-only">
+        /*
+          Hidden from the pointer so it can never sit between a cursor and the
+          control it explains, and anchored to the end edge with logical
+          positioning so it flips sides with the page's direction rather than
+          hanging off the window in Arabic.
+        */
+        <span
+          id={hintId}
+          role="tooltip"
+          className="bg-chrome text-on-chrome rounded-control pointer-events-none absolute top-full end-0 z-20 mt-1 hidden w-56 px-2.5 py-1.5 text-xs leading-snug shadow-card group-focus-within:block group-hover:block"
+        >
           {reason}
         </span>
       )}
-    </>
+    </span>
   );
 }

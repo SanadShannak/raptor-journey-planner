@@ -508,6 +508,15 @@ export const ar: Dictionary = {
     openNamed: 'فتح {name}',
     moveEarlier: 'تحريك للأمام',
     moveLater: 'تحريك للخلف',
+    dragHint: 'اسحب البطاقة لإعادة الترتيب، أو اضغط Alt مع مفاتيح الأسهم.',
+
+    showEarlier: 'عرض المغادرات السابقة',
+    showMore: 'عرض المغادرات التالية',
+
+    journeyFallback: 'رحلة محفوظة',
+    fromLabel: 'من',
+    toLabel: 'إلى',
+    speedLabel: 'المشي',
 
     loadingDepartures: 'جارٍ تحميل المغادرات…',
     noDepartures: 'لا مزيد اليوم.',

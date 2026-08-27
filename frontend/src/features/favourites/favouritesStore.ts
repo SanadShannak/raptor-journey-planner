@@ -156,6 +156,54 @@ export function moveFavourite(key: string, direction: -1 | 1): void {
 }
 
 /**
+ * Drops one favourite where another currently sits, within its own kind.
+ *
+ * What a drag actually asks for. {@link moveFavourite} steps one place at a
+ * time, which is right for a keyboard and wrong for a pointer: dragging the
+ * fifth card onto the first is one gesture, not four.
+ *
+ * The two are constrained the same way — a card only ever moves among its own
+ * kind, because the kinds are drawn as separate rows and a card cannot be
+ * dragged out of the row it lives in.
+ */
+export function reorderFavourite(key: string, targetKey: string): void {
+  if (key === targetKey) return;
+
+  const moving = items.find((favourite) => identity(favourite) === key);
+  const target = items.find((favourite) => identity(favourite) === targetKey);
+  if (moving === undefined || target === undefined) return;
+  if (moving.kind !== target.kind) return;
+
+  /*
+   * The flat array holds every kind interleaved, so the reorder happens on
+   * this kind's own sequence and is then written back into exactly the slots
+   * that sequence occupied. Nothing of another kind moves.
+   */
+  const slots: number[] = [];
+  const order: Favourite[] = [];
+  items.forEach((favourite, index) => {
+    if (favourite.kind !== moving.kind) return;
+    slots.push(index);
+    order.push(favourite);
+  });
+
+  const from = order.indexOf(moving);
+  const to = order.indexOf(target);
+  if (from === -1 || to === -1) return;
+
+  order.splice(from, 1);
+  order.splice(to, 0, moving);
+
+  const next = [...items];
+  slots.forEach((slot, position) => {
+    const favourite = order[position];
+    if (favourite !== undefined) next[slot] = favourite;
+  });
+
+  commit(next);
+}
+
+/**
  * Keeps a stored copy in step with what the network now says.
  *
  * A stop gets renamed, a line's long name changes. The saved fields are a cache
