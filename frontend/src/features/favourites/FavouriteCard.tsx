@@ -225,12 +225,21 @@ export function FavouriteCard({
 
             {subtitle !== null && (
               /*
-                No inset here. A subtitle that is a bordered badge already has
-                its own, and insetting the wrapper pushed the badge across
-                rather than lining the name up with it. A row whose subtitle is
-                plain text applies {@link TEXT_INSET} to that text itself.
+                The same inset as the name above it, so the two line up on what
+                a reader actually sees.
+
+                Aligning the name's glyphs with the *badge's glyphs* was the
+                wrong pair: the badge is a bordered chip, so its border is its
+                visible edge, and matching the text inside it left the chip
+                itself hanging seven pixels out to the side. Both boxes carry
+                the same geometry now, which puts the name's first letter and
+                the chip's own edge on one line — and a plain-text subtitle on
+                that line too, since it inherits the same inset from here rather
+                than adding its own.
               */
-              <div className="text-content-muted min-w-0 text-xs">{subtitle}</div>
+              <div className="text-content-muted ms-px min-w-0 ps-1.5 text-xs">
+                {subtitle}
+              </div>
             )}
           </div>
         </div>

@@ -10,7 +10,7 @@ import type { NetworkMoment } from '../stops/minutesUntil';
 import { nextCallsAt, type NextCall } from '../routes/nextCallAt';
 import { identity, type RouteFavourite } from './favourite';
 import { refreshFavourite } from './favouritesStore';
-import { DeparturePager, FavouriteCard, TEXT_INSET } from './FavouriteCard';
+import { DeparturePager, FavouriteCard } from './FavouriteCard';
 
 interface Props {
   favourite: RouteFavourite;
@@ -183,9 +183,7 @@ export function FavouriteRouteRow({
       }
       subtitle={
         destination === null ? null : (
-          <span
-            className={`block truncate [unicode-bidi:plaintext] ltr:text-left rtl:text-right ${TEXT_INSET}`}
-          >
+          <span className="block truncate [unicode-bidi:plaintext] ltr:text-left rtl:text-right">
             {t(strings.routes.towards, { destination })}
           </span>
         )

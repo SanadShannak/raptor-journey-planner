@@ -113,7 +113,7 @@ export function FavouriteJourneyRow({
       */
       subtitle={
         favourite.savedOn === null ? null : (
-          <span className={`block ${TEXT_INSET}`}>
+          <span className="block">
             {t(strings.favourites.savedOn, {
               date: formatDate(favourite.savedOn, locale, {
                 day: 'numeric',
