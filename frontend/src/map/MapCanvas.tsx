@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import {
   AttributionControl,
   config as glConfig,
@@ -88,6 +95,13 @@ export function MapCanvas({ network, children }: Props) {
   const [map, setMap] = useState<GlMap | null>(null);
   /** Counts style loads. See {@link MapHandle}. */
   const [styleEpoch, setStyleEpoch] = useState(0);
+  /**
+   * Cleared the moment the map is destroyed, and read by every cleanup that
+   * would otherwise talk to it afterwards — including the ones in this file.
+   * See {@link MapHandle} for why that ordering bites.
+   */
+  const alive = useRef(true);
+  const isAlive = useCallback(() => alive.current, []);
 
   const tiles = tileSourceFor(network);
   const style = resolved === 'dark' ? tiles.dark : tiles.light;
@@ -111,6 +125,10 @@ export function MapCanvas({ network, children }: Props) {
   useEffect(() => {
     const node = container.current;
     if (node === null) return;
+
+    // Set here rather than only at declaration: StrictMode mounts, tears down,
+    // and mounts again, and the second map must not inherit the first's death.
+    alive.current = true;
 
     const instance = new GlMap({
       container: node,
@@ -157,6 +175,12 @@ export function MapCanvas({ network, children }: Props) {
     instance.on('style.load', onStyle);
 
     return () => {
+      /*
+       * Announced before it happens. Every other cleanup — the controls below,
+       * and every child drawn on this map — runs *after* this one and would
+       * otherwise reach for a map with no internals left.
+       */
+      alive.current = false;
       instance.off('load', onLoad);
       instance.off('style.load', onStyle);
       setMap(null);
@@ -202,10 +226,13 @@ export function MapCanvas({ network, children }: Props) {
     map.addControl(attribution, rtl ? 'bottom-left' : 'bottom-right');
 
     return () => {
+      // A destroyed map has already taken its controls with it, and asking it
+      // to remove them again throws. See `MapHandle`.
+      if (!isAlive()) return;
       map.removeControl(zoom);
       map.removeControl(attribution);
     };
-  }, [map, rtl, styleEpoch]);
+  }, [map, rtl, styleEpoch, isAlive]);
 
   /*
    * Tells the map when its own box changed size.
@@ -234,8 +261,8 @@ export function MapCanvas({ network, children }: Props) {
   }, [map]);
 
   const handle = useMemo<MapHandle | null>(
-    () => (map === null ? null : { map, styleEpoch }),
-    [map, styleEpoch],
+    () => (map === null ? null : { map, styleEpoch, isAlive }),
+    [map, styleEpoch, isAlive],
   );
 
   return (

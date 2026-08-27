@@ -21,6 +21,30 @@ import type { Map as GlMap, MapEventType } from 'maplibre-gl';
 export interface MapHandle {
   map: GlMap;
   styleEpoch: number;
+  /**
+   * Whether the map is still usable.
+   *
+   * False from the moment it is torn down, and the reason is an ordering that
+   * is easy to get wrong twice.
+   *
+   * React runs a component's effect cleanups **in the order the effects were
+   * declared**, and unmounts a deleted subtree **parent first**. `MapCanvas`
+   * creates the map in its first effect, so that effect's cleanup — the one
+   * that destroys it — runs before every other cleanup in the map's own
+   * component *and* before every cleanup in every child drawn on it. Each of
+   * those then politely tidies up after itself against an object that no
+   * longer has any internals, and `map.off(…)` throws.
+   *
+   * A throw in a passive cleanup is not contained: it takes the unmount with
+   * it, and what a reader sees is a blank page after navigating away from a
+   * map — nowhere near the map, and after the thing that caused it.
+   *
+   * So teardown is announced rather than discovered, and asked as a question
+   * rather than read as a value: a cleanup needs the answer *at the moment it
+   * runs*, which is exactly what makes reading a captured `.current` look like
+   * the mistake it usually is.
+   */
+  isAlive: () => boolean;
 }
 
 export const MapContext = createContext<MapHandle | null>(null);
@@ -51,6 +75,15 @@ export function useStyleEpoch(): number {
 }
 
 /**
+ * Asks whether the map is still there to be spoken to.
+ *
+ * Every cleanup that touches the map has to check this. See {@link MapHandle}.
+ */
+export function useMapAlive(): () => boolean {
+  return useHandle().isAlive;
+}
+
+/**
  * One map event, subscribed for as long as the component is mounted.
  *
  * The handler is kept in a ref rather than listed as a dependency, so a caller
@@ -62,6 +95,7 @@ export function useMapEvent<T extends keyof MapEventType>(
   handler: (event: MapEventType[T]) => void,
 ): void {
   const map = useMap();
+  const isAlive = useMapAlive();
   const latest = useRef(handler);
 
   /*
@@ -78,7 +112,9 @@ export function useMapEvent<T extends keyof MapEventType>(
     const listener = (event: MapEventType[T]) => latest.current(event);
     map.on(type, listener);
     return () => {
+      // Nothing to unsubscribe from once the map is gone. See `MapHandle`.
+      if (!isAlive()) return;
       map.off(type, listener);
     };
-  }, [map, type]);
+  }, [map, type, isAlive]);
 }

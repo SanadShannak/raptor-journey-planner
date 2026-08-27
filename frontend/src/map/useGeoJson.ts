@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { GeoJSONSource, type FilterSpecification, type LayerSpecification } from 'maplibre-gl';
 import type { GeoJSON } from 'geojson';
-import { useMap, useStyleEpoch } from './mapContext';
+import { useMap, useMapAlive, useStyleEpoch } from './mapContext';
 
 /** One drawn layer over a shared source, minus the parts this hook fills in. */
 export type OverlayLayer = Omit<LayerSpecification, 'id' | 'source'> & {
@@ -38,6 +38,7 @@ export function useGeoJson(
   layers: readonly OverlayLayer[],
 ): void {
   const map = useMap();
+  const isAlive = useMapAlive();
   const styleEpoch = useStyleEpoch();
 
   /*
@@ -68,10 +69,13 @@ export function useGeoJson(
 
     return () => {
       /*
-       * Guarded because the style may already have been replaced, which
-       * removes these on its own — asking again for something already gone
-       * throws, and a throw in a cleanup takes the unmount with it.
+       * Two ways these can already be gone, and both throw if asked again: the
+       * style may have been replaced, which discards every layer on it, or the
+       * map may have been destroyed entirely — which happens *before* this
+       * cleanup, not after. A throw here takes the unmount with it. See
+       * `MapHandle`.
        */
+      if (!isAlive()) return;
       for (const { id: layerId } of specs) {
         const full = `${id}-${layerId}`;
         if (map.getLayer(full) !== undefined) map.removeLayer(full);
@@ -80,7 +84,7 @@ export function useGeoJson(
     };
     // `data` is applied by the effect below rather than rebuilding the layers.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, id, shape, styleEpoch, data === null]);
+  }, [map, id, shape, styleEpoch, isAlive, data === null]);
 
   /* New data into the source that is already there. */
   useEffect(() => {

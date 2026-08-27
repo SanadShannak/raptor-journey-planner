@@ -135,3 +135,39 @@ describe('StopsMap framing', () => {
     expect(moves[moves.length - 1]?.center?.[1]).toBeCloseTo(NEXT_DOOR.lat, 4);
   });
 });
+
+/*
+ * Leaving a map page.
+ *
+ * The regression this guards produced a blank page *somewhere else entirely*:
+ * navigate away from a map and the next page rendered nothing at all, with one
+ * `TypeError` in the console and no clue as to which component caused it.
+ *
+ * The cause is an ordering that is easy to get wrong twice. React runs a
+ * component's effect cleanups in the order the effects were declared, and
+ * unmounts a deleted subtree parent first — so the effect that creates the map
+ * is also the first to clean up, and destroys it before every other cleanup in
+ * `MapCanvas` and before every cleanup in every layer drawn on it. Each of
+ * those then tidies up against an object with no internals left, and a throw
+ * in a passive cleanup takes the whole unmount with it.
+ *
+ * The stub refuses calls on a removed map for exactly this reason, so any
+ * cleanup that forgets to ask whether the map is still there fails here rather
+ * than in a browser three pages later.
+ */
+describe('leaving the map', () => {
+  it('unmounts without touching a map that is already gone', async () => {
+    const { unmount } = await show({ focused: LASIPALATSI });
+
+    expect(() => unmount()).not.toThrow();
+    expect(liveMap().removed).toBe(true);
+  });
+
+  it('tears down cleanly with layers and markers on it', async () => {
+    const { unmount } = await show({ focused: LASIPALATSI, pending: false });
+    // A style reload mid-life, so the re-added layers are the ones torn down.
+    await act(async () => liveMap().fire('style.load'));
+
+    expect(() => unmount()).not.toThrow();
+  });
+});
