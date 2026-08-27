@@ -166,6 +166,14 @@
 
   /* Elevation */
   --shadow-card: 0 1px 2px oklch(0 0 0 / 0.06), 0 4px 12px oklch(0 0 0 / 0.06);
+  /*
+   * A card held off the page — picked up and being moved, not merely raised.
+   *
+   * Deeper and much softer than `card`, because the shadow is the whole signal:
+   * a thumb covers the thing it is dragging, so what tells somebody they have
+   * hold of it is the space that opens underneath.
+   */
+  --shadow-lifted: 0 2px 6px oklch(0 0 0 / 0.12), 0 16px 32px oklch(0 0 0 / 0.22);
 }
 
 /*
@@ -369,6 +377,8 @@
     --color-success: #05893e;
     --shadow-card:
       0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.06);
+    --shadow-lifted:
+      0 2px 6px rgba(0, 0, 0, 0.12), 0 16px 32px rgba(0, 0, 0, 0.22);
 
     --dark-brand-50: #341921;
     --dark-brand-100: #49222e;

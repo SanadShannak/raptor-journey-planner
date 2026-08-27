@@ -143,8 +143,24 @@ export function FavouriteCard({
   return (
     <li
       data-favourite={key}
-      className={`border-border bg-surface-raised rounded-card relative flex w-80 flex-none flex-col border transition-opacity ${
-        dragging ? 'opacity-40' : ''
+      /*
+        Picked up, not switched off.
+        
+        This used to dim the card, which reads as "disabled" rather than "held"
+        — and a thumb covers most of a card it is dragging, so the one part
+        still visible was the part that had gone faint. It lifts instead: the
+        shadow opens underneath it, it grows a little, and it rises above its
+        neighbours so it passes over them rather than through them. All three
+        say the same thing, which is what makes it legible under a finger.
+
+        The transition is squashed by the global `prefers-reduced-motion` rule,
+        so the lift still happens for a reader who has asked for less movement —
+        it simply arrives rather than eases.
+      */
+      className={`bg-surface-raised rounded-card relative flex w-80 flex-none flex-col border transition-[box-shadow,transform,border-color] duration-150 ${
+        dragging
+          ? 'border-brand-500 shadow-lifted z-10 scale-[1.03] cursor-grabbing'
+          : 'border-border shadow-none'
       }`}
     >
       <Link
@@ -297,7 +313,9 @@ export function FavouriteCard({
                * them is the target — and a handle you have to hit precisely is
                * one nobody uses twice on a phone.
                */
-              className="text-content-muted/70 pointer-events-auto relative flex h-8 w-10 flex-none cursor-grab touch-none select-none items-center justify-center [-webkit-touch-callout:none] active:cursor-grabbing"
+              className={`pointer-events-auto relative flex h-8 w-10 flex-none cursor-grab touch-none select-none items-center justify-center [-webkit-touch-callout:none] active:cursor-grabbing ${
+                dragging ? 'text-brand-500' : 'text-content-muted/70'
+              }`}
             >
               <svg viewBox="0 0 10 16" width="10" height="16" fill="currentColor" aria-hidden="true">
                 <circle cx="3" cy="4" r="1.1" />
