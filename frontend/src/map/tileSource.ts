@@ -38,7 +38,15 @@ export interface TileSource {
   maxZoom: number;
 }
 
-const key = env.cartoKey === null ? '' : `?api_key=${encodeURIComponent(env.cartoKey)}`;
+/*
+ * `?key=`, not `?api_key=`. The name is worth a line because getting it wrong
+ * fails the way a missing key does rather than the way a rejected one does:
+ * CARTO answers an unrecognised parameter with a 200 and a tile, so there is
+ * no status to notice and nothing in the console — the map simply keeps
+ * painting the "API KEY REQUIRED" watermark over real cartography, which is
+ * exactly what it does with no key at all.
+ */
+const key = env.cartoKey === null ? '' : `?key=${encodeURIComponent(env.cartoKey)}`;
 
 const CARTO: TileSource = {
   light: `https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png${key}`,
