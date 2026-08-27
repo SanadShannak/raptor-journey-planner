@@ -6,7 +6,6 @@ import {
   messageForApiError,
   useLocale,
 } from '../i18n';
-import { PageContainer } from '../components/PageContainer';
 import { usePageTitle } from '../app/usePageTitle';
 import { getNetwork } from '../api/network';
 import { lookupCard } from '../api/card';
@@ -15,7 +14,12 @@ import {
   cardNumberProblem,
   formatCardNumber,
   isCompleteCardNumber,
+  digitsOf,
 } from '../features/card/cardNumber';
+import { SAVED_CARDS_LIMIT } from '../features/card/savedCard';
+import { SaveCardButton } from '../features/card/SaveCardButton';
+import { SavedCardTile } from '../features/card/SavedCardTile';
+import { useSavedCards } from '../features/card/useSavedCards';
 
 type State = 'idle' | 'checking' | 'found' | 'failed';
 
@@ -49,6 +53,9 @@ export default function CardPage() {
   const [currency, setCurrency] = useState<string | null>(null);
 
   const request = useRef<AbortController | null>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+
+  const savedCards = useSavedCards();
 
   /*
    * Which money to print in. Failing is not worth reporting: `formatMoney`
@@ -127,11 +134,24 @@ export default function CardPage() {
   }
 
   const complete = isCompleteCardNumber(number);
+  const inputDirection = locale === 'ar' ? 'rtl' : 'ltr';
+
+  const afterCardRemoved = () => headingRef.current?.focus();
 
   return (
-    <PageContainer>
+    /*
+      Full width, with the same gutters `FavouritesPage` uses, rather than the
+      capped column every prose page gets — a balance and an activity list
+      have somewhere to spread out, and My Cards is a row of tiles that wants
+      the width a narrow column would have clipped.
+    */
+    <div className="flex w-full flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">
+        <h1
+          ref={headingRef}
+          tabIndex={-1}
+          className="focus-visible:outline-brand-500 rounded-control text-3xl font-semibold tracking-tight"
+        >
           {t(strings.card.inquiryTitle)}
         </h1>
         <p className="text-content-muted max-w-prose">
@@ -139,123 +159,192 @@ export default function CardPage() {
         </p>
       </div>
 
-      <form
-        noValidate
-        onSubmit={(event) => {
-          event.preventDefault();
-          check();
-        }}
-        className="flex max-w-md flex-col gap-2"
-      >
-        <label htmlFor={fieldId} className="text-sm font-medium">
-          {t(strings.card.numberLabel)}
-        </label>
-
-        <div className="flex flex-wrap items-start gap-2">
-          <input
-            id={fieldId}
-            /*
-               `inputMode` rather than `type="number"`: a card number is a
-               string of digits, not a quantity. A number input would offer
-               spinners, drop the leading zero of `01234-…`, and let the wheel
-               change it under the pointer.
-            */
-            inputMode="numeric"
-            autoComplete="off"
-            value={number}
-            onChange={(event) => changeNumber(event.target.value)}
-            aria-describedby={errorMessage === null ? hintId : `${errorId} ${hintId}`}
-            aria-invalid={state === 'failed' ? true : undefined}
-            // Eleven digits and two dashes.
-            maxLength={13}
-            placeholder="12345-67890-1"
-            className="rounded-control border-border-strong bg-surface text-content placeholder:text-content-muted focus-visible:outline-brand-500 min-w-0 flex-1 border px-3 py-2 font-medium tabular-nums placeholder:font-normal focus-visible:outline-2 focus-visible:outline-offset-2"
-            dir="ltr"
-          />
-
-          <button
-            type="submit"
-            disabled={state === 'checking' || !complete}
-            className="rounded-control bg-action text-on-action hover:bg-action-hover hover:text-on-action-hover focus-visible:outline-brand-500 flex-none cursor-pointer px-4 py-2 font-medium focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {t(state === 'checking' ? strings.card.checking : strings.card.check)}
-          </button>
-        </div>
-
-        {/* The format, as a hint under the field rather than as its label —
-            a placeholder disappears exactly when it is needed. */}
-        {/*
-          No `dir` here. Forcing the paragraph left-to-right laid the whole
-          Arabic sentence out backwards to fix one number inside it; the number
-          is isolated in the string instead, where the problem actually is.
-        */}
-        <p id={hintId} className="text-content-muted text-xs">
-          {t(strings.card.numberHint)}
-        </p>
-      </form>
-
       {/*
-        One live region for the whole answer, so a screen reader is told the
-        result once rather than having to go looking for it. `alert` is not used
-        even for the failure: a mistyped digit is not an emergency, and this is
-        the same region either way.
+        My Cards, always shown — an empty row says so rather than the section
+        disappearing, the same choice `FavouritesPage` makes for its own rows.
+        Kept on this device exactly the way favourites are: only the number and
+        a nickname are stored, never a balance, so nothing here can go stale in
+        somebody's pocket.
       */}
-      <div aria-live="polite" aria-busy={state === 'checking'} className="max-w-md">
-        {state === 'failed' && errorMessage !== null && (
-          <p
-            id={errorId}
-            className="rounded-card border-danger text-danger border px-4 py-3 text-sm"
-          >
-            {errorMessage}
+      <section className="flex shrink-0 flex-col gap-2">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 className="text-lg font-semibold tracking-tight">
+            {t(strings.card.myCardsTitle)}
+          </h2>
+          <p className="text-content-muted text-xs tabular-nums">
+            {t(strings.favourites.countOfLimit, {
+              count: savedCards.length,
+              limit: SAVED_CARDS_LIMIT,
+            })}
           </p>
-        )}
+        </div>
+        <p className="text-content-muted max-w-prose text-sm">
+          {t(strings.card.myCardsIntro)} {t(strings.card.savedOnDevice)}
+        </p>
 
-        {state === 'found' && card !== null && (
-          <div className="rounded-card border-border bg-surface-raised shadow-card flex flex-col gap-3 border p-5">
-            <p className="text-content-muted text-xs font-semibold tracking-wide uppercase">
-              {t(strings.card.balance)}
-            </p>
-
-            <p className="text-3xl font-semibold tabular-nums">
-              {formatMoney(card.balance, currency, locale)}
-            </p>
-
-            <div className="text-content-muted flex flex-col gap-1 text-sm">
-              <p className="flex flex-wrap gap-2">
-                <span>{t(strings.card.numberLabel)}</span>
-                <span className="text-content tabular-nums" dir="ltr">
-                  {card.number}
-                </span>
-              </p>
-
-              {/* One sentence, so one element. A description list here would be
-                  a term with nothing to define it against. */}
-              <p>
-                {card.lastUsedDate === null
-                  ? t(strings.card.neverUsed)
-                  : t(strings.card.lastUsed, {
-                      date: formatDate(card.lastUsedDate, locale, {
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric',
-                      }),
-                    })}
-              </p>
-            </div>
-
-            {/* Zero is a balance, not a missing one, and it is the one number
-                that changes what somebody does next. */}
-            {card.balance === 0 && (
-              <p className="rounded-control bg-surface-muted text-content px-3 py-2 text-sm">
-                {t(strings.card.emptyCard)}
-              </p>
-            )}
-
-            <Activity usages={card.usages} currency={currency} />
+        {savedCards.length === 0 ? (
+          <p className="rounded-card border-border bg-surface-muted text-content-muted border px-3 py-2.5 text-sm">
+            {t(strings.card.noSavedCards)}
+          </p>
+        ) : (
+          <div className="shrink-0 -my-3 overflow-x-auto py-3">
+            <ul className="flex items-stretch gap-3">
+              {savedCards.map((saved) => (
+                <SavedCardTile
+                  key={saved.number}
+                  card={saved}
+                  currency={currency}
+                  onRemoved={afterCardRemoved}
+                />
+              ))}
+            </ul>
           </div>
         )}
-      </div>
-    </PageContainer>
+      </section>
+
+      {/*
+        The lookup, and its answer beside it rather than underneath it — the
+        form stays a fixed, comfortable width, and the space that frees up on a
+        wide screen is exactly what an activity list needed instead of running
+        edge to edge itself.
+      */}
+      <section className="grid grid-cols-1 items-start gap-8 lg:grid-cols-[26rem_1fr]">
+        <form
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault();
+            check();
+          }}
+          className="flex flex-col gap-2"
+        >
+          <label htmlFor={fieldId} className="text-sm font-medium">
+            {t(strings.card.numberLabel)}
+          </label>
+
+          <div className="flex flex-wrap items-start gap-2">
+            <input
+              id={fieldId}
+              /*
+                 `inputMode` rather than `type="number"`: a card number is a
+                 string of digits, not a quantity. A number input would offer
+                 spinners, drop the leading zero of `01234-…`, and let the wheel
+                 change it under the pointer.
+              */
+              inputMode="numeric"
+              autoComplete="off"
+              value={number}
+              onChange={(event) => changeNumber(event.target.value)}
+              aria-describedby={errorMessage === null ? hintId : `${errorId} ${hintId}`}
+              aria-invalid={state === 'failed' ? true : undefined}
+              // Eleven digits and two dashes.
+              maxLength={13}
+              placeholder="12345-67890-1"
+              className="rounded-control border-border-strong bg-surface text-content placeholder:text-content-muted focus-visible:outline-brand-500 min-w-0 flex-1 border px-3 py-2 font-medium tabular-nums placeholder:font-normal focus-visible:outline-2 focus-visible:outline-offset-2"
+              /*
+                Follows the page's own direction rather than being pinned to
+                `ltr`: on an Arabic page the field, its caret, and its
+                placeholder all read from the right, the same as every other
+                field on the page. The digits themselves are unaffected — they
+                are weak characters and keep their own left-to-right order
+                inside the field regardless of which edge it starts from.
+              */
+              dir={inputDirection}
+            />
+
+            <button
+              type="submit"
+              disabled={state === 'checking' || !complete}
+              className="rounded-control bg-action text-on-action hover:bg-action-hover hover:text-on-action-hover focus-visible:outline-brand-500 flex-none cursor-pointer px-4 py-2 font-medium focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {t(state === 'checking' ? strings.card.checking : strings.card.check)}
+            </button>
+          </div>
+
+          {/* The format, as a hint under the field rather than as its label —
+              a placeholder disappears exactly when it is needed. */}
+          {/*
+            No `dir` here. Forcing the paragraph left-to-right laid the whole
+            Arabic sentence out backwards to fix one number inside it; the number
+            is isolated in the string instead, where the problem actually is.
+          */}
+          <p id={hintId} className="text-content-muted text-xs">
+            {t(strings.card.numberHint)}
+          </p>
+
+          {/*
+            Its own live region rather than `alert`: a mistyped digit is not an
+            emergency, and `polite` says so without a screen reader losing
+            whatever it was already reading.
+          */}
+          <div aria-live="polite">
+            {state === 'failed' && errorMessage !== null && (
+              <p
+                id={errorId}
+                className="rounded-card border-danger text-danger border px-4 py-3 text-sm"
+              >
+                {errorMessage}
+              </p>
+            )}
+          </div>
+        </form>
+
+        {/*
+          One live region for the answer, so a screen reader is told the
+          result once rather than having to go looking for it.
+        */}
+        <div aria-live="polite" aria-busy={state === 'checking'}>
+          {state === 'found' && card !== null && (
+            <div className="rounded-card border-border bg-surface-raised shadow-card flex flex-col gap-4 border p-5 lg:p-6">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex flex-col gap-1">
+                  <p className="text-content-muted text-xs font-semibold tracking-wide uppercase">
+                    {t(strings.card.balance)}
+                  </p>
+                  <p className="text-4xl font-semibold tabular-nums">
+                    {formatMoney(card.balance, currency, locale)}
+                  </p>
+                </div>
+
+                <SaveCardButton number={digitsOf(card.number)} />
+              </div>
+
+              <div className="text-content-muted flex flex-col gap-1 text-sm">
+                <p className="flex flex-wrap gap-2">
+                  <span>{t(strings.card.numberLabel)}</span>
+                  <span className="text-content tabular-nums" dir="ltr">
+                    {card.number}
+                  </span>
+                </p>
+
+                {/* One sentence, so one element. A description list here would be
+                    a term with nothing to define it against. */}
+                <p>
+                  {card.lastUsedDate === null
+                    ? t(strings.card.neverUsed)
+                    : t(strings.card.lastUsed, {
+                        date: formatDate(card.lastUsedDate, locale, {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric',
+                        }),
+                      })}
+                </p>
+              </div>
+
+              {/* Zero is a balance, not a missing one, and it is the one number
+                  that changes what somebody does next. */}
+              {card.balance === 0 && (
+                <p className="rounded-control bg-surface-muted text-content px-3 py-2 text-sm">
+                  {t(strings.card.emptyCard)}
+                </p>
+              )}
+
+              <Activity usages={card.usages} currency={currency} />
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
   );
 }
 

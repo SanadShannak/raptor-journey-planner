@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router';
-import { useLocale } from '../i18n';
+import { LanguageToggle, useLocale } from '../i18n';
+import { ThemeToggle } from '../theme';
 import { paths } from './routes';
 
 interface Props {
@@ -68,7 +69,28 @@ export function PrimaryNav({ onAuth }: Props) {
     'rounded-control text-on-chrome focus-visible:outline-on-chrome block px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 aria-[current=page]:bg-on-chrome aria-[current=page]:text-chrome';
 
   return (
-    <nav aria-label={t(strings.nav.primaryLabel)}>
+    /*
+     * `order-last` puts the toggle at the trailing edge of the bar on a phone
+     * — past the clock, past everything else — rather than beside the brand
+     * where it used to sit. `md:order-none` gives it back at the width where
+     * the bar switches to a grid and this element stops being a flex item
+     * that ordering would otherwise still apply to.
+     */
+    <nav
+      aria-label={t(strings.nav.primaryLabel)}
+      /*
+       * `me-1` is optical, not arithmetic. The bar's gutter already puts this
+       * the same 16px from the edge that the brand sits at, but the brand is
+       * plain text and this is a bordered box — a border runs right up to the
+       * inset where a glyph's own side bearing leaves air, so equal numbers
+       * read as unequal. Four more pixels make the two look alike, which is
+       * the thing actually being matched.
+       *
+       * Dropped at `md`, where this becomes the centred cell of a grid and a
+       * trailing margin would push it off centre.
+       */
+      className="order-last me-1 md:order-none md:me-0"
+    >
       <button
         ref={toggleRef}
         type="button"
@@ -121,6 +143,19 @@ export function PrimaryNav({ onAuth }: Props) {
             </li>
           ))}
         </ul>
+
+        <span aria-hidden="true" className="bg-chrome-border my-1 h-px w-full" />
+
+        {/*
+          Theme and language live in the bar from `md` up; below it this panel
+          is their only address, since the bar itself has no room left once the
+          clock, the toggle, and the account controls are all fighting for the
+          same row.
+        */}
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <LanguageToggle />
+        </div>
 
         <span aria-hidden="true" className="bg-chrome-border my-1 h-px w-full" />
 
