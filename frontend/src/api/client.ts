@@ -54,6 +54,27 @@ function anySignal(signals: AbortSignal[]): AbortSignal {
   return controller.signal;
 }
 
+/**
+ * Times one call and prints it, mirroring the engine's own line.
+ *
+ * The backend already reports `[API]: Route Calculated in 12.34ms` from
+ * `plannerApi.js`; this is the same measurement from the other end of the wire,
+ * so the two can be read together — the gap between them is the network and the
+ * parse, which is exactly what you want to see when a page starts feeling slow.
+ *
+ * Every request goes through `getJson`, so instrumenting here covers the whole
+ * app without a call site having to remember. Failures are timed too: a request
+ * that took four seconds to fail is the more interesting number.
+ *
+ * Development only. A production console filling with one line per departure
+ * board refresh would be noise for a visitor, and this is a debugging aid.
+ */
+function logTiming(path: string, startedAt: number, outcome: string): void {
+  if (!import.meta.env.DEV) return;
+  const elapsed = (performance.now() - startedAt).toFixed(2);
+  console.log(`[API]: GET ${path} ${outcome} in ${elapsed}ms`);
+}
+
 /** Reads the body as JSON, tolerating servers that reply with HTML or nothing. */
 async function readJsonBody(response: Response): Promise<unknown> {
   const text = await response.text();
@@ -75,17 +96,23 @@ export async function getJson(path: string, options: RequestOptions = {}): Promi
   const url = buildUrl(path, options.params);
   const timeout = AbortSignal.timeout(env.apiTimeoutMs);
   const signal = options.signal ? anySignal([options.signal, timeout]) : timeout;
+  const startedAt = performance.now();
 
   let response: Response;
   try {
     response = await fetch(url, { signal, headers: { Accept: 'application/json' } });
   } catch (cause) {
     if (timeout.aborted) {
+      logTiming(path, startedAt, 'timed out');
       throw new ApiError('timeout', `Request to ${path} timed out.`, { cause });
     }
     // A caller-initiated abort is propagated untouched so `AbortError` checks
     // and React effect cleanups keep working as callers expect.
-    if (options.signal?.aborted) throw cause;
+    if (options.signal?.aborted) {
+      logTiming(path, startedAt, 'cancelled');
+      throw cause;
+    }
+    logTiming(path, startedAt, 'failed');
     throw new ApiError('network', `Could not reach the server at ${env.apiBaseUrl}.`, {
       cause,
     });
@@ -94,6 +121,7 @@ export async function getJson(path: string, options: RequestOptions = {}): Promi
   const body = await readJsonBody(response);
 
   if (!response.ok) {
+    logTiming(path, startedAt, `failed ${response.status}`);
     const errorBody = parseApiErrorBody(body);
     throw new ApiError('http', errorBody?.error ?? `Request to ${path} failed.`, {
       status: response.status,
@@ -102,10 +130,12 @@ export async function getJson(path: string, options: RequestOptions = {}): Promi
   }
 
   if (body === null) {
+    logTiming(path, startedAt, 'unreadable');
     throw new ApiError('malformed', `Server returned an unreadable body for ${path}.`, {
       status: response.status,
     });
   }
 
+  logTiming(path, startedAt, 'ok');
   return body;
 }

@@ -4,6 +4,7 @@ import PlanPage from '../pages/PlanPage';
 import RoutesPage from '../pages/RoutesPage';
 import StopsPage from '../pages/StopsPage';
 import CardPage from '../pages/CardPage';
+import FavouritesPage from '../pages/FavouritesPage';
 import NotFoundPage from '../pages/NotFoundPage';
 import { paths } from './routes';
 
@@ -35,6 +36,7 @@ export function App() {
           <Route path={paths.stops} element={<StopsPage />} />
           <Route path={paths.stopDetail} element={<StopsPage />} />
           <Route path={paths.card} element={<CardPage />} />
+          <Route path={paths.favourites} element={<FavouritesPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>

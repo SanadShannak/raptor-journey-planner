@@ -38,7 +38,51 @@ export function nextCallAt(
   sequence: number,
   now: NetworkMoment | null,
 ): NextCall | null {
-  return earliestAt(trips, sequence, now);
+  return nextCallsAt(trips, sequence, now, 1)[0] ?? null;
+}
+
+/**
+ * The next several vehicles to leave a stop of a line, soonest first.
+ *
+ * The same answer {@link nextCallAt} gives, not truncated to one — a saved line
+ * on the favourites page wants the next few at a glance, and computing them any
+ * other way would let two places in the app disagree about what "next" means.
+ * `nextCallAt` is this function asked for one, so there is a single
+ * implementation and the ordering rules below are stated once.
+ *
+ * Fewer than `limit` is a real answer, and so is none: service ends.
+ */
+export function nextCallsAt(
+  trips: VariantTrip[],
+  sequence: number,
+  now: NetworkMoment | null,
+  limit: number,
+): NextCall[] {
+  if (limit <= 0) return [];
+
+  const found: NextCall[] = [];
+
+  for (const trip of trips) {
+    const call = trip.calls[sequence];
+    if (call === undefined || call === null) continue;
+
+    let minutes: number | null = null;
+    if (now !== null) {
+      minutes = minutesUntil(call, now);
+      /*
+       * An unreadable time is dropped rather than treated as imminent. A null
+       * from `minutesUntil` means one of the two moments could not be parsed,
+       * and a row that cannot be placed in time has no business being the
+       * answer to "what is next".
+       */
+      if (minutes === null || minutes < 0) continue;
+    }
+
+    found.push({ call, sequence, headsign: trip.headsign, minutes });
+  }
+
+  found.sort((a, b) => (isEarlier(a.call, b.call, a.minutes, b.minutes) ? -1 : 1));
+  return found.slice(0, limit);
 }
 
 /**
@@ -69,37 +113,6 @@ export function callOnTrip(
     // then show a call as past rather than pretending it is still to come.
     minutes: now === null ? null : minutesUntil(call, now),
   };
-}
-
-function earliestAt(
-  trips: VariantTrip[],
-  sequence: number,
-  now: NetworkMoment | null,
-): NextCall | null {
-  let best: NextCall | null = null;
-
-  for (const trip of trips) {
-    const call = trip.calls[sequence];
-    if (call === undefined || call === null) continue;
-
-    let minutes: number | null = null;
-    if (now !== null) {
-      minutes = minutesUntil(call, now);
-      /*
-       * An unreadable time is dropped rather than treated as imminent. A null
-       * from `minutesUntil` means one of the two moments could not be parsed,
-       * and a row that cannot be placed in time has no business being the
-       * answer to "what is next".
-       */
-      if (minutes === null || minutes < 0) continue;
-    }
-
-    if (best === null || isEarlier(call, best.call, minutes, best.minutes)) {
-      best = { call, sequence, headsign: trip.headsign, minutes };
-    }
-  }
-
-  return best;
 }
 
 /**

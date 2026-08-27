@@ -7,6 +7,8 @@ import {
 } from '../../config/journey';
 import type { GeoBounds } from '../../config/geocoding';
 import { isReady, type JourneyFormValues } from './journeySearch';
+import { FavouriteButton } from '../favourites/FavouriteButton';
+import type { ItineraryFavourite } from '../favourites/favourite';
 import { PlaceInput } from './PlaceInput';
 import { UseMyLocationButton } from './UseMyLocationButton';
 import { DateSelect } from '../../components/DateSelect';
@@ -51,6 +53,30 @@ interface Props {
  * a question you finish asking. Enter submits it from any field, because the
  * form is still a form.
  */
+/**
+ * The favourite this form would save, or null when it is not ready to.
+ *
+ * Only the coordinates and the labels travel, exactly as `toSearchParams`
+ * writes them — a place's context line, stop code and platform describe how a
+ * suggestion was *chosen*, which is not part of the question being saved.
+ */
+function favouriteFor(values: JourneyFormValues): ItineraryFavourite | null {
+  const { origin, destination } = values;
+  if (!isReady(values) || origin === null || destination === null) return null;
+
+  return {
+    kind: 'itinerary',
+    nickname: null,
+    origin: { label: origin.label, lat: origin.lat, lon: origin.lon },
+    destination: {
+      label: destination.label,
+      lat: destination.lat,
+      lon: destination.lon,
+    },
+    pace: values.pace,
+  };
+}
+
 export function JourneyForm({
   values,
   onChange,
@@ -317,10 +343,11 @@ export function JourneyForm({
         absent button gives no clue what is missing, while a present one that
         cannot be pressed reads as "not yet".
       */}
+      <div className="mt-1 flex items-stretch gap-2">
       <button
         type="submit"
         disabled={off || !isReady(values)}
-        className="rounded-control bg-action text-on-action hover:bg-action-hover hover:text-on-action-hover focus-visible:outline-brand-500 mt-1 flex cursor-pointer items-center justify-center gap-2 px-4 py-2.5 font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+        className="rounded-control bg-action text-on-action hover:bg-action-hover hover:text-on-action-hover focus-visible:outline-brand-500 flex flex-1 cursor-pointer items-center justify-center gap-2 px-4 py-2.5 font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <svg
           viewBox="0 0 24 24"
@@ -338,6 +365,22 @@ export function JourneyForm({
         </svg>
         {t(strings.planner.submit)}
       </button>
+
+      {/*
+        What is saved is the *question* — the two ends and the pace — never the
+        date or the time, which are always "now" when a favourite is opened. So
+        the star belongs beside the button that asks it rather than beside any
+        answer.
+
+        It only saves a search that is complete, which is what `isReady` already
+        decides for the submit button beside it. Passing null rather than
+        disabling keeps the control focusable, so a screen reader still reaches
+        it and hears why it is off.
+      */}
+      <div className="border-border-strong rounded-control flex items-center border">
+        <FavouriteButton favourite={favouriteFor(values)} />
+      </div>
+      </div>
     </form>
   );
 }

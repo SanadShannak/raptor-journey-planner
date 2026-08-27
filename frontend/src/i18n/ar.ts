@@ -99,6 +99,7 @@ export const ar: Dictionary = {
     routes: 'الخطوط',
     stops: 'المحطات',
     card: 'بطاقة السفر',
+    favourites: 'المفضّلة',
   },
   pages: {
     home: {
@@ -120,6 +121,7 @@ export const ar: Dictionary = {
       title: 'بطاقة السفر',
       needsAccount: 'التحقق من رصيد البطاقة يتطلّب حسابًا. الحسابات غير متاحة بعد.',
     },
+    favourites: { title: 'المفضّلة', documentTitle: 'المفضّلة' },
     notFound: {
       title: 'الصفحة غير موجودة',
       body: 'لا يطابق هذا العنوان أي صفحة في الموقع. ربما تمّ نقلها، أو أن الرابط مكتوب خطأ.',
@@ -479,6 +481,40 @@ export const ar: Dictionary = {
 
     numberRequired: 'أدخل رقم البطاقة.',
     numberIncomplete: 'هذا الرقم قصير جدًا. رقم البطاقة أحد عشر رقمًا.',
+  },
+
+  favourites: {
+    add: 'أضف إلى المفضّلة',
+    remove: 'أزل من المفضّلة',
+    needsSearch: 'أكمل بيانات البحث قبل حفظه.',
+    limitReached: 'يمكنك حفظ {count} من كل نوع. أزل واحدًا لإفساح المجال.',
+
+    intro: 'كل ما حفظته، وما يغادر تاليًا.',
+    savedOnDevice: 'تُحفظ المفضّلة على هذا الجهاز.',
+    empty: 'لم تحفظ شيئًا بعد.',
+    emptyHint: 'اضغط النجمة على محطة أو خط أو بحث مكتمل لحفظه هنا.',
+    groupStops: 'المحطات',
+    groupRoutes: 'الخطوط',
+    groupItineraries: 'الرحلات',
+    countOfLimit: '{count} من {limit}',
+
+    journeyRoute: 'من {origin} إلى {destination}',
+    openJourney: 'ابحث عن هذه الرحلة الآن',
+    paceLabel: 'المشي {pace}',
+
+    rename: 'إعادة التسمية',
+    renameLabel: 'الاسم',
+    renamePlaceholder: 'المنزل، العمل، المدرسة…',
+    renameHint: 'اتركه فارغًا لاستخدام الاسم الأصلي.',
+    save: 'حفظ',
+    cancel: 'إلغاء',
+    moveUp: 'تحريك لأعلى',
+    moveDown: 'تحريك لأسفل',
+
+    loadingDepartures: 'جارٍ تحميل المغادرات…',
+    noDepartures: 'لا مزيد اليوم.',
+    directionUnavailable: 'لم يعد هذا الاتجاه ضمن الجدول الزمني. افتح الخط لاختيار اتجاه آخر.',
+    departuresUnavailable: 'يتعذّر تحميل المغادرات الآن.',
   },
 
   auth: {

@@ -60,6 +60,7 @@ export function PrimaryNav({ onAuth }: Props) {
     { to: paths.routes, label: t(strings.nav.routes) },
     { to: paths.stops, label: t(strings.nav.stops) },
     { to: paths.card, label: t(strings.nav.card) },
+    { to: paths.favourites, label: t(strings.nav.favourites) },
   ];
 
   /* `NavLink` sets aria-current="page" itself; do not hand-roll it. */

@@ -17,6 +17,7 @@ export const paths = {
   stops: '/stops',
   stopDetail: '/stops/:stopId',
   card: '/card',
+  favourites: '/favourites',
 } as const;
 
 /** A stop page, keyed by GTFS stop id — the same id the planner accepts. */

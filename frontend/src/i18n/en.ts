@@ -84,6 +84,7 @@ export const en: Dictionary = {
     routes: 'Routes',
     stops: 'Stops',
     card: 'Travel card',
+    favourites: 'Favourites',
   },
   pages: {
     home: {
@@ -105,6 +106,7 @@ export const en: Dictionary = {
       title: 'Travel card',
       needsAccount: 'Checking a card balance will need an account. Accounts are not available yet.',
     },
+    favourites: { title: 'Favourites', documentTitle: 'Favourites' },
     notFound: {
       title: 'Page not found',
       body: 'That address does not match anything on this site. It may have moved, or the link may be mistyped.',
@@ -377,6 +379,40 @@ export const en: Dictionary = {
 
     numberRequired: 'Enter the card number.',
     numberIncomplete: 'That number is too short. A card number has eleven digits.',
+  },
+
+  favourites: {
+    add: 'Add to favourites',
+    remove: 'Remove from favourites',
+    needsSearch: 'Fill in the whole search before saving it.',
+    limitReached: 'You can save {count} of each. Remove one to make room.',
+
+    intro: 'Everything you have saved, and what leaves next.',
+    savedOnDevice: 'Favourites are saved on this device.',
+    empty: 'Nothing saved yet.',
+    emptyHint: 'Press the star on a stop, a route, or a completed search to save it here.',
+    groupStops: 'Stops',
+    groupRoutes: 'Routes',
+    groupItineraries: 'Journeys',
+    countOfLimit: '{count} of {limit}',
+
+    journeyRoute: '{origin} to {destination}',
+    openJourney: 'Search this journey now',
+    paceLabel: 'Walking {pace}',
+
+    rename: 'Rename',
+    renameLabel: 'Name',
+    renamePlaceholder: 'Home, Work, School…',
+    renameHint: 'Leave it empty to use the original name.',
+    save: 'Save',
+    cancel: 'Cancel',
+    moveUp: 'Move up',
+    moveDown: 'Move down',
+
+    loadingDepartures: 'Loading departures…',
+    noDepartures: 'Nothing more today.',
+    directionUnavailable: 'This direction is no longer in the timetable. Open the route to pick another.',
+    departuresUnavailable: 'Departures cannot be loaded right now.',
   },
 
   auth: {

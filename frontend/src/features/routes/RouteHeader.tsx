@@ -1,5 +1,6 @@
 import { formatClockTime, formatDate, useLocale } from '../../i18n';
 import { LineBadge } from '../stops/LineBadge';
+import { FavouriteButton } from '../favourites/FavouriteButton';
 import type { LineVariantDetail } from '../../types/route';
 import type { DaySpan } from './daySpan';
 
@@ -123,9 +124,29 @@ export function RouteHeader({ variant, span, tripsOnDay, day, networkToday, onFl
           `min-w-0` keeps it able to shrink, so a long name still wraps inside
           the row instead of pushing the badge off it.
         */}
-        <h1 className="min-w-0 text-2xl font-semibold tracking-tight text-balance">
+        <h1 className="min-w-0 flex-1 text-2xl font-semibold tracking-tight text-balance">
           {variant.routeLongName ?? variant.routeShortName}
         </h1>
+
+        {/*
+          The saved favourite is this line *in this direction* — the pattern on
+          screen, not the line in general. Somebody who keeps the 3 towards the
+          centre does not want the one going home, so flipping direction moves
+          the star to a different favourite, which is correct.
+        */}
+        <FavouriteButton
+          favourite={{
+            kind: 'route',
+            nickname: null,
+            lineId: variant.lineId,
+            patternId: variant.patternId,
+            routeShortName: variant.routeShortName,
+            routeType: variant.routeType,
+            routeLongName: variant.routeLongName,
+            headsign: variant.headsign,
+            directionId: variant.directionId,
+          }}
+        />
       </div>
 
       {/*

@@ -74,7 +74,7 @@ describe('app shell', () => {
     renderAt('/');
     const nav = screen.getByRole('navigation', { name: 'Main' });
     const current = within(nav).getAllByRole('link', { current: 'page' });
-    expect(current.map((link) => link.textContent)).toEqual(['Plan a journey']);
+    expect(current.map((link) => link.textContent)).toEqual(['Planner']);
   });
 
   it('shows a not-found page for an unknown path rather than an empty shell', () => {
@@ -112,7 +112,7 @@ describe('auth', () => {
       .getAllByRole('link')
       .map((link) => link.textContent);
     expect(new Set(names)).toEqual(
-      new Set(['Plan a journey', 'Routes', 'Stops', 'Travel card']),
+      new Set(['Planner', 'Routes', 'Stops', 'Travel card', 'Favourites']),
     );
   });
 

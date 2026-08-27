@@ -114,6 +114,7 @@ export interface Dictionary {
     routes: string;
     stops: string;
     card: string;
+    favourites: string;
   };
 
   /** One entry per page: the `<h1>` and, where useful, its supporting copy. */
@@ -143,6 +144,7 @@ export interface Dictionary {
     routes: { title: string; documentTitle: string };
     stops: { title: string; documentTitle: string };
     card: { title: string; needsAccount: string };
+    favourites: { title: string; documentTitle: string };
     notFound: { title: string; body: string; backHome: string };
   };
 
@@ -605,6 +607,62 @@ export interface Dictionary {
     /* What went wrong, in the reader's terms rather than the server's. */
     numberRequired: string;
     numberIncomplete: string;
+  };
+
+  /**
+   * Saved stops, lines, and journeys.
+   *
+   * Kept on the device rather than against an account, and the interface says
+   * so plainly — sign-in is inert here, so implying favourites follow a person
+   * between machines would be a promise the product cannot keep.
+   */
+  favourites: {
+    /* The star, wherever it appears. Its name says what pressing it does. */
+    add: string;
+    remove: string;
+    /** Why the star is off: the search is not filled in yet. */
+    needsSearch: string;
+    /** Why the star is off: this kind is full. */
+    limitReached: string;
+
+    /* The page. */
+    intro: string;
+    savedOnDevice: string;
+    empty: string;
+    emptyHint: string;
+    /** The three group headings, in the order they are drawn. */
+    groupStops: string;
+    groupRoutes: string;
+    groupItineraries: string;
+    countOfLimit: string;
+
+    /* What a saved journey says, and the control that runs it. */
+    journeyRoute: string;
+    openJourney: string;
+    paceLabel: string;
+
+    /* Managing one. */
+    rename: string;
+    renameLabel: string;
+    renamePlaceholder: string;
+    renameHint: string;
+    save: string;
+    cancel: string;
+    moveUp: string;
+    moveDown: string;
+
+    /* Live departures inside a row. */
+    loadingDepartures: string;
+    noDepartures: string;
+    /**
+     * The saved direction is gone.
+     *
+     * Pattern ids do not survive a pipeline re-run, and a favourite saves an
+     * exact direction. Saying so is the honest answer — quietly showing the
+     * other direction's times would be worse than showing none.
+     */
+    directionUnavailable: string;
+    departuresUnavailable: string;
   };
 
   /**

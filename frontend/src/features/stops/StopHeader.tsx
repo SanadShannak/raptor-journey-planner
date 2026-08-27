@@ -3,6 +3,7 @@ import type { Dictionary, Message } from '../../i18n/dictionary';
 import type { ServingLine, StopIdentity } from '../../types/stop';
 import { familyFor } from '../journey/modeVisuals';
 import { FareZone, StopCode } from './StopFacts';
+import { FavouriteButton } from '../favourites/FavouriteButton';
 
 interface Props {
   stop: StopIdentity;
@@ -61,16 +62,36 @@ export function StopHeader({ stop, servingLines }: Props) {
     <header className="flex flex-col gap-3">
       <div className="flex flex-col gap-1">
         {/*
-          No `dir="auto"`. It resolves from the first strong character, so a
-          Latin stop name turned the whole heading left-to-right and pushed it
-          to the far side of an Arabic page, away from everything under it.
-          Inheriting the page's direction anchors it where the panel starts,
-          and bidi still renders the name itself left-to-right inside — the box
-          follows the page, the text follows itself.
+          The star sits beside the name rather than above it, so the heading and
+          the act of keeping it read as one thing. `items-start` keeps the
+          control aligned to the first line of a name that wraps to two.
         */}
-        <h1 className="text-2xl font-semibold tracking-tight text-balance">
-          {stop.name}
-        </h1>
+        <div className="flex items-start gap-2">
+          {/*
+            No `dir="auto"`. It resolves from the first strong character, so a
+            Latin stop name turned the whole heading left-to-right and pushed it
+            to the far side of an Arabic page, away from everything under it.
+            Inheriting the page's direction anchors it where the panel starts,
+            and bidi still renders the name itself left-to-right inside — the box
+            follows the page, the text follows itself.
+          */}
+          <h1 className="min-w-0 flex-1 text-2xl font-semibold tracking-tight text-balance">
+            {stop.name}
+          </h1>
+
+          <FavouriteButton
+            favourite={{
+              kind: 'stop',
+              nickname: null,
+              stopId: stop.id,
+              name: stop.name,
+              code: stop.code,
+              modes: [...new Set(servingLines.map((line) => line.routeType))].sort(
+                (a, b) => a - b,
+              ),
+            }}
+          />
+        </div>
 
         {stop.description !== null && (
           <p className="text-content-muted text-sm">{stop.description}</p>
