@@ -22,6 +22,20 @@ export interface MapHandle {
   map: GlMap;
   styleEpoch: number;
   /**
+   * Whether the style is settled enough to take sources and layers.
+   *
+   * Deliberately **not** `map.isStyleLoaded()`, which asks a different
+   * question than it appears to: it is false while *any* source is still
+   * loading, and adding a source is exactly what makes one. So the first
+   * overlay to be added turned the answer false and every later one in the
+   * same commit was refused — permanently, since nothing it depended on
+   * changed again. The stop circles never drew once.
+   *
+   * This says only "no style swap is in flight", which is the thing that
+   * actually makes `addSource` throw.
+   */
+  styleReady: boolean;
+  /**
    * Whether the map is still usable.
    *
    * False from the moment it is torn down, and the reason is an ordering that
@@ -72,6 +86,11 @@ export function useMap(): GlMap {
 /** How many times the style has loaded. See {@link MapHandle}. */
 export function useStyleEpoch(): number {
   return useHandle().styleEpoch;
+}
+
+/** Whether the style will accept sources and layers. See {@link MapHandle}. */
+export function useStyleReady(): boolean {
+  return useHandle().styleReady;
 }
 
 /**

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { GeoJSONSource, type FilterSpecification, type LayerSpecification } from 'maplibre-gl';
 import type { GeoJSON } from 'geojson';
-import { useMap, useMapAlive, useStyleEpoch } from './mapContext';
+import { useMap, useMapAlive, useStyleEpoch, useStyleReady } from './mapContext';
 
 /** One drawn layer over a shared source, minus the parts this hook fills in. */
 export type OverlayLayer = Omit<LayerSpecification, 'id' | 'source'> & {
@@ -40,6 +40,7 @@ export function useGeoJson(
   const map = useMap();
   const isAlive = useMapAlive();
   const styleEpoch = useStyleEpoch();
+  const styleReady = useStyleReady();
 
   /*
    * Serialised rather than compared by identity. Callers build these arrays
@@ -55,12 +56,12 @@ export function useGeoJson(
     const specs = JSON.parse(shape) as OverlayLayer[];
 
     /*
-     * A style load and a React effect are not ordered with respect to each
-     * other. `styleEpoch` says a style *started* loading; by the time this
-     * runs the map may already be swapping to the next one, and adding a
-     * source to a style that is going away throws.
+     * A style swap is in flight, so there is nothing to add to yet. This is a
+     * dependency rather than a bare guard, which is the whole point: when the
+     * swap finishes the flag flips, the effect runs again, and the layers come
+     * back. A guard that only returned would lose them for good.
      */
-    if (!map.isStyleLoaded()) return;
+    if (!styleReady) return;
 
     map.addSource(id, { type: 'geojson', data });
     for (const { id: layerId, ...rest } of specs) {
@@ -84,7 +85,7 @@ export function useGeoJson(
     };
     // `data` is applied by the effect below rather than rebuilding the layers.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, id, shape, styleEpoch, isAlive, data === null]);
+  }, [map, id, shape, styleEpoch, styleReady, isAlive, data === null]);
 
   /* New data into the source that is already there. */
   useEffect(() => {
@@ -92,5 +93,5 @@ export function useGeoJson(
     const source = map.getSource(id);
     if (!(source instanceof GeoJSONSource)) return;
     source.setData(data);
-  }, [map, id, data, styleEpoch]);
+  }, [map, id, data, styleEpoch, styleReady]);
 }
