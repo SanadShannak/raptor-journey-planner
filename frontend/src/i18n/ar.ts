@@ -450,7 +450,7 @@ export const ar: Dictionary = {
 
   card: {
     inquiryTitle: 'استعلم عن رصيد بطاقة',
-    inquiryIntro: 'أدخل الرقم المطبوع على البطاقة. لا يُحفظ شيء، ولا تحتاج إلى حساب.',
+    inquiryIntro: 'أدخل الرقم المطبوع على البطاقة. لا تحتاج إلى حساب، ولا يُحفظ شيء ما لم تختر حفظه.',
     numberLabel: 'رقم البطاقة',
     /*
      * The example is wrapped in U+2066 LRI … U+2069 PDI.
@@ -482,6 +482,19 @@ export const ar: Dictionary = {
 
     numberRequired: 'أدخل رقم البطاقة.',
     numberIncomplete: 'هذا الرقم قصير جدًا. رقم البطاقة أحد عشر رقمًا.',
+
+    save: 'حفظ في بطاقاتي',
+    unsave: 'إزالة من بطاقاتي',
+    limitReached: 'يمكنك حفظ {count} بطاقات. أزل واحدة لإفساح المجال.',
+    myCardsTitle: 'بطاقاتي',
+    myCardsIntro: 'البطاقات التي حفظتها، ورصيد كل واحدة منها.',
+    savedOnDevice: 'البطاقات المحفوظة تبقى على هذا الجهاز.',
+    noSavedCards: 'لا توجد بطاقات محفوظة بعد. استعلم عن بطاقة واحفظها لترى رصيدها بلمحة في المرة القادمة.',
+    rename: 'إعادة التسمية',
+    renameNamed: 'إعادة تسمية {name}',
+    renamePlaceholder: 'بطاقة المنزل، بطاقة العمل…',
+    removeSaved: 'إزالة البطاقة المحفوظة',
+    refreshBalance: 'تحديث الرصيد',
   },
 
   favourites: {

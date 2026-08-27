@@ -120,15 +120,35 @@ export function AppHeader() {
             a menu button already and the time is the one thing there that
             nothing depends on.
           */}
+          {/*
+            Shown at every width now, phone included — the settings menu moved
+            the theme and language controls off the bar on a narrow screen, and
+            the room that freed is exactly what the clock needs.
+          */}
+          {/*
+            `mx-1` on top of the row's own gap. The clock is the one thing on
+            the bar with no border and no fill to hold it apart from what it
+            sits between — a bare run of digits against a bordered control
+            reads as crowding it at the same spacing that looks settled
+            between two boxes.
+          */}
           {now !== null && network !== null && (
-            <p className="hidden text-sm font-medium tabular-nums sm:block">
+            <p className="mx-1 text-sm font-medium tabular-nums">
               <span className="sr-only">{t(strings.status.clockLabel, { network })}</span>
               <span aria-hidden="true">{formatClockTime(now.time, locale)}</span>
             </p>
           )}
 
-          <ThemeToggle />
-          <LanguageToggle />
+          {/*
+            Settings live here from `md` up; below it they move into the
+            navigation panel, which is the only place with room for them on a
+            phone. Hiding rather than removing them from the tree keeps the
+            component the same either way — only their address changes.
+          */}
+          <div className="hidden items-center gap-2 md:flex">
+            <ThemeToggle />
+            <LanguageToggle />
+          </div>
 
           {/* A hairline between settings and account, so the bar reads as two
               groups rather than four unrelated controls. Below `md` the auth

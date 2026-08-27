@@ -360,7 +360,7 @@ export const en: Dictionary = {
 
   card: {
     inquiryTitle: 'Check a card balance',
-    inquiryIntro: 'Type the number printed on the card. Nothing is saved, and you do not need an account.',
+    inquiryIntro: 'Type the number printed on the card. You do not need an account, and nothing is kept unless you choose to save it.',
     numberLabel: 'Card number',
     numberHint: 'Eleven digits, as printed: 12345-67890-1',
     check: 'Check balance',
@@ -380,6 +380,19 @@ export const en: Dictionary = {
 
     numberRequired: 'Enter the card number.',
     numberIncomplete: 'That number is too short. A card number has eleven digits.',
+
+    save: 'Save to My Cards',
+    unsave: 'Remove from My Cards',
+    limitReached: 'You can save {count} cards. Remove one to make room.',
+    myCardsTitle: 'My cards',
+    myCardsIntro: 'Cards you have saved, and their balance.',
+    savedOnDevice: 'Saved cards are kept on this device.',
+    noSavedCards: 'No saved cards yet. Look one up and save it to check its balance at a glance next time.',
+    rename: 'Rename',
+    renameNamed: 'Rename {name}',
+    renamePlaceholder: 'Home card, Work card…',
+    removeSaved: 'Remove saved card',
+    refreshBalance: 'Refresh balance',
   },
 
   favourites: {

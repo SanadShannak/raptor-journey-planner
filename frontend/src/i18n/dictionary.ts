@@ -607,6 +607,25 @@ export interface Dictionary {
     /* What went wrong, in the reader's terms rather than the server's. */
     numberRequired: string;
     numberIncomplete: string;
+
+    /*
+     * My Cards — saved numbers, kept on the device exactly the way favourites
+     * are. No balance is ever stored: only the number and a nickname, so a
+     * tile always asks again rather than showing a figure that might already
+     * be wrong.
+     */
+    save: string;
+    unsave: string;
+    limitReached: string;
+    myCardsTitle: string;
+    myCardsIntro: string;
+    savedOnDevice: string;
+    noSavedCards: string;
+    rename: string;
+    renameNamed: string;
+    renamePlaceholder: string;
+    removeSaved: string;
+    refreshBalance: string;
   };
 
   /**

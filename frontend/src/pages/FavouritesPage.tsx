@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePageTitle } from '../app/usePageTitle';
 import { getNetwork } from '../api/network';
 import { nowInZone, useLocale } from '../i18n';
@@ -11,6 +11,7 @@ import {
 } from '../features/favourites/favourite';
 import { reorderFavourite } from '../features/favourites/favouritesStore';
 import { useFavourites } from '../features/favourites/useFavourites';
+import { useFavouriteFlip } from '../features/favourites/useFavouriteFlip';
 import { FavouriteStopRow } from '../features/favourites/FavouriteStopRow';
 import { FavouriteRouteRow } from '../features/favourites/FavouriteRouteRow';
 import { FavouriteJourneyRow } from '../features/favourites/FavouriteJourneyRow';
@@ -141,9 +142,17 @@ export default function FavouritesPage() {
 
       const moving = draggedRef.current;
       if (moving !== null) {
+        /*
+         * `:not([data-flipping])` is what keeps a glide from feeding itself.
+         * Hit testing reads painted positions, so a card still travelling to
+         * its new slot sits under the pointer somewhere it has not actually
+         * arrived — offering it as a drop target would reorder onto a
+         * position that is about to stop existing, and the row would swap
+         * back and forth for as long as the finger stayed still.
+         */
         const under = document
           .elementFromPoint(at.x, at.y)
-          ?.closest<HTMLElement>('[data-favourite]');
+          ?.closest<HTMLElement>('[data-favourite]:not([data-flipping])');
         const target = under?.dataset['favourite'];
         if (target !== undefined && target !== moving) reorderFavourite(moving, target);
       }
@@ -286,16 +295,13 @@ export default function FavouritesPage() {
                 </div>
 
                 {/*
-                  Scrolls sideways when the cards outrun the row. No `tabindex`
-                  on the scroller: every card holds links and buttons, so tabbing
-                  through them scrolls the row into view by itself, and adding one
-                  would only put an extra stop in the way of that.
-
-                  The vertical padding is room for a card to lift into. A row
-                  that scrolls sideways clips everything outside itself on both
-                  axes, so without it the shadow and the raised edge — the very
-                  things saying a card is held — were the first to be cut off.
-                  The negative margin takes the space back out of the layout.
+                  Scrolls sideways when the cards outrun the row — see
+                  `FavouriteRow` for the scroller itself, and `useFavouriteFlip`
+                  for how a card slides into its new spot rather than snapping
+                  there when a drag reorders the row around it. No `tabindex`
+                  on the scroller: every card holds links and buttons, so
+                  tabbing through them scrolls the row into view by itself, and
+                  adding one would only put an extra stop in the way of that.
 
                   The row sits inside the page's own gutters rather than bleeding
                   through them on negative margins. That looked right at rest and
@@ -319,32 +325,79 @@ export default function FavouritesPage() {
                     {t(empty)}
                   </p>
                 ) : (
-                <div data-row className="shrink-0 -my-3 overflow-x-auto py-3">
-                  <ul className="flex items-stretch gap-3">
-                    {mine.map((favourite, index) => {
-                      const key = identity(favourite);
-                      return (
-                        <Card
-                          key={key}
-                          favourite={favourite}
-                          now={now}
-                          networkToday={networkToday}
-                          onRemoved={afterRemove}
-                          dragging={dragged === key}
-                          canGoEarlier={index > 0}
-                          canGoLater={index < mine.length - 1}
-                          someoneElseDragging={dragged !== null && dragged !== key}
-                          onDragStart={() => startDrag(key)}
-                        />
-                      );
-                    })}
-                  </ul>
-                </div>
+                  <FavouriteRow
+                    favourites={mine}
+                    now={now}
+                    networkToday={networkToday}
+                    dragged={dragged}
+                    onRemoved={afterRemove}
+                    onDragStart={startDrag}
+                  />
                 )}
               </section>
             );
           })}
       </div>
+    </div>
+  );
+}
+
+/**
+ * One kind's own row of cards, animated.
+ *
+ * Split out from the page purely so {@link useFavouriteFlip} has a component
+ * of its own to run in — the hook needs a ref to the scroller and the current
+ * order on every render, and giving each of the three rows its own instance is
+ * simpler than one hook in the page trying to track three scrollers at once.
+ */
+function FavouriteRow({
+  favourites,
+  now,
+  networkToday,
+  dragged,
+  onRemoved,
+  onDragStart,
+}: {
+  favourites: readonly Favourite[];
+  now: ReturnType<typeof useNetworkNow>;
+  networkToday: string | null;
+  dragged: string | null;
+  onRemoved: () => void;
+  onDragStart: (key: string) => void;
+}) {
+  const rowRef = useRef<HTMLDivElement>(null);
+  const order = useMemo(() => favourites.map(identity), [favourites]);
+
+  useFavouriteFlip(rowRef, order);
+
+  return (
+    /*
+      The vertical padding is room for a card to lift into. A row that scrolls
+      sideways clips everything outside itself on both axes, so without it the
+      shadow and the raised edge — the very things saying a card is held —
+      were the first to be cut off. The negative margin takes the space back
+      out of the layout.
+    */
+    <div data-row ref={rowRef} className="shrink-0 -my-3 overflow-x-auto py-3">
+      <ul className="flex items-stretch gap-3">
+        {favourites.map((favourite, index) => {
+          const key = identity(favourite);
+          return (
+            <Card
+              key={key}
+              favourite={favourite}
+              now={now}
+              networkToday={networkToday}
+              onRemoved={onRemoved}
+              dragging={dragged === key}
+              canGoEarlier={index > 0}
+              canGoLater={index < favourites.length - 1}
+              someoneElseDragging={dragged !== null && dragged !== key}
+              onDragStart={() => onDragStart(key)}
+            />
+          );
+        })}
+      </ul>
     </div>
   );
 }
