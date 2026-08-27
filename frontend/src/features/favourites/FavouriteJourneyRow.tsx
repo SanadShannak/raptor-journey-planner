@@ -12,8 +12,6 @@ interface Props {
   onRemoved: () => void;
   dragging: boolean;
   onDragStart: () => void;
-  onDragEnter: () => void;
-  onDragEnd: () => void;
 }
 
 const PACE_LABEL = {
@@ -43,8 +41,6 @@ export function FavouriteJourneyRow({
   onRemoved,
   dragging,
   onDragStart,
-  onDragEnter,
-  onDragEnd,
 }: Props) {
   const { locale, strings, t } = useLocale();
 
@@ -88,8 +84,6 @@ export function FavouriteJourneyRow({
       onRemoved={onRemoved}
       dragging={dragging}
       onDragStart={onDragStart}
-      onDragEnter={onDragEnter}
-      onDragEnd={onDragEnd}
       emblem={
         <span
           aria-hidden="true"
@@ -131,7 +125,7 @@ export function FavouriteJourneyRow({
         together they read as one block of small print rather than as three
         separate answers.
       */}
-      <div className="flex flex-col gap-2.5 py-0.5">
+      <div className="flex flex-col gap-2.5 py-1">
         {field(t(strings.favourites.fromLabel), favourite.origin.label, true)}
         {field(t(strings.favourites.toLabel), favourite.destination.label, true)}
         {/* The same weight as the two places: all three are facts about the

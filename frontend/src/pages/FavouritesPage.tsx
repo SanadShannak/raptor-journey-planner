@@ -44,26 +44,61 @@ export default function FavouritesPage() {
   const now = useNetworkNow(timezone);
 
   /**
-   * Which card is being dragged.
+   * The drag in progress, and the listeners following it.
    *
-   * Held in a **ref** as well as in state, and the ref is what the drop logic
-   * reads. `dragenter` can arrive in the same tick as `dragstart` — a fast
-   * pointer, or a synthetic event — and state committed in `dragstart` is not
-   * visible to a handler running before React has re-rendered, so a drag that
-   * started and moved in one frame silently did nothing. The state exists only
-   * so the card being carried can dim, which is a render concern.
+   * Owned by the row rather than by the card being dragged, because reordering
+   * unmounts that card — it is the one element on screen the gesture is certain
+   * to disturb — and listeners it owned died with it, so a drag ended at its
+   * own first success. This component is not disturbed by its own list
+   * reordering, so it is what listens.
+   *
+   * The key is held in a **ref** as well as in state: `pointermove` can arrive
+   * before React has re-rendered, and the state exists only so the card being
+   * carried can dim, which is a render concern.
    */
   const draggedRef = useRef<string | null>(null);
   const [dragged, setDragged] = useState<string | null>(null);
+  const stopDrag = useRef<(() => void) | null>(null);
+
+  useEffect(() => () => stopDrag.current?.(), []);
 
   const startDrag = (key: string) => {
     draggedRef.current = key;
     setDragged(key);
-  };
 
-  const endDrag = () => {
-    draggedRef.current = null;
-    setDragged(null);
+    const move = (event: PointerEvent) => {
+      const moving = draggedRef.current;
+      if (moving === null) return;
+      /*
+       * Which card is under the pointer, asked of the document rather than
+       * worked out from geometry — the row scrolls and reorders underneath the
+       * gesture, so anything measured when it started describes an arrangement
+       * that no longer exists.
+       */
+      const under = document
+        .elementFromPoint(event.clientX, event.clientY)
+        ?.closest<HTMLElement>('[data-favourite]');
+      const target = under?.dataset['favourite'];
+      if (target !== undefined && target !== moving) reorderFavourite(moving, target);
+    };
+
+    const end = () => {
+      draggedRef.current = null;
+      setDragged(null);
+      stopDrag.current?.();
+    };
+
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+    // A gesture the system took over — a call, a swipe from the screen edge.
+    window.addEventListener('pointercancel', end);
+
+    stopDrag.current = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', end);
+      stopDrag.current = null;
+    };
   };
 
   /*
@@ -114,18 +149,19 @@ export default function FavouritesPage() {
   const afterRemove = () => headingRef.current?.focus();
 
   return (
-    <div className="flex w-full flex-col gap-2 px-4 py-1.5 sm:px-6 lg:px-8">
+    <div className="flex w-full flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
       {/*
-        The heading and its one line of explanation share a row rather than
-        stacking. Both are worth saying and neither is worth a row of cards'
-        worth of height to say — and on a page whose whole point is fitting on
-        one screen, a spare line at the top is a departure lost at the bottom.
+        A page heading like every other page's, rather than the compressed one
+        this page grew while it was trying to fit a screen exactly. Fitting is
+        not worth reading like a different product: the title and its line sit
+        at the same size and in the same stack here as they do on the card
+        page, and the page scrolls when it has to.
       */}
-      <div className="mb-1.5 flex flex-wrap items-baseline gap-x-3">
+      <div className="flex flex-col gap-2">
         <h1
           ref={headingRef}
           tabIndex={-1}
-          className="focus-visible:outline-brand-500 rounded-control text-lg font-semibold tracking-tight"
+          className="focus-visible:outline-brand-500 rounded-control text-3xl font-semibold tracking-tight"
         >
           {t(strings.pages.favourites.title)}
         </h1>
@@ -134,7 +170,7 @@ export default function FavouritesPage() {
           about where favourites live are both worth saying, and neither is
           worth a row of cards' worth of height to say.
         */}
-        <p className="text-content-muted text-xs">
+        <p className="text-content-muted max-w-prose">
           {t(strings.favourites.intro)} {t(strings.favourites.savedOnDevice)}
         </p>
       </div>
@@ -160,9 +196,9 @@ export default function FavouritesPage() {
                 card's footer is cut off inside it. Refusing to shrink makes the
                 page's real height real again.
               */
-              <section key={kind} className="flex shrink-0 flex-col gap-1">
+              <section key={kind} className="flex shrink-0 flex-col gap-2">
                 <div className="flex items-baseline justify-between gap-3">
-                  <h2 className="text-base font-semibold tracking-tight">{t(heading)}</h2>
+                  <h2 className="text-lg font-semibold tracking-tight">{t(heading)}</h2>
                   <p className="text-content-muted text-xs tabular-nums">
                     {t(strings.favourites.countOfLimit, {
                       count: mine.length,
@@ -199,7 +235,7 @@ export default function FavouritesPage() {
                     {t(empty)}
                   </p>
                 ) : (
-                <div className="shrink-0 overflow-x-auto pb-0.5">
+                <div className="shrink-0 overflow-x-auto pb-1">
                   <ul className="flex items-stretch gap-3">
                     {mine.map((favourite) => {
                       const key = identity(favourite);
@@ -212,18 +248,6 @@ export default function FavouritesPage() {
                           onRemoved={afterRemove}
                           dragging={dragged === key}
                           onDragStart={() => startDrag(key)}
-                          /*
-                           * Reordered as the pointer passes rather than on
-                           * drop, so the row shows the arrangement being made
-                           * instead of rearranging once at the end.
-                           */
-                          onDragEnter={() => {
-                            const moving = draggedRef.current;
-                            if (moving !== null && moving !== key) {
-                              reorderFavourite(moving, key);
-                            }
-                          }}
-                          onDragEnd={endDrag}
                         />
                       );
                     })}
@@ -246,8 +270,6 @@ function Card({
   onRemoved,
   dragging,
   onDragStart,
-  onDragEnter,
-  onDragEnd,
 }: {
   favourite: Favourite;
   now: ReturnType<typeof useNetworkNow>;
@@ -255,10 +277,8 @@ function Card({
   onRemoved: () => void;
   dragging: boolean;
   onDragStart: () => void;
-  onDragEnter: () => void;
-  onDragEnd: () => void;
 }) {
-  const shared = { now, onRemoved, dragging, onDragStart, onDragEnter, onDragEnd };
+  const shared = { now, onRemoved, dragging, onDragStart };
 
   switch (favourite.kind) {
     case 'stop':

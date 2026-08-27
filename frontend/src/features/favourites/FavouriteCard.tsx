@@ -1,4 +1,9 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from 'react';
 import { Link } from 'react-router';
 import { useLocale } from '../../i18n';
 import { favouriteLabel, identity, type Favourite } from './favourite';
@@ -22,9 +27,8 @@ interface Props {
   onRemoved: () => void;
   /** True while this card is the one being dragged, so it can dim. */
   dragging: boolean;
+  /** Hands the gesture to the row, which follows it from there. */
   onDragStart: () => void;
-  onDragEnter: () => void;
-  onDragEnd: () => void;
 }
 
 /**
@@ -55,10 +59,23 @@ const CONTROL =
  *
  * **Reordering is a drag**, which is the gesture the arrangement actually
  * wants — dropping the fifth card at the front is one movement rather than
- * four presses. A drag alone is not operable by keyboard, though, so the same
- * move is on `Alt` with the arrow keys, and the card says so. The arrows are
- * read *visually*: in Arabic the row runs the other way, so `ArrowRight` moves
- * a card earlier, which is what "earlier" looks like on that screen.
+ * four presses.
+ *
+ * Built on **pointer events rather than the drag-and-drop API**, because that
+ * API is mouse-only: a phone never fires `dragstart` from a finger, so the
+ * cards could not be rearranged on the device most likely to be holding them.
+ * Pointer events cover a mouse, a finger and a stylus in one path.
+ *
+ * The drag starts from the **grip alone**, and that is the load-bearing part.
+ * The grip opts out of the browser's own touch gestures so a drag on it is a
+ * drag; everywhere else on the card keeps them, so a finger can still scroll
+ * the row sideways and tap a card to open it. Taking those gestures from the
+ * whole card would trade one interaction for two.
+ *
+ * A drag is not operable by keyboard at all, so the same move is on `Alt` with
+ * the arrow keys and the row says so once. The arrows are read *visually*: in
+ * Arabic the row runs the other way, so `ArrowRight` moves a card earlier,
+ * which is what "earlier" looks like on that screen.
  */
 export function FavouriteCard({
   favourite,
@@ -71,8 +88,6 @@ export function FavouriteCard({
   onRemoved,
   dragging,
   onDragStart,
-  onDragEnter,
-  onDragEnd,
 }: Props) {
   const { direction, strings, t } = useLocale();
   const key = identity(favourite);
@@ -82,9 +97,27 @@ export function FavouriteCard({
   const fieldRef = useRef<HTMLInputElement>(null);
   const nameRef = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => {
-    if (editing) fieldRef.current?.select();
-  }, [editing]);
+  /*
+   * Whether *this* card is the one being carried. A ref rather than the
+   * `dragging` prop, because the first `pointermove` can arrive before React
+   * has re-rendered with it and the drag would drop its opening movement.
+   */
+  /**
+   * Starts a drag, and hands it straight to the row.
+   *
+   * The card deliberately does not follow the gesture itself. Reordering
+   * unmounts the card being dragged — it is the one thing on screen the drag
+   * is guaranteed to disturb — so any listener it owned was torn down by its
+   * own first success, and every movement after that was lost. The row is the
+   * thing that survives a reorder, so the row is what listens.
+   */
+  function beginDrag(event: ReactPointerEvent): void {
+    // A right-click is not a drag; a finger or a stylus has no button to press.
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    if (editing) return;
+    event.preventDefault();
+    onDragStart();
+  }
 
   const title = favouriteLabel(favourite, fallbackLabel);
 
@@ -103,37 +136,8 @@ export function FavouriteCard({
 
   return (
     <li
-      /*
-       * Not draggable while a name is being edited: a drag would steal the
-       * pointer from selecting text inside the field.
-       */
-      draggable={!editing}
-      onDragStart={(event) => {
-        // Firefox refuses to start a drag without data on the transfer.
-        event.dataTransfer.setData('text/plain', key);
-        event.dataTransfer.effectAllowed = 'move';
-        /*
-         * The card itself is what is being carried. Without this the browser
-         * builds its own ghost from whatever is under the pointer, and over a
-         * card whose whole surface is a stretched link that is a chip showing
-         * the URL — an address nobody asked for, floating next to a card that
-         * is plainly the thing being moved.
-         */
-        event.dataTransfer.setDragImage(
-          event.currentTarget,
-          event.nativeEvent.offsetX,
-          event.nativeEvent.offsetY,
-        );
-        onDragStart();
-      }}
-      onDragEnter={onDragEnter}
-      onDragOver={(event) => event.preventDefault()}
-      onDragEnd={onDragEnd}
-      onDrop={(event) => {
-        event.preventDefault();
-        onDragEnd();
-      }}
-      className={`border-border bg-surface-raised rounded-card relative flex w-80 flex-none cursor-grab flex-col border transition-opacity active:cursor-grabbing ${
+      data-favourite={key}
+      className={`border-border bg-surface-raised rounded-card relative flex w-80 flex-none flex-col border transition-opacity ${
         dragging ? 'opacity-40' : ''
       }`}
     >
@@ -250,15 +254,32 @@ export function FavouriteCard({
           {/* The pager belongs to the list above it, so it sits at the start. */}
           <div className="flex items-center gap-0.5">
             {/*
-              The grip. Nothing else on the card said it could be picked up —
-              `cursor: grab` only appears once a pointer is already on it, and
-              says nothing to anyone reading rather than pointing. Decorative
-              here: the row states the same thing in words for a screen reader,
-              and repeating it per card would be the noisier answer.
+              The grip, which is both the sign that a card can be picked up and
+              the only place a drag starts.
+
+              `aria-hidden` still: a drag is a pointer gesture with no keyboard
+              equivalent of its own, so a screen reader is pointed at the one
+              that does work — `Alt` with the arrow keys, said once per row —
+              rather than at a handle it cannot use.
             */}
             <span
               aria-hidden="true"
-              className="text-content-muted/70 flex h-7 w-4 flex-none items-center justify-center"
+              onPointerDown={beginDrag}
+              /*
+               * `pointer-events-auto` because the card's content sits inside a
+               * layer that lets presses fall through to the stretched link
+               * underneath it — which is right for everything that is only
+               * being read, and wrong for the one part that has to be grabbed.
+               * Without it the grip drew a `grab` cursor over a link that
+               * quietly took every gesture aimed at it.
+               *
+               * `touch-none` only here. It tells the browser this handle's
+               * gestures are ours, which is what makes a finger-drag a drag
+               * rather than a scroll — and confining it to the handle is what
+               * leaves the rest of the card able to scroll the row and open
+               * itself.
+               */
+              className="text-content-muted/70 pointer-events-auto relative flex h-7 w-5 flex-none cursor-grab touch-none items-center justify-center active:cursor-grabbing"
             >
               <svg viewBox="0 0 10 16" width="10" height="16" fill="currentColor" aria-hidden="true">
                 <circle cx="3" cy="4" r="1.1" />

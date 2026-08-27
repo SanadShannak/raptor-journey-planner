@@ -20,8 +20,6 @@ interface Props {
   onRemoved: () => void;
   dragging: boolean;
   onDragStart: () => void;
-  onDragEnter: () => void;
-  onDragEnd: () => void;
 }
 
 /** Three at a time, matching the stop card and for the same reason. */
@@ -60,8 +58,6 @@ export function FavouriteRouteRow({
   onRemoved,
   dragging,
   onDragStart,
-  onDragEnter,
-  onDragEnd,
 }: Props) {
   const { locale, strings, t } = useLocale();
   const { service } = useBackendHealth();
@@ -171,8 +167,6 @@ export function FavouriteRouteRow({
       onRemoved={onRemoved}
       dragging={dragging}
       onDragStart={onDragStart}
-      onDragEnter={onDragEnter}
-      onDragEnd={onDragEnd}
       pager={<DeparturePager page={shownPage} pages={pages} onPage={setPage} />}
       emblem={
         <LineBadge
@@ -215,7 +209,7 @@ export function FavouriteRouteRow({
             {visible.map((next) => (
               <li
                 key={`${next.call.date}-${next.call.time}`}
-                className="border-border flex items-center justify-between gap-2 border-b py-1 text-sm tabular-nums last:border-b-0"
+                className="border-border flex items-center justify-between gap-2 border-b py-1.5 text-sm tabular-nums last:border-b-0"
               >
                 {/*
                   The countdown leads and the clock time closes, which is the

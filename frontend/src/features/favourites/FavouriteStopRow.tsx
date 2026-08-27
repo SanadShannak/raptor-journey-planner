@@ -17,8 +17,6 @@ interface Props {
   onRemoved: () => void;
   dragging: boolean;
   onDragStart: () => void;
-  onDragEnter: () => void;
-  onDragEnd: () => void;
 }
 
 /**
@@ -62,8 +60,6 @@ export function FavouriteStopRow({
   onRemoved,
   dragging,
   onDragStart,
-  onDragEnter,
-  onDragEnd,
 }: Props) {
   const { strings, t } = useLocale();
   const { service } = useBackendHealth();
@@ -143,8 +139,6 @@ export function FavouriteStopRow({
       onRemoved={onRemoved}
       dragging={dragging}
       onDragStart={onDragStart}
-      onDragEnter={onDragEnter}
-      onDragEnd={onDragEnd}
       pager={<DeparturePager page={shownPage} pages={pages} onPage={setPage} />}
       subtitle={
         favourite.code === null ? null : <StopCode code={favourite.code} />
