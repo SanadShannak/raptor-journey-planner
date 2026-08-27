@@ -75,14 +75,29 @@ describe('getLines', () => {
 
   it('reads a line, and keeps the directions that license a flip', async () => {
     respondWith({
-      lines: [{ ...LINE, variantCount: 4, directions: [0, 1] }],
+      lines: [{ ...LINE, variantCount: 4, directions: [0, 1], activeToday: true }],
       totalLines: 1,
     });
 
     const { lines, totalLines } = await getLines();
 
     expect(totalLines).toBe(1);
-    expect(lines[0]).toEqual({ ...LINE, variantCount: 4, directions: [0, 1] });
+    expect(lines[0]).toEqual({
+      ...LINE,
+      variantCount: 4,
+      directions: [0, 1],
+      activeToday: true,
+    });
+  });
+
+  /* Absent rather than merely falsy — a line the backend says nothing about
+     is not claimed to be running today. */
+  it('reads a missing activeToday as false rather than as unknown', async () => {
+    respondWith({ lines: [{ ...LINE, variantCount: 1 }], totalLines: 1 });
+
+    const { lines } = await getLines();
+
+    expect(lines[0]?.activeToday).toBe(false);
   });
 
   /* A feed without `direction_id` has no direction to offer, and none is

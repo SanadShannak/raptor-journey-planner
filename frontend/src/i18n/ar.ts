@@ -42,6 +42,7 @@ export const ar: Dictionary = {
       many: 'تغطي بيانات الجداول الزمنية {count} يومًا، من {first} إلى {last}.',
       other: 'تغطي بيانات الجداول الزمنية {count} يوم، من {first} إلى {last}.',
     },
+    resultsUnavailable: 'يتعذّر تحميل النتائج الآن.',
   },
 
   units: {
@@ -94,7 +95,7 @@ export const ar: Dictionary = {
     back: 'رجوع',
     closeMenu: 'إغلاق القائمة',
     home: 'الرئيسية',
-    plan: 'خطط رحلة',
+    plan: 'مخطط الرحلات',
     routes: 'الخطوط',
     stops: 'المحطات',
     card: 'بطاقة السفر',
@@ -233,7 +234,6 @@ export const ar: Dictionary = {
     totalRiding: 'ركوب {duration}',
     journeySummary: 'المغادرة {start}، والوصول {end}، {duration}.',
 
-    serviceUnavailableHint: 'تخطيط الرحلات يحتاج إليها، لذا توقّف البحث مؤقتًا. أما بقية عناصر الصفحة فتعمل كالمعتاد.',
     retryConnection: 'حاول مرة أخرى',
     checkingService: 'جارٍ التحقّق من خدمة تخطيط الرحلات…',
   },
@@ -351,6 +351,7 @@ export const ar: Dictionary = {
       many: '{count} مسارًا',
       other: '{count} مسار',
     },
+    activeToday: 'يعمل اليوم',
     loadingLines: 'يجري تحميل الخطوط…',
 
     backToLines: 'كل الخطوط',
@@ -366,14 +367,6 @@ export const ar: Dictionary = {
       few: '{count} محطات',
       many: '{count} محطة',
       other: '{count} محطة',
-    },
-    tripCount: {
-      zero: 'لا رحلات في الجدول الزمني',
-      one: 'رحلة واحدة في الجدول الزمني',
-      two: 'رحلتان في الجدول الزمني',
-      few: '{count} رحلات في الجدول الزمني',
-      many: '{count} رحلة في الجدول الزمني',
-      other: '{count} رحلة في الجدول الزمني',
     },
     tripCountToday: {
       zero: 'لا رحلات اليوم',

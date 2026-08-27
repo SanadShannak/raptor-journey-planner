@@ -184,8 +184,24 @@ describe('RouteInspector', () => {
     expect(
       await screen.findByRole('heading', { level: 1, name: 'Eira - Käpylä' }),
     ).toBeTruthy();
-    expect(screen.getByText('towards Käpylä')).toBeTruthy();
+    expect(screen.getByText('Towards Käpylä')).toBeTruthy();
     expect(screen.getByText('3 stops')).toBeTruthy();
+  });
+
+  /*
+   * The stops tab is about where the line goes and when the next one calls,
+   * not a count of the day's trips — that belongs to the tab that actually
+   * shows them row by row, or it doubles as a second, disconnected claim
+   * about the same day.
+   */
+  it('only says how many trips run today on the timetable tab', async () => {
+    stubFetch();
+    show();
+
+    await screen.findByRole('heading', { level: 1, name: 'Eira - Käpylä' });
+    expect(screen.queryByText('3 trips today')).toBeNull();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Timetable' }));
     expect(await screen.findByText('3 trips today')).toBeTruthy();
   });
 
@@ -211,7 +227,7 @@ describe('RouteInspector', () => {
   it('keeps the line’s name and flips the destination under it', async () => {
     stubFetch();
     const { rerender } = show({ patternId: 0 });
-    expect(await screen.findByText('towards Käpylä')).toBeTruthy();
+    expect(await screen.findByText('Towards Käpylä')).toBeTruthy();
 
     rerender(
       <LocaleProvider>
@@ -234,8 +250,8 @@ describe('RouteInspector', () => {
     expect(
       await screen.findByRole('heading', { level: 1, name: 'Eira - Käpylä' }),
     ).toBeTruthy();
-    expect(screen.queryByText('towards Käpylä')).toBeNull();
-    expect(screen.getByText('towards Eira')).toBeTruthy();
+    expect(screen.queryByText('Towards Käpylä')).toBeNull();
+    expect(screen.getByText('Towards Eira')).toBeTruthy();
   });
 
   /*
@@ -375,7 +391,7 @@ describe('RouteInspector', () => {
      */
     expect(panel.getByText('Pohjolanaukio to Telakkakatu')).toBeTruthy();
     expect(panel.getByText('Telakkakatu to Pohjolanaukio')).toBeTruthy();
-    expect(panel.queryByText('towards Eira')).toBeNull();
+    expect(panel.queryByText('Towards Eira')).toBeNull();
     expect(panel.getByText('Showing now')).toBeTruthy();
   });
 

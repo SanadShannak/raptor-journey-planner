@@ -85,6 +85,9 @@ const PAIRS = [
   ['mode-ferry', 'surface-muted', AA_UI],
   ['border-strong', 'surface', AA_UI],
   ['border-strong', 'surface-raised', AA_UI],
+  // The "active today" dot on the routes list — decorative, but still a
+  // filled UI boundary against the page it sits on.
+  ['success', 'surface', AA_UI],
 ];
 
 function oklchToLinearRgb(lightness, chroma, hue) {

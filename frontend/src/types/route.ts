@@ -33,6 +33,13 @@ export interface LineSummary {
    * points rather than inventing a direction it cannot prove.
    */
   directions: (0 | 1)[];
+  /**
+   * True the moment any one of the line's patterns runs today, on the
+   * network's own clock — the same "does this line run today" a rider asking
+   * about the *line* means, not whichever single pattern happened to be
+   * checked.
+   */
+  activeToday: boolean;
 }
 
 /**

@@ -177,7 +177,7 @@ describe('StopInspector', () => {
     show();
 
     expect(await screen.findByText('Kauklahti')).toBeTruthy();
-    expect(screen.getByText('towards Kirkkonummi')).toBeTruthy();
+    expect(screen.getByText('Towards Kirkkonummi')).toBeTruthy();
   });
 
   it('says a trip terminates here rather than naming this stop as its destination', async () => {

@@ -86,6 +86,7 @@ function toLineSummary(raw: unknown): LineSummary | null {
     ...identity,
     variantCount: number(line['variantCount']) ?? 0,
     directions: toDirections(line['directions']),
+    activeToday: line['activeToday'] === true,
   };
 }
 

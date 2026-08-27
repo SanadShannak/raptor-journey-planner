@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { getLine, getLineVariant, getVariantTimetable } from '../../api/routes';
+import { useBackendHealth } from '../../app/useBackendHealth';
 import { DateSelect } from '../../components/DateSelect';
 import { ScheduleEstimateNotice } from '../../components/ScheduleEstimateNotice';
 import { messageForApiError, useLocale } from '../../i18n';
@@ -108,6 +109,7 @@ export function RouteInspector({
   onVehicles,
 }: Props) {
   const { strings, t } = useLocale();
+  const { service } = useBackendHealth();
   const viewLabelId = useId();
 
   const [line, setLine] = useState<Line | null>(null);
@@ -379,7 +381,14 @@ export function RouteInspector({
         <RouteHeader
           variant={variant}
           span={span}
-          tripsOnDay={dayTimetable === null ? null : dayTimetable.totalTrips}
+          /*
+            Only on the timetable tab, which is the one actually showing that
+            day's trips row by row — the stops tab is about where the line
+            goes and when the next one calls at each stop, not a count.
+          */
+          tripsOnDay={
+            view === 'timetable' && dayTimetable !== null ? dayTimetable.totalTrips : null
+          }
           day={shownDate}
           networkToday={networkToday}
           onFlip={
@@ -388,13 +397,24 @@ export function RouteInspector({
         />
       )}
 
-      {errorMessage !== null && (
+      {/*
+        The backend being down is a fact the shared header already states —
+        this only says that *this line* has nothing to show while it is,
+        rather than waiting out this request's own timeout to say so.
+      */}
+      {service === 'down' ? (
         <p role="alert" className="rounded-card border-danger text-danger border px-4 py-3 text-sm">
-          {errorMessage}
+          {t(strings.status.resultsUnavailable)}
         </p>
+      ) : (
+        errorMessage !== null && (
+          <p role="alert" className="rounded-card border-danger text-danger border px-4 py-3 text-sm">
+            {errorMessage}
+          </p>
+        )
       )}
 
-      {variant === null && loading && (
+      {variant === null && loading && service !== 'down' && (
         <p className="text-content-muted text-sm">{t(strings.routes.loadingLine)}</p>
       )}
 

@@ -17,7 +17,8 @@ interface Props {
   span: DaySpan | null;
   /**
    * How many trips run on the day being looked at, or null while that day's
-   * timetable has not arrived (or has none to report).
+   * timetable has not arrived, has none to report, or the caller is not
+   * currently showing the timetable tab.
    *
    * The day's own count, not the pattern's lifetime one — {@link
    * LineVariantDetail.tripCount} is every distinct trip the compiled
@@ -25,7 +26,9 @@ interface Props {
    * calendar days makes far larger than what runs on any one of them, and
    * reads as a claim about today that is not true of it. This is the number
    * a reader can check by opening the timetable tab for this same day and
-   * counting rows.
+   * counting rows — which is also why the caller passes null outside that
+   * tab: the stops tab is about where the line goes and when the next one
+   * calls, not a count of the day's trips.
    */
   tripsOnDay: number | null;
   /** The day the span belongs to, so it can say which day it is talking about. */

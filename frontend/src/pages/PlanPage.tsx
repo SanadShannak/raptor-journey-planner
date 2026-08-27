@@ -731,19 +731,11 @@ export default function PlanPage() {
 
             {/*
               The service being down is stated once, in the header every page
-              shares — this used to be said again here, but a visitor already
-              seeing it above the form does not need it repeated below the
-              same fold. What still belongs to this page is the one thing the
-              header cannot say: the form itself is off rather than left to
-              fail on submit, and everything else on this page — theme,
-              language, navigation — keeps working regardless.
+              shares — a visitor already seeing it above the form does not
+              need it explained again below the same fold. What still belongs
+              to this page is the one thing the header cannot say: the form
+              itself is off rather than left to fail on submit.
             */}
-            {offline && (
-              <p className="text-content-muted text-sm">
-                {t(strings.planner.serviceUnavailableHint)}
-              </p>
-            )}
-
             <JourneyForm
               values={values}
               onChange={updateValues}

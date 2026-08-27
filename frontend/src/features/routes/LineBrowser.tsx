@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 import { getLines } from '../../api/routes';
+import { useBackendHealth } from '../../app/useBackendHealth';
 import { messageForApiError, modeLabel, useLocale } from '../../i18n';
 import type { GtfsRouteType } from '../../types/journey';
 import type { LineSummary } from '../../types/route';
@@ -39,6 +40,7 @@ const SETTLE_MS = 250;
  */
 export function LineBrowser({ availableModes, onOpen }: Props) {
   const { strings, t } = useLocale();
+  const { service } = useBackendHealth();
   const searchId = useId();
   const modeLabelId = useId();
 
@@ -160,18 +162,31 @@ export function LineBrowser({ availableModes, onOpen }: Props) {
         </fieldset>
       )}
 
-      {errorMessage !== null && (
+      {/*
+        The backend being down is a fact the shared header already states —
+        this only says that *this list* has nothing to show while it is,
+        rather than waiting out this request's own timeout to say so.
+      */}
+      {service === 'down' ? (
         <p role="alert" className="rounded-card border-danger text-danger border px-4 py-3 text-sm">
-          {errorMessage}
+          {t(strings.status.resultsUnavailable)}
         </p>
+      ) : (
+        errorMessage !== null && (
+          <p role="alert" className="rounded-card border-danger text-danger border px-4 py-3 text-sm">
+            {errorMessage}
+          </p>
+        )
       )}
 
-      <p aria-live="polite" aria-busy={loading} className="text-content-muted text-xs">
-        {loading
-          ? t(strings.routes.loadingLines)
-          : lines === null
-            ? ''
-            : t(strings.routes.lineCount, { count: shown.length })}
+      <p aria-live="polite" aria-busy={loading && service !== 'down'} className="text-content-muted text-xs">
+        {service === 'down'
+          ? ''
+          : loading
+            ? t(strings.routes.loadingLines)
+            : lines === null
+              ? ''
+              : t(strings.routes.lineCount, { count: shown.length })}
       </p>
 
       {lines !== null && shown.length === 0 && (
@@ -211,9 +226,23 @@ export function LineBrowser({ availableModes, onOpen }: Props) {
                 {line.routeLongName ?? line.routeShortName}
               </span>
 
-              {line.variantCount > 1 && (
-                <span className="text-content-muted ms-auto flex-none text-xs tabular-nums">
-                  {t(strings.routes.variantCount, { count: line.variantCount })}
+              {/*
+                Whether it runs today is worth more on a browse list than how
+                many patterns it has — "3 variants" says nothing about whether
+                today is one of the days any of them call, which is the actual
+                question a reader scanning this list is asking. Takes over the
+                same slot rather than sitting beside it, since the two are
+                answering different questions about the same line, and a line
+                that isn't running today says nothing at all rather than
+                falling back to the variant count.
+
+                The dot is decorative — the word "today" beside it is what
+                carries the meaning, so colour is never the only signal.
+              */}
+              {line.activeToday && (
+                <span className="bg-surface-muted text-content-muted rounded-control ms-auto flex flex-none items-center gap-1.5 px-2 py-0.5 text-xs font-medium">
+                  <span aria-hidden="true" className="bg-success size-1.5 flex-none rounded-full" />
+                  {t(strings.routes.activeToday)}
                 </span>
               )}
             </button>

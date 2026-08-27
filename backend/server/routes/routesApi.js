@@ -13,6 +13,7 @@ const {
   shiftIsoDate,
   toDateId,
   resolveDateAndTime,
+  nowInNetwork,
 } = require("../utils/networkTime");
 
 const cache = getCache();
@@ -240,6 +241,17 @@ router.get("/", (req, res) => {
         ? null
         : Number.parseInt(req.query.mode, 10);
 
+    /*
+     * Today's own services, read once per request rather than per line — the
+     * index a single route's own page builds at boot exists because the
+     * calendar cannot change while the process runs, but "today" moves every
+     * request makes this the cheap version of the same idea: one Set, tested
+     * against every line's own service ids below.
+     */
+    const todayServices = new Set(
+      cache.activeServices[toDateId(nowInNetwork().date)] ?? [],
+    );
+
     const lines = [...linesById.values()]
       .filter((line) => {
         if (mode !== null && !Number.isNaN(mode) && line.routeType !== mode) {
@@ -260,6 +272,18 @@ router.get("/", (req, res) => {
           ),
         ].sort();
 
+        /*
+         * True the moment any one pattern does — a line is one designation
+         * over several patterns, and a rider asking "does this run today"
+         * means the line, not whichever one pattern happened to be checked
+         * first.
+         */
+        const activeToday = line.patterns.some(({ route }) =>
+          Object.keys(route.service_buckets ?? {}).some((serviceId) =>
+            todayServices.has(Number.parseInt(serviceId, 10)),
+          ),
+        );
+
         return {
           lineId: line.lineId,
           routeShortName: line.routeShortName,
@@ -272,6 +296,7 @@ router.get("/", (req, res) => {
            * labelling variants by their end points.
            */
           directions,
+          activeToday,
         };
       })
       .sort((a, b) =>

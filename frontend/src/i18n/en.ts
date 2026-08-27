@@ -27,6 +27,7 @@ export const en: Dictionary = {
       one: 'Timetable data covers one day, {first}.',
       other: 'Timetable data covers {count} days, from {first} to {last}.',
     },
+    resultsUnavailable: "Results can't be loaded right now.",
   },
 
   units: {
@@ -79,7 +80,7 @@ export const en: Dictionary = {
     back: 'Back',
     closeMenu: 'Close menu',
     home: 'Home',
-    plan: 'Plan a journey',
+    plan: 'Planner',
     routes: 'Routes',
     stops: 'Stops',
     card: 'Travel card',
@@ -171,7 +172,7 @@ export const en: Dictionary = {
     noLater: 'No later journey was found.',
     walk: 'Walk',
     transitLeg: '{mode} {line}',
-    towards: 'towards {destination}',
+    towards: 'Towards {destination}',
     wait: 'Wait {duration}',
     waitHere: 'Wait {duration} at {place}',
     intermediateStops: {
@@ -203,7 +204,6 @@ export const en: Dictionary = {
     totalRiding: 'Ride {duration}',
     journeySummary: 'Departs {start}, arrives {end}, {duration}.',
 
-    serviceUnavailableHint: 'Journey planning needs it, so searching is paused. Everything else on this page still works.',
     retryConnection: 'Try again',
     checkingService: 'Checking the routing service…',
   },
@@ -249,7 +249,7 @@ export const en: Dictionary = {
       other: '{count} upcoming departures.',
     },
 
-    towards: 'towards {destination}',
+    towards: 'Towards {destination}',
     terminatesHere: 'Terminates here',
     arrivesAt: 'Arrives {time}',
     onDate: 'on {date}',
@@ -281,6 +281,7 @@ export const en: Dictionary = {
       one: '1 variant',
       other: '{count} variants',
     },
+    activeToday: 'Active today',
     loadingLines: 'Loading routes…',
 
     backToLines: 'All routes',
@@ -292,10 +293,6 @@ export const en: Dictionary = {
     stopCount: {
       one: '1 stop',
       other: '{count} stops',
-    },
-    tripCount: {
-      one: '1 trip in the timetable',
-      other: '{count} trips in the timetable',
     },
     tripCountToday: {
       one: '1 trip today',
@@ -320,7 +317,7 @@ export const en: Dictionary = {
     runsOnOtherDays: 'Runs on other days',
     startingLater: 'Future',
     noLongerRunning: 'No longer running',
-    towards: 'towards {destination}',
+    towards: 'Towards {destination}',
 
     stopsView: 'Stops',
     timetableView: 'Timetable',

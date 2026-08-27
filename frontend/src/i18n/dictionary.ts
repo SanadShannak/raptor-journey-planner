@@ -293,7 +293,6 @@ export interface Dictionary {
     journeySummary: string;
 
     /* The planner depends on a backend that may not be running. */
-    serviceUnavailableHint: string;
     retryConnection: string;
     checkingService: string;
   };
@@ -428,6 +427,13 @@ export interface Dictionary {
      * "Route" rather than "variant": the word a rider would use.
      */
     variantCount: Message;
+    /**
+     * Shown instead of {@link variantCount} in the browse list when the line
+     * runs today — how many patterns it has is a fact about the line, but
+     * whether one of them calls today is the question a reader scanning the
+     * list is actually asking, and the two do not fit in the same chip.
+     */
+    activeToday: string;
     loadingLines: string;
 
     /* The panel's back control, and the places it can name. */
@@ -448,22 +454,6 @@ export interface Dictionary {
     flipDirection: string;
     /** How many stops this variant calls at. */
     stopCount: Message;
-    /**
-     * How many distinct trips the compiled timetable carries for this
-     * variant, over its whole lifetime — used only in the alternatives list,
-     * where several variants are compared at once and there is no single day
-     * to count any one of them against. Not how many times a vehicle actually
-     * departs across the feed's date range: a trip recurs on every day its
-     * own service calendar covers, so a pattern with five distinct weekday
-     * trips and a service calendar spanning nine weeks runs far more than
-     * five times in total. This counts the *rows*, not the *departures*,
-     * which is why the string says "in the timetable" rather than leaving it
-     * bare. The header itself uses {@link tripCountToday}/
-     * {@link tripCountOnDate} instead — a count of one specific day's own
-     * trips, the number a reader can actually check by opening that day's
-     * timetable and counting rows, rather than this lifetime total.
-     */
-    tripCount: Message;
     /**
      * How many trips run **today** — counted the same way the timetable tab
      * itself counts them, so it agrees with what counting rows there would
@@ -656,6 +646,12 @@ export interface Dictionary {
     backendReachable: string;
     backendUnreachable: string;
     availableDates: PluralForms;
+    /**
+     * A feature's own fetch has nothing to show while the backend is down —
+     * said locally, once, rather than repeating why: the header banner is
+     * the one place that explains the service itself is unreachable.
+     */
+    resultsUnavailable: string;
   };
 
   /*

@@ -154,16 +154,13 @@ export function VariantPicker({ variants, currentPatternId, day, onSelect }: Pro
 
                   const facts = [
                     t(strings.routes.stopCount, { count: variant.stopCount }),
-                    variant.tripCount === null
-                      ? null
-                      : t(strings.routes.tripCount, { count: variant.tripCount }),
                     range === null
                       ? t(strings.routes.noServiceDays)
                       : t(strings.routes.serviceRange, {
                           from: dated(range.from),
                           to: dated(range.to),
                         }),
-                  ].filter((fact): fact is string => fact !== null);
+                  ];
 
                   return (
                     <li key={variant.patternId}>

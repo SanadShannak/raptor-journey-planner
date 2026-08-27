@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { getStopBoard, getStopTimetable } from '../../api/stops';
+import { useBackendHealth } from '../../app/useBackendHealth';
 import { DateSelect } from '../../components/DateSelect';
 import { ScheduleEstimateNotice } from '../../components/ScheduleEstimateNotice';
 import { messageForApiError, useLocale } from '../../i18n';
@@ -65,6 +66,7 @@ export function StopInspector({
   onResolved,
 }: Props) {
   const { strings, t } = useLocale();
+  const { service } = useBackendHealth();
   const now = useNetworkNow(timezone);
   const viewLabelId = useId();
 
@@ -213,16 +215,30 @@ export function StopInspector({
 
       {stop !== null && <StopHeader stop={stop} servingLines={servingLines} />}
 
-      {errorMessage !== null && (
+      {/*
+        The backend being down is a fact the shared header already states —
+        this only says that *this stop* has nothing to show while it is,
+        rather than waiting out this request's own timeout to say so.
+      */}
+      {service === 'down' ? (
         <p
           role="alert"
           className="rounded-card border-danger text-danger border px-4 py-3 text-sm"
         >
-          {errorMessage}
+          {t(strings.status.resultsUnavailable)}
         </p>
+      ) : (
+        errorMessage !== null && (
+          <p
+            role="alert"
+            className="rounded-card border-danger text-danger border px-4 py-3 text-sm"
+          >
+            {errorMessage}
+          </p>
+        )
       )}
 
-      {stop === null && loading && (
+      {stop === null && loading && service !== 'down' && (
         <p className="text-content-muted text-sm">{t(strings.stops.loadingStop)}</p>
       )}
 
