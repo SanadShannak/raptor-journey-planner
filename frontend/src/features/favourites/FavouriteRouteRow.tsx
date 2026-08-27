@@ -10,15 +10,15 @@ import type { NetworkMoment } from '../stops/minutesUntil';
 import { nextCallsAt, type NextCall } from '../routes/nextCallAt';
 import { identity, type RouteFavourite } from './favourite';
 import { refreshFavourite } from './favouritesStore';
-import { FavouriteRow } from './FavouriteRow';
+import { FavouriteCard } from './FavouriteCard';
 
 interface Props {
   favourite: RouteFavourite;
   now: NetworkMoment | null;
   /** Today on the network's clock. Null until `/api/network` answers. */
   networkToday: string | null;
-  canMoveUp: boolean;
-  canMoveDown: boolean;
+  canMoveEarlier: boolean;
+  canMoveLater: boolean;
   onRemoved: () => void;
 }
 
@@ -47,8 +47,8 @@ export function FavouriteRouteRow({
   favourite,
   now,
   networkToday,
-  canMoveUp,
-  canMoveDown,
+  canMoveEarlier,
+  canMoveLater,
   onRemoved,
 }: Props) {
   const { locale, strings, t } = useLocale();
@@ -139,12 +139,12 @@ export function FavouriteRouteRow({
   const destination = favourite.headsign ?? favourite.routeLongName;
 
   return (
-    <FavouriteRow
+    <FavouriteCard
       favourite={favourite}
       to={lineVariantPath(lineId, patternId)}
       fallbackLabel={favourite.routeLongName ?? favourite.routeShortName}
-      canMoveUp={canMoveUp}
-      canMoveDown={canMoveDown}
+      canMoveEarlier={canMoveEarlier}
+      canMoveLater={canMoveLater}
       onRemoved={onRemoved}
       emblem={
         <LineBadge
@@ -161,7 +161,7 @@ export function FavouriteRouteRow({
         )
       }
     >
-      <div className="ps-1">
+      <div>
         {gone ? (
           <p className="text-content-muted text-sm">
             {t(strings.favourites.directionUnavailable)}
@@ -177,7 +177,7 @@ export function FavouriteRouteRow({
         ) : upcoming.length === 0 ? (
           <p className="text-content-muted text-sm">{t(strings.favourites.noDepartures)}</p>
         ) : (
-          <ul className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <ul className="flex flex-col gap-0.5">
             {upcoming.map((next) => (
               <li
                 key={`${next.call.date}-${next.call.time}`}
@@ -194,6 +194,6 @@ export function FavouriteRouteRow({
           </ul>
         )}
       </div>
-    </FavouriteRow>
+    </FavouriteCard>
   );
 }

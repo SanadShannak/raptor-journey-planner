@@ -503,13 +503,11 @@ export const ar: Dictionary = {
     paceLabel: 'المشي {pace}',
 
     rename: 'إعادة التسمية',
-    renameLabel: 'الاسم',
+    renameNamed: 'إعادة تسمية {name}',
     renamePlaceholder: 'المنزل، العمل، المدرسة…',
-    renameHint: 'اتركه فارغًا لاستخدام الاسم الأصلي.',
-    save: 'حفظ',
-    cancel: 'إلغاء',
-    moveUp: 'تحريك لأعلى',
-    moveDown: 'تحريك لأسفل',
+    openNamed: 'فتح {name}',
+    moveEarlier: 'تحريك للأمام',
+    moveLater: 'تحريك للخلف',
 
     loadingDepartures: 'جارٍ تحميل المغادرات…',
     noDepartures: 'لا مزيد اليوم.',

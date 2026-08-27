@@ -17,15 +17,17 @@ import { FavouriteJourneyRow } from '../features/favourites/FavouriteJourneyRow'
 import { useNetworkNow } from '../features/stops/useNetworkNow';
 
 /**
- * Everything saved, grouped by what it is.
+ * Everything saved, a row per kind.
  *
- * The three groups are drawn in a **fixed order** — stops, routes, journeys —
- * rather than largest first, so the page does not rearrange itself between
- * visits. A group with nothing in it is omitted entirely, heading and all:
- * printing "nothing saved" three times says less than one empty state does.
+ * Each category is a horizontal row of cards that scrolls sideways when there
+ * are more than fit — which keeps all three kinds visible at once rather than
+ * pushing journeys below the fold behind a column of stops. The rows are drawn
+ * in a **fixed order** so the page does not rearrange itself between visits,
+ * and a kind with nothing in it is omitted entirely: printing "nothing saved"
+ * three times says less than one empty state does.
  *
- * The clock is read once here and handed down, so twenty rows share one ticker
- * rather than each running their own.
+ * The clock is read once here and handed down, so every card shares one ticker
+ * rather than each running its own.
  */
 export default function FavouritesPage() {
   const { strings, t } = useLocale();
@@ -38,9 +40,9 @@ export default function FavouritesPage() {
   const now = useNetworkNow(timezone);
 
   /*
-   * The page's own heading, which is where focus goes when a row is removed —
-   * otherwise focus falls to the body and a keyboard reader is dropped at the
-   * top of the document with no idea what happened.
+   * Where focus goes when a card is removed — otherwise it falls to the body
+   * and a keyboard reader is dropped at the top of the document with no idea
+   * what happened.
    */
   const headingRef = useRef<HTMLHeadingElement>(null);
 
@@ -55,7 +57,7 @@ export default function FavouritesPage() {
       })
       .catch(() => {
         /*
-         * Swallowed, as elsewhere: each row reports its own failure, and what
+         * Swallowed, as elsewhere: each card reports its own failure, and what
          * is lost here is the countdowns rather than the list itself. A saved
          * list that still paints when the backend is down is most of its value.
          */
@@ -64,13 +66,12 @@ export default function FavouritesPage() {
     return () => controller.abort();
   }, []);
 
-  const groups: { kind: FavouriteKind; heading: Message }[] = [
+  const rows: { kind: FavouriteKind; heading: Message }[] = [
     { kind: 'stop', heading: strings.favourites.groupStops },
     { kind: 'route', heading: strings.favourites.groupRoutes },
     { kind: 'itinerary', heading: strings.favourites.groupItineraries },
   ];
 
-  /** Focus the heading, so removing the last row of a group is not a dead end. */
   const afterRemove = () => headingRef.current?.focus();
 
   return (
@@ -95,8 +96,8 @@ export default function FavouritesPage() {
           <p className="text-content-muted text-sm">{t(strings.favourites.emptyHint)}</p>
         </div>
       ) : (
-        <div className="flex flex-col gap-8">
-          {groups.map(({ kind, heading }) => {
+        <div className="flex flex-col gap-7">
+          {rows.map(({ kind, heading }) => {
             const mine = favourites.filter((favourite) => favourite.kind === kind);
             if (mine.length === 0) return null;
 
@@ -112,19 +113,32 @@ export default function FavouritesPage() {
                   </p>
                 </div>
 
-                <ul className="flex flex-col">
-                  {mine.map((favourite, index) => (
-                    <Row
-                      key={identity(favourite)}
-                      favourite={favourite}
-                      now={now}
-                      networkToday={networkToday}
-                      canMoveUp={index > 0}
-                      canMoveDown={index < mine.length - 1}
-                      onRemoved={afterRemove}
-                    />
-                  ))}
-                </ul>
+                {/*
+                  Scrolls sideways when the cards outrun the row. No `tabindex`
+                  on the scroller: every card holds links and buttons, so tabbing
+                  through them scrolls the row into view by itself, and adding one
+                  would only put an extra stop in the way of that.
+
+                  The negative margin lets a row bleed to the page's own gutters,
+                  so a card scrolling out does not appear to stop short of the
+                  edge — the padding puts the first card back where the heading
+                  above it starts.
+                */}
+                <div className="-mx-4 overflow-x-auto px-4 pb-1">
+                  <ul className="flex items-stretch gap-3">
+                    {mine.map((favourite, index) => (
+                      <Card
+                        key={identity(favourite)}
+                        favourite={favourite}
+                        now={now}
+                        networkToday={networkToday}
+                        canMoveEarlier={index > 0}
+                        canMoveLater={index < mine.length - 1}
+                        onRemoved={afterRemove}
+                      />
+                    ))}
+                  </ul>
+                </div>
               </section>
             );
           })}
@@ -135,22 +149,22 @@ export default function FavouritesPage() {
 }
 
 /** Dispatches on the union, so each kind draws itself and its own live data. */
-function Row({
+function Card({
   favourite,
   now,
   networkToday,
-  canMoveUp,
-  canMoveDown,
+  canMoveEarlier,
+  canMoveLater,
   onRemoved,
 }: {
   favourite: Favourite;
   now: ReturnType<typeof useNetworkNow>;
   networkToday: string | null;
-  canMoveUp: boolean;
-  canMoveDown: boolean;
+  canMoveEarlier: boolean;
+  canMoveLater: boolean;
   onRemoved: () => void;
 }) {
-  const shared = { now, canMoveUp, canMoveDown, onRemoved };
+  const shared = { now, canMoveEarlier, canMoveLater, onRemoved };
 
   switch (favourite.kind) {
     case 'stop':

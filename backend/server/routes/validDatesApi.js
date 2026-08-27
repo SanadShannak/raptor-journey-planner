@@ -3,6 +3,7 @@ const router = express.Router();
 // Read from the shared RAM cache rather than a second parse of the same file.
 const { getCache } = require("../../memoryCache");
 const convertDateIdToDateObject = require("../utils/convertDateIdToDateObject");
+const logCalculationTime = require("../utils/logCalculationTime");
 
 const activeServices = getCache().activeServices;
 
@@ -19,6 +20,13 @@ const validDatesCache = Object.keys(activeServices)
   });
 
 router.get("/", (req, res) => {
+  /*
+   * Served straight from the list built at boot, so this is expected to be a
+   * fraction of a millisecond. It is timed anyway: a number that is always
+   * near zero is what makes a neighbouring endpoint's number mean something.
+   */
+  const startedAt = performance.now();
+  logCalculationTime(`Valid Dates (${validDatesCache.length} days)`, startedAt);
   res.json(validDatesCache);
 });
 

@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const serverConfig = require("../serverConfig");
 
+const logCalculationTime = require("../utils/logCalculationTime");
 const { isValidDate } = require("../utils/inputValidator");
 const {
   nowInNetwork,
@@ -340,6 +341,7 @@ function modesAt(internalStopId) {
  */
 router.get("/", (req, res) => {
   try {
+    const startedAt = performance.now();
     const bounds = ["minLat", "minLon", "maxLat", "maxLon"].map((key) =>
       Number.parseFloat(req.query[key]),
     );
@@ -453,6 +455,10 @@ router.get("/", (req, res) => {
       modes: entry.modes,
     }));
 
+    logCalculationTime(
+      `Stops In Bounds (${stops.length} stops${truncated ? ", truncated" : ""})`,
+      startedAt,
+    );
     return res.json({ stops, total: stops.length, truncated, capabilities });
   } catch (error) {
     console.error("[Stops In Bounds Error]:", error);
@@ -465,6 +471,7 @@ router.get("/", (req, res) => {
 
 router.get("/:id/timetable", (req, res) => {
   try {
+    const startedAt = performance.now();
     const { id } = req.params;
     const { date } = req.query;
 
@@ -503,6 +510,7 @@ router.get("/:id/timetable", (req, res) => {
       byHour.get(hour).push(describeDeparture(visit, date));
     }
 
+    logCalculationTime(`Stop Timetable (${id}, ${date})`, startedAt);
     res.json({
       stop: describeStop(internalStopId, id),
       date,
@@ -535,6 +543,7 @@ router.get("/:id/timetable", (req, res) => {
  */
 router.get("/:id", (req, res) => {
   try {
+    const startedAt = performance.now();
     const { id } = req.params;
     const limit = Math.max(
       1,
@@ -565,6 +574,7 @@ router.get("/:id", (req, res) => {
 
     upcoming.sort((a, b) => a.departureSeconds - b.departureSeconds);
 
+    logCalculationTime(`Stop Board (${id}, ${upcoming.length} departures)`, startedAt);
     res.json({
       stop: describeStop(internalStopId, id),
       // The moment the board was resolved, so a stale tab is detectable.

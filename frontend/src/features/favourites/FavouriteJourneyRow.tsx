@@ -3,14 +3,14 @@ import { useLocale } from '../../i18n';
 import { WALKING_PACES } from '../../config/journey';
 import type { NetworkMoment } from '../stops/minutesUntil';
 import type { ItineraryFavourite } from './favourite';
-import { FavouriteRow } from './FavouriteRow';
+import { FavouriteCard } from './FavouriteCard';
 import { journeyFavouritePath } from './journeyFavouritePath';
 
 interface Props {
   favourite: ItineraryFavourite;
   now: NetworkMoment | null;
-  canMoveUp: boolean;
-  canMoveDown: boolean;
+  canMoveEarlier: boolean;
+  canMoveLater: boolean;
   onRemoved: () => void;
 }
 
@@ -31,8 +31,8 @@ const PACE_LABEL = {
 export function FavouriteJourneyRow({
   favourite,
   now,
-  canMoveUp,
-  canMoveDown,
+  canMoveEarlier,
+  canMoveLater,
   onRemoved,
 }: Props) {
   const { strings, t } = useLocale();
@@ -46,7 +46,7 @@ export function FavouriteJourneyRow({
   });
 
   return (
-    <FavouriteRow
+    <FavouriteCard
       favourite={favourite}
       /*
        * Until the clock is known there is nowhere honest to send anyone, so the
@@ -56,8 +56,8 @@ export function FavouriteJourneyRow({
        */
       to={target ?? paths.home}
       fallbackLabel={summary}
-      canMoveUp={canMoveUp}
-      canMoveDown={canMoveDown}
+      canMoveEarlier={canMoveEarlier}
+      canMoveLater={canMoveLater}
       onRemoved={onRemoved}
       emblem={
         <span
@@ -95,7 +95,7 @@ export function FavouriteJourneyRow({
         </div>
       }
     >
-      <p className="text-content-muted ps-1 text-sm">{t(strings.favourites.openJourney)}</p>
-    </FavouriteRow>
+      <p className="text-content-muted text-xs">{t(strings.favourites.openJourney)}</p>
+    </FavouriteCard>
   );
 }

@@ -9,13 +9,13 @@ import type { NetworkMoment } from '../stops/minutesUntil';
 import { StopCode } from '../stops/StopFacts';
 import { identity, type StopFavourite } from './favourite';
 import { refreshFavourite } from './favouritesStore';
-import { FavouriteRow } from './FavouriteRow';
+import { FavouriteCard } from './FavouriteCard';
 
 interface Props {
   favourite: StopFavourite;
   now: NetworkMoment | null;
-  canMoveUp: boolean;
-  canMoveDown: boolean;
+  canMoveEarlier: boolean;
+  canMoveLater: boolean;
   onRemoved: () => void;
 }
 
@@ -48,8 +48,8 @@ const SHOWN = 3;
 export function FavouriteStopRow({
   favourite,
   now,
-  canMoveUp,
-  canMoveDown,
+  canMoveEarlier,
+  canMoveLater,
   onRemoved,
 }: Props) {
   const { strings, t } = useLocale();
@@ -110,18 +110,18 @@ export function FavouriteStopRow({
   const departures = board?.departures ?? [];
 
   return (
-    <FavouriteRow
+    <FavouriteCard
       favourite={favourite}
       to={stopPath(stopId)}
       fallbackLabel={favourite.name}
-      canMoveUp={canMoveUp}
-      canMoveDown={canMoveDown}
+      canMoveEarlier={canMoveEarlier}
+      canMoveLater={canMoveLater}
       onRemoved={onRemoved}
       subtitle={
         favourite.code === null ? null : <StopCode code={favourite.code} />
       }
     >
-      <div className="ps-1">
+      <div>
         {service === 'down' || failed ? (
           <p className="text-content-muted text-sm">
             {t(strings.favourites.departuresUnavailable)}
@@ -133,7 +133,7 @@ export function FavouriteStopRow({
         ) : departures.length === 0 ? (
           <p className="text-content-muted text-sm">{t(strings.favourites.noDepartures)}</p>
         ) : (
-          <ul className="flex flex-col">
+          <ul className="flex flex-col text-sm">
             {departures.map((departure, index) => (
               <DepartureRow
                 key={`${departure.tripId ?? departure.lineId}-${departure.date}-${departure.time}-${index}`}
@@ -146,6 +146,6 @@ export function FavouriteStopRow({
           </ul>
         )}
       </div>
-    </FavouriteRow>
+    </FavouriteCard>
   );
 }

@@ -16,6 +16,8 @@ const {
   nowInNetwork,
 } = require("../utils/networkTime");
 
+const logCalculationTime = require("../utils/logCalculationTime");
+
 const cache = getCache();
 const capabilities = getCapabilities();
 
@@ -235,6 +237,7 @@ function describePatternStop(internalStopId, index, route) {
  */
 router.get("/", (req, res) => {
   try {
+    const startedAt = performance.now();
     const query = fold(req.query.q ?? "").trim();
     const mode =
       req.query.mode === undefined
@@ -306,6 +309,7 @@ router.get("/", (req, res) => {
         }),
       );
 
+    logCalculationTime(`Line Index (${lines.length} lines)`, startedAt);
     res.json({ lines, totalLines: lines.length, capabilities });
   } catch (error) {
     console.error("[Routes Endpoint Error]:", error);
@@ -322,6 +326,7 @@ router.get("/", (req, res) => {
  */
 router.get("/:lineId", (req, res) => {
   try {
+    const startedAt = performance.now();
     const line = linesById.get(req.params.lineId);
     if (!line) {
       return res
@@ -334,6 +339,7 @@ router.get("/:lineId", (req, res) => {
       .map(describeVariant)
       .sort((a, b) => (b.tripCount ?? 0) - (a.tripCount ?? 0));
 
+    logCalculationTime(`Line ${req.params.lineId}`, startedAt);
     res.json({
       ...describeLine(line),
       directions: [
@@ -516,6 +522,7 @@ function describeTrip(route, flatTripId, baseIsoDate, offset) {
  */
 router.get("/:lineId/:patternId/timetable", (req, res) => {
   try {
+    const startedAt = performance.now();
     const resolved = resolvePattern(req, res);
     if (resolved === null) return;
 
@@ -568,6 +575,10 @@ router.get("/:lineId/:patternId/timetable", (req, res) => {
     // being merged here, so the whole list has to be put in order again.
     found.sort((a, b) => a.originSeconds - b.originSeconds);
 
+    logCalculationTime(
+      `Variant Timetable ${req.params.lineId}/${req.params.patternId} (${found.length} trips)`,
+      startedAt,
+    );
     res.json({
       ...describeLine(line),
       ...describeVariant(pattern),
@@ -608,6 +619,7 @@ router.get("/:lineId/:patternId/timetable", (req, res) => {
  */
 router.get("/:lineId/:patternId", (req, res) => {
   try {
+    const startedAt = performance.now();
     const resolved = resolvePattern(req, res);
     if (resolved === null) return;
 
@@ -624,6 +636,10 @@ router.get("/:lineId/:patternId", (req, res) => {
         ? (cache.shapes?.[route.shape_id] ?? null)
         : null;
 
+    logCalculationTime(
+      `Variant ${req.params.lineId}/${req.params.patternId}`,
+      startedAt,
+    );
     res.json({
       ...describeLine(line),
       ...describeVariant(pattern),

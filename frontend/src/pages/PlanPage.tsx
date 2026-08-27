@@ -13,6 +13,8 @@ import { DEFAULT_WALKING_PACE, WALKING_PACES } from '../config/journey';
 import type { Journey } from '../types/journey';
 import type { Place } from '../types/place';
 import { JourneyForm } from '../features/journey/JourneyForm';
+import { FavouriteButton } from '../features/favourites/FavouriteButton';
+import { favouriteForSearch } from '../features/favourites/favouriteForSearch';
 import {
   searchSignature,
   type JourneyFormValues,
@@ -723,10 +725,18 @@ export default function PlanPage() {
                 begin, spanning the full width because the padding lives on
                 the panes rather than on the sidebar. */}
             <div className="border-border flex flex-col gap-5 p-5 lg:border-b">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight text-balance">
+            {/*
+              The star sits beside the heading, exactly where it sits on a stop
+              and on a line — same place, same size, same shape. What it saves
+              here is the *question* the form is asking rather than anything on
+              screen below it, but a reader should not have to learn a second
+              place to look for the same control.
+            */}
+            <div className="flex items-start gap-2">
+              <h1 className="min-w-0 flex-1 text-2xl font-semibold tracking-tight text-balance">
                 {t(strings.pages.plan.title)}
               </h1>
+              <FavouriteButton favourite={favouriteForSearch(values)} />
             </div>
 
             {/*

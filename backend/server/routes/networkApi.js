@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const serverConfig = require("../serverConfig");
+const logCalculationTime = require("../utils/logCalculationTime");
 
 const {
   getNetworkMeta,
@@ -22,8 +23,10 @@ const { networkCurrency } = require("../utils/networkCurrency");
  */
 router.get("/", (req, res) => {
   try {
+    const startedAt = performance.now();
     const meta = getNetworkMeta();
 
+    logCalculationTime("Network Manifest", startedAt);
     res.json({
       network: serverConfig.ACTIVE_NETWORK,
 

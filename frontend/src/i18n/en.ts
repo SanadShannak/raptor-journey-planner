@@ -401,13 +401,11 @@ export const en: Dictionary = {
     paceLabel: 'Walking {pace}',
 
     rename: 'Rename',
-    renameLabel: 'Name',
+    renameNamed: 'Rename {name}',
     renamePlaceholder: 'Home, Work, School…',
-    renameHint: 'Leave it empty to use the original name.',
-    save: 'Save',
-    cancel: 'Cancel',
-    moveUp: 'Move up',
-    moveDown: 'Move down',
+    openNamed: 'Open {name}',
+    moveEarlier: 'Move earlier',
+    moveLater: 'Move later',
 
     loadingDepartures: 'Loading departures…',
     noDepartures: 'Nothing more today.',

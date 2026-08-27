@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
+const logCalculationTime = require("../utils/logCalculationTime");
 const Card = require("../db/models/Card");
 const { isCardStoreReady } = require("../db/client");
 const {
@@ -103,6 +104,7 @@ function describeCard(card) {
  */
 router.get("/:number", async (req, res) => {
   try {
+    const startedAt = performance.now();
     const digits = digitsOf(req.params.number);
 
     /*
@@ -147,6 +149,13 @@ router.get("/:number", async (req, res) => {
       });
     }
 
+    /*
+     * The only endpoint whose work is a database round trip rather than a walk
+     * over the in-memory feed, which is exactly why its number is worth having
+     * beside the others: a slow card lookup and a slow line lookup have
+     * completely different causes.
+     */
+    logCalculationTime("Card Balance", startedAt);
     return res.json(describeCard(card));
   } catch (error) {
     /*

@@ -642,14 +642,15 @@ export interface Dictionary {
     paceLabel: string;
 
     /* Managing one. */
+    /** The card's name is the control: pressing it turns it into a field. */
     rename: string;
-    renameLabel: string;
+    renameNamed: string;
     renamePlaceholder: string;
-    renameHint: string;
-    save: string;
-    cancel: string;
-    moveUp: string;
-    moveDown: string;
+    /** Names the stretched link covering a card. */
+    openNamed: string;
+    /** The cards sit in a horizontal row, so they move along it, not up it. */
+    moveEarlier: string;
+    moveLater: string;
 
     /* Live departures inside a row. */
     loadingDepartures: string;
