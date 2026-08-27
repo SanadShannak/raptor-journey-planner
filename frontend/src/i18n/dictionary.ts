@@ -737,6 +737,16 @@ export interface Dictionary {
     checkingBackend: string;
     backendReachable: string;
     backendUnreachable: string;
+    /**
+     * Names the clock in the app bar for a screen reader.
+     *
+     * It shows the **network's** time, not the device's, because every
+     * departure on every page is network-local — a header disagreeing with the
+     * board under it would be the one clock in the app that lies. The label
+     * says which city, so a visitor reading Helsinki times in Amman knows
+     * whose afternoon it is.
+     */
+    clockLabel: string;
     availableDates: PluralForms;
     /**
      * A feature's own fetch has nothing to show while the backend is down —

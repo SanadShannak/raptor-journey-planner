@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
-import { useLocale, LanguageToggle } from '../i18n';
+import { getNetwork } from '../api/network';
+import { formatClockTime, useLocale, LanguageToggle } from '../i18n';
+import { useNetworkNow } from '../features/stops/useNetworkNow';
 import { ThemeToggle } from '../theme';
 import { AuthDialog, type AuthMode } from './AuthDialog';
 import { PrimaryNav } from './PrimaryNav';
@@ -24,9 +26,36 @@ import { useBackendHealth } from './useBackendHealth';
  * element rather than the viewport.
  */
 export function AppHeader() {
-  const { strings, t } = useLocale();
+  const { locale, strings, t } = useLocale();
   const [authMode, setAuthMode] = useState<AuthMode | null>(null);
   const { service, retry } = useBackendHealth();
+
+  /*
+   * The clock in the bar, and the only reason the header asks the API anything.
+   *
+   * Fetched here rather than handed down because the bar outlives every page:
+   * a page that owned the answer would drop it on the way to the next one, and
+   * the clock would blink out between navigations.
+   */
+  const [timezone, setTimezone] = useState<string | null>(null);
+  const [network, setNetwork] = useState<string | null>(null);
+  const now = useNetworkNow(timezone);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    void getNetwork({ signal: controller.signal })
+      .then((info) => {
+        if (controller.signal.aborted) return;
+        setTimezone(info.timezone);
+        setNetwork(info.agencyName ?? info.network);
+      })
+      .catch(() => {
+        /* No clock rather than a wrong one. The bar is otherwise unaffected. */
+      });
+
+    return () => controller.abort();
+  }, []);
 
   return (
     <header className="bg-chrome text-on-chrome relative">
@@ -46,8 +75,29 @@ export function AppHeader() {
       <div className="flex items-center gap-3 px-4 py-3 sm:px-6 md:grid md:grid-cols-[1fr_auto_1fr] lg:px-8">
         <Link
           to={paths.home}
-          className="rounded-control focus-visible:outline-on-chrome text-base font-semibold tracking-tight focus-visible:outline-2 focus-visible:outline-offset-2"
+          className="rounded-control focus-visible:outline-on-chrome flex items-center gap-2 text-base font-semibold tracking-tight focus-visible:outline-2 focus-visible:outline-offset-2"
         >
+          {/*
+            The same mark the favicon carries — a journey, two stops and the
+            route between them — so the tab and the bar are recognisably one
+            thing. Orange on the wine bar is the operator's own pairing, and is
+            contrast-checked as `accent` on `chrome` rather than against the
+            page behind it.
+          */}
+          <svg
+            viewBox="0 0 48 48"
+            width="22"
+            height="22"
+            fill="none"
+            aria-hidden="true"
+            className="text-accent flex-none"
+          >
+            <g stroke="currentColor" strokeWidth="3.4" strokeLinecap="round">
+              <path d="M15 17.5v6.2a4 4 0 0 0 4 4h10a4 4 0 0 1 4 4v2.8" strokeDasharray="0.1 6.8" />
+              <circle cx="15" cy="13" r="4.6" />
+              <circle cx="33" cy="35" r="4.6" />
+            </g>
+          </svg>
           {t(strings.app.title)}
         </Link>
 
@@ -57,6 +107,26 @@ export function AppHeader() {
             one. Both are logical, so the group sits at the trailing edge —
             the left one in Arabic — without a second set of rules. */}
         <div className="ms-auto flex items-center gap-2 md:justify-self-end">
+          {/*
+            The network's clock, not the device's. Every departure in this app
+            is network-local, so a bar showing the visitor's own afternoon would
+            be the one time on screen that disagrees with all the others.
+
+            `tabular-nums` so the bar does not twitch as the digits change, and
+            no live region: a clock that announced itself every minute would
+            interrupt whatever a screen-reader user was actually reading.
+
+            Hidden on the narrowest screens, where the bar has four controls and
+            a menu button already and the time is the one thing there that
+            nothing depends on.
+          */}
+          {now !== null && network !== null && (
+            <p className="hidden text-sm font-medium tabular-nums sm:block">
+              <span className="sr-only">{t(strings.status.clockLabel, { network })}</span>
+              <span aria-hidden="true">{formatClockTime(now.time, locale)}</span>
+            </p>
+          )}
+
           <ThemeToggle />
           <LanguageToggle />
 

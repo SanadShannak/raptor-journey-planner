@@ -36,7 +36,7 @@ interface Props {
  * the chip's geometry with a transparent border puts the two on one edge, and
  * gives the name's own focus ring the same shape as the chip while it is at it.
  */
-export const TEXT_INSET = 'border border-transparent px-1.5';
+export const TEXT_INSET = 'border border-transparent ';
 
 const CONTROL =
   'pointer-events-auto relative rounded-control text-content-muted hover:text-content hover:bg-surface-muted focus-visible:outline-brand-500 flex h-7 w-7 flex-none cursor-pointer items-center justify-center focus-visible:outline-2 focus-visible:outline-offset-1 disabled:cursor-not-allowed disabled:opacity-30';
@@ -237,7 +237,7 @@ export function FavouriteCard({
                 that line too, since it inherits the same inset from here rather
                 than adding its own.
               */
-              <div className="text-content-muted ms-px min-w-0 ps-1.5 text-xs">
+              <div className="text-content-muted ms-px min-w-0  text-xs">
                 {subtitle}
               </div>
             )}

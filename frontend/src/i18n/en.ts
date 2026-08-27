@@ -23,6 +23,7 @@ export const en: Dictionary = {
     checkingBackend: 'Contacting the routing service…',
     backendReachable: 'Routing service reachable.',
     backendUnreachable: 'Routing service unavailable.',
+    clockLabel: 'Time in {network}',
     availableDates: {
       one: 'Timetable data covers one day, {first}.',
       other: 'Timetable data covers {count} days, from {first} to {last}.',

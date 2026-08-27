@@ -217,14 +217,23 @@ export function FavouriteRouteRow({
                 key={`${next.call.date}-${next.call.time}`}
                 className="border-border flex items-center justify-between gap-2 border-b py-1 text-sm tabular-nums last:border-b-0"
               >
-                <span className="text-content font-medium">
-                  {formatClockTime(next.call.time, locale)}
-                </span>
-                {next.minutes !== null && next.minutes <= 60 && (
+                {/*
+                  The countdown leads and the clock time closes, which is the
+                  order a stop's own departure row already uses — and being DOM
+                  order rather than a placement, it reverses with the page: the
+                  time sits at the right in English and at the left in Arabic,
+                  always at the line's end.
+                */}
+                {next.minutes !== null && next.minutes <= 60 ? (
                   <span className="bg-surface-muted text-content-muted rounded-control flex-none px-1.5 py-0.5 text-xs font-medium">
                     {t(strings.units.minutes, { minutes: next.minutes })}
                   </span>
+                ) : (
+                  <span />
                 )}
+                <span className="text-content font-medium">
+                  {formatClockTime(next.call.time, locale)}
+                </span>
               </li>
             ))}
           </ul>
