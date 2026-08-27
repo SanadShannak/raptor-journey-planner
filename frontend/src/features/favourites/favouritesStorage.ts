@@ -155,7 +155,16 @@ function parseFavourite(value: unknown): Favourite | null {
       const pace = asPace(value['pace']);
       if (origin === null || destination === null || pace === null) return null;
 
-      return { kind: 'itinerary', nickname, origin, destination, pace };
+      /*
+       * Absent rather than null on anything saved before this field existed,
+       * and a malformed one is dropped to null rather than dropping the whole
+       * favourite — a date that cannot be read costs a line on a card, which
+       * is not worth losing somebody's saved journey over.
+       */
+      const stamp = asString(value['savedOn']);
+      const savedOn = stamp !== null && /^\d{4}-\d{2}-\d{2}$/.test(stamp) ? stamp : null;
+
+      return { kind: 'itinerary', nickname, origin, destination, pace, savedOn };
     }
 
     default:

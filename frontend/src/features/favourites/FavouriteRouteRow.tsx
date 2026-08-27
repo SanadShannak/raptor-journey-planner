@@ -24,8 +24,8 @@ interface Props {
   onDragEnd: () => void;
 }
 
-/** Two at a time, matching the stop card and for the same reason. */
-const PAGE = 2;
+/** Three at a time, matching the stop card and for the same reason. */
+const PAGE = 3;
 
 /**
  * How far down the day the card can page.
@@ -215,7 +215,7 @@ export function FavouriteRouteRow({
             {visible.map((next) => (
               <li
                 key={`${next.call.date}-${next.call.time}`}
-                className="border-border flex items-center justify-between gap-2 border-b py-0.5 text-sm tabular-nums last:border-b-0"
+                className="border-border flex items-center justify-between gap-2 border-b py-1.5 text-sm tabular-nums last:border-b-0"
               >
                 <span className="text-content font-medium">
                   {formatClockTime(next.call.time, locale)}

@@ -58,6 +58,7 @@ const journey = (pace: ItineraryFavourite['pace']): ItineraryFavourite => ({
   origin: { label: 'Eira', lat: 60.155, lon: 24.94 },
   destination: { label: 'Käpylä', lat: 60.221, lon: 24.95 },
   pace,
+  savedOn: '2026-08-27',
 });
 
 describe('identity', () => {
@@ -218,6 +219,24 @@ describe('storage', () => {
       }),
     );
     expect(readFavourites()).toEqual([]);
+  });
+
+  /* Journeys saved before `savedOn` existed must still load. */
+  it('reads a journey with no savedOn as one saved on no known day', () => {
+    const { savedOn: _omitted, ...withoutStamp } = journey('average');
+    localStorage.setItem(
+      'favourites',
+      JSON.stringify({ version: 1, items: [withoutStamp] }),
+    );
+    expect(readFavourites()[0]).toMatchObject({ kind: 'itinerary', savedOn: null });
+  });
+
+  it('drops an unreadable savedOn without dropping the journey', () => {
+    localStorage.setItem(
+      'favourites',
+      JSON.stringify({ version: 1, items: [{ ...journey('average'), savedOn: 'nope' }] }),
+    );
+    expect(readFavourites()[0]).toMatchObject({ kind: 'itinerary', savedOn: null });
   });
 
   it('rejects a pace the app does not offer', () => {

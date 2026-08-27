@@ -1,5 +1,5 @@
 import { paths } from '../../app/routes';
-import { useLocale } from '../../i18n';
+import { formatDate, useLocale } from '../../i18n';
 import { WALKING_PACES } from '../../config/journey';
 import type { NetworkMoment } from '../stops/minutesUntil';
 import type { ItineraryFavourite } from './favourite';
@@ -46,7 +46,7 @@ export function FavouriteJourneyRow({
   onDragEnter,
   onDragEnd,
 }: Props) {
-  const { strings, t } = useLocale();
+  const { locale, strings, t } = useLocale();
 
   const target = journeyFavouritePath(favourite, now);
   const pace = t(strings.planner[PACE_LABEL[favourite.pace]]);
@@ -106,17 +106,34 @@ export function FavouriteJourneyRow({
           </svg>
         </span>
       }
-      subtitle={null}
+      /*
+        When it was saved, which on an unnamed card is the only thing that
+        tells two similar journeys apart. Omitted rather than guessed for a
+        journey saved before the date was recorded.
+      */
+      subtitle={
+        favourite.savedOn === null
+          ? null
+          : t(strings.favourites.savedOn, {
+              date: formatDate(favourite.savedOn, locale, {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric',
+              }),
+            })
+      }
     >
-      <div className="flex flex-col gap-0.5">
+      <div className="flex flex-col gap-1.5">
         {field(t(strings.favourites.fromLabel), favourite.origin.label, true)}
         {field(t(strings.favourites.toLabel), favourite.destination.label, true)}
+        {/* The same weight as the two places: all three are facts about the
+            saved search, and dimming one of them made it read as an aside. */}
         {field(
           t(strings.favourites.speedLabel),
           `${pace} · ${t(strings.planner.kmh, {
             value: (WALKING_PACES[favourite.pace] * 3.6).toFixed(1),
           })}`,
-          false,
+          true,
         )}
       </div>
 
@@ -125,7 +142,7 @@ export function FavouriteJourneyRow({
         and a second control inside it pointing at the same place would be two
         answers to one press. It says what the card does.
       */}
-      <p className="text-brand-500 flex items-center gap-1 text-xs font-medium">
+      <p className="text-brand-500 mt-0.5 flex items-center gap-1 text-xs font-medium">
         <svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <circle cx="8.5" cy="8.5" r="5.5" />
           <path d="M12.5 12.5L18 18" />

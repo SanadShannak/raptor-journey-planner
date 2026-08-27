@@ -736,7 +736,7 @@ export default function PlanPage() {
               <h1 className="min-w-0 flex-1 text-2xl font-semibold tracking-tight text-balance">
                 {t(strings.pages.plan.title)}
               </h1>
-              <FavouriteButton favourite={favouriteForSearch(values)} />
+              <FavouriteButton favourite={favouriteForSearch(values, networkToday)} />
             </div>
 
             {/*

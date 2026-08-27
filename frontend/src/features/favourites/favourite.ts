@@ -1,5 +1,5 @@
 import type { WalkingPace } from '../../config/journey';
-import type { GtfsRouteType } from '../../types/journey';
+import type { GtfsRouteType, IsoDate } from '../../types/journey';
 
 /**
  * A stop, a line, or a journey somebody wants to get back to.
@@ -85,6 +85,19 @@ export interface ItineraryFavourite extends FavouriteBase {
   origin: FavouritePlace;
   destination: FavouritePlace;
   pace: WalkingPace;
+  /**
+   * The day it was saved, on the **network's** clock.
+   *
+   * A stop and a line name themselves; a saved search has only a nickname, and
+   * without one the card had a heading and nothing under it. When it was saved
+   * is the one fact about it that is not already on the card, and it is what
+   * tells two similar journeys apart in a list.
+   *
+   * **Null is a real value**, not a missing one: it is what every journey saved
+   * before this field existed reads as, and the card simply omits the line
+   * rather than inventing a date it never recorded.
+   */
+  savedOn: IsoDate | null;
 }
 
 export type Favourite = StopFavourite | RouteFavourite | ItineraryFavourite;

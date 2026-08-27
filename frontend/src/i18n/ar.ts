@@ -514,6 +514,7 @@ export const ar: Dictionary = {
     showMore: 'عرض المغادرات التالية',
 
     journeyFallback: 'رحلة محفوظة',
+    savedOn: 'حُفظت في {date}',
     fromLabel: 'من',
     toLabel: 'إلى',
     speedLabel: 'المشي',

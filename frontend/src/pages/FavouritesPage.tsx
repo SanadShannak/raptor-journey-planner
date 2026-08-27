@@ -150,10 +150,13 @@ export default function FavouritesPage() {
                   through them scrolls the row into view by itself, and adding one
                   would only put an extra stop in the way of that.
 
-                  The negative margins let a row bleed to the page's own gutters,
-                  so a card scrolling out does not appear to stop short of the
-                  edge — the padding puts the first card back where the heading
-                  above it starts.
+                  The row sits inside the page's own gutters rather than bleeding
+                  through them on negative margins. That looked right at rest and
+                  wrong at the end of a scroll: a scroll container's trailing
+                  padding is not part of its scrollable area, so the first card
+                  cleared the edge by the full gutter while the last one ended
+                  flush against it. Insetting the box instead makes both ends the
+                  same by construction, with nothing to keep in step.
                 */}
                 {/*
                   Said once for the row rather than on every card in it: a
@@ -162,7 +165,7 @@ export default function FavouritesPage() {
                 */}
                 <p className="sr-only">{t(strings.favourites.dragHint)}</p>
 
-                <div className="-mx-4 overflow-x-auto px-4 pb-1 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+                <div className="overflow-x-auto pb-1">
                   <ul className="flex items-stretch gap-3">
                     {mine.map((favourite) => {
                       const key = identity(favourite);

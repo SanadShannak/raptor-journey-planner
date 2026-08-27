@@ -53,7 +53,22 @@ export function RootLayout() {
     matchPath(paths.stopDetail, pathname) !== null ||
     matchPath(paths.routes, pathname) !== null ||
     matchPath(paths.routeDetail, pathname) !== null;
-  const showFooter = !fullHeight;
+
+  /*
+   * Two pages want the footer gone without wanting the fixed, viewport-locked
+   * layout above. Favourites is laid out to be taken in at a glance — three
+   * rows of cards that fit a laptop screen — and seventy pixels of footer under
+   * it was the difference between fitting and not. The travel card is a short
+   * form and its answer; a footer there was only ever padding.
+   *
+   * Kept separate from `fullHeight` on purpose: these pages still sit in normal
+   * document flow, so a short window or a long list still scrolls rather than
+   * being clipped by `overflow-hidden`.
+   */
+  const footerlessPage =
+    pathname === paths.favourites || matchPath(paths.card, pathname) !== null;
+
+  const showFooter = !fullHeight && !footerlessPage;
 
   return (
     <div

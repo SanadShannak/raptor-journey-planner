@@ -163,9 +163,18 @@ export function FavouriteCard({
                 aria-label={t(strings.favourites.renameNamed, { name: title })}
                 className="rounded-control hover:decoration-content-muted focus-visible:outline-brand-500 pointer-events-auto relative cursor-text text-start text-sm font-medium underline decoration-transparent decoration-dotted underline-offset-4 transition-colors focus-visible:outline-2 focus-visible:outline-offset-1"
               >
-                <span dir="auto" className="block truncate">
-                  {title}
-                </span>
+                {/*
+                  No `dir="auto"`. It resolves from the first strong character,
+                  so on an Arabic page a Latin name — "Bulevardi", or a line's
+                  long name — turned its own box left-to-right and sat against
+                  the far edge of the card, while the code badge on the line
+                  below stayed against the near one. The name belongs directly
+                  above the badge. Inheriting the page's direction puts it
+                  there, and bidi still renders the name itself left-to-right
+                  inside: the box follows the page, the text follows itself.
+                  The same rule the stop heading already documents.
+                */}
+                <span className="block truncate">{title}</span>
               </button>
             )}
 

@@ -669,6 +669,8 @@ export interface Dictionary {
      * card say the same thing twice over.
      */
     journeyFallback: string;
+    /** When an unnamed saved journey was kept, shown as its subtitle. */
+    savedOn: string;
     fromLabel: string;
     toLabel: string;
     speedLabel: string;

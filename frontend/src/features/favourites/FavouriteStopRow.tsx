@@ -34,13 +34,11 @@ const REFRESH_MS = 60_000;
 /**
  * How many departures fit on a card at once.
  *
- * Two, which is what lets all three rows sit on a laptop screen without
- * scrolling — the page is meant to be taken in at a glance, and a page you
- * have to scroll to see the bottom row of is not that. The rest are fetched
- * alongside and reached with the pager, so nothing is lost: what would have
- * been the third departure is now one press away rather than one scroll.
+ * Three, which is what the page has room for now that it carries no footer.
+ * The rest are fetched alongside them and reached with the pager, so the
+ * fourth departure is one press away rather than one scroll.
  */
-const PAGE = 2;
+const PAGE = 3;
 
 /**
  * How deep the board is fetched.

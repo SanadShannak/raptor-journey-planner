@@ -412,6 +412,7 @@ export const en: Dictionary = {
     showMore: 'Show later departures',
 
     journeyFallback: 'Saved journey',
+    savedOn: 'Saved {date}',
     fromLabel: 'From',
     toLabel: 'To',
     speedLabel: 'Walking',

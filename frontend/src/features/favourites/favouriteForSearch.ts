@@ -13,6 +13,12 @@ import type { ItineraryFavourite } from './favourite';
  */
 export function favouriteForSearch(
   values: JourneyFormValues,
+  /**
+   * Today on the **network's** clock, or null before `/api/network` answers.
+   * Never the browser's: a visitor in Amman saving a Helsinki commute at
+   * 00:30 saved it on the Helsinki day, which is the one the card should say.
+   */
+  networkToday: string | null,
 ): ItineraryFavourite | null {
   const { origin, destination } = values;
   if (!isReady(values) || origin === null || destination === null) return null;
@@ -27,5 +33,6 @@ export function favouriteForSearch(
       lon: destination.lon,
     },
     pace: values.pace,
+    savedOn: networkToday,
   };
 }
