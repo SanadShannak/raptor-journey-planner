@@ -25,8 +25,16 @@ interface Props {
   pager?: ReactNode | undefined;
   /** Focus lands here when the card is removed, so it is never lost to body. */
   onRemoved: () => void;
-  /** True while this card is the one being dragged, so it can dim. */
+  /** True while this card is the one being dragged, so it can lift. */
   dragging: boolean;
+  /**
+   * Whether there is anywhere to go in each direction, so a held card can
+   * point at the ways that are actually open to it.
+   */
+  canGoEarlier: boolean;
+  canGoLater: boolean;
+  /** Dimmed while some *other* card is being carried, so the held one leads. */
+  someoneElseDragging: boolean;
   /** Hands the gesture to the row, which follows it from there. */
   onDragStart: () => void;
 }
@@ -87,6 +95,9 @@ export function FavouriteCard({
   pager,
   onRemoved,
   dragging,
+  canGoEarlier,
+  canGoLater,
+  someoneElseDragging,
   onDragStart,
 }: Props) {
   const { direction, strings, t } = useLocale();
@@ -149,20 +160,65 @@ export function FavouriteCard({
         This used to dim the card, which reads as "disabled" rather than "held"
         — and a thumb covers most of a card it is dragging, so the one part
         still visible was the part that had gone faint. It lifts instead: the
-        shadow opens underneath it, it grows a little, and it rises above its
-        neighbours so it passes over them rather than through them. All three
-        say the same thing, which is what makes it legible under a finger.
+        shadow opens underneath it, it rises off the row, and it sits above its
+        neighbours so it passes over them rather than through them. The *other*
+        cards take the dimming, which is what makes the held one lead rather
+        than merely differ.
+
+        It lifts rather than grows. Scaling pushed the card past the edges of
+        the row that holds it, and a row that scrolls sideways cannot let
+        anything outside itself show — so the very border doing the signalling
+        was the first thing clipped.
 
         The transition is squashed by the global `prefers-reduced-motion` rule,
         so the lift still happens for a reader who has asked for less movement —
         it simply arrives rather than eases.
       */
-      className={`bg-surface-raised rounded-card relative flex w-80 flex-none flex-col border transition-[box-shadow,transform,border-color] duration-150 ${
+      className={`bg-surface-raised rounded-card relative flex w-80 flex-none flex-col border transition-[box-shadow,translate,border-color,opacity] duration-150 ${
         dragging
-          ? 'border-brand-500 shadow-lifted z-10 scale-[1.03] cursor-grabbing'
-          : 'border-border shadow-none'
+          ? 'border-brand-500 shadow-lifted z-10 -translate-y-1 cursor-grabbing'
+          : someoneElseDragging
+            ? 'border-border opacity-55'
+            : 'border-border shadow-none'
       }`}
     >
+      {/*
+        Which ways this card can go, shown only while it is being held and only
+        where there is somewhere to go — the first card offers no "earlier" and
+        the last offers no "later", so the arrows are a statement about this
+        card's position rather than decoration.
+
+        Outside the card's own edges, in logical positions, so they sit where
+        the card would travel and swap sides with the page's direction. They
+        pulse rather than slide: the chevron already points, and an animation
+        that also moved would be saying the same thing twice, in a direction it
+        would then have to keep in step with RTL.
+      */}
+      {dragging && (
+        <>
+          {canGoEarlier && (
+            <span
+              aria-hidden="true"
+              className="text-brand-500 drag-pulse pointer-events-none absolute top-1/2 -start-6 -translate-y-1/2"
+            >
+              <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="rtl:-scale-x-100">
+                <path d="M12 4l-6 6 6 6" />
+              </svg>
+            </span>
+          )}
+          {canGoLater && (
+            <span
+              aria-hidden="true"
+              className="text-brand-500 drag-pulse pointer-events-none absolute top-1/2 -end-6 -translate-y-1/2"
+            >
+              <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="rtl:-scale-x-100">
+                <path d="M8 4l6 6-6 6" />
+              </svg>
+            </span>
+          )}
+        </>
+      )}
+
       <Link
         to={to}
         /*

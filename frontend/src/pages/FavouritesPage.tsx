@@ -91,27 +91,73 @@ export default function FavouritesPage() {
     };
   }, [dragged]);
 
+  /**
+   * How close to a row's edge a drag has to get before the row starts moving,
+   * and how fast it then moves, in pixels per frame.
+   *
+   * Without this a phone could only ever reorder by one place: the row holds
+   * two cards at a time, dragging is the one gesture that cannot also scroll
+   * it, and so the third card was unreachable. The row now comes to the card.
+   */
+  const EDGE = 64;
+  const SPEED = 12;
+
   const startDrag = (key: string) => {
     draggedRef.current = key;
     setDragged(key);
 
-    const move = (event: PointerEvent) => {
-      const moving = draggedRef.current;
-      if (moving === null) return;
+    /*
+     * The row this card lives in, caught once. Looked up now rather than on
+     * every frame because the card is about to start moving between rows'
+     * worth of positions, and the row it belongs to cannot change: a card only
+     * ever reorders among its own kind.
+     */
+    const row = document
+      .querySelector(`[data-favourite="${CSS.escape(key)}"]`)
+      ?.closest<HTMLElement>('[data-row]') ?? null;
+
+    /*
+     * Everything the loop below needs, kept off React's state so a frame never
+     * waits for a render.
+     */
+    const at = { x: 0, y: 0 };
+    let live = true;
+
+    const step = () => {
+      if (!live) return;
+
       /*
-       * Which card is under the pointer, asked of the document rather than
-       * worked out from geometry — the row scrolls and reorders underneath the
-       * gesture, so anything measured when it started describes an arrangement
-       * that no longer exists.
+       * The row scrolls itself when the pointer nears an edge, and the hit test
+       * runs on every frame rather than only on movement — which is the whole
+       * point. A finger parked at the edge is not moving, so a move-driven
+       * reorder would scroll new cards under a stationary thumb and never
+       * notice them arriving.
        */
-      const under = document
-        .elementFromPoint(event.clientX, event.clientY)
-        ?.closest<HTMLElement>('[data-favourite]');
-      const target = under?.dataset['favourite'];
-      if (target !== undefined && target !== moving) reorderFavourite(moving, target);
+      if (row !== null) {
+        const box = row.getBoundingClientRect();
+        if (at.x < box.left + EDGE) row.scrollLeft -= SPEED;
+        else if (at.x > box.right - EDGE) row.scrollLeft += SPEED;
+      }
+
+      const moving = draggedRef.current;
+      if (moving !== null) {
+        const under = document
+          .elementFromPoint(at.x, at.y)
+          ?.closest<HTMLElement>('[data-favourite]');
+        const target = under?.dataset['favourite'];
+        if (target !== undefined && target !== moving) reorderFavourite(moving, target);
+      }
+
+      window.requestAnimationFrame(step);
+    };
+
+    const move = (event: PointerEvent) => {
+      at.x = event.clientX;
+      at.y = event.clientY;
     };
 
     const end = () => {
+      live = false;
       draggedRef.current = null;
       setDragged(null);
       stopDrag.current?.();
@@ -123,11 +169,14 @@ export default function FavouritesPage() {
     window.addEventListener('pointercancel', end);
 
     stopDrag.current = () => {
+      live = false;
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', end);
       window.removeEventListener('pointercancel', end);
       stopDrag.current = null;
     };
+
+    window.requestAnimationFrame(step);
   };
 
   /*
@@ -242,6 +291,12 @@ export default function FavouritesPage() {
                   through them scrolls the row into view by itself, and adding one
                   would only put an extra stop in the way of that.
 
+                  The vertical padding is room for a card to lift into. A row
+                  that scrolls sideways clips everything outside itself on both
+                  axes, so without it the shadow and the raised edge — the very
+                  things saying a card is held — were the first to be cut off.
+                  The negative margin takes the space back out of the layout.
+
                   The row sits inside the page's own gutters rather than bleeding
                   through them on negative margins. That looked right at rest and
                   wrong at the end of a scroll: a scroll container's trailing
@@ -264,9 +319,9 @@ export default function FavouritesPage() {
                     {t(empty)}
                   </p>
                 ) : (
-                <div className="shrink-0 overflow-x-auto pb-1">
+                <div data-row className="shrink-0 -my-3 overflow-x-auto py-3">
                   <ul className="flex items-stretch gap-3">
-                    {mine.map((favourite) => {
+                    {mine.map((favourite, index) => {
                       const key = identity(favourite);
                       return (
                         <Card
@@ -276,6 +331,9 @@ export default function FavouritesPage() {
                           networkToday={networkToday}
                           onRemoved={afterRemove}
                           dragging={dragged === key}
+                          canGoEarlier={index > 0}
+                          canGoLater={index < mine.length - 1}
+                          someoneElseDragging={dragged !== null && dragged !== key}
                           onDragStart={() => startDrag(key)}
                         />
                       );
@@ -298,6 +356,9 @@ function Card({
   networkToday,
   onRemoved,
   dragging,
+  canGoEarlier,
+  canGoLater,
+  someoneElseDragging,
   onDragStart,
 }: {
   favourite: Favourite;
@@ -305,9 +366,20 @@ function Card({
   networkToday: string | null;
   onRemoved: () => void;
   dragging: boolean;
+  canGoEarlier: boolean;
+  canGoLater: boolean;
+  someoneElseDragging: boolean;
   onDragStart: () => void;
 }) {
-  const shared = { now, onRemoved, dragging, onDragStart };
+  const shared = {
+    now,
+    onRemoved,
+    dragging,
+    canGoEarlier,
+    canGoLater,
+    someoneElseDragging,
+    onDragStart,
+  };
 
   switch (favourite.kind) {
     case 'stop':

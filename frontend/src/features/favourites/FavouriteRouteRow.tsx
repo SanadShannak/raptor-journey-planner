@@ -19,6 +19,9 @@ interface Props {
   networkToday: string | null;
   onRemoved: () => void;
   dragging: boolean;
+  canGoEarlier: boolean;
+  canGoLater: boolean;
+  someoneElseDragging: boolean;
   onDragStart: () => void;
 }
 
@@ -57,6 +60,9 @@ export function FavouriteRouteRow({
   networkToday,
   onRemoved,
   dragging,
+  canGoEarlier,
+  canGoLater,
+  someoneElseDragging,
   onDragStart,
 }: Props) {
   const { locale, strings, t } = useLocale();
@@ -166,6 +172,9 @@ export function FavouriteRouteRow({
       fallbackLabel={favourite.routeLongName ?? favourite.routeShortName}
       onRemoved={onRemoved}
       dragging={dragging}
+      canGoEarlier={canGoEarlier}
+      canGoLater={canGoLater}
+      someoneElseDragging={someoneElseDragging}
       onDragStart={onDragStart}
       pager={<DeparturePager page={shownPage} pages={pages} onPage={setPage} />}
       emblem={

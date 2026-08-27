@@ -11,6 +11,9 @@ interface Props {
   now: NetworkMoment | null;
   onRemoved: () => void;
   dragging: boolean;
+  canGoEarlier: boolean;
+  canGoLater: boolean;
+  someoneElseDragging: boolean;
   onDragStart: () => void;
 }
 
@@ -40,6 +43,9 @@ export function FavouriteJourneyRow({
   now,
   onRemoved,
   dragging,
+  canGoEarlier,
+  canGoLater,
+  someoneElseDragging,
   onDragStart,
 }: Props) {
   const { locale, strings, t } = useLocale();
@@ -83,6 +89,9 @@ export function FavouriteJourneyRow({
       fallbackLabel={t(strings.favourites.journeyFallback)}
       onRemoved={onRemoved}
       dragging={dragging}
+      canGoEarlier={canGoEarlier}
+      canGoLater={canGoLater}
+      someoneElseDragging={someoneElseDragging}
       onDragStart={onDragStart}
       emblem={
         <span

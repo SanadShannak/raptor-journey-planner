@@ -16,6 +16,9 @@ interface Props {
   now: NetworkMoment | null;
   onRemoved: () => void;
   dragging: boolean;
+  canGoEarlier: boolean;
+  canGoLater: boolean;
+  someoneElseDragging: boolean;
   onDragStart: () => void;
 }
 
@@ -59,6 +62,9 @@ export function FavouriteStopRow({
   now,
   onRemoved,
   dragging,
+  canGoEarlier,
+  canGoLater,
+  someoneElseDragging,
   onDragStart,
 }: Props) {
   const { strings, t } = useLocale();
@@ -138,6 +144,9 @@ export function FavouriteStopRow({
       fallbackLabel={favourite.name}
       onRemoved={onRemoved}
       dragging={dragging}
+      canGoEarlier={canGoEarlier}
+      canGoLater={canGoLater}
+      someoneElseDragging={someoneElseDragging}
       onDragStart={onDragStart}
       pager={<DeparturePager page={shownPage} pages={pages} onPage={setPage} />}
       subtitle={
