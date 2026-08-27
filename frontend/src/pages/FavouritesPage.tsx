@@ -62,6 +62,35 @@ export default function FavouritesPage() {
 
   useEffect(() => () => stopDrag.current?.(), []);
 
+  /*
+   * Selection off for the length of a drag, and only for it.
+   *
+   * The gesture passes over card after card of text, and a pointer held down
+   * while moving across text is how every platform is asked to select it — so
+   * a finger dragging a card left a trail of highlighted departures behind it,
+   * and on iOS the long press that starts the drag is also the one that raises
+   * the callout menu. Suppressed on the document, because the selection
+   * belongs to the document rather than to any one card, and restored on
+   * release so everything stays selectable the rest of the time.
+   */
+  useEffect(() => {
+    if (dragged === null) return;
+
+    const { style } = document.body;
+    const user = style.userSelect;
+    // Not in the CSSOM types: still prefixed, and still the only way to
+    // suppress the iOS long-press callout.
+    const callout = style.getPropertyValue('-webkit-touch-callout');
+
+    style.userSelect = 'none';
+    style.setProperty('-webkit-touch-callout', 'none');
+
+    return () => {
+      style.userSelect = user;
+      style.setProperty('-webkit-touch-callout', callout);
+    };
+  }, [dragged]);
+
   const startDrag = (key: string) => {
     draggedRef.current = key;
     setDragged(key);

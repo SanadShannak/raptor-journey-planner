@@ -115,6 +115,12 @@ export function FavouriteCard({
     // A right-click is not a drag; a finger or a stylus has no button to press.
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     if (editing) return;
+    /*
+     * Stops the press becoming a text selection or, on iOS, the long-press
+     * callout — a finger held still on a handle is exactly the gesture those
+     * two are looking for, and both would fight the drag it is actually
+     * starting.
+     */
     event.preventDefault();
     onDragStart();
   }
@@ -265,6 +271,9 @@ export function FavouriteCard({
             <span
               aria-hidden="true"
               onPointerDown={beginDrag}
+              // A long press is a right-click on a touch screen. Nothing here
+              // has a context menu worth offering, and the menu cancels the drag.
+              onContextMenu={(event) => event.preventDefault()}
               /*
                * `pointer-events-auto` because the card's content sits inside a
                * layer that lets presses fall through to the stretched link
@@ -278,8 +287,17 @@ export function FavouriteCard({
                * rather than a scroll — and confining it to the handle is what
                * leaves the rest of the card able to scroll the row and open
                * itself.
+               *
+               * `select-none` and the callout suppression are what make a real
+               * finger work: holding still on the handle is how a phone is
+               * asked for a selection and a callout menu, and both arrive
+               * exactly when a drag is being started.
+               *
+               * Wider than it looks. The dots are small, but the box around
+               * them is the target — and a handle you have to hit precisely is
+               * one nobody uses twice on a phone.
                */
-              className="text-content-muted/70 pointer-events-auto relative flex h-7 w-5 flex-none cursor-grab touch-none items-center justify-center active:cursor-grabbing"
+              className="text-content-muted/70 pointer-events-auto relative flex h-8 w-10 flex-none cursor-grab touch-none select-none items-center justify-center [-webkit-touch-callout:none] active:cursor-grabbing"
             >
               <svg viewBox="0 0 10 16" width="10" height="16" fill="currentColor" aria-hidden="true">
                 <circle cx="3" cy="4" r="1.1" />
