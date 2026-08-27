@@ -1,6 +1,5 @@
-import { Fragment, useEffect, useMemo } from 'react';
-import L from 'leaflet';
-import { CircleMarker, Marker, Polyline, useMap } from 'react-leaflet';
+import { useEffect, useMemo, useRef } from 'react';
+import { useTheme } from '../theme';
 import type { GeoBounds } from '../config/geocoding';
 import type { Coordinates } from '../types/journey';
 import type { LineVariantDetail } from '../types/route';
@@ -16,8 +15,18 @@ import {
 } from '../features/routes/shapeProjection';
 import type { Vehicle } from '../features/routes/vehicleProgress';
 import { MapCanvas, FitTo } from './MapCanvas';
+import { MapMarker } from './MapMarker';
 import { RouteVehicles } from './RouteVehicles';
 import { StopLayer } from './StopLayer';
+import { useMap, useMapEvent } from './mapContext';
+import { useGeoJson } from './useGeoJson';
+import {
+  lineLayers,
+  pointCollection,
+  segmentCollection,
+  stopCircleLayers,
+  type DrawnPoint,
+} from './journeyLayers';
 import { homeViewFor, ROUTE_STOPS_MIN_ZOOM } from './homeView';
 import { useReducedMotion } from './useReducedMotion';
 
@@ -51,38 +60,13 @@ interface Props {
 }
 
 /**
- * The line's two ends, as Leaflet markers.
- *
- * Built from the same markup the interface draws, so the pin on the map and the
- * pin on the spine cannot drift apart — the arrangement the mode silhouettes
- * and the vehicle badge already have.
- */
-function endIcon(end: 'origin' | 'destination', ink: string): L.DivIcon {
-  const origin = end === 'origin';
-  const size = origin ? 24 : 34;
-
-  return L.divIcon({
-    className: 'route-end',
-    html: `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true" class="${
-      origin ? ink : 'text-brand-500'
-    }">${origin ? originMarkerMarkup('fill-surface') : destinationMarkerMarkup('fill-surface')}</svg>`,
-    iconSize: [size, size],
-    /*
-     * A target is centred on its point; a pin stands on its tip. The pin's path
-     * reaches y=21.5 of a 24 box, so its point is a whisker above the bottom.
-     */
-    iconAnchor: origin ? [size / 2, size / 2] : [size / 2, size * 0.9],
-  });
-}
-
-/**
  * Keeps the map on a moving point.
  *
- * `panTo` rather than `setView`, and only once the point has actually changed:
- * a vehicle a few metres further along should slide the map, not re-place it,
- * and re-issuing the same centre on every render fights the reader's own
- * dragging. The zoom is raised once, on arrival, and left alone after — a map
- * that re-zoomed on every tick could never be pulled back out.
+ * `easeTo` rather than a jump, and only once the point has actually changed: a
+ * vehicle a few metres further along should slide the map, not re-place it, and
+ * re-issuing the same centre on every render fights the reader's own dragging.
+ * The zoom is raised once, on arrival, and left alone after — a map that
+ * re-zoomed on every tick could never be pulled back out.
  */
 function Chase({ point, animate }: { point: Coordinates; animate: boolean }) {
   const map = useMap();
@@ -91,10 +75,106 @@ function Chase({ point, animate }: { point: Coordinates; animate: boolean }) {
   useEffect(() => {
     // Close enough to read the street the vehicle is on, and never further out
     // than wherever the reader has already taken the map.
-    map.setView([lat, lon], Math.max(map.getZoom(), 15), { animate });
+    map.easeTo({
+      center: [lon, lat],
+      zoom: Math.max(map.getZoom(), 15),
+      animate,
+    });
     // Deliberately keyed on the numbers rather than the array: a fresh tuple
     // with the same coordinates is not a move.
   }, [map, lat, lon, animate]);
+
+  return null;
+}
+
+/**
+ * Opens the stop somebody presses.
+ *
+ * The circles are a GL layer rather than a stack of elements, so a press is
+ * answered by asking the map what is under the pointer instead of by a handler
+ * hung on each circle. The stop's id travels on the feature for exactly this —
+ * see `DrawnPoint`.
+ */
+function StopCircleClicks({
+  layer,
+  onStopSelect,
+}: {
+  layer: string;
+  onStopSelect: (stopId: string) => void;
+}) {
+  const map = useMap();
+  const latest = useRef(onStopSelect);
+
+  // In an effect, not during render — see `useMapEvent` in `mapContext.ts`.
+  useEffect(() => {
+    latest.current = onStopSelect;
+  });
+
+  useMapEvent('click', (event) => {
+    const hit = map.queryRenderedFeatures(event.point, { layers: [layer] });
+    const id = hit[0]?.properties?.['id'];
+    if (typeof id !== 'string') return;
+    latest.current(id);
+  });
+
+  useEffect(() => {
+    const enter = () => {
+      map.getCanvas().style.cursor = 'pointer';
+    };
+    const leave = () => {
+      map.getCanvas().style.cursor = '';
+    };
+    map.on('mouseenter', layer, enter);
+    map.on('mouseleave', layer, leave);
+    return () => {
+      map.off('mouseenter', layer, enter);
+      map.off('mouseleave', layer, leave);
+    };
+  }, [map, layer]);
+
+  return null;
+}
+
+/** The drawn line and its stop circles, as the two overlays that paint them. */
+function RouteShapes({
+  path,
+  stops,
+  family,
+  scheme,
+}: {
+  path: Coordinates[] | null;
+  stops: DrawnPoint[];
+  family: string | null;
+  scheme: string;
+}) {
+  /*
+   * Rebuilt when the scheme changes, because the colours inside are resolved
+   * values rather than class names — a token remapped to its dark twin
+   * produces different data, not merely a different stylesheet.
+   */
+  const line = useMemo(() => {
+    void scheme;
+    if (path === null) return null;
+    return segmentCollection([{ path, family, walk: false, legIndex: 0 }]);
+  }, [path, family, scheme]);
+
+  const circles = useMemo(() => {
+    void scheme;
+    return pointCollection(stops);
+  }, [stops, scheme]);
+
+  const linePaint = useMemo(() => {
+    void scheme;
+    return lineLayers();
+  }, [scheme]);
+
+  const circlePaint = useMemo(() => {
+    void scheme;
+    return stopCircleLayers();
+  }, [scheme]);
+
+  useGeoJson('route-line', line, linePaint);
+  useGeoJson('route-stops', circles, circlePaint);
 
   return null;
 }
@@ -106,10 +186,10 @@ function Chase({ point, animate }: { point: Coordinates; animate: boolean }) {
  * vehicle's own colour, cased against the page's surface, a ring where you can
  * get on and off. Somebody who has read a journey should not have to learn this.
  *
- * The two ends get a larger open ring and the stops between them a small filled
- * dot — the `calls` and `passed` distinction the journey map already draws.
- * Deliberately *not* the origin and destination pins: those mean the
- * traveller's own two ends, and a line has no traveller.
+ * The two ends get the traveller's own marks and the stops between them a small
+ * dot. Deliberately *not* origin and destination in the planner's sense — a
+ * line has no traveller — but the same shapes, because where a line starts and
+ * ends is the same kind of fact.
  *
  * It is never the only route to any of this. Every stop it draws is written out
  * in the list beside it, as a link, which is what lets the markers stay out of
@@ -127,14 +207,10 @@ export function RouteMap({
 }: Props) {
   const home = useMemo(() => homeViewFor(network, area), [network, area]);
   const reduceMotion = useReducedMotion();
+  const { resolved } = useTheme();
 
   const family = variant === null ? null : familyFor(variant.routeType);
-  /** For the drawn line and the stop circles, which are strokes. */
-  const ink = family === null ? '' : visualForFamily(family).stroke;
-  /*
-   * And for the end markers, which are filled with `currentColor` — a
-   * `stroke-*` class sets the stroke and leaves the fill black.
-   */
+  /* The end markers are filled with `currentColor`, so they want the ink. */
   const text = family === null ? '' : visualForFamily(family).ink;
 
   /**
@@ -183,16 +259,6 @@ export function RouteMap({
   }, [path]);
 
   /*
-   * Every drawn key is scoped to the variant, so switching variant brings a
-   * fresh set of layers rather than restyling the last one.
-   *
-   * That is not tidiness. A Leaflet path's `className` is applied when the
-   * element is created and never touched again, while `setStyle` reaches only
-   * the options — so a reused layer keeps the class it was born with. Moving
-   * from a bus line to a tram one repainted nothing: the second wore the
-   * first's colours the whole way down.
-   */
-  /*
    * Measured once per variant, and shared with the layer that draws the
    * vehicles — the same measurement answering the same question twice would be
    * the expensive part of a tick.
@@ -205,7 +271,18 @@ export function RouteMap({
     [variant],
   );
 
-  const scope = variant === null ? 'none' : `${variant.lineId}-${variant.patternId}`;
+  /* The stops between the two ends, which have markers of their own. */
+  const middle = useMemo<DrawnPoint[]>(() => {
+    if (variant === null) return [];
+    return variant.stops
+      .slice(1, Math.max(variant.stops.length - 1, 1))
+      .map((stop) => ({
+        point: [stop.lat, stop.lon] as Coordinates,
+        family,
+        call: false,
+        id: stop.id,
+      }));
+  }, [variant, family]);
 
   /**
    * Where the followed vehicle is, when there is one to follow.
@@ -233,10 +310,16 @@ export function RouteMap({
     return pointBetweenStops(projected, from, to, vehicle.progress.fraction)?.point ?? null;
   }, [chase, variant, vehicles, projected]);
 
+  const first = variant?.stops[0];
+  const last =
+    variant !== null && variant.stops.length > 1
+      ? variant.stops[variant.stops.length - 1]
+      : undefined;
+
   return (
     <MapCanvas network={network}>
-    {/*
-      Drawn under the line: context, not the subject — and held back two zoom
+      {/*
+        Drawn under the line: context, not the subject — and held back two zoom
         levels further in than the stops page for exactly that reason. A line
         framed end to end covers a whole corridor, and filling it with every
         other stop in the city buries the one thing the reader came for.
@@ -247,15 +330,20 @@ export function RouteMap({
         minZoom={ROUTE_STOPS_MIN_ZOOM}
       />
 
+      <RouteShapes path={path} stops={middle} family={family} scheme={resolved} />
+
+      {/*
+        Pressable, and out of the tab order without being asked — a GL layer
+        has no element to tab to. The list beside the map is the keyboard's way
+        to every one of these.
+      */}
+      <StopCircleClicks layer="route-stops-passed" onStopSelect={onStopSelect} />
+
       {/*
         A variant on its way holds the map still rather than sending it home
         and back — two animated moves collide, and what a reader sees is the
-        zoom out and no zoom back in. The lesson the stops map recorded.
-      */}
-      {/*
-        One or the other, never both. Two effects moving the same map race, and
-        the loser is whichever ran first — which is how a map ends up framing a
-        whole line for one frame and then snapping to a vehicle.
+        zoom out and no zoom back in. One or the other, never both: two effects
+        moving the same map race, and the loser is whichever ran first.
       */}
       {!pending &&
         (chasing === null ? (
@@ -263,29 +351,6 @@ export function RouteMap({
         ) : (
           <Chase point={chasing} animate={!reduceMotion} />
         ))}
-
-      {path !== null && (
-        <Fragment key={`${scope}-line`}>
-          {/*
-            Drawn twice. The casing underneath is the page's own surface
-            colour, which is what keeps a dark blue line from disappearing into
-            dark water and a pale one from washing out over a light map. It is
-            ordinary transit cartography and it leaves the colour untouched.
-          */}
-          <Polyline
-            positions={path}
-            className="stroke-surface"
-            pathOptions={{ weight: 10, opacity: 0.9 }}
-            interactive={false}
-          />
-          <Polyline
-            positions={path}
-            className={ink}
-            pathOptions={{ weight: 6, opacity: 1 }}
-            interactive={false}
-          />
-        </Fragment>
-      )}
 
       {/* Over the line and its stops, because it is travelling along them. */}
       {variant !== null && vehicles.length > 0 && (
@@ -302,58 +367,43 @@ export function RouteMap({
 
         A slightly larger circle among circles is not a distinction anybody
         reads — on a line that doubles back you could not tell which end you
-        were looking at without following the whole thing. These are the same
-        target and pin the planner puts on a journey's ends.
+        were looking at without following the whole thing.
 
         The origin takes the line's colour, because where a line *starts* is a
         fact about that line; the destination keeps the brand pin it wears
         everywhere, because an end is an end.
       */}
-      {variant !== null && variant.stops.length > 0 && (
-        <Fragment key={`${scope}-ends`}>
-          <Marker
-            position={[variant.stops[0]!.lat, variant.stops[0]!.lon]}
-            icon={endIcon('origin', text)}
-            interactive={false}
-            keyboard={false}
+      {first !== undefined && (
+        <MapMarker position={[first.lat, first.lon]}>
+          <svg
+            viewBox="0 0 24 24"
+            width="24"
+            height="24"
+            aria-hidden="true"
+            className={`${text} block`}
+            dangerouslySetInnerHTML={{ __html: originMarkerMarkup('fill-surface') }}
           />
-          {variant.stops.length > 1 && (
-            <Marker
-              position={[
-                variant.stops[variant.stops.length - 1]!.lat,
-                variant.stops[variant.stops.length - 1]!.lon,
-              ]}
-              icon={endIcon('destination', text)}
-              interactive={false}
-              keyboard={false}
-            />
-          )}
-        </Fragment>
+        </MapMarker>
       )}
 
-      {variant?.stops.map((stop, index) => {
-        // The ends have their own markers above; a circle under them would
-        // show through the pin's cut-out centre.
-        if (index === 0 || index === variant.stops.length - 1) return null;
-
-        return (
-          <CircleMarker
-            key={`${scope}-${stop.sequence}-${stop.id}`}
-            center={[stop.lat, stop.lon]}
-            radius={3.5}
-            className={`${ink} fill-surface`}
-            pathOptions={{ weight: 2, opacity: 1, fillOpacity: 1 }}
-            /*
-              Pressable, and out of the tab order without being asked: a Leaflet
-              path is an SVG element with no tabindex, unlike a marker, which
-              needs `keyboard={false}` to be kept out. Either way the list
-              beside the map is the keyboard's way to every one of these.
-            */
-            interactive
-            eventHandlers={{ click: () => onStopSelect(stop.id) }}
+      {last !== undefined && (
+        <MapMarker
+          position={[last.lat, last.lon]}
+          // A pin stands on its tip rather than being centred on its point.
+          anchor="bottom"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="34"
+            height="34"
+            aria-hidden="true"
+            className="text-brand-500 block"
+            dangerouslySetInnerHTML={{
+              __html: destinationMarkerMarkup('fill-surface'),
+            }}
           />
-        );
-      })}
+        </MapMarker>
+      )}
     </MapCanvas>
   );
 }

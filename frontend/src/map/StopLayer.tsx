@@ -1,14 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import L from 'leaflet';
-import { Marker, useMap, useMapEvents } from 'react-leaflet';
+import type { LngLatBounds } from 'maplibre-gl';
 import { getStopsInBounds } from '../api/stops';
 import type { GeoBounds } from '../config/geocoding';
 import type { NetworkStop } from '../types/stop';
 import { familyFor, visualForFamily } from '../features/journey/modeVisuals';
-import {
-  ICON_SVG_ATTRIBUTES,
-  modeIconMarkup,
-} from '../features/journey/modeIconMarkup';
+import { modeIconMarkup } from '../features/journey/modeIconMarkup';
+import { useMap, useMapEvent } from './mapContext';
+import { MapMarker } from './MapMarker';
 
 /**
  * The network's own stops, for the part of it you are looking at.
@@ -25,6 +23,14 @@ import {
  * use. A stop nothing serves — a real thing in a feed, where a stop outlives its
  * routes — gets a plain marker rather than a guessed one: a bus icon on a tram
  * stop sends someone to the wrong side of the street.
+ *
+ * Drawn as HTML markers rather than as a symbol layer, deliberately. A symbol
+ * layer would let the basemap's own labels negotiate with these for space,
+ * which sounds like the point of moving to vector — but the markers carry
+ * Tailwind classes and a hover state, and reproducing those as GL paint
+ * properties would mean a second copy of the palette that could drift from the
+ * first. The lines below *are* a GL layer, which is where the collision
+ * actually earns its keep: a street name now steps aside for a route.
  */
 
 /**
@@ -68,7 +74,7 @@ const SETTLE_MS = 250;
  */
 const OVERSCAN = 0.2;
 
-function padded(bounds: L.LatLngBounds): GeoBounds {
+function padded(bounds: LngLatBounds): GeoBounds {
   const latPad = (bounds.getNorth() - bounds.getSouth()) * OVERSCAN;
   const lonPad = (bounds.getEast() - bounds.getWest()) * OVERSCAN;
 
@@ -80,57 +86,11 @@ function padded(bounds: L.LatLngBounds): GeoBounds {
   };
 }
 
-const covers = (outer: GeoBounds, inner: L.LatLngBounds): boolean =>
+const covers = (outer: GeoBounds, inner: LngLatBounds): boolean =>
   outer.minLat <= inner.getSouth() &&
   outer.minLon <= inner.getWest() &&
   outer.maxLat >= inner.getNorth() &&
   outer.maxLon >= inner.getEast();
-
-/**
- * One stop, as its mode.
- *
- * A stop served by several takes the first, because a marker has room for one
- * silhouette — and the tooltip carries the name, which is what somebody is
- * really after when several stops share a corner.
- */
-function stopIcon(
-  modes: NetworkStop['modes'],
-  selected: boolean,
-  clickable: boolean,
-): L.DivIcon {
-  const mode = modes[0];
-  const known = mode !== undefined;
-  const ink = known ? visualForFamily(familyFor(mode)).ink : 'text-content-muted';
-  const glyph = known
-    ? `<svg ${ICON_SVG_ATTRIBUTES} width="11" height="11">${modeIconMarkup(familyFor(mode))}</svg>`
-    : '<span class="bg-current block h-1.5 w-1.5 rounded-full"></span>';
-
-  /*
-   * A small square, not a circle.
-   *
-   * Every marker the journey puts on this map is round — the two ends, the
-   * stops it calls at, the dots it rides through — and a round stop marker
-   * joined that set, so the network read as loudly as the journey drawn over
-   * it. A different shape at half the size says "this is the ground", and
-   * leaves the circles to mean "this is your journey".
-   *
-   * The chosen one is the exception: it grows and drops the transparency the
-   * rest wear. Size and weight rather than colour, because the mode already
-   * owns the colour here — a "selected" hue would either fight it or replace
-   * the one piece of information the marker carries.
-   */
-  const skin = selected
-    ? 'h-6 w-6 opacity-100 border-2 ring-2 ring-current shadow-card z-[500]'
-    : 'h-4 w-4 opacity-70 border hover:opacity-100';
-  const cursor = clickable ? 'cursor-pointer' : '';
-
-  return L.divIcon({
-    className: 'network-stop',
-    html: `<span class="${ink} bg-surface-raised border-current absolute top-0 left-0 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[3px] transition-opacity ${skin} ${cursor}">${glyph}</span>`,
-    iconSize: [0, 0],
-    iconAnchor: [0, 0],
-  });
-}
 
 interface Props {
   /** Fires on hover, so whatever else is floating over the map can withdraw. */
@@ -252,13 +212,11 @@ export function StopLayer({
     refresh();
   };
 
-  useMapEvents({
-    moveend: onSettle,
-    zoomend: onSettle,
-    // The name is placed from a projection, so it belongs to a still map.
-    movestart: () => setHovered(null),
-    zoomstart: () => setHovered(null),
-  });
+  useMapEvent('moveend', onSettle);
+  useMapEvent('zoomend', onSettle);
+  // The name is placed from a projection, so it belongs to a still map.
+  useMapEvent('movestart', () => setHovered(null));
+  useMapEvent('zoomstart', () => setHovered(null));
 
   useEffect(() => {
     refresh();
@@ -280,7 +238,7 @@ export function StopLayer({
     // is exactly when this has to be worked out again.
     void settled;
 
-    const placed: L.Point[] = [];
+    const placed: { x: number; y: number }[] = [];
     const keep: NetworkStop[] = [];
 
     /*
@@ -301,9 +259,9 @@ export function StopLayer({
     );
 
     for (const stop of byImportance) {
-      const at = map.latLngToLayerPoint([stop.lat, stop.lon]);
-      if (placed.every((other) => at.distanceTo(other) >= MIN_GAP)) {
-        placed.push(at);
+      const at = map.project([stop.lon, stop.lat]);
+      if (placed.every((other) => Math.hypot(at.x - other.x, at.y - other.y) >= MIN_GAP)) {
+        placed.push({ x: at.x, y: at.y });
         keep.push(stop);
       }
     }
@@ -316,61 +274,50 @@ export function StopLayer({
     visibleChanged.current?.(stops);
   }, [stops]);
 
-  const label = hovered === null ? null : map.latLngToContainerPoint([hovered.lat, hovered.lon]);
+  const label = hovered === null ? null : map.project([hovered.lon, hovered.lat]);
 
   return (
     <>
       {drawn.map((stop) => (
-        <Marker
+        <MapMarker
           key={stop.id}
           position={[stop.lat, stop.lon]}
-          icon={stopIcon(stop.modes, stop.id === selectedStopId, onStopSelect !== undefined)}
           /*
-           * Out of the tab order, still, now that there is a timetable to open.
+           * Always takes the pointer, because the name appears on hover and a
+           * marker with `pointer-events: none` is never hovered.
            *
-           * The earlier reason was that there was nothing to do with one. The
-           * reason now is arithmetic: a screen holds tens of these, so making
-           * each a tab stop puts tens of them ahead of every real control on
-           * the page, and no keyboard user would reach the sidebar.
-           *
-           * The equivalent action lives outside the map instead — the stops in
-           * view are listed beside it, as ordinary buttons in the reading
-           * order. That is what the accessibility rule actually asks for: not
-           * that the map be operable, but that nothing be reachable only
-           * through it.
+           * The cost is that a press on a stop cannot also reach the ground
+           * beneath it, so a stop layer drawn without somewhere to open a stop
+           * into would quietly eat the planner's point chooser. All three maps
+           * pass `onStopSelect`, so today that press always has somewhere to
+           * go; a fourth that did not would need to answer this.
            */
-          keyboard={false}
-          eventHandlers={{
-            mouseover: () => {
+          interactive
+          {...(onStopSelect === undefined
+            ? {}
+            : { onClick: () => onStopSelect(stop.id) })}
+        >
+          <StopPin
+            modes={stop.modes}
+            selected={stop.id === selectedStopId}
+            clickable={onStopSelect !== undefined}
+            onEnter={() => {
               onStopHover();
               setHovered(stop);
-            },
-            mouseout: () => setHovered((current) => (current === stop ? null : current)),
-            /*
-             * Registered only where there is somewhere to open a stop into.
-             * A marker that listens for a click consumes it — Leaflet fires on
-             * the first target it finds and stops — so an unconditional handler
-             * would silently swallow the point chooser for anyone trying to
-             * pick a place that happens to sit under a stop.
-             */
-            ...(onStopSelect === undefined ? {} : { click: () => onStopSelect(stop.id) }),
-          }}
-        />
+            }}
+            onLeave={() =>
+              setHovered((current) => (current === stop ? null : current))
+            }
+          />
+        </MapMarker>
       ))}
 
       {/*
         The name, drawn rather than delegated.
-        
-        Leaflet's own tooltip measures its width the moment it opens, so that it
-        can centre itself over the marker — and react-leaflet fills the content
-        in afterwards, through a portal. The measurement was of an empty box,
-        and the name landed to one side of the stop it belonged to. Asking for a
-        second placement once the content had arrived did not settle it either.
 
-        Positioned here instead, from the point itself. There is nothing to
-        measure and nothing to correct: it is centred by a transform, which
-        needs no knowledge of how wide the name is. Same conclusion as the point
-        chooser reached, for the same reason.
+        A popup would bring an open animation and a lifecycle keyed on its
+        position; this is positioned from the projected point instead, centred
+        by a transform, which needs no knowledge of how wide the name is.
 
         `left` rather than `start`: the anchor is a point on the ground, placed
         by projection in physical pixels, and the map does not flip with the
@@ -393,5 +340,69 @@ export function StopLayer({
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * One stop, as its mode.
+ *
+ * A stop served by several takes the first, because a marker has room for one
+ * silhouette — and the tooltip carries the name, which is what somebody is
+ * really after when several stops share a corner.
+ *
+ * A small square, not a circle. Every marker the journey puts on this map is
+ * round — the two ends, the stops it calls at, the dots it rides through — and
+ * a round stop marker joined that set, so the network read as loudly as the
+ * journey drawn over it. A different shape at half the size says "this is the
+ * ground", and leaves the circles to mean "this is your journey".
+ *
+ * The chosen one is the exception: it grows and drops the transparency the
+ * rest wear. Size and weight rather than colour, because the mode already owns
+ * the colour here — a "selected" hue would either fight it or replace the one
+ * piece of information the marker carries.
+ */
+function StopPin({
+  modes,
+  selected,
+  clickable,
+  onEnter,
+  onLeave,
+}: {
+  modes: NetworkStop['modes'];
+  selected: boolean;
+  clickable: boolean;
+  onEnter: () => void;
+  onLeave: () => void;
+}) {
+  const mode = modes[0];
+  const known = mode !== undefined;
+  const ink = known ? visualForFamily(familyFor(mode)).ink : 'text-content-muted';
+  const skin = selected
+    ? 'h-6 w-6 opacity-100 border-2 ring-2 ring-current shadow-card'
+    : 'h-4 w-4 opacity-70 border hover:opacity-100';
+
+  return (
+    <span
+      onMouseEnter={onEnter}
+      onMouseLeave={onLeave}
+      className={`${ink} ${skin} ${clickable ? 'cursor-pointer' : ''} bg-surface-raised border-current flex items-center justify-center rounded-[3px] transition-opacity`}
+    >
+      {known ? (
+        <svg
+          width="11"
+          height="11"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          dangerouslySetInnerHTML={{ __html: modeIconMarkup(familyFor(mode)) }}
+        />
+      ) : (
+        <span className="bg-current block h-1.5 w-1.5 rounded-full" />
+      )}
+    </span>
   );
 }

@@ -1,19 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from '@testing-library/react';
-import L from 'leaflet';
+import { act, render } from '@testing-library/react';
 import { LocaleProvider } from '../i18n';
 import { ThemeProvider } from '../theme';
 import { StopsMap } from './StopsMap';
 import { HOME_VIEW } from './viewRequest';
+import { forgetMaps, liveMap } from '../test/mapStub';
 import type { StopIdentity } from '../types/stop';
 
 /*
  * Where the map is told to look, and — the part that went wrong — where it is
  * told not to.
  *
- * Asserted on Leaflet's own `setView`, because the bug was not a wrong final
- * position but an extra move on the way to it: the map went home and came back,
- * and the two animations collided so that only the first was ever seen.
+ * Asserted on the framing calls the map was asked to make, because the bug was
+ * not a wrong final position but an extra move on the way to it: the map went
+ * home and came back, and the two animations collided so that only the first
+ * was ever seen.
+ *
+ * A GL map needs WebGL, which jsdom has no notion of, so the whole module is
+ * replaced — see `test/mapStub.ts`. That also puts the moves somewhere
+ * readable, which is what these tests are about.
  */
 
 const LASIPALATSI: StopIdentity = {
@@ -34,10 +39,8 @@ const NEXT_DOOR: StopIdentity = { ...LASIPALATSI, id: '1020445', lat: 60.17055 }
 /** Helsinki, which is where `homeViewFor` rests when nothing is chosen. */
 const CITY_LAT = 60.185;
 
-let moves: Array<{ lat: number; zoom: number | undefined }>;
-
-function show(props: Partial<Parameters<typeof StopsMap>[0]> = {}) {
-  return render(
+function view(props: Partial<Parameters<typeof StopsMap>[0]> = {}) {
+  return (
     <LocaleProvider>
       <ThemeProvider>
         <StopsMap
@@ -53,46 +56,49 @@ function show(props: Partial<Parameters<typeof StopsMap>[0]> = {}) {
           {...props}
         />
       </ThemeProvider>
-    </LocaleProvider>,
+    </LocaleProvider>
   );
 }
 
+/**
+ * Rendered *and settled*.
+ *
+ * The map loads on a microtask and `MapCanvas` draws no children until it has,
+ * so a synchronous render would assert against an empty map and pass for the
+ * wrong reason.
+ */
+async function show(props: Partial<Parameters<typeof StopsMap>[0]> = {}) {
+  const result = render(view(props));
+  await act(async () => {});
+  return result;
+}
+
+/** Every latitude the map was sent to, in order. */
+const latitudes = () =>
+  liveMap().moves.map((move) => move.center?.[1] ?? NaN);
+
 const wentToTheCity = () =>
-  moves.some((move) => Math.abs(move.lat - CITY_LAT) < 0.001);
+  latitudes().some((lat) => Math.abs(lat - CITY_LAT) < 0.001);
 
 beforeEach(() => {
   localStorage.clear();
-  moves = [];
-  /*
-   * Recorded, not replaced. Stubbing it out left the map with no zoom of its
-   * own, so `Math.max(map.getZoom(), 17)` came back `NaN` — the real Leaflet
-   * has to run for the zoom under test to mean anything.
-   */
-  const setView = L.Map.prototype.setView;
-  vi.spyOn(L.Map.prototype, 'setView').mockImplementation(function (
-    this: L.Map,
-    center: L.LatLngExpression,
-    zoom?: number,
-    options?: L.ZoomPanOptions,
-  ) {
-    moves.push({ lat: L.latLng(center as L.LatLngTuple).lat, zoom });
-    return setView.call(this, center, zoom, options);
-  });
+  forgetMaps();
 });
 
 afterEach(() => vi.restoreAllMocks());
 
 describe('StopsMap framing', () => {
-  it('rests on the city when no stop is wanted', () => {
-    show();
+  it('rests on the city when no stop is wanted', async () => {
+    await show();
     expect(wentToTheCity()).toBe(true);
   });
 
-  it('goes to the stop being inspected, and closer in', () => {
-    show({ focused: LASIPALATSI });
+  it('goes to the stop being inspected, and closer in', async () => {
+    await show({ focused: LASIPALATSI });
 
+    const moves = liveMap().moves;
     const last = moves[moves.length - 1];
-    expect(last?.lat).toBeCloseTo(LASIPALATSI.lat, 4);
+    expect(last?.center?.[1]).toBeCloseTo(LASIPALATSI.lat, 4);
     expect(last?.zoom).toBeGreaterThanOrEqual(17);
   });
 
@@ -103,56 +109,29 @@ describe('StopsMap framing', () => {
    * permission to go home. What a reader saw was a zoom out to the city and no
    * zoom back in, because the second move collided with the first.
    */
-  it('holds still while the next stop is on its way', () => {
-    const { rerender } = show({ focused: LASIPALATSI });
-    moves = [];
+  it('holds still while the next stop is on its way', async () => {
+    const { rerender } = await show({ focused: LASIPALATSI });
+    liveMap().moves.length = 0;
 
     // The navigation has happened; the new stop has not answered yet.
-    rerender(
-      <LocaleProvider>
-        <ThemeProvider>
-          <StopsMap
-            network="hsl"
-            area={null}
-            focused={null}
-            pending
-            onStopSelect={() => {}}
-            filter={() => true}
-            onVisibleStopsChange={() => {}}
-            onBelowZoomChange={() => {}}
-            view={HOME_VIEW}
-          />
-        </ThemeProvider>
-      </LocaleProvider>,
-    );
+    await act(async () => {
+      rerender(view({ focused: null, pending: true }));
+    });
 
     expect(wentToTheCity()).toBe(false);
-    expect(moves).toEqual([]);
+    expect(liveMap().moves).toEqual([]);
   });
 
-  it('frames the next stop once it arrives', () => {
-    const { rerender } = show({ focused: LASIPALATSI });
-    moves = [];
+  it('frames the next stop once it arrives', async () => {
+    const { rerender } = await show({ focused: LASIPALATSI });
+    liveMap().moves.length = 0;
 
-    rerender(
-      <LocaleProvider>
-        <ThemeProvider>
-          <StopsMap
-            network="hsl"
-            area={null}
-            focused={NEXT_DOOR}
-            pending={false}
-            onStopSelect={() => {}}
-            filter={() => true}
-            onVisibleStopsChange={() => {}}
-            onBelowZoomChange={() => {}}
-            view={HOME_VIEW}
-          />
-        </ThemeProvider>
-      </LocaleProvider>,
-    );
+    await act(async () => {
+      rerender(view({ focused: NEXT_DOOR }));
+    });
 
     expect(wentToTheCity()).toBe(false);
-    expect(moves[moves.length - 1]?.lat).toBeCloseTo(NEXT_DOOR.lat, 4);
+    const moves = liveMap().moves;
+    expect(moves[moves.length - 1]?.center?.[1]).toBeCloseTo(NEXT_DOOR.lat, 4);
   });
 });

@@ -1,12 +1,31 @@
+import { lazy } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { RootLayout } from './RootLayout';
-import PlanPage from '../pages/PlanPage';
-import RoutesPage from '../pages/RoutesPage';
-import StopsPage from '../pages/StopsPage';
 import CardPage from '../pages/CardPage';
 import FavouritesPage from '../pages/FavouritesPage';
 import NotFoundPage from '../pages/NotFoundPage';
 import { paths } from './routes';
+
+/*
+ * The three pages that carry a map, loaded when one is opened rather than up
+ * front.
+ *
+ * The map engine is by far the largest thing this app ships — several times
+ * the size of everything else put together — and two of the five pages have no
+ * map on them at all. Bundled as one chunk, somebody checking a card balance
+ * downloaded and parsed a rendering engine they would never see.
+ *
+ * Split on the route rather than on the component, because the page is the
+ * unit somebody actually navigates to; splitting lower would mean a page that
+ * arrives and then visibly waits for its own main content.
+ *
+ * The other pages stay eagerly imported. They are small, and a card page that
+ * flashed a fallback on the way in would be a worse trade than the handful of
+ * kilobytes it saves.
+ */
+const PlanPage = lazy(() => import('../pages/PlanPage'));
+const RoutesPage = lazy(() => import('../pages/RoutesPage'));
+const StopsPage = lazy(() => import('../pages/StopsPage'));
 
 /**
  * The route table.
@@ -18,6 +37,10 @@ import { paths } from './routes';
  *
  * `BrowserRouter` means the production host must serve index.html for unknown
  * paths. That is a deploy note, not a reason to put a `#` in every URL.
+ *
+ * The `Suspense` boundary is inside the layout rather than around it, so the
+ * header and navigation are painted while a map page's chunk is on its way —
+ * a whole-app fallback would blank the chrome somebody just pressed.
  */
 export function App() {
   return (

@@ -1,21 +1,46 @@
-import { describe, expect, it } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { LocaleProvider } from '../i18n';
 import { ThemeProvider } from '../theme';
 import { JourneyMap } from './JourneyMap';
+import { forgetMaps, liveMap } from '../test/mapStub';
 import type { Journey, Stop, TransitLeg, WalkLeg } from '../types/journey';
 
 /*
- * jsdom has no layout, so nothing measurable can be asserted here — the map's
- * size is zero, which means no framing, no zoom, no tiles. What *is* worth
- * pinning is the one thing that would otherwise only be visible by eye and is
- * easy to break silently: that a route line carries the mode's own token class.
+ * jsdom has no layout and no WebGL, so the map module is replaced outright —
+ * see `test/mapStub.ts`. Nothing measurable can be asserted here either: the
+ * map's size is zero, which means no real framing and no tiles.
  *
- * That class is why a bus line is the same blue on the map as on its chip in
- * the sidebar, and why it follows the palette into dark mode without any
- * JavaScript. Passing a colour value from JS instead would look identical in
- * light mode and be wrong in dark, which no reviewer would catch.
+ * What *is* worth pinning is the thing that would otherwise only be visible by
+ * eye and is easy to break silently: that a route line is painted from the
+ * mode's own design token.
+ *
+ * That token is why a bus line is the same blue on the map as on its chip in
+ * the sidebar, and why it follows the palette into dark mode. On a GL map the
+ * paint property needs a *value*, so the resolved colour travels with the
+ * feature — but a resolved `#3b6fd4` proves nothing about where it came from,
+ * and in jsdom, which loads no stylesheet, every token resolves to the same
+ * fallback. So the provenance travels with it as `token`, and that is what
+ * these assert on. See `journeyLayers.ts`.
  */
+
+/** The features of one overlay source, as the map was given them. */
+function features(source: string) {
+  const data = liveMap().getSource(source)?.data as
+    | { features?: { properties: Record<string, unknown> }[] }
+    | undefined;
+  return data?.features ?? [];
+}
+
+/** Which tokens the drawn lines were painted from. */
+const lineTokens = () =>
+  features('journey-lines').map((feature) => feature.properties['token']);
+
+/** The ids of the layers drawn from an overlay, in the order they were added. */
+const layerIds = (source: string) =>
+  [...liveMap().layers.values()]
+    .filter((layer) => layer.source === source)
+    .map((layer) => layer.id);
 
 const stop = (name: string, lat: number, lon: number): Stop => ({
   id: '1',
@@ -102,23 +127,50 @@ const journeyOf = (legs: Journey['legs']): Journey => ({
   legs,
 });
 
-function show(journey: Journey | null) {
-  return render(
+function view(
+  journey: Journey | null,
+  props: Partial<Parameters<typeof JourneyMap>[0]> = {},
+) {
+  return (
     <LocaleProvider>
       <ThemeProvider>
-        <JourneyMap journey={journey} network="hsl" area={null} onPick={() => {}} onRename={() => {}}
+        <JourneyMap
+          journey={journey}
+          network="hsl"
+          area={null}
+          onPick={() => {}}
+          onRename={() => {}}
           onStopSelect={() => {}}
           selectedStopId={null}
+          {...props}
         />
       </ThemeProvider>
-    </LocaleProvider>,
+    </LocaleProvider>
   );
 }
 
+/**
+ * Rendered *and settled*.
+ *
+ * The map loads on a microtask and `MapCanvas` draws no children until it has,
+ * so a synchronous render would assert against an empty map and pass for the
+ * wrong reason.
+ */
+async function show(
+  journey: Journey | null,
+  props: Partial<Parameters<typeof JourneyMap>[0]> = {},
+) {
+  const result = render(view(journey, props));
+  await act(async () => {});
+  return result;
+}
+
+beforeEach(forgetMaps);
+
 describe('JourneyMap', () => {
-  it('mounts without a journey to draw', () => {
-    const { container } = show(null);
-    expect(container.querySelector('.leaflet-container')).toBeTruthy();
+  it('mounts without a journey to draw', async () => {
+    await show(null);
+    expect(liveMap().removed).toBe(false);
   });
 
   /*
@@ -126,39 +178,36 @@ describe('JourneyMap', () => {
    * `stroke-mode-bus` — which resolves to `--color-mode-bus`, the very token
    * the sidebar's chip uses, and which the stylesheet remaps in dark mode.
    */
-  it('strokes a ride with its mode’s own colour token', () => {
-    const { container } = show(
-      journeyOf([ride(stop('A', 60.1, 24.9), stop('B', 60.2, 25.0), 3)]),
-    );
+  it('strokes a ride with its mode’s own colour token', async () => {
+    await show(journeyOf([ride(stop('A', 60.1, 24.9), stop('B', 60.2, 25.0), 3)]));
 
-    expect(container.querySelector('path.stroke-mode-bus')).toBeTruthy();
+    expect(lineTokens()).toEqual(['mode-bus']);
   });
 
-  it('gives each mode its own token rather than one shared colour', () => {
+  it('gives each mode its own token rather than one shared colour', async () => {
     const a = stop('A', 60.1, 24.9);
     const b = stop('B', 60.2, 25.0);
     const c = stop('C', 60.3, 25.1);
 
     // routeType 2 is rail — the "train" family — and 0 is a tram.
-    const { container } = show(journeyOf([ride(a, b, 2), ride(b, c, 0)]));
+    await show(journeyOf([ride(a, b, 2), ride(b, c, 0)]));
 
-    expect(container.querySelector('path.stroke-mode-train')).toBeTruthy();
-    expect(container.querySelector('path.stroke-mode-tram')).toBeTruthy();
+    expect(lineTokens()).toEqual(['mode-train', 'mode-tram']);
   });
 
   /*
-   * The casing has to be *under* the colour, which in SVG means earlier in the
-   * document. Drawn the other way round it would paint over the very line it
-   * exists to protect.
+   * The casing has to be *under* the colour. On a GL map that means added
+   * first — the last layer added is on top — where under Leaflet it meant
+   * earlier in the SVG document. Drawn the other way round the casing paints
+   * over the very line it exists to protect.
    */
-  it('lays the casing beneath the colour, not over it', () => {
-    const { container } = show(
-      journeyOf([ride(stop('A', 60.1, 24.9), stop('B', 60.2, 25.0), 3)]),
-    );
+  it('lays the casing beneath the colour, not over it', async () => {
+    await show(journeyOf([ride(stop('A', 60.1, 24.9), stop('B', 60.2, 25.0), 3)]));
 
-    const paths = [...container.querySelectorAll('path')];
-    expect(paths[0]?.getAttribute('class')).toContain('stroke-surface');
-    expect(paths[1]?.getAttribute('class')).toContain('stroke-mode-bus');
+    const ids = layerIds('journey-lines');
+    expect(ids.indexOf('journey-lines-casing-ride')).toBeLessThan(
+      ids.indexOf('journey-lines-ride'),
+    );
   });
 
   /*
@@ -166,72 +215,72 @@ describe('JourneyMap', () => {
    * dashed here exactly as it is in the strip map. The dash is the drawing
    * admitting it is an estimate rather than a route.
    */
-  it('dashes a walk, and leaves a ride solid', () => {
-    const { container } = show(
+  it('dashes a walk, and leaves a ride solid', async () => {
+    await show(
       journeyOf([
         walk(pin('ORIGIN', 60.0, 24.8), stop('A', 60.1, 24.9)),
         ride(stop('A', 60.1, 24.9), stop('B', 60.2, 25.0), 3),
       ]),
     );
 
-    const dashed = [...container.querySelectorAll('path')].filter((path) =>
-      path.getAttribute('stroke-dasharray'),
-    );
-    expect(dashed).toHaveLength(1);
+    /*
+     * `line-dasharray` cannot be driven from a feature's own properties, so
+     * walking and riding are separate layers filtered apart — and the split is
+     * the thing worth pinning, since a walk drawn by the solid layer would be
+     * indistinguishable from a route the engine actually knows.
+     */
+    const walkLayer = liveMap().getLayer('journey-lines-walk');
+    const rideLayer = liveMap().getLayer('journey-lines-ride');
+    expect(walkLayer?.paint?.['line-dasharray']).toBeTruthy();
+    expect(rideLayer?.paint?.['line-dasharray']).toBeUndefined();
+
+    const walks = features('journey-lines').filter((f) => f.properties['walk']);
+    expect(walks).toHaveLength(1);
   });
 
-  it('marks the two ends the journey actually has', () => {
-    const { container } = show(
+  it('marks the two ends the journey actually has', async () => {
+    const { container } = await show(
       journeyOf([walk(pin('ORIGIN', 60.0, 24.8), pin('TARGET', 60.2, 25.0))]),
     );
 
-    // The target, in the green this app has always started journeys in, and
+    // The origin, in the green this app has always started journeys in, and
     // deliberately not the single ring that every stop on this map is.
-    expect(container.querySelector('.journey-marker svg.text-mode-tram')).toBeTruthy();
+    expect(container.querySelector('svg.text-mode-tram')).toBeTruthy();
     // The destination pin, drawn from the path the form and strip map share.
-    expect(container.querySelector('.journey-marker svg.text-brand-500')).toBeTruthy();
+    expect(container.querySelector('svg.text-brand-500')).toBeTruthy();
   });
 
   /*
    * The regression this file exists for.
    *
-   * Leaflet applies a path's `className` when it creates the element and never
+   * Leaflet applied a path's `className` when it created the element and never
    * again, so a layer reused for a second journey kept the first one's colour:
    * pick a later departure that starts by tram and it was still drawn in the
-   * bus blue of the one before it. Keying every layer to the journey is what
-   * forces a fresh element, and this is the only way to see that it worked.
+   * bus blue of the one before it.
+   *
+   * A GL layer cannot fail this way — the colour is in the data rather than in
+   * a class fixed at creation — but the assertion is kept, because what it
+   * actually guards is that new data reaches the source at all. A `setData`
+   * that never fired would look exactly like the old bug.
    */
-  it('repaints when the journey changes, rather than keeping the old colours', () => {
+  it('repaints when the journey changes, rather than keeping the old colours', async () => {
     const a = stop('A', 60.1, 24.9);
     const b = stop('B', 60.2, 25.0);
 
-    const { container, rerender } = show(journeyOf([ride(a, b, 3)]));
-    expect(container.querySelector('path.stroke-mode-bus')).toBeTruthy();
+    const { rerender } = await show(journeyOf([ride(a, b, 3)]));
+    expect(lineTokens()).toEqual(['mode-bus']);
 
     // A different journey, same shape, different vehicle: 0 is a tram.
-    rerender(
-      <LocaleProvider>
-        <ThemeProvider>
-          <JourneyMap
-            journey={{ ...journeyOf([ride(a, b, 0)]), startTime: '19:00' }}
-            network="hsl"
-            area={null}
-            onPick={() => {}}
-            onRename={() => {}}
-            onStopSelect={() => {}}
-            selectedStopId={null}
-          />
-        </ThemeProvider>
-      </LocaleProvider>,
-    );
+    await act(async () => {
+      rerender(view({ ...journeyOf([ride(a, b, 0)]), startTime: '19:00' }));
+    });
 
-    expect(container.querySelector('path.stroke-mode-tram')).toBeTruthy();
-    expect(container.querySelector('path.stroke-mode-bus')).toBeNull();
+    expect(lineTokens()).toEqual(['mode-tram']);
   });
 
   // Present so they can be inspected later; quiet so they are not in the way.
-  it('dots the stops a vehicle passes through', () => {
-    const { container } = show(
+  it('dots the stops a vehicle passes through', async () => {
+    await show(
       journeyOf([
         {
           ...ride(stop('A', 60.1, 24.9), stop('B', 60.3, 25.1), 3),
@@ -250,7 +299,10 @@ describe('JourneyMap', () => {
     );
 
     // Two calls (board, alight) plus the one ridden through.
-    expect(container.querySelectorAll('path.stroke-mode-bus')).toHaveLength(4);
+    const circles = features('journey-stops');
+    expect(circles.filter((f) => f.properties['call'])).toHaveLength(2);
+    expect(circles.filter((f) => !f.properties['call'])).toHaveLength(1);
+    expect(circles.every((f) => f.properties['token'] === 'mode-bus')).toBe(true);
   });
 
   /*
@@ -258,15 +310,15 @@ describe('JourneyMap', () => {
    * costs — the thing you would want to know before taking this itinerary at
    * all.
    */
-  it('badges a ride with its line, and a walk with its length', () => {
-    const { container } = show(
+  it('badges a ride with its line, and a walk with its length', async () => {
+    const { container } = await show(
       journeyOf([
         walk(pin('ORIGIN', 60.0, 24.8), stop('A', 60.1, 24.9)),
         ride(stop('A', 60.1, 24.9), stop('B', 60.2, 25.0), 3),
       ]),
     );
 
-    const badges = [...container.querySelectorAll('.journey-badge')];
+    const badges = [...container.querySelectorAll('.ring-surface')];
     expect(badges).toHaveLength(2);
     // Trimmed: the silhouette's own markup carries the indentation it is
     // written with, and `textContent` collects it. Sorted because the order
@@ -280,29 +332,27 @@ describe('JourneyMap', () => {
  * is the fallback: a geocoder that cannot name the spot — or has nothing to
  * say about it — must still hand back a usable end of a journey, because a
  * coordinate is one whether or not anybody can name it.
+ *
+ * The press is delivered as the map's own `click`, carrying the coordinates it
+ * resolved. Under Leaflet this was a DOM event on the container; a GL map
+ * projects the point itself and hands over a `lngLat`, so that is what the
+ * test supplies.
  */
+async function press(at: { lat: number; lon: number } = { lat: 60.17, lon: 24.94 }) {
+  await act(async () => {
+    liveMap().fire('click', {
+      lngLat: { lat: at.lat, lng: at.lon },
+      point: { x: 10, y: 10 },
+    });
+  });
+}
+
 describe('choosing a point on the map', () => {
   it('offers the pressed point as either end', async () => {
     const picks: Array<[string, string]> = [];
-    render(
-      <LocaleProvider>
-        <ThemeProvider>
-          <JourneyMap
-            journey={null}
-            network="hsl"
-            area={null}
-            onPick={(place, end) => picks.push([place.label, end])}
-            onRename={() => {}}
-            onStopSelect={() => {}}
-            selectedStopId={null}
-          />
-        </ThemeProvider>
-      </LocaleProvider>,
-    );
+    await show(null, { onPick: (place, end) => picks.push([place.label, end]) });
 
-    const map = document.querySelector('.leaflet-container');
-    expect(map).toBeTruthy();
-    fireEvent.click(map as Element, { clientX: 10, clientY: 10 });
+    await press();
 
     const start = await screen.findByRole('button', { name: 'Start here' });
     expect(screen.getByRole('button', { name: 'End here' })).toBeTruthy();
@@ -311,36 +361,33 @@ describe('choosing a point on the map', () => {
     // Photon answers nothing in a test, so the point keeps the honest name.
     expect(picks).toEqual([['Selected location', 'origin']]);
   });
+
+  it('takes the coordinates the map resolved, not the ones on screen', async () => {
+    const picks: Array<{ lat: number; lon: number }> = [];
+    await show(null, { onPick: (place) => picks.push({ lat: place.lat, lon: place.lon }) });
+
+    await press({ lat: 60.1699, lon: 24.9384 });
+    fireEvent.click(await screen.findByRole('button', { name: 'Start here' }));
+
+    /*
+     * The one conversion this port could silently get wrong: everything in
+     * this app is [lat, lon] and MapLibre speaks [lon, lat]. Swapped, Helsinki
+     * lands in the Arabian Sea — a plausible-looking point, and no error.
+     */
+    expect(picks).toEqual([{ lat: 60.1699, lon: 24.9384 }]);
+  });
 });
 
 /*
- * The popup asks a question and closes on being answered. It used to open
+ * The card asks a question and closes on being answered. It used to open
  * saying one thing and change to another under the pointer, because it was
- * asking the geocoder on the press — a name arriving is not worth a popup
+ * asking the geocoder on the press — a name arriving is not worth a card
  * rewriting itself while somebody is reading it.
  */
-describe('the pick popup', () => {
+describe('the pick card', () => {
   it('closes once an end has been chosen', async () => {
-    render(
-      <LocaleProvider>
-        <ThemeProvider>
-          <JourneyMap
-            journey={null}
-            network="hsl"
-            area={null}
-            onPick={() => {}}
-            onRename={() => {}}
-            onStopSelect={() => {}}
-            selectedStopId={null}
-          />
-        </ThemeProvider>
-      </LocaleProvider>,
-    );
-
-    fireEvent.click(document.querySelector('.leaflet-container') as Element, {
-      clientX: 10,
-      clientY: 10,
-    });
+    await show(null);
+    await press();
 
     fireEvent.click(await screen.findByRole('button', { name: 'End here' }));
 
@@ -348,35 +395,11 @@ describe('the pick popup', () => {
     expect(screen.queryByRole('button', { name: 'Start here' })).toBeNull();
   });
 
-  /*
-   * A re-render must not disturb the question being asked. jsdom does not
-   * reproduce the re-opening this was written for — Leaflet's `openOn` is a
-   * no-op while the popup is already the map's current one, and without layout
-   * the teardown path behaves differently — so this asserts the invariant
-   * rather than the bug: whatever else changes, the popup stays put.
-   */
   it('can be dismissed without choosing an end', async () => {
     const picks: string[] = [];
-    render(
-      <LocaleProvider>
-        <ThemeProvider>
-          <JourneyMap
-            journey={null}
-            network="hsl"
-            area={null}
-            onPick={(_place, end) => picks.push(end)}
-            onRename={() => {}}
-            onStopSelect={() => {}}
-            selectedStopId={null}
-          />
-        </ThemeProvider>
-      </LocaleProvider>,
-    );
+    await show(null, { onPick: (_place, end) => picks.push(end) });
 
-    fireEvent.click(document.querySelector('.leaflet-container') as Element, {
-      clientX: 10,
-      clientY: 10,
-    });
+    await press();
     fireEvent.click(await screen.findByRole('button', { name: 'Dismiss' }));
 
     expect(screen.queryByRole('button', { name: 'Start here' })).toBeNull();
@@ -384,34 +407,32 @@ describe('the pick popup', () => {
     expect(picks).toEqual([]);
   });
 
+  it('goes when the map is driven out from under it', async () => {
+    await show(null);
+    await press();
+    expect(await screen.findByRole('button', { name: 'Start here' })).toBeTruthy();
+
+    /*
+     * It was asked about a point, and once that point is somewhere else on the
+     * screen the card is a label for nothing. `movestart` rather than the end
+     * of the move, so it goes at the first sign of the map being driven.
+     */
+    await act(async () => liveMap().fire('movestart'));
+
+    expect(screen.queryByRole('button', { name: 'Start here' })).toBeNull();
+  });
+
   it('stays open across a re-render', async () => {
-    const view = (onPick: () => void) => (
-      <LocaleProvider>
-        <ThemeProvider>
-          <JourneyMap
-            journey={null}
-            network="hsl"
-            area={null}
-            onPick={onPick}
-            onRename={() => {}}
-            onStopSelect={() => {}}
-            selectedStopId={null}
-          />
-        </ThemeProvider>
-      </LocaleProvider>
-    );
+    const { rerender } = await show(null);
 
-    const { rerender } = render(view(() => {}));
-
-    fireEvent.click(document.querySelector('.leaflet-container') as Element, {
-      clientX: 10,
-      clientY: 10,
-    });
+    await press();
     expect(await screen.findByRole('button', { name: 'Start here' })).toBeTruthy();
 
     // A new handler identity is all it takes: this is what every parent render
     // hands down, and it must not disturb the question being asked.
-    rerender(view(() => {}));
+    await act(async () => {
+      rerender(view(null, { onPick: () => {} }));
+    });
 
     expect(screen.getByRole('button', { name: 'Start here' })).toBeTruthy();
   });

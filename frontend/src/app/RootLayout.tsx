@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { Suspense, useRef } from 'react';
 import { Outlet, matchPath, useLocation } from 'react-router';
 import { useLocale } from '../i18n';
 import { AppHeader } from './AppHeader';
@@ -135,7 +135,27 @@ export function RootLayout() {
         tabIndex={-1}
         className="flex-1 focus:outline-none lg:flex lg:min-h-0 lg:flex-col"
       >
-        <Outlet />
+        {/*
+          The map pages arrive as their own chunk, so there is a moment where
+          the page is on its way. The boundary is here rather than around the
+          whole app so that the header and navigation stay painted while it
+          loads — blanking the chrome somebody just pressed reads as the press
+          having gone wrong.
+
+          The fallback is deliberately a live region and not a spinner: a
+          screen reader is told the page is loading, and everyone else sees the
+          words. It is also deliberately plain — a skeleton of a map would be
+          drawing a promise about a layout that has not arrived.
+        */}
+        <Suspense
+          fallback={
+            <p role="status" className="text-content-muted px-4 py-8">
+              {t(strings.status.loadingPage)}
+            </p>
+          }
+        >
+          <Outlet />
+        </Suspense>
       </main>
 
       {showFooter && (

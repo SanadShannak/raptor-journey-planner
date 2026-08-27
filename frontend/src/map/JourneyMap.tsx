@@ -1,21 +1,12 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import L from 'leaflet';
-import {
-  CircleMarker,
-  Marker,
-  Polyline,
-  useMap,
-  useMapEvent,
-  useMapEvents,
-} from 'react-leaflet';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatDuration, useLocale } from '../i18n';
+import { useTheme } from '../theme';
 import type { GeoBounds } from '../config/geocoding';
 import type { Journey, TransitLeg } from '../types/journey';
 import type { Place } from '../types/place';
 import { geocoder } from '../geocoding';
 import { familyFor, visualForFamily } from '../features/journey/modeVisuals';
 import {
-  ICON_SVG_ATTRIBUTES,
   WALK_ICON_MARKUP,
   modeIconMarkup,
 } from '../features/journey/modeIconMarkup';
@@ -30,9 +21,20 @@ import {
 import { useLegVehicles } from '../features/journey/useLegVehicles';
 import { useNetworkNow, VEHICLE_TICK_MS } from '../features/stops/useNetworkNow';
 import { nowSeconds } from '../features/routes/vehicleProgress';
-import { VEHICLE_SIZE, vehicleMarkup } from '../features/routes/vehicleMarkup';
 import { MapCanvas, FitTo } from './MapCanvas';
+import { MapMarker } from './MapMarker';
 import { StopLayer } from './StopLayer';
+import { VehicleBadge } from './RouteVehicles';
+import { useMap, useMapEvent } from './mapContext';
+import { useGeoJson } from './useGeoJson';
+import {
+  lineLayers,
+  pointCollection,
+  segmentCollection,
+  stopCircleLayers,
+  type DrawnPoint,
+  type DrawnSegment,
+} from './journeyLayers';
 import { homeViewFor } from './homeView';
 import { useReducedMotion } from './useReducedMotion';
 
@@ -50,11 +52,8 @@ import { useReducedMotion } from './useReducedMotion';
  * tab stops competing with the list.
  *
  * The ground it is drawn on — tiles, controls, sizing — belongs to
- * {@link MapCanvas}, which the stops map shares. What is left here is the
- * journey itself, and one Leaflet fact shapes it: **a path's `className` is
- * applied when it is created and never updated.** So colour, which never
- * changes for a given leg, is a class; width and opacity, which do change when
- * a line is highlighted, are options.
+ * {@link MapCanvas}, which the other two maps share. The paint belongs to
+ * `journeyLayers`, shared with the line map. What is left here is the journey.
  */
 
 interface Props {
@@ -89,9 +88,7 @@ interface Props {
    *
    * Unlike {@link onStopSelect} this *is* a navigation, and knowingly: the run
    * is a page of its own and cannot be shown in a sidebar that is already
-   * holding an itinerary. The cost is the planner's search, which does not live
-   * in the URL — the same link in the itinerary beside this can be middle-
-   * clicked to keep both, which this cannot.
+   * holding an itinerary.
    */
   onSelectLeg?: ((leg: TransitLeg) => void) | undefined;
   /**
@@ -118,18 +115,23 @@ interface Pick {
  * cannot type a name for the corner of a park.
  *
  * **Nothing is looked up until something has been chosen.** Asking the geocoder
- * on the press meant the popup opened saying one thing and changed to another
- * a moment later, under the pointer, while somebody was reading it — a name
- * arriving is not worth a popup rewriting itself. So the popup is only ever the
- * question, and the answer is fetched once the question has been answered.
+ * on the press meant the card opened saying one thing and changed to another a
+ * moment later, under the pointer, while somebody was reading it. So the card
+ * is only ever the question, and the answer is fetched once it is answered.
  *
  * The place is handed over immediately under the honest name, and renamed in
  * the field if the lookup comes back with something better. That is safe
  * because a name is not part of what is searched: the query is built from
  * coordinates, so a label arriving late changes nothing but the words in the
- * box. And a coordinate is a perfectly good end of a journey whether or not
- * anybody can name it, which is why a geocoder with no reverse lookup, or
- * nothing to say about that spot, costs the place its label and nothing else.
+ * box.
+ *
+ * The card is a plain element positioned over the map rather than a popup —
+ * no open animation to replay, and nothing keyed on a position prop. It sits
+ * beside the canvas rather than on it, which is also why it needs no help
+ * keeping its own presses away from the map: a click on this element is not a
+ * click on the canvas, so the map never hears it. That was not true under
+ * Leaflet, where the same card needed `disableClickPropagation` and a timing
+ * backstop on top of it.
  */
 function PickPoint({
   pick,
@@ -146,62 +148,28 @@ function PickPoint({
   const map = useMap();
   /** The lookup in flight, so a second choice cancels the first. */
   const lookup = useRef<AbortController | null>(null);
-  /** When a choice was last made. See the click handler. */
-  const chosenAt = useRef(0);
 
-  useMapEvents({
-    click: (event) => {
-      /*
-       * A backstop, and named as one.
-       *
-       * Pressing the card's own buttons should never reach here: the element
-       * is registered with Leaflet's `disableClickPropagation`, which is what
-       * its own controls use and what makes `Map._handleDOMEvent` skip a click
-       * whose target sits inside. Three separate readings of that machinery
-       * said the press could not get through, and three fixes built on that
-       * reading did not hold — so this stops trusting the reading. A click in
-       * the same breath as a choice is that choice, not a new question.
-       */
-      if (Date.now() - chosenAt.current < 400) return;
-      setPick({ lat: event.latlng.lat, lon: event.latlng.lng });
-    },
-    /*
-     * Moving the map dismisses the question. It was asked about a point, and
-     * once that point is somewhere else on the screen — or off it — the card
-     * is a label for nothing. `movestart` rather than `move`, so it goes at the
-     * first sign of the map being driven rather than at the end of it.
-     */
-    movestart: () => setPick(null),
-    zoomstart: () => setPick(null),
+  useMapEvent('click', (event) => {
+    setPick({ lat: event.lngLat.lat, lon: event.lngLat.lng });
   });
+
+  /*
+   * Moving the map dismisses the question. It was asked about a point, and
+   * once that point is somewhere else on the screen — or off it — the card is a
+   * label for nothing. `movestart` rather than `move`, so it goes at the first
+   * sign of the map being driven rather than at the end of it.
+   */
+  useMapEvent('movestart', () => setPick(null));
+  useMapEvent('zoomstart', () => setPick(null));
 
   useEffect(() => () => lookup.current?.abort(), []);
 
-  /*
-   * Leaflet's own popup is not used for this.
-   *
-   * It brought an open animation, a lifecycle keyed on a `position` prop, and
-   * an `openOn` that runs again whenever that prop changes identity — and the
-   * question kept re-asking itself as it was answered. A plain element
-   * positioned over the map has none of that: it appears where it is put, it
-   * goes when the state does, and there is no animation left to replay.
-   *
-   * It still has to tell Leaflet not to treat presses on it as presses on the
-   * map, which is what `disableClickPropagation` is for.
-   */
-  const attach = useCallback((node: HTMLDivElement | null) => {
-    if (node === null) return;
-    L.DomEvent.disableClickPropagation(node);
-    L.DomEvent.disableScrollPropagation(node);
-  }, []);
-
   if (pick === null) return null;
 
-  const at = map.latLngToContainerPoint([pick.lat, pick.lon]);
+  const at = map.project([pick.lon, pick.lat]);
 
   const choose = (end: 'origin' | 'destination') => {
     const { lat, lon } = pick;
-    chosenAt.current = Date.now();
 
     const place: Place = {
       key: `picked-${lat},${lon}`,
@@ -240,8 +208,6 @@ function PickPoint({
 
   return (
     <div
-      ref={attach}
-      // Above every Leaflet pane, the highest of which is 700.
       className="absolute z-[1000] -translate-x-1/2 -translate-y-full pb-2"
       style={{ left: at.x, top: at.y }}
     >
@@ -295,93 +261,54 @@ function PickPoint({
 /**
  * The badge that names a leg, sitting halfway along it.
  *
- * Built as a string because Leaflet makes a marker from markup and never from
- * a React tree — and the silhouette inside it comes from the same constants
- * the interface draws, so the two can never drift apart.
- *
  * The mode's own colour, with a surface-coloured edge so it holds against any
- * tile beneath it. Named as well as coloured: the icon carries the mode and
- * the text carries the line, so neither depends on colour alone.
+ * cartography beneath it. Named as well as coloured: the icon carries the mode
+ * and the text carries the line, so neither depends on colour alone.
+ *
+ * Centred on the line it names. It stood above on a pointer for a while, so
+ * that a short leg could still be labelled — but a chip floating off the line
+ * reads as belonging to whatever it happens to be over, which on a map is
+ * usually somebody's building.
  */
-function legBadge(family: string | null, label: string): L.DivIcon {
+function LegBadge({ family, label }: { family: string | null; label: string }) {
   const walking = family === null;
   const tint = walking
     ? 'bg-surface-raised text-content'
     : `${visualForFamily(family).fill} text-on-mode`;
-  const icon = walking ? WALK_ICON_MARKUP : modeIconMarkup(family);
 
-  /*
-   * Centred on the line it names.
-   *
-   * It stood above on a pointer for a while, so that a short leg could still be
-   * labelled — but a chip floating off the line reads as belonging to whatever
-   * it happens to be over, which on a map is usually somebody's building. On
-   * the line it is unambiguous, and the legs too short to carry one are walks,
-   * which are the ones worth losing.
-   *
-   * The width is whatever the label needs, which is why this is a transform and
-   * not an `iconAnchor`: Leaflet wants that in pixels, and nothing here knows
-   * how wide "Kehärata" is until the browser has laid it out.
-   *
-   * `left` rather than `start`: the anchor is a point on the ground, placed by
-   * projection in physical pixels, and the map does not flip with the document.
-   */
-  return L.divIcon({
-    className: 'journey-badge',
-    html: `<span class="${tint} rounded-control shadow-card ring-surface absolute top-0 left-0 flex w-max -translate-x-1/2 -translate-y-1/2 items-center gap-1.5 px-2 py-1 text-sm font-bold ring-2"><svg ${ICON_SVG_ATTRIBUTES} width="18" height="18">${icon}</svg>${label}</span>`,
-    iconSize: [0, 0],
-    iconAnchor: [0, 0],
-  });
+  return (
+    <span
+      className={`${tint} rounded-control shadow-card ring-surface flex w-max items-center gap-1.5 px-2 py-1 text-sm font-bold ring-2`}
+    >
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+        dangerouslySetInnerHTML={{
+          __html: walking ? WALK_ICON_MARKUP : modeIconMarkup(family),
+        }}
+      />
+      {label}
+    </span>
+  );
 }
-
-/** The pin, built from the same path the form and the strip map draw. */
-const destinationIcon = L.divIcon({
-  className: 'journey-marker',
-  html: `<svg viewBox="0 0 24 24" width="38" height="38" aria-hidden="true" class="text-brand-500">${destinationMarkerMarkup('fill-surface')}</svg>`,
-  iconSize: [38, 38],
-  // The point of a pin is its tip, which is the bottom of the box.
-  iconAnchor: [19, 38],
-});
 
 interface Badge {
   key: string;
-  point: L.LatLngExpression;
-  icon: L.DivIcon;
+  point: [number, number];
+  family: string | null;
+  label: string;
   /** The leg's two ends, for asking how much room it has on screen. */
-  ends: [L.LatLngExpression, L.LatLngExpression];
+  ends: [[number, number], [number, number]];
   /** Transit before walking, when only one of the two can be shown. */
   rank: number;
-  /**
-   * Opens the run this badge names, or null on a walk — which has none.
-   *
-   * The badge is the obvious thing to press: it is the line's number, drawn at
-   * a comfortable size, sitting on the leg it belongs to. Before this the only
-   * target was the drawn line itself, six pixels of it, and a reader who aimed
-   * at the number found nothing there.
-   */
-  follow: (() => void) | null;
-}
-
-/**
- * Leaflet builds a marker from an HTML string, so the badge arrives as
- * markup — the same `vehicleMarkup` a line's own page draws with, reused
- * rather than redrawn: it already has two renderers sharing it precisely so a
- * third would not have to invent its own pin.
- */
-function tripVehicleIcon(family: string, bearing: number, designation: string): L.DivIcon {
-  return L.divIcon({
-    className: 'route-vehicle-marker',
-    html: vehicleMarkup(family, bearing, designation),
-    iconSize: [VEHICLE_SIZE, VEHICLE_SIZE],
-    iconAnchor: [VEHICLE_SIZE / 2, VEHICLE_SIZE / 2],
-  });
-}
-
-interface TripVehicle {
-  key: string;
-  point: L.LatLngExpression;
-  icon: L.DivIcon;
-  /** Opens the run this vehicle is on, or null when there is nowhere to send it. */
+  /** Opens the run this badge names, or null on a walk — which has none. */
   follow: (() => void) | null;
 }
 
@@ -400,16 +327,17 @@ interface TripVehicle {
  */
 function LegBadges({ badges }: { badges: Badge[] }) {
   const map = useMap();
-  const [zoom, setZoom] = useState(() => map.getZoom());
+  const [moved, setMoved] = useState(0);
 
-  useMapEvent('zoomend', () => setZoom(map.getZoom()));
+  useMapEvent('zoomend', () => setMoved((count) => count + 1));
+  useMapEvent('moveend', () => setMoved((count) => count + 1));
 
   const shown = useMemo(() => {
-    // `zoom` is not read here: it is the signal that every projection below
-    // has moved, which is exactly when this has to be worked out again.
-    void zoom;
+    // Not read: it is the signal that every projection below has moved, which
+    // is exactly when this has to be worked out again.
+    void moved;
 
-    const placed: L.Point[] = [];
+    const placed: { x: number; y: number }[] = [];
     const keep: Badge[] = [];
     /** How far apart two badges must sit before both are worth drawing. */
     const MIN_GAP = 76;
@@ -418,73 +346,152 @@ function LegBadges({ badges }: { badges: Badge[] }) {
      *
      * A badge sits on its line, so on a leg shorter than the badge it covers
      * both ends and the line between them — you cannot see the thing you are
-     * being told about.
-     *
-     * Only walks are held to it. Which line you are on is what a map is being
-     * asked, so a ride keeps its badge at any size; a walk's own length is
-     * already written out in the itinerary beside the map, so losing it until
-     * there is room costs nothing that is not said elsewhere.
+     * being told about. Only walks are held to it: which line you are on is
+     * what a map is being asked, so a ride keeps its badge at any size.
      */
     const MIN_WALK_SPAN = 64;
 
     for (const badge of [...badges].sort((a, b) => a.rank - b.rank)) {
       const [from, to] = badge.ends;
       const walking = badge.rank !== 0;
-      if (
-        walking &&
-        map.latLngToLayerPoint(from).distanceTo(map.latLngToLayerPoint(to)) <
-          MIN_WALK_SPAN
-      ) {
-        continue;
+      if (walking) {
+        const a = map.project([from[1], from[0]]);
+        const b = map.project([to[1], to[0]]);
+        if (Math.hypot(a.x - b.x, a.y - b.y) < MIN_WALK_SPAN) continue;
       }
 
-      const at = map.latLngToLayerPoint(badge.point);
-      if (placed.every((other) => at.distanceTo(other) >= MIN_GAP)) {
-        placed.push(at);
+      const at = map.project([badge.point[1], badge.point[0]]);
+      if (placed.every((other) => Math.hypot(at.x - other.x, at.y - other.y) >= MIN_GAP)) {
+        placed.push({ x: at.x, y: at.y });
         keep.push(badge);
       }
     }
     return keep;
-  }, [badges, map, zoom]);
+  }, [badges, map, moved]);
 
   return (
     <>
       {shown.map((badge) => (
-        <Marker
+        <MapMarker
           key={badge.key}
           position={badge.point}
-          icon={badge.icon}
           /*
            * A walk's badge stays a label. Interactive with nothing to do it
            * would still swallow the press, and the point chooser underneath is
            * what a press on empty ground is for.
            */
           interactive={badge.follow !== null}
-          keyboard={false}
-          {...(badge.follow === null
-            ? {}
-            : {
-                eventHandlers: {
-                  click: (event: L.LeafletMouseEvent) => {
-                    // Or the pin chooser opens under the page already leaving.
-                    L.DomEvent.stopPropagation(event);
-                    badge.follow?.();
-                  },
-                },
-              })}
-        />
+          {...(badge.follow === null ? {} : { onClick: badge.follow })}
+          zIndex={800}
+        >
+          <LegBadge family={badge.family} label={badge.label} />
+        </MapMarker>
       ))}
     </>
   );
 }
 
-/** Where you start: the same three rings the form and the strip map draw. */
-const originIcon = L.divIcon({
-  className: 'journey-marker',
-  html: `<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true" class="text-mode-tram">${originMarkerMarkup('fill-surface')}</svg>`,
-  iconSize: [30, 30],
-  iconAnchor: [15, 15],
-});
+/**
+ * Opens the run a pressed line belongs to.
+ *
+ * The line is a GL layer rather than a stack of elements, so a press is
+ * answered by asking the map what is under the pointer instead of by a handler
+ * hung on each path. That is the better arrangement here: the casing and the
+ * stroke are one query rather than two layers each needing the same handler,
+ * and the six-pixel stroke is not the target — the casing under it is.
+ */
+function LegLineClicks({
+  layers,
+  onSelect,
+}: {
+  layers: string[];
+  onSelect: (legIndex: number) => void;
+}) {
+  const map = useMap();
+  const latest = useRef(onSelect);
+
+  // In an effect, not during render — see `useMapEvent` in `mapContext.ts`.
+  useEffect(() => {
+    latest.current = onSelect;
+  });
+
+  useMapEvent('click', (event) => {
+    const hit = map.queryRenderedFeatures(event.point, { layers });
+    const legIndex = hit[0]?.properties?.['legIndex'];
+    if (typeof legIndex !== 'number') return;
+    /*
+     * Or the point chooser opens underneath the page already leaving. The
+     * chooser listens for the same click, so this says the press has been
+     * answered.
+     */
+    event.preventDefault();
+    latest.current(legIndex);
+  });
+
+  /* The pointer says the line can be pressed. */
+  useEffect(() => {
+    const enter = () => {
+      map.getCanvas().style.cursor = 'pointer';
+    };
+    const leave = () => {
+      map.getCanvas().style.cursor = '';
+    };
+
+    for (const layer of layers) {
+      map.on('mouseenter', layer, enter);
+      map.on('mouseleave', layer, leave);
+    }
+    return () => {
+      for (const layer of layers) {
+        map.off('mouseenter', layer, enter);
+        map.off('mouseleave', layer, leave);
+      }
+    };
+  }, [map, layers]);
+
+  return null;
+}
+
+/** The journey's own geometry, as the two overlays that draw it. */
+function JourneyShapes({
+  segments,
+  points,
+  scheme,
+}: {
+  segments: DrawnSegment[];
+  points: DrawnPoint[];
+  scheme: string;
+}) {
+  /*
+   * Rebuilt when the scheme changes, because the colours inside are resolved
+   * values rather than class names — a token that has been remapped to its
+   * dark twin produces different data, not merely a different stylesheet.
+   */
+  const lines = useMemo(() => {
+    void scheme;
+    return segmentCollection(segments);
+  }, [segments, scheme]);
+
+  const circles = useMemo(() => {
+    void scheme;
+    return pointCollection(points);
+  }, [points, scheme]);
+
+  const linePaint = useMemo(() => {
+    void scheme;
+    return lineLayers();
+  }, [scheme]);
+
+  const circlePaint = useMemo(() => {
+    void scheme;
+    return stopCircleLayers();
+  }, [scheme]);
+
+  useGeoJson('journey-lines', lines, linePaint);
+  useGeoJson('journey-stops', circles, circlePaint);
+
+  return null;
+}
 
 export function JourneyMap({
   journey,
@@ -498,6 +505,7 @@ export function JourneyMap({
   timezone = null,
 }: Props) {
   const locale = useLocale();
+  const { resolved } = useTheme();
   /*
    * The vehicle tick, not the countdown one. This map draws a ridden leg's own
    * vehicle interpolated along its shape, which is exactly what the line's map
@@ -518,30 +526,37 @@ export function JourneyMap({
     [journey],
   );
 
-  /*
-   * Every drawn key is scoped to the journey, so a change of journey brings a
-   * fresh set of layers rather than restyling the last one.
-   *
-   * That is not tidiness. A path's `className` is applied when Leaflet creates
-   * the element and never touched again, while `setStyle` reaches only the
-   * options — so a reused layer keeps the class it was born with. Moving from a
-   * journey that starts by bus to one that starts by tram repainted nothing:
-   * the second wore the first one's colours the whole way down. Remounting is
-   * what makes the colours belong to the journey being shown.
-   */
-  const scope =
-    journey === null
-      ? 'none'
-      : `${journey.startDate}-${journey.startTime}-${journey.endTime}`;
-
-  /*
-   * The journey when there is one, the network's area otherwise. Memoised
-   * because it is an effect's dependency, and a fresh array each render would
-   * re-frame the map on every keystroke elsewhere on the page.
-   */
   const box = useMemo<BoundingBox | null>(() => geometry?.bounds ?? null, [geometry]);
-
   const home = useMemo(() => homeViewFor(network, area), [network, area]);
+
+  const segments = useMemo<DrawnSegment[]>(
+    () =>
+      geometry === null
+        ? []
+        : geometry.segments.map((segment) => ({
+            path: segment.path,
+            family: segment.family,
+            walk: segment.kind === 'walk',
+            legIndex: segment.legIndex,
+          })),
+    [geometry],
+  );
+
+  const points = useMemo<DrawnPoint[]>(() => {
+    if (geometry === null) return [];
+    return [
+      ...geometry.passed.map((stop) => ({
+        point: stop.point,
+        family: stop.family,
+        call: false,
+      })),
+      ...geometry.calls.map((call) => ({
+        point: call.point,
+        family: call.family,
+        call: true,
+      })),
+    ];
+  }, [geometry]);
 
   const badges = useMemo<Badge[]>(() => {
     if (geometry === null || journey === null) return [];
@@ -563,10 +578,11 @@ export function JourneyMap({
 
       return [
         {
-          key: `${scope}-badge-${segment.key}`,
+          key: `badge-${segment.key}`,
           point: segment.midpoint,
           ends: segment.ends,
-          icon: legBadge(segment.family, label),
+          family: segment.family,
+          label,
           rank: segment.kind === 'transit' ? 0 : 1,
           follow:
             onSelectLeg === undefined || leg.mode !== 'TRANSIT'
@@ -575,7 +591,7 @@ export function JourneyMap({
         },
       ];
     });
-  }, [geometry, journey, scope, locale, onSelectLeg]);
+  }, [geometry, journey, locale, onSelectLeg]);
 
   /*
    * The vehicle on a ridden leg, tracked over its whole trip rather than only
@@ -583,22 +599,17 @@ export function JourneyMap({
    * set off from, through this rider's own leg, and on to wherever it really
    * finishes, so it is on the map before boarding and after alighting too.
    *
-   * Scheduled position, not observed — the same badge `RouteVehicles` draws
-   * on a line's own page, and the same honesty applies: the compiled feed
-   * carries no live vehicle data, only where the timetable says a vehicle
-   * should be.
+   * Scheduled position, not observed — the same badge `RouteVehicles` draws on
+   * a line's own page, and the same honesty applies: the compiled feed carries
+   * no live vehicle data.
    */
   const legVehicles = useLegVehicles(journey, atSeconds);
-  const vehicles = useMemo<TripVehicle[]>(
-    () =>
-      legVehicles.map(({ leg, point, bearing }) => ({
-        key: `${scope}-vehicle-${leg.tripId}`,
-        point,
-        icon: tripVehicleIcon(familyFor(leg.routeType), bearing, leg.routeShortName),
-        follow: onSelectLeg === undefined ? null : () => onSelectLeg(leg),
-      })),
-    [legVehicles, scope, onSelectLeg],
-  );
+
+  const selectLeg = (legIndex: number) => {
+    const leg = journey?.legs[legIndex];
+    if (leg === undefined || leg.mode !== 'TRANSIT' || onSelectLeg === undefined) return;
+    onSelectLeg(leg);
+  };
 
   return (
     <MapCanvas network={network}>
@@ -609,128 +620,71 @@ export function JourneyMap({
         selectedStopId={selectedStopId}
       />
 
+      <JourneyShapes segments={segments} points={points} scheme={resolved} />
+
+      {onSelectLeg !== undefined && (
+        <LegLineClicks
+          layers={['journey-lines-casing-ride', 'journey-lines-ride']}
+          onSelect={selectLeg}
+        />
+      )}
+
       <PickPoint pick={pick} setPick={setPick} onPick={onPick} onRename={onRename} />
       <FitTo box={box} home={home} animate={!reduceMotion} />
-
-      {geometry?.segments.map((segment) => {
-        const walking = segment.kind === 'walk';
-        const ink =
-          segment.family === null ? '' : visualForFamily(segment.family).stroke;
-
-        /*
-         * A ridden leg opens its own run; a walk has none to open.
-         *
-         * The press is stopped from reaching the map, or the pin chooser opens
-         * underneath the page that is already on its way — Leaflet delivers a
-         * click to the layer *and* to the map unless a handler says otherwise.
-         */
-        const ridden = journey?.legs[segment.legIndex];
-        const follow =
-          onSelectLeg === undefined || ridden === undefined || ridden.mode !== 'TRANSIT'
-            ? undefined
-            : (event: L.LeafletMouseEvent) => {
-                L.DomEvent.stopPropagation(event);
-                onSelectLeg(ridden);
-              };
-
-        // Both strokes take the press: the casing is the wider of the two and
-        // is what makes a six-pixel line a target worth aiming at.
-        const pressable =
-          follow === undefined
-            ? { interactive: false as const }
-            : { interactive: true as const, eventHandlers: { click: follow } };
-
-        return (
-          /*
-           * Drawn twice. The casing underneath is the page's own surface
-           * colour, which is what keeps a dark blue bus line from disappearing
-           * into dark water, and a pale one from washing out over a light map.
-           * It is ordinary transit cartography and it leaves the colour itself
-           * untouched.
-           */
-          <Fragment key={`${scope}-${segment.key}`}>
-            <Polyline
-              positions={segment.path}
-              className="stroke-surface"
-              pathOptions={{ weight: walking ? 8 : 10, opacity: 0.9 }}
-              {...pressable}
-            />
-            <Polyline
-              positions={segment.path}
-              className={ink}
-              pathOptions={{
-                weight: walking ? 3 : 6,
-                opacity: 1,
-                // A walk is a straight line the engine measured as the crow
-                // flies, so it is dashed here exactly as it is in the strip
-                // map — the drawing says it is an estimate.
-                ...(walking ? { dashArray: '1 9', lineCap: 'round' as const } : {}),
-              }}
-              {...pressable}
-            />
-          </Fragment>
-        );
-      })}
-
-      {geometry?.calls.map((call) => (
-        <CircleMarker
-          key={`${scope}-${call.key}`}
-          center={call.point}
-          radius={6}
-          className={`${call.family === null ? '' : visualForFamily(call.family).stroke} fill-surface`}
-          pathOptions={{ weight: 3, opacity: 1, fillOpacity: 1 }}
-          interactive={false}
-        />
-      ))}
-
-      {/*
-        The stops ridden through. Small and quiet — they are information rather
-        than a decision, and the itinerary lists them in words. Drawn before
-        the badges so a badge is never lost behind one.
-      */}
-      {geometry?.passed.map((stop) => (
-        <CircleMarker
-          key={`${scope}-${stop.key}`}
-          center={stop.point}
-          radius={3.5}
-          className={`${stop.family === null ? '' : visualForFamily(stop.family).stroke} fill-surface`}
-          pathOptions={{ weight: 2, opacity: 1, fillOpacity: 1 }}
-          interactive={false}
-        />
-      ))}
 
       {/* The badge naming each leg, halfway along it by length. */}
       <LegBadges badges={badges} />
 
       {/* A ridden leg's own vehicle, drawn only while it is actually out. */}
-      {vehicles.map((vehicle) => (
-        <Marker
-          key={vehicle.key}
-          position={vehicle.point}
-          icon={vehicle.icon}
-          interactive={vehicle.follow !== null}
-          keyboard={false}
-          {...(vehicle.follow === null
-            ? {}
-            : {
-                eventHandlers: {
-                  click: (event: L.LeafletMouseEvent) => {
-                    L.DomEvent.stopPropagation(event);
-                    vehicle.follow?.();
-                  },
-                },
-              })}
+      {legVehicles.map(({ leg, point, bearing }) => (
+        <MapMarker
+          key={`vehicle-${leg.tripId}`}
+          position={point}
+          interactive={onSelectLeg !== undefined}
+          {...(onSelectLeg === undefined ? {} : { onClick: () => onSelectLeg(leg) })}
           // Above the line and the leg badges, which it is travelling over.
-          zIndexOffset={1000}
-        />
+          zIndex={1000}
+        >
+          <VehicleBadge
+            family={familyFor(leg.routeType)}
+            bearing={bearing}
+            designation={leg.routeShortName}
+          />
+        </MapMarker>
       ))}
 
+      {/* Where you start: the same three rings the form and strip map draw. */}
       {geometry?.origin && (
-        <Marker position={geometry.origin} icon={originIcon} interactive={false} />
+        <MapMarker position={geometry.origin}>
+          <svg
+            viewBox="0 0 24 24"
+            width="30"
+            height="30"
+            aria-hidden="true"
+            className="text-mode-tram block"
+            dangerouslySetInnerHTML={{ __html: originMarkerMarkup('fill-surface') }}
+          />
+        </MapMarker>
       )}
 
+      {/* The pin, built from the same path the form and strip map draw. */}
       {geometry?.destination && (
-        <Marker position={geometry.destination} icon={destinationIcon} interactive={false} />
+        <MapMarker
+          position={geometry.destination}
+          // The point of a pin is its tip, which is the bottom of the box.
+          anchor="bottom"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="38"
+            height="38"
+            aria-hidden="true"
+            className="text-brand-500 block"
+            dangerouslySetInnerHTML={{
+              __html: destinationMarkerMarkup('fill-surface'),
+            }}
+          />
+        </MapMarker>
       )}
     </MapCanvas>
   );
