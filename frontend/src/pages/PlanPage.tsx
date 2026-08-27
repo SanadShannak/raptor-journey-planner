@@ -671,7 +671,7 @@ export default function PlanPage() {
         Scrolling is confined to this pane only from `lg`, where the two-pane
         layout applies. On a phone the panes stack and the page scrolls.
       */}
-      <div className="border-border flex w-full flex-none flex-col border-e lg:min-h-0 lg:w-[26rem] lg:overflow-y-auto xl:w-[30rem]">
+      <div className="border-border flex w-full flex-none flex-col border-e lg:min-h-0 lg:w-[30rem] lg:overflow-y-auto xl:w-[34rem]">
         {/*
           One scrolling column, divided by a rule rather than by a second
           scroller.

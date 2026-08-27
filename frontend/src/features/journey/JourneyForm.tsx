@@ -222,14 +222,14 @@ export function JourneyForm({
         </button>
       )}
 
-      <fieldset disabled={off} className="flex flex-col pt-1 pb-0.5 disabled:opacity-60">
+      <fieldset disabled={off} className="flex flex-col mt-0.5 pt-0.5 pb-0.5 disabled:opacity-60">
         {/*
           A legend is taken out of the fieldset's flow and placed on its border
           box, so a `gap` never applies to it — its own margin is the only thing
           that separates it from the options, and at 2.5 it read as a heading
           over a separate group rather than as the label of the row beneath it.
         */}
-        <legend className="text-content-muted mb-1 flex items-center gap-1.5 text-xs font-medium tracking-wide uppercase">
+        <legend className="text-content-muted flex items-center gap-1.5 text-xs font-medium tracking-wide uppercase">
           <WalkIcon size={15} />
           {t(strings.planner.walkingSpeed)}
         </legend>
