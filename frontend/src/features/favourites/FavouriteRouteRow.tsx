@@ -183,7 +183,9 @@ export function FavouriteRouteRow({
       }
       subtitle={
         destination === null ? null : (
-          <span className={`block truncate [unicode-bidi:plaintext] ${TEXT_INSET}`}>
+          <span
+            className={`block truncate [unicode-bidi:plaintext] ltr:text-left rtl:text-right ${TEXT_INSET}`}
+          >
             {t(strings.routes.towards, { destination })}
           </span>
         )

@@ -131,7 +131,7 @@ export function FavouriteJourneyRow({
         together they read as one block of small print rather than as three
         separate answers.
       */}
-      <div className="flex flex-col gap-2.5 py-1">
+      <div className="flex flex-col gap-2.5 py-0.5">
         {field(t(strings.favourites.fromLabel), favourite.origin.label, true)}
         {field(t(strings.favourites.toLabel), favourite.destination.label, true)}
         {/* The same weight as the two places: all three are facts about the

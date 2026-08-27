@@ -121,11 +121,11 @@ export default function FavouritesPage() {
         worth of height to say — and on a page whose whole point is fitting on
         one screen, a spare line at the top is a departure lost at the bottom.
       */}
-      <div className="flex flex-wrap items-baseline gap-x-3">
+      <div className="mb-1.5 flex flex-wrap items-baseline gap-x-3">
         <h1
           ref={headingRef}
           tabIndex={-1}
-          className="focus-visible:outline-brand-500 rounded-control text-xl font-semibold tracking-tight"
+          className="focus-visible:outline-brand-500 rounded-control text-lg font-semibold tracking-tight"
         >
           {t(strings.pages.favourites.title)}
         </h1>

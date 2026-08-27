@@ -205,10 +205,21 @@ export function FavouriteCard({
 
                   `plaintext` takes the paragraph direction from the content, so
                   the name is laid out and truncated as the left-to-right run it
-                  is — ellipsis at its end — while `direction` stays the page's
-                  and the box keeps sitting where the badge does.
+                  is — ellipsis at its end rather than eating its front.
+
+                  Naming both physical edges is the other half, and it is not
+                  redundant with `text-start`. `start` resolves against the
+                  *paragraph* direction, which plaintext has just handed to the
+                  content — so a Latin name on an Arabic page aligned itself
+                  left while its code badge stayed right, the two on opposite
+                  edges of one card. It cuts both ways: an Arabic nickname on an
+                  English page did the same thing mirrored. Pinning the box to
+                  the page's own edge fixes both, and truncation is unaffected —
+                  an over-long name fills the box either way.
                 */}
-                <span className="block truncate [unicode-bidi:plaintext]">{title}</span>
+                <span className="block truncate [unicode-bidi:plaintext] ltr:text-left rtl:text-right">
+                  {title}
+                </span>
               </button>
             )}
 
