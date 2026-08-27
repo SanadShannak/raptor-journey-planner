@@ -95,6 +95,8 @@ export function MapCanvas({ network, children }: Props) {
   const [map, setMap] = useState<GlMap | null>(null);
   /** Counts style loads. See {@link MapHandle}. */
   const [styleEpoch, setStyleEpoch] = useState(0);
+  /** False only while a style swap is in flight. See {@link MapHandle}. */
+  const [styleReady, setStyleReady] = useState(false);
   /**
    * Cleared the moment the map is destroyed, and read by every cleanup that
    * would otherwise talk to it afterwards — including the ones in this file.
@@ -106,6 +108,14 @@ export function MapCanvas({ network, children }: Props) {
   const tiles = tileSourceFor(network);
   const style = resolved === 'dark' ? tiles.dark : tiles.light;
   const rtl = direction === 'rtl';
+
+  /**
+   * The style the map is already showing.
+   *
+   * Kept so the effect below can tell "the scheme changed" from "React ran an
+   * effect again" — see there for why re-applying the same style is not free.
+   */
+  const applied = useRef(style);
 
   /*
    * The controls' own words. MapLibre writes these into `title` and
@@ -163,13 +173,17 @@ export function MapCanvas({ network, children }: Props) {
       },
     });
 
+    applied.current = style;
     const onLoad = () => setMap(instance);
     /*
      * Fired on the first style and on every one after it. `styleEpoch` counts
      * them, which is how a child knows its layers were discarded and it is
      * time to add them again.
      */
-    const onStyle = () => setStyleEpoch((count) => count + 1);
+    const onStyle = () => {
+      setStyleReady(true);
+      setStyleEpoch((count) => count + 1);
+    };
 
     instance.on('load', onLoad);
     instance.on('style.load', onStyle);
@@ -191,9 +205,26 @@ export function MapCanvas({ network, children }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* The scheme changed, or the network did. Restyle rather than rebuild. */
+  /*
+   * The scheme changed, or the network did. Restyle rather than rebuild.
+   *
+   * Guarded on the style having actually changed, and that guard is doing real
+   * work rather than saving a no-op call. The map is *constructed* with a
+   * style, so without this the first run of this effect re-applied the one it
+   * already had — and `setStyle` is not idempotent: it discards the whole
+   * style document and every source and layer on it, then loads it all again.
+   * Every map therefore threw its overlays away once at startup and rebuilt
+   * them, which is how the drawn route came and went depending on where the
+   * data happened to arrive in that sequence.
+   */
   useEffect(() => {
     if (map === null) return;
+    if (applied.current === style) return;
+
+    applied.current = style;
+    // Says "do not add anything yet" until the new style has loaded; the flag
+    // is what brings the overlays back afterwards rather than losing them.
+    setStyleReady(false);
     map.setStyle(style);
   }, [map, style]);
 
@@ -261,8 +292,9 @@ export function MapCanvas({ network, children }: Props) {
   }, [map]);
 
   const handle = useMemo<MapHandle | null>(
-    () => (map === null ? null : { map, styleEpoch, isAlive }),
-    [map, styleEpoch, isAlive],
+    () =>
+      map === null ? null : { map, styleEpoch, styleReady, isAlive },
+    [map, styleEpoch, styleReady, isAlive],
   );
 
   return (

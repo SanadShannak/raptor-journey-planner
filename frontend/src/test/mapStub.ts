@@ -54,6 +54,8 @@ export class StubMap {
   sources = new Map<string, StubGeoJSONSource>();
   layers = new Map<string, StubLayer>();
   style: string;
+  /** Every style ever applied, so a test can see a needless re-apply. */
+  styleSets: string[] = [];
   removed = false;
 
   private zoom: number;
@@ -161,6 +163,7 @@ export class StubMap {
   }
 
   setStyle(style: string): void {
+    this.styleSets.push(style);
     this.style = style;
     // A real style swap discards every source and layer, and this must too —
     // the re-adding is the behaviour under test.

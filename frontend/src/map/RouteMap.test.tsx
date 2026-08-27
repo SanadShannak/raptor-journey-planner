@@ -455,3 +455,60 @@ describe('RouteMap drawing', () => {
     expect(onStopSelect).toHaveBeenCalledWith('id-1');
   });
 });
+
+/*
+ * What the map is actually holding.
+ *
+ * These three cover a failure that every other test in this file was blind
+ * to, because each of them asks about one overlay and the bug was in how two
+ * of them get along.
+ */
+describe('RouteMap overlays', () => {
+  const sourceIds = () =>
+    [...liveMap().sources.keys()].filter((id) => id.startsWith('route-'));
+
+  /*
+   * Both, and this is the regression.
+   *
+   * The layers used to be gated on `map.isStyleLoaded()`, which asks a
+   * different question than it looks like it does: it is false while any
+   * source is still loading, and adding a source is what makes one. So the
+   * first overlay added turned the answer false and the second was refused —
+   * every time, not sometimes — and it never came back, because nothing it
+   * depended on ever changed again. The stop circles had never once drawn.
+   */
+  it('draws the line and the stop circles, not just whichever went first', async () => {
+    await show({ variant: TRAM_1 });
+
+    expect(sourceIds().sort()).toEqual(['route-line', 'route-stops']);
+  });
+
+  /*
+   * The map is *constructed* with a style, so re-applying it is not a no-op to
+   * be tidied away: `setStyle` discards the whole style document and every
+   * source and layer on it. Doing that once at startup is what made a drawn
+   * route come and go depending on where the data landed in the sequence.
+   */
+  it('does not re-apply the style the map was built with', async () => {
+    await show({ variant: TRAM_1 });
+
+    expect(liveMap().styleSets).toEqual([]);
+  });
+
+  /*
+   * And when the style genuinely is replaced — the colour scheme changed —
+   * everything drawn on it has to come back, because a style swap discards it.
+   */
+  it('puts the overlays back after the style is replaced', async () => {
+    await show({ variant: TRAM_1 });
+    expect(sourceIds()).toHaveLength(2);
+
+    // What a real swap does: empties the map, then announces the new style.
+    await act(async () => {
+      liveMap().setStyle('dark');
+    });
+    await act(async () => {});
+
+    expect(sourceIds().sort()).toEqual(['route-line', 'route-stops']);
+  });
+});
