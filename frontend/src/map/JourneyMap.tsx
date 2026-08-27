@@ -25,7 +25,7 @@ import { MapCanvas, FitTo } from './MapCanvas';
 import { MapMarker } from './MapMarker';
 import { StopLayer } from './StopLayer';
 import { VehicleBadge } from './RouteVehicles';
-import { useMap, useMapEvent } from './mapContext';
+import { useMap, useMapAlive, useMapEvent } from './mapContext';
 import { useGeoJson } from './useGeoJson';
 import {
   lineLayers,
@@ -408,6 +408,7 @@ function LegLineClicks({
   onSelect: (legIndex: number) => void;
 }) {
   const map = useMap();
+  const isAlive = useMapAlive();
   const latest = useRef(onSelect);
 
   // In an effect, not during render — see `useMapEvent` in `mapContext.ts`.
@@ -442,12 +443,14 @@ function LegLineClicks({
       map.on('mouseleave', layer, leave);
     }
     return () => {
+      // Nothing to unsubscribe from once the map is gone. See `MapHandle`.
+      if (!isAlive()) return;
       for (const layer of layers) {
         map.off('mouseenter', layer, enter);
         map.off('mouseleave', layer, leave);
       }
     };
-  }, [map, layers]);
+  }, [map, layers, isAlive]);
 
   return null;
 }

@@ -96,6 +96,7 @@ export class StubMap {
   }
 
   off(type: string, a: unknown, b?: unknown): this {
+    this.assertUsable('off');
     const handler = (typeof a === 'function' ? a : b) as Listener;
     this.listeners.get(type)?.delete(handler);
     return this;
@@ -183,6 +184,7 @@ export class StubMap {
   }
 
   removeSource(id: string): void {
+    this.assertUsable('removeSource');
     this.sources.delete(id);
   }
 
@@ -195,6 +197,7 @@ export class StubMap {
   }
 
   removeLayer(id: string): void {
+    this.assertUsable('removeLayer');
     this.layers.delete(id);
   }
 
@@ -221,6 +224,7 @@ export class StubMap {
   }
 
   removeControl(): this {
+    this.assertUsable('removeControl');
     return this;
   }
 
@@ -238,12 +242,34 @@ export class StubMap {
     this.removed = true;
     this.listeners.clear();
   }
+
+  /**
+   * Refuses anything asked of a destroyed map, exactly as the real one does.
+   *
+   * This is the whole point of the stub having a `removed` flag. MapLibre
+   * tears its internals down in `remove()`, so a later `off` or
+   * `removeControl` dereferences something that is gone — and because React
+   * runs a component's cleanups in declaration order, and unmounts a deleted
+   * subtree parent first, the map is destroyed *before* every cleanup that
+   * wants to tidy up after itself.
+   *
+   * That throw is not contained: it takes the unmount with it, and the symptom
+   * is a blank page after navigating away from a map — nowhere near the map,
+   * and long after the thing that caused it. A stub that quietly accepted
+   * these calls would let that bug back in with every test still green.
+   */
+  private assertUsable(what: string): void {
+    if (this.removed) {
+      throw new TypeError(`Cannot ${what} on a removed map.`);
+    }
+  }
 }
 
 /** The marker really mounts its element, so the DOM stays assertable. */
 export class StubMarker {
   element: HTMLElement;
   lngLat: [number, number] = [0, 0];
+  private map: StubMap | null = null;
 
   constructor(options: { element: HTMLElement }) {
     this.element = options.element;
@@ -255,11 +281,15 @@ export class StubMarker {
   }
 
   addTo(map: StubMap): this {
+    this.map = map;
     map.getContainer().appendChild(this.element);
     return this;
   }
 
   remove(): this {
+    if (this.map?.removed === true) {
+      throw new TypeError('Cannot remove a marker from a removed map.');
+    }
     this.element.remove();
     return this;
   }

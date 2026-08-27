@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Marker, type PositionAnchor } from 'maplibre-gl';
 import type { Coordinates } from '../types/journey';
-import { useMap } from './mapContext';
+import { useMap, useMapAlive } from './mapContext';
 import { lngLat } from './coords';
 
 interface Props {
@@ -50,6 +50,7 @@ export function MapMarker({
   children,
 }: Props) {
   const map = useMap();
+  const isAlive = useMapAlive();
   const element = useMemo(() => document.createElement('div'), []);
   const placed = useRef<Marker | null>(null);
   const [lat, lon] = position;
@@ -65,14 +66,16 @@ export function MapMarker({
     placed.current = marker;
 
     return () => {
-      marker.remove();
+      // Removing a marker unsubscribes it from the map, so a destroyed map
+      // makes this throw — and the map is destroyed first. See `MapHandle`.
+      if (isAlive()) marker.remove();
       placed.current = null;
     };
     // `lat`/`lon` are deliberately not here: moving a marker is a `setLngLat`
     // below, not a teardown and rebuild. A vehicle ticks several times a
     // second and rebuilding it would restart the halo's animation each time.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, element, anchor, offset?.[0], offset?.[1]]);
+  }, [map, element, isAlive, anchor, offset?.[0], offset?.[1]]);
 
   /* Moved, not rebuilt. */
   useEffect(() => {

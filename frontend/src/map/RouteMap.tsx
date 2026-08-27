@@ -18,7 +18,7 @@ import { MapCanvas, FitTo } from './MapCanvas';
 import { MapMarker } from './MapMarker';
 import { RouteVehicles } from './RouteVehicles';
 import { StopLayer } from './StopLayer';
-import { useMap, useMapEvent } from './mapContext';
+import { useMap, useMapAlive, useMapEvent } from './mapContext';
 import { useGeoJson } from './useGeoJson';
 import {
   lineLayers,
@@ -103,6 +103,7 @@ function StopCircleClicks({
   onStopSelect: (stopId: string) => void;
 }) {
   const map = useMap();
+  const isAlive = useMapAlive();
   const latest = useRef(onStopSelect);
 
   // In an effect, not during render — see `useMapEvent` in `mapContext.ts`.
@@ -127,10 +128,12 @@ function StopCircleClicks({
     map.on('mouseenter', layer, enter);
     map.on('mouseleave', layer, leave);
     return () => {
+      // Nothing to unsubscribe from once the map is gone. See `MapHandle`.
+      if (!isAlive()) return;
       map.off('mouseenter', layer, enter);
       map.off('mouseleave', layer, leave);
     };
-  }, [map, layer]);
+  }, [map, layer, isAlive]);
 
   return null;
 }
