@@ -35,6 +35,7 @@ export const ar: Dictionary = {
     backendReachable: 'خدمة تخطيط الرحلات متاحة.',
     backendUnreachable: 'خدمة تخطيط الرحلات غير متاحة.',
     clockLabel: 'الوقت في {network}',
+    loadingPage: 'جارٍ التحميل…',
     availableDates: {
       zero: 'لا تتوفر بيانات جداول زمنية.',
       one: 'تغطي بيانات الجداول الزمنية يومًا واحدًا، {first}.',

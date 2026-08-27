@@ -14,46 +14,56 @@ import { env } from '../config/env';
  * the mode colours of a route stay the loudest thing on the screen. A
  * reference basemap is a busier and more colourful map, and it competes.
  *
- * Two schemes rather than one filtered scheme, because a filter over a light
+ * Two styles rather than one filtered style, because a filter over a light
  * basemap inverts everything drawn under it. It also cannot be undone
  * selectively: OpenStreetMap's standard style paints minor roads white on pale
  * land, which inverts to black on near-black and disappears.
  *
- * Attribution is a condition of use, not decoration. It is rendered by the map
- * and must stay visible.
+ * **Vector, not raster.** These are GL style documents rather than tile
+ * templates: the map is handed a stylesheet and draws the roads itself from
+ * geometry, instead of downloading pictures of them. Three things follow that
+ * the raster map could not do. Labels are laid out against what is on the map
+ * *now*, so a street name steps aside for a route line drawn over it rather
+ * than sitting under one. Type stays sharp at every zoom, including the
+ * fractional ones between whole levels. And changing scheme is a restyle
+ * rather than a refetch.
  *
- * These used to need no key at all — CARTO's anonymous tier answered every
- * request. It has since grown unreliable, some tiles now coming back as a
- * "API KEY REQUIRED" watermark rather than a map, so `VITE_CARTO_API_KEY`
- * (optional, the same shape as the Digitransit key) is appended to every tile
- * request when it is set. Unset, tiles still ask the same anonymous endpoint
- * and may still watermark.
+ * **Attribution is a condition of use, not decoration**, and it no longer
+ * lives here. A GL style document names the sources it draws from and carries
+ * their credit with it, which the attribution control renders on its own — so
+ * a copy in this file printed both names twice, once from each. The raster map
+ * had to supply it because a tile URL carries nothing but pixels.
+ *
+ * The consequence is worth stating plainly, because it is now invisible rather
+ * than merely absent: **a style added here must be checked for its own
+ * attribution.** One without it would ship no credit at all, and nothing would
+ * fail to build.
+ *
+ * `VITE_CARTO_API_KEY` is optional and appended when set. CARTO reads it as
+ * `key`; sending it as `api_key` is not an error, which is the trap — the CDN
+ * answers 200 either way and quietly serves the "API KEY REQUIRED" watermark.
  */
 export interface TileSource {
-  /** Tile template for the light scheme; `{r}` expands to `@2x` on retina. */
+  /** GL style document for the light scheme. */
   light: string;
   dark: string;
-  /** Shown on the map, and required by the terms of both providers. */
-  attribution: string;
   maxZoom: number;
 }
 
-/*
- * `?key=`, not `?api_key=`. The name is worth a line because getting it wrong
- * fails the way a missing key does rather than the way a rejected one does:
- * CARTO answers an unrecognised parameter with a 200 and a tile, so there is
- * no status to notice and nothing in the console — the map simply keeps
- * painting the "API KEY REQUIRED" watermark over real cartography, which is
- * exactly what it does with no key at all.
- */
 const key = env.cartoKey === null ? '' : `?key=${encodeURIComponent(env.cartoKey)}`;
 
 const CARTO: TileSource = {
-  light: `https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png${key}`,
-  dark: `https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png${key}`,
-  attribution:
-    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-  maxZoom: 20,
+  light: `https://basemaps.cartocdn.com/gl/positron-gl-style/style.json${key}`,
+  dark: `https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json${key}`,
+  /*
+   * Past the vector data's own deepest level, and deliberately.
+   *
+   * A raster map stops where the pictures stop: ask for a tile nobody drew and
+   * you get nothing. Vector geometry from the deepest level keeps drawing at
+   * any zoom beyond it — it is simply scaled — so the extra levels are real
+   * map rather than blank.
+   */
+  maxZoom: 22,
 };
 
 /**

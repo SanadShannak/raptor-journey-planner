@@ -254,14 +254,15 @@ export default function RoutesPage() {
           `lg:flex-1` restores the grow behaviour once the desktop layout
           pins the page and there is real space to fill.
 
-          `isolate` boxes in Leaflet's own stacking order. Its panes carry
-          z-index up to 1000 so controls sit over tiles sit over the map's own
-          background, but `.leaflet-container` never claims a z-index of its
-          own to hold that ordering inside — so without this, those numbers
-          compete directly with whatever the rest of the page uses, and a
-          value meant to beat a marker beats the mobile navigation panel too.
-          `isolation: isolate` gives the map its own stacking context, so
-          nothing inside it can out-rank an element sitting outside it.
+          `isolate` boxes in the map's own stacking order. Its markers,
+          controls and overlays carry z-index up to 1000 so that a vehicle
+          rides over a line and a control over both, but the map's own
+          container never claims a z-index to hold that ordering inside — so
+          without this, those numbers compete directly with whatever the rest
+          of the page uses, and a value meant to beat a marker beats the
+          mobile navigation panel too. `isolation: isolate` gives the map its
+          own stacking context, so nothing inside it can out-rank an element
+          sitting outside it.
         */
       >
         <RouteMap

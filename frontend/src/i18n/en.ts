@@ -24,6 +24,7 @@ export const en: Dictionary = {
     backendReachable: 'Routing service reachable.',
     backendUnreachable: 'Routing service unavailable.',
     clockLabel: 'Time in {network}',
+    loadingPage: 'Loading…',
     availableDates: {
       one: 'Timetable data covers one day, {first}.',
       other: 'Timetable data covers {count} days, from {first} to {last}.',

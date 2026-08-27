@@ -1,6 +1,6 @@
+@import 'maplibre-gl/dist/maplibre-gl.css';
 @import 'tailwindcss';
 @import './fonts.css';
-@import 'leaflet/dist/leaflet.css';
 
 /*
  * Design tokens.
@@ -465,16 +465,14 @@
  * nothing about either scheme.
  */
 /*
- * Preflight gives every image `max-width: 100%`, which shears Leaflet's tiles
- * out of position — they are absolutely placed at their natural size.
+ * Seen while tiles load, and in the gutters when the map is over-panned.
+ *
+ * The raster map needed a preflight escape here too — `max-width: 100%` on
+ * every image sheared absolutely-placed tiles out of position. A GL map draws
+ * into one canvas and has no tile images to shear, so that rule is gone with
+ * the renderer that needed it.
  */
-.leaflet-container img {
-  max-width: none;
-  height: auto;
-}
-
-.leaflet-container {
-  /* Seen while tiles load, and in the gutters when the map is over-panned. */
+.maplibregl-map {
   background: var(--color-surface-muted);
   font: inherit;
 }
@@ -622,50 +620,61 @@
   animation: drag-pulse 1.1s ease-in-out infinite;
 }
 
-/* Leaflet's own CSS is entirely physical, so RTL needs telling. */
-.leaflet-popup-content-wrapper,
-.leaflet-popup-content {
-  text-align: start;
-}
-
 /*
- * A popup is painted white with dark text, which is a reasonable default and
- * wrong in half of this app's schemes. The tip is the little arrow beneath
- * it, and it has to match or the popup looks like it is peeling.
+ * The zoom buttons. MapLibre paints them white with a dark glyph, which is a
+ * reasonable default and wrong in half of this app's schemes.
+ *
+ * The glyphs themselves are inline SVG background images with the colour baked
+ * into the data URI, so they cannot be recoloured by `color` — hence the
+ * filter, which is applied only in the dark scheme and only to the icon.
  */
-.leaflet-popup-content-wrapper,
-.leaflet-popup-tip {
-  background: var(--color-surface-raised);
-  color: var(--color-content);
-}
-
-
-.leaflet-popup-close-button {
-  color: var(--color-content-muted);
-}
-
-.leaflet-popup-close-button:focus-visible {
-  outline: 2px solid var(--color-brand-500);
-  outline-offset: -2px;
-}
-
-.leaflet-bar a,
-.leaflet-bar a:hover {
+.maplibregl-ctrl-group,
+.maplibregl-ctrl-group button {
+  /*
+   * Both, because the library paints the *buttons* rather than the group —
+   * styling only the group leaves a white control on a dark map with two
+   * invisible glyphs on it.
+   */
   background-color: var(--color-surface-raised);
-  color: var(--color-content);
-  border-bottom-color: var(--color-border);
 }
 
-.leaflet-bar a:hover {
+.maplibregl-ctrl-group {
+  box-shadow: none;
+  border: 1px solid var(--color-border-strong);
+}
+
+.maplibregl-ctrl-group button + button {
+  border-top-color: var(--color-border);
+}
+
+.maplibregl-ctrl-group button:hover {
   background-color: var(--color-surface-muted);
 }
 
-.leaflet-bar a:focus-visible {
+.maplibregl-ctrl-group button:focus-visible {
   outline: 2px solid var(--color-brand-500);
   outline-offset: -2px;
+  box-shadow: none;
 }
 
-.leaflet-control-attribution {
+:root[data-theme='dark'] .maplibregl-ctrl-icon,
+.maplibregl-ctrl-group button:disabled .maplibregl-ctrl-icon {
+  filter: invert(1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .maplibregl-ctrl-icon {
+    filter: invert(1);
+  }
+}
+
+ /*
+  * Both classes, to match the library's own `.maplibregl-ctrl.maplibregl-ctrl-attrib`.
+  * A single-class rule here loses the cascade on specificity and silently
+  * keeps the library's white chip — which in the dark scheme is a bright
+  * rectangle in the corner of a near-black map.
+  */
+.maplibregl-ctrl.maplibregl-ctrl-attrib {
   /*
    * A small chip in the page's own surface colour rather than a halo — the
    * halo tried to let the map show through and instead left the credit hard
@@ -683,8 +692,8 @@
    */
   direction: ltr;
   /*
-   * Smaller than the map's own base size (`.leaflet-container`'s 12px),
-   * which is what it inherits with nothing said here. Still legible, and
+   * Smaller than the map's own base size, which is what it inherits with
+   * nothing said here. Still legible, and
    * still exactly the credit both providers require — only quieter about it,
    * the way most map products already render theirs.
    */
@@ -692,7 +701,7 @@
   padding: 0 4px;
 }
 
-.leaflet-control-attribution a {
+.maplibregl-ctrl-attrib a {
   color: var(--color-brand-500);
 }
 

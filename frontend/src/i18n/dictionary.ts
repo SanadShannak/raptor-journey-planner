@@ -766,6 +766,14 @@ export interface Dictionary {
      * whose afternoon it is.
      */
     clockLabel: string;
+    /**
+     * Shown while a page whose code is fetched on demand is on its way.
+     *
+     * The three map pages are their own bundle — the rendering engine is far
+     * too large to hand to somebody checking a card balance — so there is a
+     * real moment between pressing and arriving.
+     */
+    loadingPage: string;
     availableDates: PluralForms;
     /**
      * A feature's own fetch has nothing to show while the backend is down —

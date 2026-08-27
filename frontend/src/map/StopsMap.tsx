@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { useMap } from 'react-leaflet';
+import { useMap } from './mapContext';
 import type { GeoBounds } from '../config/geocoding';
 import type { NetworkStop, StopIdentity } from '../types/stop';
 import { MapCanvas } from './MapCanvas';
@@ -104,10 +104,10 @@ export function StopsMap({
  * that framed a stop was behind an early return for a request that never
  * cleared. The precedence is a single list for that reason.
  *
- * Imperative because `MapContainer` freezes its own `center` and `zoom` at
- * mount, and neither the network nor the stop is known by then. The animation
- * is gated on `prefers-reduced-motion`: Leaflet eases this in JavaScript, where
- * no media query can reach it.
+ * Imperative because the map reads its `center` and `zoom` once, at
+ * construction, and neither the network nor the stop is known by then. The
+ * animation is gated on `prefers-reduced-motion`: the map eases this in
+ * JavaScript, where no media query can reach it.
  */
 function RestOn({
   home,
@@ -131,7 +131,11 @@ function RestOn({
      * already on screen should not yank the map backwards.
      */
     if (focused !== null) {
-      map.setView([focused.lat, focused.lon], Math.max(map.getZoom(), 17), { animate });
+      map.easeTo({
+        center: [focused.lon, focused.lat],
+        zoom: Math.max(map.getZoom(), 17),
+        animate,
+      });
       return;
     }
 
@@ -147,7 +151,11 @@ function RestOn({
     if (pending) return;
 
     if (view.kind === 'at') {
-      map.setView([view.lat, view.lon], Math.max(map.getZoom(), 16), { animate });
+      map.easeTo({
+        center: [view.lon, view.lat],
+        zoom: Math.max(map.getZoom(), 16),
+        animate,
+      });
       return;
     }
 
@@ -160,7 +168,7 @@ function RestOn({
      * Safe to depend on because it changes exactly once: it is memoised on the
      * network and its area, both set once and never again.
      */
-    map.setView(home.center, home.zoom, { animate });
+    map.easeTo({ center: [home.center[1], home.center[0]], zoom: home.zoom, animate });
   }, [map, focused, pending, view, home, animate]);
 
   return null;

@@ -1,20 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from '@testing-library/react';
-import L from 'leaflet';
+import { act, render } from '@testing-library/react';
 import { LocaleProvider } from '../i18n';
 import { ThemeProvider } from '../theme';
 import { RouteMap } from './RouteMap';
 import { ROUTE_STOPS_MIN_ZOOM, STOPS_MIN_ZOOM } from './homeView';
+import { forgetMaps, liveMap } from '../test/mapStub';
 import type { LineVariantDetail, PatternStop } from '../types/route';
 
 /*
  * Where the map is told to look, and — the part that goes wrong — where it is
  * told not to.
  *
- * Asserted on Leaflet's own framing calls, because the bug this guards is not a
- * wrong final position but an extra move on the way to it: the map goes home
- * and comes back, and the two animations collide so only the first is ever
- * seen. The stops map recorded the same lesson.
+ * Asserted on the framing calls the map was asked to make, because the bug
+ * this guards is not a wrong final position but an extra move on the way to
+ * it: the map goes home and comes back, and the two animations collide so only
+ * the first is ever seen. The stops map recorded the same lesson.
+ *
+ * A GL map needs WebGL, which jsdom has no notion of, so the module is
+ * replaced — see `test/mapStub.ts`.
  */
 
 const stop = (sequence: number, lat: number): PatternStop => ({
@@ -72,11 +75,8 @@ const BUS_550: LineVariantDetail = {
 /** Helsinki, which is where `homeViewFor` rests when nothing is chosen. */
 const CITY_LAT = 60.185;
 
-let moves: Array<{ lat: number; zoom: number | undefined }>;
-let fits: L.LatLngBounds[];
-
-function show(props: Partial<Parameters<typeof RouteMap>[0]> = {}) {
-  return render(
+function view(props: Partial<Parameters<typeof RouteMap>[0]> = {}) {
+  return (
     <LocaleProvider>
       <ThemeProvider>
         <RouteMap
@@ -89,11 +89,46 @@ function show(props: Partial<Parameters<typeof RouteMap>[0]> = {}) {
           {...props}
         />
       </ThemeProvider>
-    </LocaleProvider>,
+    </LocaleProvider>
   );
 }
 
-const wentToTheCity = () => moves.some((move) => Math.abs(move.lat - CITY_LAT) < 0.001);
+/**
+ * Rendered *and settled*.
+ *
+ * The map loads on a microtask and `MapCanvas` draws no children until it has,
+ * so a synchronous render would assert against an empty map and pass for the
+ * wrong reason.
+ */
+async function show(props: Partial<Parameters<typeof RouteMap>[0]> = {}) {
+  const result = render(view(props));
+  await act(async () => {});
+  return result;
+}
+
+/** The framing calls that centred the map, as `[lat, zoom]`. */
+const centrings = () =>
+  liveMap()
+    .moves.filter((move) => move.kind !== 'fitBounds')
+    .map((move) => ({ lat: move.center?.[1] ?? NaN, zoom: move.zoom }));
+
+/**
+ * The boxes the map was asked to fit, as corners.
+ *
+ * Normalised on the way out so the assertions can ask a box about its sides
+ * rather than each one re-deriving them from a `[[west, south], [east, north]]`
+ * tuple — which is itself the lat/lon swap this port has to keep straight.
+ */
+const fits = () =>
+  liveMap()
+    .moves.filter((move) => move.kind === 'fitBounds')
+    .map((move) => {
+      const [[west, south], [east, north]] = move.bounds!;
+      return { west, south, east, north };
+    });
+
+const wentToTheCity = () =>
+  centrings().some((move) => Math.abs(move.lat - CITY_LAT) < 0.001);
 
 /** The degrees the first vehicle badge's arrow is turned by. */
 function rotationOf(container: HTMLElement): number {
@@ -101,48 +136,27 @@ function rotationOf(container: HTMLElement): number {
   return Number(/rotate\(([-\d.]+)/.exec(html)?.[1] ?? NaN);
 }
 
+/** Which token the drawn line was painted from. See `journeyLayers.ts`. */
+function lineToken(): string | undefined {
+  const data = liveMap().getSource('route-line')?.data as
+    | { features?: { properties: Record<string, unknown> }[] }
+    | undefined;
+  return data?.features?.[0]?.properties['token'] as string | undefined;
+}
+
 beforeEach(() => {
   localStorage.clear();
-  moves = [];
-  fits = [];
-
-  /*
-   * Recorded, not replaced. Stubbing these out leaves the map with no view of
-   * its own, and the real Leaflet has to run for what is under test to mean
-   * anything.
-   */
-  const setView = L.Map.prototype.setView;
-  vi.spyOn(L.Map.prototype, 'setView').mockImplementation(function (
-    this: L.Map,
-    center: L.LatLngExpression,
-    zoom?: number,
-    options?: L.ZoomPanOptions,
-  ) {
-    moves.push({ lat: L.latLng(center as L.LatLngTuple).lat, zoom });
-    return setView.call(this, center, zoom, options);
-  });
-
-  const fitBounds = L.Map.prototype.fitBounds;
-  vi.spyOn(L.Map.prototype, 'fitBounds').mockImplementation(function (
-    this: L.Map,
-    bounds: L.LatLngBoundsExpression,
-    options?: L.FitBoundsOptions,
-  ) {
-    // Normalised on the way in, so the assertions below can ask a box about
-    // its corners rather than each one re-deriving them from a tuple.
-    fits.push(L.latLngBounds(bounds as L.LatLngBoundsLiteral));
-    return fitBounds.call(this, bounds, options);
-  });
+  forgetMaps();
 });
 
 afterEach(() => vi.restoreAllMocks());
 
 describe('RouteMap framing', () => {
-  it('rests on the city when no line is wanted', () => {
-    show();
+  it('rests on the city when no line is wanted', async () => {
+    await show();
 
     expect(wentToTheCity()).toBe(true);
-    expect(fits).toEqual([]);
+    expect(fits()).toEqual([]);
   });
 
   /*
@@ -151,24 +165,24 @@ describe('RouteMap framing', () => {
    * every stop sits at 24.94 — and a frame that clips it reads as the line
    * running off the edge of the map.
    */
-  it('frames the line on its own geometry, bows included', () => {
-    show({ variant: TRAM_1 });
+  it('frames the line on its own geometry, bows included', async () => {
+    await show({ variant: TRAM_1 });
 
-    const box = fits[fits.length - 1]!;
-    expect(box.getSouth()).toBeCloseTo(60.158, 4);
-    expect(box.getNorth()).toBeCloseTo(60.22, 4);
-    expect(box.getWest()).toBeCloseTo(24.9, 4);
-    expect(box.getEast()).toBeCloseTo(24.95, 4);
+    const box = fits().at(-1)!;
+    expect(box.south).toBeCloseTo(60.158, 4);
+    expect(box.north).toBeCloseTo(60.22, 4);
+    expect(box.west).toBeCloseTo(24.9, 4);
+    expect(box.east).toBeCloseTo(24.95, 4);
   });
 
   /* A feed without shapes.txt still has a line; it runs straight between its
      stops rather than not being drawn. */
-  it('falls back to the stop sequence when the feed has no shape', () => {
-    show({ variant: { ...TRAM_1, shape: null } });
+  it('falls back to the stop sequence when the feed has no shape', async () => {
+    await show({ variant: { ...TRAM_1, shape: null } });
 
-    const box = fits[fits.length - 1]!;
-    expect(box.getWest()).toBeCloseTo(24.94, 4);
-    expect(box.getEast()).toBeCloseTo(24.94, 4);
+    const box = fits().at(-1)!;
+    expect(box.west).toBeCloseTo(24.94, 4);
+    expect(box.east).toBeCloseTo(24.94, 4);
   });
 
   /*
@@ -177,87 +191,51 @@ describe('RouteMap framing', () => {
    * unless something says so — so the map takes the gap as permission to go
    * home, and the reader sees a zoom out to the city and no zoom back in.
    */
-  it('holds still while the next line is on its way', () => {
-    const { rerender } = show({ variant: TRAM_1 });
-    moves = [];
-    fits = [];
+  it('holds still while the next line is on its way', async () => {
+    const { rerender } = await show({ variant: TRAM_1 });
+    liveMap().moves.length = 0;
 
-    rerender(
-      <LocaleProvider>
-        <ThemeProvider>
-          <RouteMap
-            network="hsl"
-            area={null}
-            variant={null}
-            pending
-            onStopSelect={() => {}}
-            vehicles={[]}
-          />
-        </ThemeProvider>
-      </LocaleProvider>,
-    );
+    await act(async () => {
+      rerender(view({ variant: null, pending: true }));
+    });
 
     expect(wentToTheCity()).toBe(false);
-    expect(moves).toEqual([]);
-    expect(fits).toEqual([]);
+    expect(liveMap().moves).toEqual([]);
   });
 
-  it('frames the next line once it arrives, without visiting the city', () => {
-    const { rerender } = show({ variant: TRAM_1 });
-    moves = [];
-    fits = [];
+  it('frames the next line once it arrives, without visiting the city', async () => {
+    const { rerender } = await show({ variant: TRAM_1 });
+    liveMap().moves.length = 0;
 
-    rerender(
-      <LocaleProvider>
-        <ThemeProvider>
-          <RouteMap
-            network="hsl"
-            area={null}
-            variant={BUS_550}
-            pending={false}
-            onStopSelect={() => {}}
-            vehicles={[]}
-          />
-        </ThemeProvider>
-      </LocaleProvider>,
-    );
+    await act(async () => {
+      rerender(view({ variant: BUS_550 }));
+    });
 
     expect(wentToTheCity()).toBe(false);
-    const box = fits[fits.length - 1]!;
-    expect(box.getWest()).toBeCloseTo(24.8, 4);
+    expect(fits().at(-1)!.west).toBeCloseTo(24.8, 4);
   });
 });
 
 describe('RouteMap drawing', () => {
   /*
-   * A Leaflet path's `className` is applied when the element is created and
-   * never touched again, so a layer reused across a change of variant keeps the
-   * colour it was born with — a bus line drawn in tram green. Keys scoped to
-   * the variant are what force a remount, and this is the assertion that says
-   * the repaint actually happened.
+   * A Leaflet path's `className` was applied when the element was created and
+   * never touched again, so a layer reused across a change of variant kept the
+   * colour it was born with — a bus line drawn in tram green.
+   *
+   * A GL layer cannot fail that way: the colour is in the data rather than in a
+   * class fixed at creation. The assertion is kept because what it now guards
+   * is that the new data reaches the source at all — a `setData` that never
+   * fired would look exactly like the old bug.
    */
-  it('repaints in the new line’s colour when the variant changes', () => {
-    const { container, rerender } = show({ variant: TRAM_1 });
-    expect(container.querySelector('.stroke-mode-tram')).toBeTruthy();
-    expect(container.querySelector('.stroke-mode-bus')).toBeNull();
+  it('repaints in the new line’s colour when the variant changes', async () => {
+    const { rerender } = await show({ variant: TRAM_1 });
+    expect(lineToken()).toBe('mode-tram');
 
-    rerender(
-      <LocaleProvider>
-        <ThemeProvider>
-          <RouteMap
-            network="hsl"
-            area={null}
-            variant={BUS_550}
-            pending={false}
-            onStopSelect={() => {}}
-            vehicles={[]}
-          />
-        </ThemeProvider>
-      </LocaleProvider>,
-    );
+    await act(async () => {
+      rerender(view({ variant: BUS_550 }));
+    });
 
-    expect(container.querySelector('.stroke-mode-bus')).toBeTruthy();
-    expect(container.querySelector('.stroke-mode-tram')).toBeNull();
+    expect(lineToken()).toBe('mode-bus');
   });
 
   /*
@@ -276,8 +254,8 @@ describe('RouteMap drawing', () => {
    * last, a straight cut lands inside the corner — off the road the vehicle
    * actually drives.
    */
-  it('puts a vehicle on the road rather than across the corner', () => {
-    const { container } = show({
+  it('puts a vehicle on the road rather than across the corner', async () => {
+    const { container } = await show({
       variant: TRAM_1,
       vehicles: [
         {
@@ -296,8 +274,8 @@ describe('RouteMap drawing', () => {
     expect(marker.innerHTML).toContain('rotate(');
   });
 
-  it('draws one badge per vehicle out on the line', () => {
-    const { container } = show({
+  it('draws one badge per vehicle out on the line', async () => {
+    const { container } = await show({
       variant: TRAM_1,
       vehicles: [
         {
@@ -322,8 +300,8 @@ describe('RouteMap drawing', () => {
    * back east to the last, so the two legs have headings a long way apart and a
    * long way from north.
    */
-  it('turns the arrow to the heading of the stretch it is on', () => {
-    const onTheFirstLeg = show({
+  it('turns the arrow to the heading of the stretch it is on', async () => {
+    const onTheFirstLeg = await show({
       variant: TRAM_1,
       vehicles: [
         {
@@ -335,7 +313,7 @@ describe('RouteMap drawing', () => {
     const north = rotationOf(onTheFirstLeg.container);
     onTheFirstLeg.unmount();
 
-    const onTheSecondLeg = show({
+    const onTheSecondLeg = await show({
       variant: TRAM_1,
       vehicles: [
         {
@@ -356,13 +334,13 @@ describe('RouteMap drawing', () => {
 
   /*
    * A vehicle is a door into its own run — but only where there is a run to
-   * open. Left interactive with nothing to do, a Leaflet marker still swallows
-   * the press, so a decoration would quietly eat clicks meant for the line or a
+   * open. Left interactive with nothing to do, a marker still swallows the
+   * press, so a decoration would quietly eat clicks meant for the line or a
    * stop underneath it.
    */
-  it('opens the run of a vehicle somebody presses', () => {
+  it('opens the run of a vehicle somebody presses', async () => {
     const onFollowTrip = vi.fn();
-    const { container } = show({
+    const { container } = await show({
       variant: TRAM_1,
       vehicles: [
         {
@@ -373,15 +351,16 @@ describe('RouteMap drawing', () => {
       onFollowTrip,
     });
 
-    const marker = container.querySelector('.route-vehicle-marker') as HTMLElement;
-    expect(marker.classList.contains('leaflet-interactive')).toBe(true);
+    const marker = container.querySelector('.route-vehicle-marker')
+      ?.parentElement as HTMLElement;
+    expect(marker.style.pointerEvents).toBe('auto');
     marker.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
     expect(onFollowTrip).toHaveBeenCalledWith('the-one');
   });
 
-  it('leaves a vehicle inert when there is no run to open', () => {
-    const { container } = show({
+  it('leaves a vehicle inert when there is no run to open', async () => {
+    const { container } = await show({
       variant: TRAM_1,
       vehicles: [
         {
@@ -392,8 +371,9 @@ describe('RouteMap drawing', () => {
       onFollowTrip: null,
     });
 
-    const marker = container.querySelector('.route-vehicle-marker') as HTMLElement;
-    expect(marker.classList.contains('leaflet-interactive')).toBe(false);
+    const marker = container.querySelector('.route-vehicle-marker')
+      ?.parentElement as HTMLElement;
+    expect(marker.style.pointerEvents).toBe('none');
   });
 
   /*
@@ -401,69 +381,76 @@ describe('RouteMap drawing', () => {
    * corridor with a badge somewhere inside it does not answer "where is it" —
    * you have to find the badge before you can read anything from it.
    */
-  it('holds the map on the vehicle when one run is being followed', () => {
+  it('holds the map on the vehicle when one run is being followed', async () => {
     const vehicle = {
       trip: { tripId: 'the-one', serviceDate: '2026-09-10', headsign: null, calls: [] },
       progress: { fromSequence: 0, toSequence: 1, fraction: 0.5, atStop: false },
     };
 
-    const { rerender } = show({ variant: TRAM_1, vehicles: [vehicle], chase: true });
+    const { rerender } = await show({
+      variant: TRAM_1,
+      vehicles: [vehicle],
+      chase: true,
+    });
 
     // The line's own box is never fitted; the vehicle is centred instead.
-    expect(fits).toEqual([]);
-    const centred = moves[moves.length - 1]!;
+    expect(fits()).toEqual([]);
+    const centred = centrings().at(-1)!;
     expect(centred.lat).toBeGreaterThan(TRAM_1.stops[0]!.lat);
     expect(centred.lat).toBeLessThan(TRAM_1.stops[1]!.lat);
     expect(centred.zoom).toBeGreaterThanOrEqual(15);
 
-    moves = [];
-    rerender(
-      <LocaleProvider>
-        <ThemeProvider>
-          <RouteMap
-            network="hsl"
-            area={null}
-            variant={TRAM_1}
-            pending={false}
-            onStopSelect={() => {}}
-            vehicles={[
-              { ...vehicle, progress: { ...vehicle.progress, fraction: 0.9 } },
-            ]}
-            chase
-          />
-        </ThemeProvider>
-      </LocaleProvider>,
-    );
+    liveMap().moves.length = 0;
+    await act(async () => {
+      rerender(
+        view({
+          variant: TRAM_1,
+          vehicles: [{ ...vehicle, progress: { ...vehicle.progress, fraction: 0.9 } }],
+          chase: true,
+        }),
+      );
+    });
 
     // It moved along with it, rather than sitting where it first found it.
-    expect(moves[moves.length - 1]!.lat).toBeGreaterThan(centred.lat);
+    expect(centrings().at(-1)!.lat).toBeGreaterThan(centred.lat);
   });
 
-  it('frames the whole line again once the run is let go', () => {
-    show({ variant: TRAM_1, vehicles: [], chase: false });
+  it('frames the whole line again once the run is let go', async () => {
+    await show({ variant: TRAM_1, vehicles: [], chase: false });
 
-    expect(fits.length).toBeGreaterThan(0);
+    expect(fits().length).toBeGreaterThan(0);
   });
 
-  it('draws none when nothing is out', () => {
-    const { container } = show({ variant: TRAM_1, vehicles: [] });
+  it('draws none when nothing is out', async () => {
+    const { container } = await show({ variant: TRAM_1, vehicles: [] });
     expect(container.querySelectorAll('.route-vehicle')).toHaveLength(0);
   });
 
-  it('opens the stop somebody presses', () => {
+  /*
+   * The stops between the ends. The first and last are drawn as the target and
+   * pin the planner uses, not as circles — a slightly bigger circle among
+   * circles was not a distinction anybody read.
+   *
+   * The circles are one GL layer rather than elements, so the id travels on the
+   * feature and a press is answered by asking the map what is under it. The
+   * layer named in the query is part of what is under test: a handler reading
+   * the wrong layer would find nothing and silently do nothing.
+   */
+  it('opens the stop somebody presses', async () => {
     const onStopSelect = vi.fn();
-    const { container } = show({ variant: TRAM_1, onStopSelect });
+    const { container } = await show({ variant: TRAM_1, onStopSelect });
 
-    /*
-     * The stops between the ends. The first and last are drawn as the target
-     * and pin the planner uses, not as circles — a slightly bigger circle among
-     * circles was not a distinction anybody read.
-     */
-    const circles = [...container.querySelectorAll('path.leaflet-interactive')];
-    expect(circles).toHaveLength(TRAM_1.stops.length - 2);
-    expect(container.querySelectorAll('.route-end')).toHaveLength(2);
+    const data = liveMap().getSource('route-stops')?.data as {
+      features: { properties: Record<string, unknown> }[];
+    };
+    expect(data.features).toHaveLength(TRAM_1.stops.length - 2);
+    // The two ends, drawn as the marks the planner uses rather than as circles.
+    expect(container.querySelector('svg.text-brand-500')).toBeTruthy();
 
-    circles[0]?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    liveMap().hits = [{ layer: 'route-stops-passed', properties: { id: 'id-1' } }];
+    await act(async () => {
+      liveMap().fire('click', { point: { x: 5, y: 5 }, lngLat: { lat: 60.19, lng: 24.94 } });
+    });
 
     expect(onStopSelect).toHaveBeenCalledWith('id-1');
   });

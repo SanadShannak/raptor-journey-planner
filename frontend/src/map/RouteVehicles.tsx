@@ -1,15 +1,13 @@
 import { useMemo } from 'react';
-import L from 'leaflet';
-import { Marker } from 'react-leaflet';
 import { familyFor } from '../features/journey/modeVisuals';
 import {
   pointBetweenStops,
   type ProjectedShape,
 } from '../features/routes/shapeProjection';
-import { VEHICLE_SIZE, vehicleMarkup } from '../features/routes/vehicleMarkup';
+import { vehicleMarkup } from '../features/routes/vehicleMarkup';
 import type { Vehicle } from '../features/routes/vehicleProgress';
-import type { GtfsRouteType } from '../types/journey';
 import type { LineVariantDetail } from '../types/route';
+import { MapMarker } from './MapMarker';
 
 interface Props {
   variant: LineVariantDetail;
@@ -18,8 +16,8 @@ interface Props {
   /**
    * Follows the run a pressed vehicle is on, or null to leave them as pictures.
    *
-   * Null also makes them non-interactive, which matters here: a Leaflet marker
-   * that accepts clicks swallows them, so a decoration left interactive would
+   * Null also makes them non-interactive, which matters here: a marker that
+   * accepts clicks swallows them, so a decoration left interactive would
    * quietly eat presses meant for the line or a stop underneath it.
    */
   onFollow?: ((tripId: string) => void) | null | undefined;
@@ -81,28 +79,27 @@ export function RouteVehicles({
           onFollow === null || tripId === null ? null : () => onFollow(tripId);
 
         return (
-          <Marker
+          <MapMarker
             /*
              * Keyed by trip, so a vehicle moving is the *same* marker moving
              * rather than one being destroyed and another built a few metres
-             * on. Leaflet then repositions the element it already has, which is
-             * both cheaper and what lets a CSS transition ever be added.
+             * on. The marker then repositions the element it already has,
+             * which is both cheaper and what keeps the halo's animation from
+             * restarting on every tick.
              */
             key={vehicle.trip.tripId ?? `${vehicle.progress.fromSequence}`}
             position={placed.point}
-            icon={iconFor(variant.routeType, placed.bearing, variant.routeShortName)}
-            /*
-             * Out of the tab order either way. The sidebar draws the same
-             * vehicles and, when they can be followed, draws them as real
-             * buttons — that is the keyboard's route to this, and it is why a
-             * marker here never needs to be one.
-             */
             interactive={follow !== null}
-            keyboard={false}
-            {...(follow === null ? {} : { eventHandlers: { click: follow } })}
+            {...(follow === null ? {} : { onClick: follow })}
             // Above the line and the stop circles, which it is travelling over.
-            zIndexOffset={1000}
-          />
+            zIndex={1000}
+          >
+            <VehicleBadge
+              family={familyFor(variant.routeType)}
+              bearing={placed.bearing}
+              designation={variant.routeShortName}
+            />
+          </MapMarker>
         );
       })}
     </>
@@ -110,23 +107,26 @@ export function RouteVehicles({
 }
 
 /**
- * Leaflet builds a marker from an HTML string, so the badge arrives as markup.
+ * The badge, from the same builder the sidebar draws with.
  *
- * Not memoised: the bearing changes with almost every tick, so a cache keyed on
- * it would grow without ever being hit. Building one small SVG string a few
- * times a second is not the expensive part of a map.
+ * Markup rather than JSX because it has two renderers and they must not drift
+ * — the spine beside the map draws these too. Not memoised: the bearing
+ * changes with almost every tick, so a cache keyed on it would grow without
+ * ever being hit.
  */
-function iconFor(
-  routeType: GtfsRouteType,
-  bearing: number,
-  designation: string,
-): L.DivIcon {
-  return L.divIcon({
-    // The badge inside carries `route-vehicle`; this is only Leaflet's wrapper,
-    // and naming both the same would double every count of them.
-    className: 'route-vehicle-marker',
-    html: vehicleMarkup(familyFor(routeType), bearing, designation),
-    iconSize: [VEHICLE_SIZE, VEHICLE_SIZE],
-    iconAnchor: [VEHICLE_SIZE / 2, VEHICLE_SIZE / 2],
-  });
+export function VehicleBadge({
+  family,
+  bearing,
+  designation,
+}: {
+  family: string;
+  bearing: number;
+  designation: string;
+}) {
+  return (
+    <span
+      className="route-vehicle-marker block"
+      dangerouslySetInnerHTML={{ __html: vehicleMarkup(family, bearing, designation) }}
+    />
+  );
 }
