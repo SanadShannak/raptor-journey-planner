@@ -93,17 +93,35 @@ export default function FavouritesPage() {
     return () => controller.abort();
   }, []);
 
-  const rows: { kind: FavouriteKind; heading: Message }[] = [
-    { kind: 'stop', heading: strings.favourites.groupStops },
-    { kind: 'route', heading: strings.favourites.groupRoutes },
-    { kind: 'itinerary', heading: strings.favourites.groupItineraries },
+  const rows: { kind: FavouriteKind; heading: Message; empty: Message }[] = [
+    {
+      kind: 'stop',
+      heading: strings.favourites.groupStops,
+      empty: strings.favourites.noStops,
+    },
+    {
+      kind: 'route',
+      heading: strings.favourites.groupRoutes,
+      empty: strings.favourites.noRoutes,
+    },
+    {
+      kind: 'itinerary',
+      heading: strings.favourites.groupItineraries,
+      empty: strings.favourites.noItineraries,
+    },
   ];
 
   const afterRemove = () => headingRef.current?.focus();
 
   return (
-    <div className="flex w-full flex-col gap-2.5 px-4 py-2.5 sm:px-6 lg:px-8">
-      <div className="flex flex-col gap-0.5">
+    <div className="flex w-full flex-col gap-2 px-4 py-1.5 sm:px-6 lg:px-8">
+      {/*
+        The heading and its one line of explanation share a row rather than
+        stacking. Both are worth saying and neither is worth a row of cards'
+        worth of height to say — and on a page whose whole point is fitting on
+        one screen, a spare line at the top is a departure lost at the bottom.
+      */}
+      <div className="flex flex-wrap items-baseline gap-x-3">
         <h1
           ref={headingRef}
           tabIndex={-1}
@@ -121,19 +139,28 @@ export default function FavouritesPage() {
         </p>
       </div>
 
-      {favourites.length === 0 ? (
-        <div className="rounded-card border-border bg-surface-muted flex max-w-prose flex-col gap-1 border px-4 py-5">
-          <p className="font-medium">{t(strings.favourites.empty)}</p>
-          <p className="text-content-muted text-sm">{t(strings.favourites.emptyHint)}</p>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-2.5">
-          {rows.map(({ kind, heading }) => {
+      {/*
+        All three rows, always — an empty one says so rather than disappearing.
+        A page whose sections come and go as things are saved is one a reader
+        has to re-read on every visit to find out what is on it, and the empty
+        state is also the only place that says where each kind's star lives.
+      */}
+      <div className="flex flex-col gap-2">
+          {rows.map(({ kind, heading, empty }) => {
             const mine = favourites.filter((favourite) => favourite.kind === kind);
-            if (mine.length === 0) return null;
 
             return (
-              <section key={kind} className="flex flex-col gap-1">
+              /*
+                `shrink-0` is load-bearing. The layout above lets `<main>` be
+                shorter than its content, and a row that can shrink does — into
+                its own scroller, which then clips the cards from the bottom.
+                And it clips *silently*: `overflow-x: auto` forces the other
+                axis to `auto` too, so the row quietly absorbs the overflow and
+                the document still measures exactly one viewport tall while a
+                card's footer is cut off inside it. Refusing to shrink makes the
+                page's real height real again.
+              */
+              <section key={kind} className="flex shrink-0 flex-col gap-1">
                 <div className="flex items-baseline justify-between gap-3">
                   <h2 className="text-base font-semibold tracking-tight">{t(heading)}</h2>
                   <p className="text-content-muted text-xs tabular-nums">
@@ -163,9 +190,16 @@ export default function FavouritesPage() {
                   screen reader working along five saved stops does not need to
                   hear how to reorder them five times.
                 */}
-                <p className="sr-only">{t(strings.favourites.dragHint)}</p>
+                {mine.length > 1 && (
+                  <p className="sr-only">{t(strings.favourites.dragHint)}</p>
+                )}
 
-                <div className="overflow-x-auto pb-1">
+                {mine.length === 0 ? (
+                  <p className="rounded-card border-border bg-surface-muted text-content-muted border px-3 py-2.5 text-sm">
+                    {t(empty)}
+                  </p>
+                ) : (
+                <div className="shrink-0 overflow-x-auto pb-0.5">
                   <ul className="flex items-stretch gap-3">
                     {mine.map((favourite) => {
                       const key = identity(favourite);
@@ -195,11 +229,11 @@ export default function FavouritesPage() {
                     })}
                   </ul>
                 </div>
+                )}
               </section>
             );
           })}
-        </div>
-      )}
+      </div>
     </div>
   );
 }

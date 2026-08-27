@@ -163,11 +163,27 @@ describe('useLegVehicles', () => {
     expect(result.current[0]?.leg).toBe(LEG);
   });
 
-  it('finds the vehicle after the traveller has already got off', async () => {
+  /*
+   * The traveller alights at s3 at 10:30. Standing there is still their
+   * vehicle — it is the one they are stepping off — so it is the departure
+   * that ends it, not the arrival.
+   */
+  it('is still there while it stands at the stop the traveller gets off at', async () => {
+    stubFetch();
+    const { result } = renderHook(() => useLegVehicles(JOURNEY, at('10:30')));
+
+    await waitFor(() => expect(result.current).toHaveLength(1));
+  });
+
+  it('is gone once it has pulled away from where the traveller got off', async () => {
     stubFetch();
     const { result } = renderHook(() => useLegVehicles(JOURNEY, at('10:35')));
 
-    await waitFor(() => expect(result.current).toHaveLength(1));
+    /*
+     * The trip itself runs on to s4 at 10:40 and `progressOf` still places it
+     * — this is the leg's own end bounding the drawing, not the trip ending.
+     */
+    await waitFor(() => expect(result.current).toEqual([]));
   });
 
   it('is nowhere before the trip sets off from its own true origin', async () => {

@@ -3,7 +3,7 @@ import { formatDate, useLocale } from '../../i18n';
 import { WALKING_PACES } from '../../config/journey';
 import type { NetworkMoment } from '../stops/minutesUntil';
 import type { ItineraryFavourite } from './favourite';
-import { FavouriteCard } from './FavouriteCard';
+import { FavouriteCard, TEXT_INSET } from './FavouriteCard';
 import { journeyFavouritePath } from './journeyFavouritePath';
 
 interface Props {
@@ -52,8 +52,8 @@ export function FavouriteJourneyRow({
   const pace = t(strings.planner[PACE_LABEL[favourite.pace]]);
 
   const field = (label: string, value: string, strong: boolean) => (
-    <div className="flex items-baseline gap-2">
-      <span className="text-content-muted w-12 flex-none text-xs">{label}</span>
+    <div className={`flex items-baseline gap-2 ${TEXT_INSET}`}>
+      <span className="text-content-muted w-14 flex-none text-xs">{label}</span>
       {/*
         No `dir="auto"` on the value. It resolves from the first strong
         character, so on an Arabic page a Latin place name turned its own box
@@ -112,18 +112,26 @@ export function FavouriteJourneyRow({
         journey saved before the date was recorded.
       */
       subtitle={
-        favourite.savedOn === null
-          ? null
-          : t(strings.favourites.savedOn, {
+        favourite.savedOn === null ? null : (
+          <span className={`block ${TEXT_INSET}`}>
+            {t(strings.favourites.savedOn, {
               date: formatDate(favourite.savedOn, locale, {
                 day: 'numeric',
                 month: 'short',
                 year: 'numeric',
               }),
-            })
+            })}
+          </span>
+        )
       }
     >
-      <div className="flex flex-col gap-1.5">
+      {/*
+        The card carries three short facts where the others carry a list, so it
+        can afford — and needs — the room the others spend on rows. Run tight
+        together they read as one block of small print rather than as three
+        separate answers.
+      */}
+      <div className="flex flex-col gap-2.5 py-1">
         {field(t(strings.favourites.fromLabel), favourite.origin.label, true)}
         {field(t(strings.favourites.toLabel), favourite.destination.label, true)}
         {/* The same weight as the two places: all three are facts about the
@@ -142,7 +150,7 @@ export function FavouriteJourneyRow({
         and a second control inside it pointing at the same place would be two
         answers to one press. It says what the card does.
       */}
-      <p className="text-brand-500 mt-0.5 flex items-center gap-1 text-xs font-medium">
+      <p className="text-brand-500 mt-1 flex items-center gap-1 text-xs font-medium">
         <svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <circle cx="8.5" cy="8.5" r="5.5" />
           <path d="M12.5 12.5L18 18" />

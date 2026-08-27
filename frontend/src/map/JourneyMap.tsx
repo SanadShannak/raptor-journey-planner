@@ -28,7 +28,7 @@ import {
   type BoundingBox,
 } from '../features/journey/journeyGeometry';
 import { useLegVehicles } from '../features/journey/useLegVehicles';
-import { useNetworkNow } from '../features/stops/useNetworkNow';
+import { useNetworkNow, VEHICLE_TICK_MS } from '../features/stops/useNetworkNow';
 import { nowSeconds } from '../features/routes/vehicleProgress';
 import { VEHICLE_SIZE, vehicleMarkup } from '../features/routes/vehicleMarkup';
 import { MapCanvas, FitTo } from './MapCanvas';
@@ -498,7 +498,13 @@ export function JourneyMap({
   timezone = null,
 }: Props) {
   const locale = useLocale();
-  const now = useNetworkNow(timezone);
+  /*
+   * The vehicle tick, not the countdown one. This map draws a ridden leg's own
+   * vehicle interpolated along its shape, which is exactly what the line's map
+   * does — at thirty seconds it crawled in visible steps while the same vehicle
+   * on the line's own page moved smoothly.
+   */
+  const now = useNetworkNow(timezone, VEHICLE_TICK_MS);
   const atSeconds = now === null ? null : nowSeconds(now);
   /*
    * Held here rather than inside the chooser, because two other things now

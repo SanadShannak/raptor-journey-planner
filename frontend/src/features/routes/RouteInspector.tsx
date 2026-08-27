@@ -5,7 +5,7 @@ import { DateSelect } from '../../components/DateSelect';
 import { ScheduleEstimateNotice } from '../../components/ScheduleEstimateNotice';
 import { messageForApiError, useLocale } from '../../i18n';
 import type { Line, LineVariantDetail, VariantTimetable } from '../../types/route';
-import { useNetworkNow } from '../stops/useNetworkNow';
+import { useNetworkNow, VEHICLE_TICK_MS } from '../stops/useNetworkNow';
 import { familyFor, visualForFamily } from '../journey/modeVisuals';
 import { daySpan } from './daySpan';
 import { RouteHeader } from './RouteHeader';
@@ -15,18 +15,6 @@ import { VariantPicker } from './VariantPicker';
 import { reconcileSelection } from './stopSelection';
 import { activeVehicles, nowSeconds, type Vehicle } from './vehicleProgress';
 
-/**
- * How often the vehicles are moved.
- *
- * Ten seconds. The countdowns beside them tick at thirty, which is right for a
- * number that only ever changes once a minute — but a *position* between two
- * scheduled times is continuous, and at thirty seconds a vehicle crossing a
- * two-minute leg lurches through four places instead of gliding through twelve.
- *
- * It costs a re-render of the stop list, which is a few dozen rows of static
- * markup either side of the thing that actually moved.
- */
-const VEHICLE_TICK_MS = 10_000;
 
 interface Props {
   lineId: string;

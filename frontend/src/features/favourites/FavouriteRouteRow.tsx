@@ -10,7 +10,7 @@ import type { NetworkMoment } from '../stops/minutesUntil';
 import { nextCallsAt, type NextCall } from '../routes/nextCallAt';
 import { identity, type RouteFavourite } from './favourite';
 import { refreshFavourite } from './favouritesStore';
-import { DeparturePager, FavouriteCard } from './FavouriteCard';
+import { DeparturePager, FavouriteCard, TEXT_INSET } from './FavouriteCard';
 
 interface Props {
   favourite: RouteFavourite;
@@ -183,7 +183,7 @@ export function FavouriteRouteRow({
       }
       subtitle={
         destination === null ? null : (
-          <span dir="auto" className="block truncate">
+          <span className={`block truncate [unicode-bidi:plaintext] ${TEXT_INSET}`}>
             {t(strings.routes.towards, { destination })}
           </span>
         )
@@ -215,7 +215,7 @@ export function FavouriteRouteRow({
             {visible.map((next) => (
               <li
                 key={`${next.call.date}-${next.call.time}`}
-                className="border-border flex items-center justify-between gap-2 border-b py-1.5 text-sm tabular-nums last:border-b-0"
+                className="border-border flex items-center justify-between gap-2 border-b py-1 text-sm tabular-nums last:border-b-0"
               >
                 <span className="text-content font-medium">
                   {formatClockTime(next.call.time, locale)}

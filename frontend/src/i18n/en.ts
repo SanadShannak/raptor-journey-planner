@@ -389,8 +389,9 @@ export const en: Dictionary = {
 
     intro: 'Everything you have saved, and what leaves next.',
     savedOnDevice: 'Favourites are saved on this device.',
-    empty: 'Nothing saved yet.',
-    emptyHint: 'Press the star on a stop, a route, or a completed search to save it here.',
+    noStops: 'No saved stops. Press the star on a stop to keep it here.',
+    noRoutes: 'No saved routes. Press the star on a route to keep it here.',
+    noItineraries: 'No saved journeys. Fill in a search and press the star beside it.',
     groupStops: 'Stops',
     groupRoutes: 'Routes',
     groupItineraries: 'Journeys',

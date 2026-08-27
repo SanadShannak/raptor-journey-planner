@@ -31,6 +31,17 @@ import type { NetworkMoment } from './minutesUntil';
  */
 const TICK_MS = 30_000;
 
+/**
+ * The faster tick, for anything drawing a vehicle *between* two scheduled
+ * stops rather than counting down to one.
+ *
+ * Ten seconds. A countdown changes once a minute, so thirty is plenty for it;
+ * a position interpolated along a leg moves continuously, and at thirty it
+ * jumps in visible steps. Shared by the line's own map and the planner's,
+ * which draw the same thing and were drifting apart at different rates.
+ */
+export const VEHICLE_TICK_MS = 10_000;
+
 const readClock = (timezone: string | null): NetworkMoment | null =>
   timezone === null ? null : nowInZone(timezone);
 

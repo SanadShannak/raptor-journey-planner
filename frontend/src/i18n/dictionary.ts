@@ -628,8 +628,18 @@ export interface Dictionary {
     /* The page. */
     intro: string;
     savedOnDevice: string;
-    empty: string;
-    emptyHint: string;
+    /**
+     * A kind with nothing saved in it yet.
+     *
+     * The row stays on the page rather than vanishing, so the three categories
+     * are always the same three in the same places — a page whose sections
+     * appear and disappear as you save things is one you have to re-read every
+     * visit. Each names where its own star lives, which is the one thing a
+     * reader needs and is different for each of them.
+     */
+    noStops: string;
+    noRoutes: string;
+    noItineraries: string;
     /** The three group headings, in the order they are drawn. */
     groupStops: string;
     groupRoutes: string;

@@ -80,10 +80,20 @@ export function RootLayout() {
         where the two-pane layout applies — on a phone the planner stacks and
         the page has to scroll.
       */
+      /*
+        Keyed on `fullHeight`, not on whether a footer is drawn. Those used to
+        be the same question and are not any more: favourites and the card have
+        no footer but are still ordinary documents that must be allowed to grow
+        and scroll. Pinning them here clipped them instead — and clipped them
+        silently, because a row's own `overflow-x: auto` forces the other axis
+        to `auto` as well, so the overflow was absorbed inside the row and the
+        document still measured exactly one viewport tall with a card's footer
+        cut off inside it.
+      */
       className={
-        showFooter
-          ? 'min-h-viewport flex flex-col'
-          : 'min-h-viewport flex flex-col lg:fixed lg:inset-0 lg:overflow-hidden'
+        fullHeight
+          ? 'min-h-viewport flex flex-col lg:fixed lg:inset-0 lg:overflow-hidden'
+          : 'min-h-viewport flex flex-col'
       }
     >
       {/*

@@ -27,6 +27,17 @@ interface Props {
   onDragEnd: () => void;
 }
 
+/**
+ * Lines a run of text up with the text *inside* a bordered badge beside it.
+ *
+ * A stop's code sits in a bordered chip, so its glyphs start a border and a
+ * padding in from the chip's own edge — seven pixels the plain name above it
+ * did not have, which read as the code being indented under the name. Matching
+ * the chip's geometry with a transparent border puts the two on one edge, and
+ * gives the name's own focus ring the same shape as the chip while it is at it.
+ */
+export const TEXT_INSET = 'border border-transparent px-1.5';
+
 const CONTROL =
   'pointer-events-auto relative rounded-control text-content-muted hover:text-content hover:bg-surface-muted focus-visible:outline-brand-500 flex h-7 w-7 flex-none cursor-pointer items-center justify-center focus-visible:outline-2 focus-visible:outline-offset-1 disabled:cursor-not-allowed disabled:opacity-30';
 
@@ -101,6 +112,18 @@ export function FavouriteCard({
         // Firefox refuses to start a drag without data on the transfer.
         event.dataTransfer.setData('text/plain', key);
         event.dataTransfer.effectAllowed = 'move';
+        /*
+         * The card itself is what is being carried. Without this the browser
+         * builds its own ghost from whatever is under the pointer, and over a
+         * card whose whole surface is a stretched link that is a chip showing
+         * the URL — an address nobody asked for, floating next to a card that
+         * is plainly the thing being moved.
+         */
+        event.dataTransfer.setDragImage(
+          event.currentTarget,
+          event.nativeEvent.offsetX,
+          event.nativeEvent.offsetY,
+        );
         onDragStart();
       }}
       onDragEnter={onDragEnter}
@@ -116,6 +139,11 @@ export function FavouriteCard({
     >
       <Link
         to={to}
+        /*
+         * An anchor drags itself by default, and a link drag is what puts the
+         * URL chip on the pointer. The card's own drag is the one wanted here.
+         */
+        draggable={false}
         onKeyDown={(event) => {
           if (!event.altKey) return;
           const earlier = direction === 'rtl' ? 'ArrowRight' : 'ArrowLeft';
@@ -161,24 +189,36 @@ export function FavouriteCard({
                 type="button"
                 onClick={() => setEditing(true)}
                 aria-label={t(strings.favourites.renameNamed, { name: title })}
-                className="rounded-control hover:decoration-content-muted focus-visible:outline-brand-500 pointer-events-auto relative cursor-text text-start text-sm font-medium underline decoration-transparent decoration-dotted underline-offset-4 transition-colors focus-visible:outline-2 focus-visible:outline-offset-1"
+                className={`rounded-control hover:decoration-content-muted focus-visible:outline-brand-500 pointer-events-auto relative cursor-text text-start text-sm font-medium underline decoration-transparent decoration-dotted underline-offset-4 transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 ${TEXT_INSET}`}
               >
                 {/*
-                  No `dir="auto"`. It resolves from the first strong character,
-                  so on an Arabic page a Latin name — "Bulevardi", or a line's
-                  long name — turned its own box left-to-right and sat against
-                  the far edge of the card, while the code badge on the line
-                  below stayed against the near one. The name belongs directly
-                  above the badge. Inheriting the page's direction puts it
-                  there, and bidi still renders the name itself left-to-right
-                  inside: the box follows the page, the text follows itself.
-                  The same rule the stop heading already documents.
+                  `unicode-bidi: plaintext` rather than `dir="auto"`, and the
+                  difference is the whole point.
+
+                  `dir` would flip the *box*, so a Latin name on an Arabic page
+                  sat against the far edge of the card while the code badge
+                  below stayed against the near one. Inheriting the page's
+                  direction fixed that but broke the other end: an over-long
+                  Latin name was then truncated at the RTL line's own end,
+                  which is its left — so the ellipsis ate "Olympiaterminaali"
+                  off the front and left "…Kallio - Kuusitie".
+
+                  `plaintext` takes the paragraph direction from the content, so
+                  the name is laid out and truncated as the left-to-right run it
+                  is — ellipsis at its end — while `direction` stays the page's
+                  and the box keeps sitting where the badge does.
                 */}
-                <span className="block truncate">{title}</span>
+                <span className="block truncate [unicode-bidi:plaintext]">{title}</span>
               </button>
             )}
 
             {subtitle !== null && (
+              /*
+                No inset here. A subtitle that is a bordered badge already has
+                its own, and insetting the wrapper pushed the badge across
+                rather than lining the name up with it. A row whose subtitle is
+                plain text applies {@link TEXT_INSET} to that text itself.
+              */
               <div className="text-content-muted min-w-0 text-xs">{subtitle}</div>
             )}
           </div>
@@ -188,7 +228,29 @@ export function FavouriteCard({
 
         <div className="border-border -mx-0.5 mt-auto flex items-center justify-between gap-1 border-t pt-1">
           {/* The pager belongs to the list above it, so it sits at the start. */}
-          <div className="flex items-center gap-0.5">{pager}</div>
+          <div className="flex items-center gap-0.5">
+            {/*
+              The grip. Nothing else on the card said it could be picked up —
+              `cursor: grab` only appears once a pointer is already on it, and
+              says nothing to anyone reading rather than pointing. Decorative
+              here: the row states the same thing in words for a screen reader,
+              and repeating it per card would be the noisier answer.
+            */}
+            <span
+              aria-hidden="true"
+              className="text-content-muted/70 flex h-7 w-4 flex-none items-center justify-center"
+            >
+              <svg viewBox="0 0 10 16" width="10" height="16" fill="currentColor" aria-hidden="true">
+                <circle cx="3" cy="4" r="1.1" />
+                <circle cx="7" cy="4" r="1.1" />
+                <circle cx="3" cy="8" r="1.1" />
+                <circle cx="7" cy="8" r="1.1" />
+                <circle cx="3" cy="12" r="1.1" />
+                <circle cx="7" cy="12" r="1.1" />
+              </svg>
+            </span>
+            {pager}
+          </div>
 
           <button
             type="button"
