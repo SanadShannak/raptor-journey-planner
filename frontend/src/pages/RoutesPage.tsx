@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { useGoBack } from '../app/useBackStack';
 import { backLabel } from '../app/backLabel';
+import { sameKindStep } from '../app/sameKindStep';
 import { useLocale, nowInZone } from '../i18n';
 import { usePageTitle } from '../app/usePageTitle';
 import { linePath, lineVariantPath, paths, stopPath, tripPath } from '../app/routes';
@@ -145,12 +146,19 @@ export default function RoutesPage() {
 
   const openLine = useCallback(
     (id: string) => {
-      // So the line can name the way back — "All lines" rather than "Back".
-      void navigate(linePath(id), {
-        state: { back: `${here.pathname}${here.search}` },
-      });
+      // The same rule the variant switcher below follows, for the same
+      // reason — and so a line can name the way back. See `sameKindStep`.
+      void navigate(
+        linePath(id),
+        sameKindStep({
+          inside: lineId !== undefined,
+          cameFrom,
+          here: `${here.pathname}${here.search}`,
+          index: paths.routes,
+        }),
+      );
     },
-    [navigate, here.pathname, here.search],
+    [navigate, here.pathname, here.search, lineId, cameFrom],
   );
 
   /*

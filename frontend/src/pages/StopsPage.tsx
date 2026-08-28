@@ -5,6 +5,7 @@ import { usePageTitle } from '../app/usePageTitle';
 import { paths, stopPath } from '../app/routes';
 import { useGoBack } from '../app/useBackStack';
 import { backLabel } from '../app/backLabel';
+import { sameKindStep } from '../app/sameKindStep';
 import { getValidDates } from '../api/journey';
 import { getNetwork } from '../api/network';
 import { getStopsInBounds } from '../api/stops';
@@ -162,14 +163,19 @@ export default function StopsPage() {
 
   const openStop = useCallback(
     (id: string) => {
-      // The return address every other stop link carries, so a stop reached
-      // from the index or from the map can name the way back rather than
-      // falling through to the bare word.
-      void navigate(stopPath(id), {
-        state: { back: `${at.pathname}${at.search}` },
-      });
+      // A hop between stops stays at this depth and keeps the original way
+      // back; a step in from the list records one. See `sameKindStep`.
+      void navigate(
+        stopPath(id),
+        sameKindStep({
+          inside: stopId !== undefined,
+          cameFrom,
+          here: `${at.pathname}${at.search}`,
+          index: paths.stops,
+        }),
+      );
     },
-    [navigate, at.pathname, at.search],
+    [navigate, at.pathname, at.search, stopId, cameFrom],
   );
 
   /*
