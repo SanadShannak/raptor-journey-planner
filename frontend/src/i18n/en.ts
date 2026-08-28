@@ -191,6 +191,9 @@ export const en: Dictionary = {
     mapLabel: 'Map of the journey',
     zoomIn: 'Zoom in',
     zoomOut: 'Zoom out',
+    mapUnavailableTitle: 'The map cannot be shown here',
+    mapUnavailableBody:
+      'This browser does not support the graphics the map is drawn with. Everything the map would show is listed beside it.',
 
     showOnMap: 'Show this journey on the map',
     viewDetails: 'Show this journey step by step',

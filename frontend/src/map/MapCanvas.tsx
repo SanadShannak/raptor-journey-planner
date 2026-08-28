@@ -43,6 +43,7 @@ import {
 import { lngLatBounds } from './coords';
 import {
   acquireMap,
+  discardPooledMap,
   isPooledMap,
   notePooledStyle,
   pooledStyle,
@@ -51,6 +52,7 @@ import {
 import { homeViewFor, type HomeView } from './homeView';
 import { tileSourceFor } from './tileSource';
 import { useReducedMotion } from './useReducedMotion';
+import { hasWebGl } from './webgl';
 
 interface Props {
   /** Which network, for the tile source. */
@@ -116,6 +118,26 @@ export function MapCanvas({ network, initialView, children }: Props) {
   const { direction, strings, t } = useLocale();
   const { resolved } = useTheme();
   const reduceMotion = useReducedMotion();
+
+  /*
+   * Asked once, and before anything else here does any work.
+   *
+   * A map that cannot be built must not be attempted: MapLibre throws from the
+   * constructor, the error escapes the effect, React unwinds the tree, and the
+   * reader loses the whole page — the itinerary included, which needed no map
+   * at all. See `webgl.ts`.
+   */
+  const [supported] = useState(hasWebGl);
+  /**
+   * Set when the map refuses to build despite the probe saying it could.
+   *
+   * The probe answers whether a WebGL2 context can be had, which is necessary
+   * and not sufficient: a blocklisted driver, an exhausted context budget or a
+   * remote session can all hand one over and then fail to initialise a
+   * renderer on it. Caught rather than trusted, because the cost of being
+   * wrong is the whole page.
+   */
+  const [blocked, setBlocked] = useState(false);
 
   const container = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<GlMap | null>(null);
@@ -209,16 +231,33 @@ export function MapCanvas({ network, initialView, children }: Props) {
    */
   useEffect(() => {
     const node = container.current;
-    if (node === null) return;
+    if (node === null || !supported) return;
 
-    const {
-      map: instance,
-      container: host,
-      reused,
-      loaded,
-      styleReady: readyNow,
-      drawn,
-    } = acquireMap({
+    /*
+     * Gives up on the map, quietly and completely.
+     *
+     * The half-built map is discarded rather than released: released, it would
+     * sit in the pool and be handed to the next page as though it worked. A
+     * renderer that would not start for this page will not start for that one
+     * either, and a broken map that looks reusable is worse than none.
+     */
+    const giveUp = () => {
+      discardPooledMap();
+      setBlocked(true);
+    };
+
+    /*
+     * Everything the map needs to exist and be wired up, inside one attempt.
+     *
+     * Not just the construction: a driver that fails late throws from the
+     * first call made into the renderer, which might be subscribing or
+     * resizing rather than `new Map`. Anything that escapes this effect
+     * unwinds the page, so the boundary is drawn around the whole setup
+     * rather than around the line most likely to fail.
+     */
+    let acquired;
+    try {
+      acquired = acquireMap({
       style,
       center: [opening.current.center[1], opening.current.center[0]],
       zoom: opening.current.zoom,
@@ -248,14 +287,19 @@ export function MapCanvas({ network, initialView, children }: Props) {
         'NavigationControl.ZoomIn': labels.current.zoomIn,
         'NavigationControl.ZoomOut': labels.current.zoomOut,
       },
-    });
+      });
+    } catch {
+      return giveUp();
+    }
 
-    // The element travels with the map; a GL map cannot be handed a different
-    // one. See `mapPool`.
-    node.appendChild(host);
-    borrowed.current = instance;
-
-    applied.current = pooledStyle() ?? style;
+    const {
+      map: instance,
+      container: host,
+      reused,
+      loaded,
+      styleReady: readyNow,
+      drawn,
+    } = acquired;
 
     const onLoad = () => setMap(instance);
     const onIdle = () => setPainted(true);
@@ -269,34 +313,45 @@ export function MapCanvas({ network, initialView, children }: Props) {
       setStyleEpoch((count) => count + 1);
     };
 
-    instance.on('load', onLoad);
-    instance.on('style.load', onStyle);
-    instance.once('idle', onIdle);
+    try {
+      // The element travels with the map; a GL map cannot be handed a
+      // different one. See `mapPool`.
+      node.appendChild(host);
+      borrowed.current = instance;
 
-    if (reused) {
-      /*
-       * The borrowed map is somewhere else: the page before this one framed
-       * it. Put it where this page opens, without animating — the same rule a
-       * freshly built map follows for its own first framing.
-       */
-      instance.jumpTo({
-        center: [opening.current.center[1], opening.current.center[0]],
-        zoom: opening.current.zoom,
-      });
-      instance.resize();
+      applied.current = pooledStyle() ?? style;
 
-      /*
-       * Whatever already happened will not happen again, so it is applied
-       * here; whatever has not yet happened still arrives as an event.
-       *
-       * Each is asked separately rather than inferred from "reused", which was
-       * the bug: a map borrowed moments after it was built has not loaded, and
-       * telling the layers otherwise threw `Style is not done loading` — in a
-       * passive effect, which takes the render down with it.
-       */
-      if (loaded) setMap(instance);
-      if (readyNow) setStyleReady(true);
-      if (drawn) setPainted(true);
+      instance.on('load', onLoad);
+      instance.on('style.load', onStyle);
+      instance.once('idle', onIdle);
+
+      if (reused) {
+        /*
+         * The borrowed map is somewhere else: the page before this one framed
+         * it. Put it where this page opens, without animating — the same rule
+         * a freshly built map follows for its own first framing.
+         */
+        instance.jumpTo({
+          center: [opening.current.center[1], opening.current.center[0]],
+          zoom: opening.current.zoom,
+        });
+        instance.resize();
+
+        /*
+         * Whatever already happened will not happen again, so it is applied
+         * here; whatever has not yet happened still arrives as an event.
+         *
+         * Each is asked separately rather than inferred from "reused", which
+         * was the bug: a map borrowed moments after it was built has not
+         * loaded, and telling the layers otherwise threw `Style is not done
+         * loading` — in a passive effect, which takes the render down with it.
+         */
+        if (loaded) setMap(instance);
+        if (readyNow) setStyleReady(true);
+        if (drawn) setPainted(true);
+      }
+    } catch {
+      return giveUp();
     }
 
     return () => {
@@ -425,6 +480,8 @@ export function MapCanvas({ network, initialView, children }: Props) {
     [map, styleEpoch, styleReady, isAlive, isFirstFraming],
   );
 
+  if (!supported || blocked) return <MapUnavailable />;
+
   return (
     /*
       `data-painted` drives the fade; the rule lives in the stylesheet because
@@ -440,6 +497,53 @@ export function MapCanvas({ network, initialView, children }: Props) {
       {handle !== null && (
         <MapContext.Provider value={handle}>{children}</MapContext.Provider>
       )}
+    </div>
+  );
+}
+
+/**
+ * What stands in the map's place when the browser cannot draw one.
+ *
+ * Deliberately quiet, and deliberately not an error. Nothing has gone wrong
+ * and there is nothing to retry: this browser cannot draw a vector map, and
+ * the page has been built all along so that it does not need to. Every stop,
+ * leg, time and change the map would show is written out beside it, which is
+ * the rule the map has always been held to — that it is an enhancement over an
+ * accessible list, never the only route to anything. This is the one moment
+ * that rule is doing visible work, and the message says so rather than
+ * apologising.
+ *
+ * It fills the pane the map would have, so the layout is unchanged: the
+ * sidebar keeps its width and the page keeps its shape. No `role="alert"` —
+ * it is a standing fact about the browser, not news, and interrupting a screen
+ * reader with it on every map page would be worse than the missing map.
+ */
+function MapUnavailable() {
+  const { strings, t } = useLocale();
+
+  return (
+    <div className="bg-surface-muted absolute inset-0 flex h-full w-full items-center justify-center p-6">
+      <div className="flex max-w-sm flex-col gap-2 text-center">
+        <svg
+          viewBox="0 0 24 24"
+          width="28"
+          height="28"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          className="text-content-muted mx-auto"
+        >
+          {/* The map mark this app already uses, struck through. */}
+          <path d="M9 4.5 3.5 6.8v12.7L9 17.2l6 2.3 5.5-2.3V4.5L15 6.8Z" />
+          <path d="M9 4.5v12.7M15 6.8v12.7" />
+          <path d="m4 20 16-16" />
+        </svg>
+        <p className="text-content font-semibold">{t(strings.planner.mapUnavailableTitle)}</p>
+        <p className="text-content-muted text-sm">{t(strings.planner.mapUnavailableBody)}</p>
+      </div>
     </div>
   );
 }
