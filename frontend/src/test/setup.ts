@@ -14,6 +14,31 @@ import { discardPooledMap } from '../map/mapPool';
 afterEach(discardPooledMap);
 
 /*
+ * jsdom implements no WebGL, so the capability probe in `map/webgl.ts` says no
+ * — correctly, and unhelpfully: every map test would render the fallback panel
+ * and assert nothing about the map.
+ *
+ * The renderer is replaced wholesale anyway (see `test/mapStub.ts`), so what
+ * the environment needs is only to *answer* the question the way a browser
+ * would. A test about the fallback overrides this for itself.
+ */
+const realGetContext = HTMLCanvasElement.prototype.getContext;
+HTMLCanvasElement.prototype.getContext = function (
+  this: HTMLCanvasElement,
+  type: string,
+  ...rest: unknown[]
+) {
+  if (type === 'webgl2') {
+    return { getExtension: () => null } as unknown as WebGL2RenderingContext;
+  }
+  return (realGetContext as (this: HTMLCanvasElement, ...a: unknown[]) => unknown).call(
+    this,
+    type,
+    ...rest,
+  );
+} as typeof HTMLCanvasElement.prototype.getContext;
+
+/*
  * Neither runtime gives us a working `localStorage` here: Node 26 defines a
  * global that stays inert unless the process was started with
  * --localstorage-file, and this jsdom version does not expose one on `window`.

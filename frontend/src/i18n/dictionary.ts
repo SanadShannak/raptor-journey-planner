@@ -250,6 +250,17 @@ export interface Dictionary {
     /** Leaflet writes these as both `title` and `aria-label` on its buttons. */
     zoomIn: string;
     zoomOut: string;
+    /**
+     * Shown in the map's place when the browser cannot draw one.
+     *
+     * The maps are vector and drawn on the GPU, so a browser without WebGL2
+     * has no map — not a slower one, none. Said plainly, and paired with where
+     * the same information actually is, because it is all written out beside
+     * the map already: this is the one page element that was never the only
+     * route to anything.
+     */
+    mapUnavailableTitle: string;
+    mapUnavailableBody: string;
 
     /* The overview list, and the detail panel one itinerary opens into. */
     /**

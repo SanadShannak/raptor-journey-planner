@@ -7,11 +7,14 @@ import { useGoBack } from '../app/useBackStack';
 import { backLabel } from '../app/backLabel';
 import { getValidDates } from '../api/journey';
 import { getNetwork } from '../api/network';
+import { getStopsInBounds } from '../api/stops';
 import { nowInZone } from '../i18n';
 import { boundsForNetwork, type GeoBounds } from '../config/geocoding';
 import type { NetworkStop, StopIdentity } from '../types/stop';
 import { StopInspector } from '../features/stops/StopInspector';
 import { StopsMap } from '../map/StopsMap';
+import { stopsViewFor } from '../map/homeView';
+import { hasWebGl } from '../map/webgl';
 import { askFor, HOME_VIEW, type ViewRequest } from '../map/viewRequest';
 import { ModeIcon } from '../features/journey/modeIcons';
 import { modeVisual } from '../features/journey/modeVisuals';
@@ -168,6 +171,62 @@ export default function StopsPage() {
     },
     [navigate, at.pathname, at.search],
   );
+
+  /*
+   * The stops listed when there is no map to read them from.
+   *
+   * This page's list is defined as "what is in view", and the view belongs to
+   * the map — so on a browser that cannot draw one, the list was empty and the
+   * page said "no stops in this part of the map" about a map that was not
+   * there. That also made the fallback's own promise false: it says everything
+   * the map would show is listed beside it.
+   *
+   * So the view is taken from the same place the map would have opened on, and
+   * moved by the same two controls: "near me" and "city centre" both set a
+   * request, and this reads it. What is lost without a map is panning to
+   * somewhere nobody has a button for — not the page.
+   */
+  const mapless = !hasWebGl();
+
+  useEffect(() => {
+    if (!mapless) return;
+
+    const centre =
+      view.kind === 'at'
+        ? ([view.lat, view.lon] as const)
+        : stopsViewFor(network, bounds).center;
+
+    /*
+     * Roughly what the map would have shown at its opening zoom. Approximate
+     * on purpose: without a map there is no viewport to be exact about, and
+     * the honest answer is "the stops around here" rather than a rectangle
+     * pretending to be a screen.
+     */
+    const PAD_LAT = 0.006;
+    const PAD_LON = 0.012;
+
+    const controller = new AbortController();
+    void getStopsInBounds(
+      {
+        minLat: centre[0] - PAD_LAT,
+        maxLat: centre[0] + PAD_LAT,
+        minLon: centre[1] - PAD_LON,
+        maxLon: centre[1] + PAD_LON,
+      },
+      { signal: controller.signal },
+    )
+      .then((answer) => {
+        if (controller.signal.aborted) return;
+        setVisible(answer.stops);
+        setBelowZoom(false);
+      })
+      .catch(() => {
+        // Same bargain the map's own layer makes: stops are an extra, and
+        // failing to fetch them must not disturb the rest of the page.
+      });
+
+    return () => controller.abort();
+  }, [mapless, view, network, bounds]);
 
   const onVisibleStopsChange = useCallback((stops: NetworkStop[]) => {
     setVisible(stops);

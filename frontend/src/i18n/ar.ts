@@ -221,6 +221,9 @@ export const ar: Dictionary = {
     mapLabel: 'خريطة الرحلة',
     zoomIn: 'تكبير',
     zoomOut: 'تصغير',
+    mapUnavailableTitle: 'لا يمكن عرض الخريطة هنا',
+    mapUnavailableBody:
+      'لا يدعم هذا المتصفّح الرسوميات التي تُرسم بها الخريطة. كل ما تعرضه الخريطة مذكور في القائمة المجاورة لها.',
 
     showOnMap: 'عرض هذه الرحلة على الخريطة',
     viewDetails: 'عرض هذه الرحلة خطوة بخطوة',
