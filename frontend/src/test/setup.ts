@@ -1,5 +1,17 @@
 import { afterEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
+import { discardPooledMap } from '../map/mapPool';
+
+/*
+ * The map outlives the page that drew on it — that is the point of the pool —
+ * but it must not outlive a *test*, or the second one inherits the first's
+ * layers and markers and reads a map it never built.
+ *
+ * Done here rather than in each map test file because any test that renders a
+ * page with a map on it borrows from the same pool, whether or not it knows
+ * the map exists.
+ */
+afterEach(discardPooledMap);
 
 /*
  * Neither runtime gives us a working `localStorage` here: Node 26 defines a

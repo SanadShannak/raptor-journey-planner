@@ -1,7 +1,7 @@
-import { StrictMode } from 'react';
+import { StrictMode, useEffect } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { LocaleProvider } from '../i18n';
 import { ThemeProvider } from '../theme';
 import PlanPage from './PlanPage';
@@ -115,7 +115,31 @@ function stubApi() {
   );
 }
 
+/**
+ * Where the router ended up, and what it was told about the way back.
+ *
+ * A stop opened from the planner is a real navigation now, so the assertion is
+ * about the address rather than about which panel the sidebar swapped to.
+ */
+let landed: { path: string; back: unknown } | null = null;
+
+function Landed() {
+  const at = useLocation();
+
+  // Recorded in an effect, not during render: writing to something outside the
+  // component while rendering is a side effect, and StrictMode renders twice.
+  useEffect(() => {
+    landed = {
+      path: at.pathname,
+      back: (at.state as { back?: unknown } | null)?.back ?? null,
+    };
+  }, [at]);
+
+  return <h1>stop page</h1>;
+}
+
 function show(at: string = paths.home) {
+  landed = null;
   return render(
     <StrictMode>
       <LocaleProvider>
@@ -123,6 +147,9 @@ function show(at: string = paths.home) {
           <MemoryRouter initialEntries={[at]}>
             <Routes>
               <Route path={paths.home} element={<PlanPage />} />
+              {/* Standing in for the real page: what matters here is that the
+                  planner goes there at all, and hands over the way back. */}
+              <Route path={paths.stopDetail} element={<Landed />} />
             </Routes>
           </MemoryRouter>
         </ThemeProvider>
@@ -160,7 +187,17 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('inspecting a stop from inside the planner', () => {
-  it('opens the stop the itinerary named, and goes back to the journey', async () => {
+  /*
+   * A stop pressed in an itinerary opens its own page.
+   *
+   * It used to swap the sidebar for a cramped copy of that page, on the
+   * grounds that the planner's search did not live in the address and leaving
+   * would throw it away. The search has lived there for a while, so the reason
+   * is gone — and what is asserted here is the part that makes coming back
+   * work: the return address is handed over rather than inferred, which is
+   * what lets the stop page say "Back to the journey" instead of guessing.
+   */
+  it('opens the stop on its own page, carrying the way back', async () => {
     show();
     await screen.findByLabelText('From');
 
@@ -186,19 +223,14 @@ describe('inspecting a stop from inside the planner', () => {
       await screen.findByRole('button', { name: 'Kamppi' }, { timeout: 3000 }),
     );
 
-    // The panel replaces the itinerary rather than navigating, so the search
-    // this page is holding survives.
-    expect(
-      await screen.findByRole('heading', { level: 1, name: 'Kamppi' }, { timeout: 3000 }),
-    ).toBeTruthy();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Back to the journey' }));
-
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Back to results' })).toBeTruthy(),
-    );
+    await waitFor(() => expect(landed).not.toBeNull());
+    expect(landed?.path).toBe('/stops/1020445');
+    // The planner's own address, so back returns to this journey rather than
+    // to an empty form — and so the control there can name it.
+    expect(String(landed?.back).startsWith('/')).toBe(true);
   });
 });
+
 
 /*
  * The search in the address.
@@ -254,13 +286,6 @@ describe('PlanPage search in the address', () => {
    * leaves the page too — so it has to be restorable the same way the detail
    * panel is.
    */
-  it('reopens the stop that was being inspected', async () => {
-    show(`${asked}&stop=1020445`);
-
-    expect(
-      await screen.findByRole('heading', { level: 1, name: 'Kamppi' }, { timeout: 3000 }),
-    ).toBeTruthy();
-  });
 
   /* An index the restored list does not reach is not an itinerary. */
   it('shows the list for an index that is not there', async () => {

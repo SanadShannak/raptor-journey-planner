@@ -32,8 +32,6 @@ export interface PlannerMemory {
   /** Which result is open in full, and which is drawn on the map. */
   openIndex: number | null;
   selectedIndex: number | null;
-  /** The stop whose board is open in the sidebar. */
-  inspectStopId: string | null;
   /** The "no later departures" note, so it does not reappear as an offer. */
   exhausted: string | null;
 }

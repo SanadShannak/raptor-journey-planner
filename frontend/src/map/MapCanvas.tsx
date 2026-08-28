@@ -41,6 +41,13 @@ import {
   type MapHandle,
 } from './mapContext';
 import { lngLatBounds } from './coords';
+import {
+  acquireMap,
+  isPooledMap,
+  notePooledStyle,
+  pooledStyle,
+  releaseMap,
+} from './mapPool';
 import { homeViewFor, type HomeView } from './homeView';
 import { tileSourceFor } from './tileSource';
 import { useReducedMotion } from './useReducedMotion';
@@ -131,12 +138,20 @@ export function MapCanvas({ network, initialView, children }: Props) {
    */
   const [painted, setPainted] = useState(false);
   /**
-   * Cleared the moment the map is destroyed, and read by every cleanup that
-   * would otherwise talk to it afterwards — including the ones in this file.
-   * See {@link MapHandle} for why that ordering bites.
+   * The borrowed map, and whether it is still there to be spoken to.
+   *
+   * Asked of the pool rather than tracked with a flag of our own, because the
+   * pool is what knows. A page handing the map back does not end it — the next
+   * page will borrow the same one — so cleanups here and in every layer run
+   * against a live map and must, or what this page drew stays drawn. See
+   * {@link MapHandle} for the ordering that makes this worth being careful
+   * about.
    */
-  const alive = useRef(true);
-  const isAlive = useCallback(() => alive.current, []);
+  const borrowed = useRef<GlMap | null>(null);
+  const isAlive = useCallback(
+    () => borrowed.current !== null && isPooledMap(borrowed.current),
+    [],
+  );
 
   /*
    * Read once, at construction, and deliberately not a dependency: a map's
@@ -179,16 +194,31 @@ export function MapCanvas({ network, initialView, children }: Props) {
     zoomOut: t(strings.planner.zoomOut),
   };
 
-  /* Created once, for the life of the component. */
+  /*
+   * Borrowed on the way in, handed back on the way out.
+   *
+   * The map is not built here and not destroyed here — see `mapPool`. Building
+   * one per page meant every navigation threw away a style document, a worker
+   * pool and every parsed tile, and spent about a second earning them back
+   * before anything was drawn.
+   *
+   * What is still per-page is everything that differs between pages: where the
+   * map is looking, and which scheme it is in. Both are applied below rather
+   * than passed as construction options, because on reuse there is nothing to
+   * construct.
+   */
   useEffect(() => {
     const node = container.current;
     if (node === null) return;
 
-    // Set here rather than only at declaration: StrictMode mounts, tears down,
-    // and mounts again, and the second map must not inherit the first's death.
-    alive.current = true;
-
-    const instance = new GlMap({
+    const {
+      map: instance,
+      container: host,
+      reused,
+      loaded,
+      styleReady: readyNow,
+      drawn,
+    } = acquireMap({
       container: node,
       style,
       center: [opening.current.center[1], opening.current.center[0]],
@@ -221,7 +251,13 @@ export function MapCanvas({ network, initialView, children }: Props) {
       },
     });
 
-    applied.current = style;
+    // The element travels with the map; a GL map cannot be handed a different
+    // one. See `mapPool`.
+    node.appendChild(host);
+    borrowed.current = instance;
+
+    applied.current = pooledStyle() ?? style;
+
     const onLoad = () => setMap(instance);
     const onIdle = () => setPainted(true);
     /*
@@ -238,21 +274,60 @@ export function MapCanvas({ network, initialView, children }: Props) {
     instance.on('style.load', onStyle);
     instance.once('idle', onIdle);
 
+    if (reused) {
+      /*
+       * The borrowed map is somewhere else: the page before this one framed
+       * it. Put it where this page opens, without animating — the same rule a
+       * freshly built map follows for its own first framing.
+       */
+      instance.jumpTo({
+        center: [opening.current.center[1], opening.current.center[0]],
+        zoom: opening.current.zoom,
+      });
+      instance.resize();
+
+      /*
+       * Whatever already happened will not happen again, so it is applied
+       * here; whatever has not yet happened still arrives as an event.
+       *
+       * Each is asked separately rather than inferred from "reused", which was
+       * the bug: a map borrowed moments after it was built has not loaded, and
+       * telling the layers otherwise threw `Style is not done loading` — in a
+       * passive effect, which takes the render down with it.
+       */
+      if (loaded) setMap(instance);
+      if (readyNow) setStyleReady(true);
+      if (drawn) setPainted(true);
+    }
+
     return () => {
       /*
-       * Announced before it happens. Every other cleanup — the controls below,
-       * and every child drawn on this map — runs *after* this one and would
-       * otherwise reach for a map with no internals left.
+       * The map is handed back, not ended. Every cleanup after this one — the
+       * controls below, and every layer and marker a child drew — runs against
+       * a map that is still alive, and must: what this page put on the map is
+       * this page's to take off again, or the next one inherits it.
        */
-      alive.current = false;
       instance.off('load', onLoad);
       instance.off('style.load', onStyle);
       instance.off('idle', onIdle);
       setMap(null);
-      instance.remove();
+      /*
+       * `borrowed` is deliberately left pointing at the map.
+       *
+       * It is what `isAlive` reads, and every cleanup that asks runs *after*
+       * this one — clearing it here answered "no" to all of them, so each
+       * layer skipped its own removal and the next page found the sources
+       * still there: `Source "route-stops" already exists`, thrown in an
+       * effect, which takes the page down with it.
+       *
+       * The honest answer during this teardown is yes: the map is alive, it is
+       * simply going back to the pool, and what this page drew is this page's
+       * to remove.
+       */
+      releaseMap();
     };
-    // Built once: the style, the labels and the motion preference are all
-    // applied by the effects below rather than by rebuilding the map.
+    // Borrowed once: the style, the labels and the motion preference are all
+    // applied by the effects below rather than by taking a different map.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -273,6 +348,7 @@ export function MapCanvas({ network, initialView, children }: Props) {
     if (applied.current === style) return;
 
     applied.current = style;
+    notePooledStyle(style);
     // Says "do not add anything yet" until the new style has loaded; the flag
     // is what brings the overlays back afterwards rather than losing them.
     setStyleReady(false);

@@ -145,22 +145,31 @@ describe('StopsMap framing', () => {
  *
  * The cause is an ordering that is easy to get wrong twice. React runs a
  * component's effect cleanups in the order the effects were declared, and
- * unmounts a deleted subtree parent first — so the effect that creates the map
- * is also the first to clean up, and destroys it before every other cleanup in
- * `MapCanvas` and before every cleanup in every layer drawn on it. Each of
- * those then tidies up against an object with no internals left, and a throw
- * in a passive cleanup takes the whole unmount with it.
+ * unmounts a deleted subtree parent first — so the effect that owns the map is
+ * also the first to clean up, and anything it does to the map happens before
+ * every other cleanup in `MapCanvas` and before every cleanup in every layer
+ * drawn on it. A throw in a passive cleanup takes the whole unmount with it.
  *
- * The stub refuses calls on a removed map for exactly this reason, so any
- * cleanup that forgets to ask whether the map is still there fails here rather
- * than in a browser three pages later.
+ * The stub refuses calls on a removed map for exactly this reason, so a
+ * cleanup that speaks to a map it should not fails here rather than in a
+ * browser three pages later.
  */
 describe('leaving the map', () => {
-  it('unmounts without touching a map that is already gone', async () => {
+  /*
+   * The map is handed back to the pool rather than destroyed, so that the next
+   * page to want one does not pay to build it again. Which means every layer
+   * and marker this page drew has to come off on the way out — a map that
+   * outlives the page is a map that would otherwise carry that page's journey
+   * onto the next one.
+   */
+  it('hands the map back rather than ending it, and leaves nothing on it', async () => {
     const { unmount } = await show({ focused: LASIPALATSI });
+    const map = liveMap();
 
     expect(() => unmount()).not.toThrow();
-    expect(liveMap().removed).toBe(true);
+    expect(map.removed).toBe(false);
+    expect([...map.sources.keys()]).toEqual([]);
+    expect([...map.layers.keys()]).toEqual([]);
   });
 
   it('tears down cleanly with layers and markers on it', async () => {

@@ -1,13 +1,13 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router";
-import { getNetwork } from "../api/network";
-import { formatClockTime, useLocale, LanguageToggle } from "../i18n";
-import { useNetworkNow } from "../features/stops/useNetworkNow";
-import { ThemeToggle } from "../theme";
-import { AuthDialog, type AuthMode } from "./AuthDialog";
-import { PrimaryNav } from "./PrimaryNav";
-import { paths } from "./routes";
-import { useBackendHealth } from "./useBackendHealth";
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router';
+import { getNetwork } from '../api/network';
+import { formatClockTime, useLocale, LanguageToggle } from '../i18n';
+import { useNetworkNow } from '../features/stops/useNetworkNow';
+import { ThemeToggle } from '../theme';
+import { AuthDialog, type AuthMode } from './AuthDialog';
+import { PrimaryNav } from './PrimaryNav';
+import { paths } from './routes';
+import { useBackendHealth } from './useBackendHealth';
 
 /**
  * The wine app bar.
@@ -75,45 +75,41 @@ export function AppHeader() {
       <div className="flex items-center gap-3 px-4 py-3 sm:px-6 md:grid md:grid-cols-[1fr_auto_1fr] lg:px-8">
         {/*
           Brand and clock as one cell, not two.
-          
-          The bar is a three-column grid from `md` up so that the navigation is
+
+          The bar is a three-column grid from `md` up so the navigation is
           centred in the window; a fourth child would be a fourth column the
-          template has no track for, and would wrap onto a second row. They
-          belong together anyway — see the clock below.
+          template has no track for, and would wrap onto a second row.
         */}
         <div className="flex min-w-0 items-center gap-3">
-          <Link
-            to={paths.home}
-            className="rounded-control focus-visible:outline-on-chrome flex items-center gap-2 text-base font-semibold tracking-tight whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2"
-          >
-            {/*
+        <Link
+          to={paths.home}
+          className="rounded-control focus-visible:outline-on-chrome flex items-center gap-2 text-base font-semibold tracking-tight whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2"
+        >
+          {/*
             The same mark the favicon carries — a journey, two stops and the
             route between them — so the tab and the bar are recognisably one
             thing. Orange on the wine bar is the operator's own pairing, and is
             contrast-checked as `accent` on `chrome` rather than against the
             page behind it.
           */}
-            <svg
-              viewBox="0 0 48 48"
-              width="22"
-              height="22"
-              fill="none"
-              aria-hidden="true"
-              className="text-accent flex-none"
-            >
-              <g stroke="currentColor" strokeWidth="3.4" strokeLinecap="round">
-                <path
-                  d="M15 17.5v6.2a4 4 0 0 0 4 4h10a4 4 0 0 1 4 4v2.8"
-                  strokeDasharray="0.1 6.8"
-                />
-                <circle cx="15" cy="13" r="4.6" />
-                <circle cx="33" cy="35" r="4.6" />
-              </g>
-            </svg>
-            {t(strings.app.title)}
-          </Link>
+          <svg
+            viewBox="0 0 48 48"
+            width="22"
+            height="22"
+            fill="none"
+            aria-hidden="true"
+            className="text-accent flex-none"
+          >
+            <g stroke="currentColor" strokeWidth="3.4" strokeLinecap="round">
+              <path d="M15 17.5v6.2a4 4 0 0 0 4 4h10a4 4 0 0 1 4 4v2.8" strokeDasharray="0.1 6.8" />
+              <circle cx="15" cy="13" r="4.6" />
+              <circle cx="33" cy="35" r="4.6" />
+            </g>
+          </svg>
+          {t(strings.app.title)}
+        </Link>
 
-          {/*
+        {/*
           The network's clock, beside the brand rather than out at the trailing
           edge among the controls.
 
@@ -129,26 +125,19 @@ export function AppHeader() {
           afternoon would be the one clock on screen that disagrees with all
           the others.
 
-          `tabular-nums` so the bar does not twitch as the digits change, and no
-          live region: a clock that announced itself every minute would
+          `tabular-nums` so the bar does not twitch as the digits change, and
+          no live region: a clock that announced itself every minute would
           interrupt whatever a screen-reader user was actually reading.
-
-          A separator, and a hairline before it, so the pairing reads as
-          deliberate rather than as the title having run on.
         */}
-          {now !== null && network !== null && (
-            <>
-              <span aria-hidden="true" className="bg-chrome-border h-5 w-px" />
-              <p className="text-sm font-medium tabular-nums whitespace-nowrap">
-                <span className="sr-only">
-                  {t(strings.status.clockLabel, { network })}
-                </span>
-                <span aria-hidden="true">
-                  {formatClockTime(now.time, locale)}
-                </span>
-              </p>
-            </>
-          )}
+        {now !== null && network !== null && (
+          <>
+            <span aria-hidden="true" className="bg-chrome-border h-5 w-px" />
+            <p className="text-sm font-medium tabular-nums whitespace-nowrap">
+              <span className="sr-only">{t(strings.status.clockLabel, { network })}</span>
+              <span aria-hidden="true">{formatClockTime(now.time, locale)}</span>
+            </p>
+          </>
+        )}
         </div>
 
         <PrimaryNav onAuth={setAuthMode} />
@@ -180,14 +169,14 @@ export function AppHeader() {
 
           <button
             type="button"
-            onClick={() => setAuthMode("logIn")}
+            onClick={() => setAuthMode('logIn')}
             className="rounded-control text-on-chrome focus-visible:outline-on-chrome hidden h-9 cursor-pointer items-center px-3 text-sm font-medium leading-none focus-visible:outline-2 focus-visible:outline-offset-2 md:inline-flex"
           >
             {t(strings.auth.logIn)}
           </button>
           <button
             type="button"
-            onClick={() => setAuthMode("signUp")}
+            onClick={() => setAuthMode('signUp')}
             className="rounded-control bg-on-chrome text-chrome focus-visible:outline-on-chrome hidden h-9 cursor-pointer items-center px-3 text-sm font-semibold leading-none focus-visible:outline-2 focus-visible:outline-offset-2 md:inline-flex"
           >
             {t(strings.auth.signUp)}
@@ -207,14 +196,12 @@ export function AppHeader() {
         the brand colour would need its own pairing invented for no reason
         when the page's own ground already has one that works.
       */}
-      {service === "down" && (
+      {service === 'down' && (
         <div
           role="alert"
           className="bg-surface border-danger text-danger flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t px-4 py-2 text-sm"
         >
-          <span className="font-medium">
-            {t(strings.status.backendUnreachable)}
-          </span>
+          <span className="font-medium">{t(strings.status.backendUnreachable)}</span>
           <button
             type="button"
             onClick={retry}

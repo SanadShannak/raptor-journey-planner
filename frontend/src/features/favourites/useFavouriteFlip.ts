@@ -4,17 +4,17 @@ import { useLayoutEffect, useRef } from 'react';
  * How long a card takes to glide into its new spot.
  *
  * Slow enough to read as a movement rather than a jump. It was 160ms, which is
- * about right for a control acknowledging a press and too quick for this: a
- * card crossing most of the row in that time is a thing that has *already
- * arrived*, and the eye reports a flicker where the point was to show which
- * card went where.
+ * about right for a control acknowledging a press and far too quick for this:
+ * a card crossing most of the row in that time has *already arrived*, and the
+ * eye reports a flicker where the point was to show which card went where.
  *
  * The ceiling is the drag itself. The glide happens while a finger is still
- * moving, and a row that is still settling when the pointer reaches the next
- * card feels like it is lagging behind the hand — so this stays well under the
- * time it takes to drag from one card to the next.
+ * moving, and a row still settling when the pointer reaches the next card
+ * feels like it is lagging behind the hand. These cards are wide — a row holds
+ * two or three — so crossing one takes a deliberate movement rather than a
+ * flick, and there is more room here than the number suggests.
  */
-const DURATION_MS = 280;
+const DURATION_MS = 400;
 
 /**
  * The curve, and the reason it is not the default.
