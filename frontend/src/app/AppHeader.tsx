@@ -64,6 +64,14 @@ export function AppHeader() {
         capped column — the bar is chrome, and chrome that stops short of the
         window edge reads as a panel sitting on the page instead of framing it.
 
+        The narrowest gutter is a step wider than the page's own, and only
+        there. A page's content is a column of text, which the eye reads as
+        starting at its first glyph; the bar's is a mark and a wordmark, which
+        it reads as one object pressed against the edge. Matching the numbers
+        made the bar look tighter than the page under it, which is the thing
+        actually being matched. From `sm` up there is room enough that the two
+        agree again.
+
         Three columns from `md` up, the outer two sharing the leftover space
         equally: that centres the navigation in the window itself rather than
         merely between its neighbours, which would drift as the brand and the
@@ -72,7 +80,7 @@ export function AppHeader() {
         Below `md` it falls back to a row, because the middle cell collapses to
         a single toggle button and centring one button is not a layout.
       */}
-      <div className="flex items-center gap-3 px-4 py-3 sm:px-6 md:grid md:grid-cols-[1fr_auto_1fr] lg:px-8">
+      <div className="flex items-center gap-3 px-5 py-3 sm:px-6 md:grid md:grid-cols-[1fr_auto_1fr] lg:px-8">
         {/*
           Brand and clock as one cell, not two.
 
@@ -131,8 +139,16 @@ export function AppHeader() {
         */}
         {now !== null && network !== null && (
           <>
-            <span aria-hidden="true" className="bg-chrome-border h-5 w-px" />
-            <p className="text-sm font-medium tabular-nums whitespace-nowrap">
+            {/*
+              `flex-none`, or it is not there at all on a narrow screen.
+              
+              A one-pixel flex item is still shrinkable, and the bar on a phone
+              is tight enough to shrink things: the rule quietly collapsed to
+              nothing, which reads as the clock having been left unseparated
+              rather than as a separator that failed.
+            */}
+            <span aria-hidden="true" className="bg-chrome-border h-5 w-px flex-none" />
+            <p className="text-sm font-medium tabular-nums whitespace-nowrap flex-none">
               <span className="sr-only">{t(strings.status.clockLabel, { network })}</span>
               <span aria-hidden="true">{formatClockTime(now.time, locale)}</span>
             </p>
