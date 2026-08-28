@@ -225,6 +225,8 @@ export const en: Dictionary = {
     noMatchingStops: 'No stop in view is served by the modes you have left on. Try moving the map, or switching a mode back on.',
     showAllModes: 'Show all modes',
     zoomInForStops: 'Zoom in to see stops',
+    sampledStops:
+      'Too many stops here to list them all — showing a selection. Zoom in for the rest.',
     visibleStops: { one: '{count} stop in view', other: '{count} stops in view' },
     noStopsHere: 'No stops in this part of the map.',
 

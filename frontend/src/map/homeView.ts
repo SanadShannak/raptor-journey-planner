@@ -60,6 +60,17 @@ export function homeViewFor(network: string | null, bounds: GeoBounds | null): H
 /**
  * How far out the stops page still draws stops.
  *
+ * This is also where that page now opens: every map in the app rests on the
+ * same view — see {@link homeViewFor} — so the stops page has no opening zoom
+ * of its own any more. It had one while it needed to be closer in than the
+ * planner to show anything; it does not, because this threshold is where the
+ * stops appear and the shared view sits exactly at it.
+ *
+ * The consequence is worth knowing rather than discovering: the page opens on
+ * the boundary, so the first press of the zoom-out control takes the stops
+ * away. That is the honest behaviour — below this they are a texture rather
+ * than places — but it arrives sooner than it used to.
+ *
  * Two levels further out than the journey map's own threshold. There the stops
  * are scenery over somebody's route and must not crowd it; here they are the
  * subject and nothing else is competing for the ground, so they can appear as
@@ -81,31 +92,3 @@ export const STOPS_MIN_ZOOM = 13;
  */
 export const ROUTE_STOPS_MIN_ZOOM = STOPS_MIN_ZOOM + 2;
 
-/**
- * The zoom the stops page opens at.
- *
- * Comfortably inside {@link STOPS_MIN_ZOOM}, so the page opens on stops rather
- * than on a city with none drawn and no hint that going closer would help —
- * and with room to pull out a good way before they go.
- *
- * One level further out than it was, and the level is the point rather than a
- * preference. The opening view is the only demonstration this page gets of
- * what is on it, and at 16 the window is too small to hold every mode at once
- * however it is centred: on a laptop 15 holds all five, and on a narrow window
- * four. The ferry is a kilometre and a half from the trains, and pulling back
- * until both fit on a phone trades a page you can read for a claim about
- * coverage.
- */
-const STOPS_ZOOM = 15;
-
-/**
- * The same resting place, framed close enough that stops are already drawn.
- *
- * Centre and zoom used to be chosen separately here, because this page wanted
- * somewhere the planner did not. It no longer does: {@link HOME} is that
- * somewhere for every map now, and what is left that is particular to this
- * page is only how close it opens.
- */
-export function stopsViewFor(network: string | null, bounds: GeoBounds | null): HomeView {
-  return { center: homeViewFor(network, bounds).center, zoom: STOPS_ZOOM };
-}

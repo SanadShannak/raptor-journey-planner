@@ -14,7 +14,7 @@ import { boundsForNetwork, type GeoBounds } from '../config/geocoding';
 import type { NetworkStop, StopIdentity } from '../types/stop';
 import { StopInspector } from '../features/stops/StopInspector';
 import { StopsMap } from '../map/StopsMap';
-import { stopsViewFor } from '../map/homeView';
+import { homeViewFor } from '../map/homeView';
 import { hasWebGl } from '../map/webgl';
 import { askFor, HOME_VIEW, type ViewRequest } from '../map/viewRequest';
 import { ModeIcon } from '../features/journey/modeIcons';
@@ -72,6 +72,8 @@ export default function StopsPage() {
   const [focused, setFocused] = useState<StopIdentity | null>(null);
   const [visible, setVisible] = useState<NetworkStop[]>([]);
   const [belowZoom, setBelowZoom] = useState(false);
+  /** Whether the last answer was a sample rather than all of it. */
+  const [sampled, setSampled] = useState(false);
 
   /**
    * The modes chosen, and every mode this network runs.
@@ -200,7 +202,7 @@ export default function StopsPage() {
     const centre =
       view.kind === 'at'
         ? ([view.lat, view.lon] as const)
-        : stopsViewFor(network, bounds).center;
+        : homeViewFor(network, bounds).center;
 
     /*
      * Roughly what the map would have shown at its opening zoom. Approximate
@@ -268,6 +270,7 @@ export default function StopsPage() {
             totalInView={visible.length}
             availableModes={networkModes}
             belowZoom={belowZoom}
+            sampled={sampled}
             modes={modes}
             onModesChange={setModes}
             onOpen={openStop}
@@ -327,6 +330,7 @@ export default function StopsPage() {
           filter={matches}
           onVisibleStopsChange={onVisibleStopsChange}
           onBelowZoomChange={setBelowZoom}
+          onTruncatedChange={setSampled}
           view={view}
         />
       </section>
@@ -352,6 +356,7 @@ function StopBrowser({
   totalInView,
   availableModes,
   belowZoom,
+  sampled,
   modes,
   onModesChange,
   onOpen,
@@ -364,6 +369,7 @@ function StopBrowser({
   totalInView: number;
   availableModes: GtfsRouteType[];
   belowZoom: boolean;
+  sampled: boolean;
   modes: ReadonlySet<GtfsRouteType>;
   onModesChange: (modes: ReadonlySet<GtfsRouteType>) => void;
   onOpen: (stopId: string) => void;
@@ -384,7 +390,11 @@ function StopBrowser({
           {t(strings.pages.stops.title)}
         </h1>
         <p className="text-content-muted text-sm">
-          {belowZoom ? t(strings.stops.zoomInForStops) : t(strings.stops.browseHint)}
+          {belowZoom
+            ? t(strings.stops.zoomInForStops)
+            : sampled
+              ? t(strings.stops.sampledStops)
+              : t(strings.stops.browseHint)}
         </p>
       </div>
 
