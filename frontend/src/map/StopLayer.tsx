@@ -109,13 +109,22 @@ interface Props {
    */
   filter?: ((stop: NetworkStop) => boolean) | undefined;
   /**
-   * The stops fetched for the current view, handed up so a list beside the map
-   * can show them — which is what makes this layer reachable without a
-   * pointer, and is why the markers can stay out of the tab order.
+   * The stops **in view**, handed up so a list beside the map can show them —
+   * which is what makes this layer reachable without a pointer, and is why the
+   * markers can stay out of the tab order.
    *
-   * Unfiltered and unthinned. Thinning is about pixels — two markers on one
-   * corner — and a list has no such problem, so it should not inherit the
-   * losses.
+   * Unfiltered and unthinned: thinning is about pixels — two markers on one
+   * corner — and a list has no such problem, so it should not inherit those
+   * losses, and narrowing by mode would leave the filter unable to offer the
+   * modes it had just removed.
+   *
+   * In view, though, is meant literally. What is *fetched* is deliberately
+   * more than that — a fifth past each edge, so a small pan asks nothing — and
+   * a move that stays inside what is already held asks nothing either. Sending
+   * the whole held set up meant the list answered for an area much larger than
+   * the map was showing: zoom into a street and the map went empty while the
+   * page beside it still claimed seventy-nine stops were in view, and listed
+   * them.
    */
   onVisibleStopsChange?: ((stops: NetworkStop[]) => void) | undefined;
   /** Says the map is pulled out too far to draw any, which is not "none". */
@@ -268,11 +277,33 @@ export function StopLayer({
     return keep;
   }, [stops, map, settled, filter, selectedStopId]);
 
+  /*
+   * What is actually on screen, out of what has been fetched.
+   *
+   * Recomputed when the map settles as well as when the answer changes, because
+   * panning and zooming inside the covered area changes this without changing
+   * that — which is exactly the case the list used to get wrong.
+   */
+  const inView = useMemo(() => {
+    void settled;
+
+    const box = map.getBounds();
+    const south = box.getSouth();
+    const north = box.getNorth();
+    const west = box.getWest();
+    const east = box.getEast();
+
+    return stops.filter(
+      (stop) =>
+        stop.lat >= south && stop.lat <= north && stop.lon >= west && stop.lon <= east,
+    );
+  }, [stops, map, settled]);
+
   // Reported after render rather than during it: setting another component's
   // state is not something a render is allowed to do.
   useEffect(() => {
-    visibleChanged.current?.(stops);
-  }, [stops]);
+    visibleChanged.current?.(inView);
+  }, [inView]);
 
   const label = hovered === null ? null : map.project([hovered.lon, hovered.lat]);
 

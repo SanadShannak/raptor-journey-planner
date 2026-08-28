@@ -219,7 +219,6 @@ export function MapCanvas({ network, initialView, children }: Props) {
       styleReady: readyNow,
       drawn,
     } = acquireMap({
-      container: node,
       style,
       center: [opening.current.center[1], opening.current.center[0]],
       zoom: opening.current.zoom,
@@ -451,6 +450,13 @@ export function MapCanvas({ network, initialView, children }: Props) {
  * `fitBounds` on a box that collapses to a single point produces a valid but
  * zero-sized one, which a GL map answers by going to its maximum zoom — hence
  * both the null guard and the `maxZoom`.
+ *
+ * **Home is where the map opens, not somewhere it returns to.** Having nothing
+ * to frame is not a request to go anywhere: closing a line and coming back to
+ * the index used to throw away whatever the reader had zoomed to and drop them
+ * back on the city, which is the map undoing their work for them. The only
+ * time an empty box means "go home" is the opening frame, when the map has not
+ * been anywhere else yet.
  */
 export function FitTo({
   box,
@@ -467,9 +473,13 @@ export function FitTo({
   useEffect(() => {
     // The opening frame is where the map should already have been, so it is
     // placed rather than travelled to. See `useFirstFraming`.
-    const moving = animate && !isFirstFraming();
+    const first = isFirstFraming();
+    const moving = animate && !first;
 
     if (box === null) {
+      // Nothing to frame. Only the opening frame reads that as "go home"; any
+      // later one leaves the map wherever the reader has taken it.
+      if (!first) return;
       map.easeTo({
         center: [home.center[1], home.center[0]],
         zoom: home.zoom,

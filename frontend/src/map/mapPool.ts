@@ -28,6 +28,10 @@ import { Map as GlMap, type MapOptions } from 'maplibre-gl';
  * and you get a new one. This is a cache, and a cache that survives a refresh
  * is one nobody asked to keep.
  *
+ * **And not for ever.** A map held while nobody is looking at one costs real
+ * memory — a WebGL context, its textures, a worker pool — for a page that has
+ * no map on it. So the hold has a deadline: see {@link IDLE_MS}.
+ *
  * The container is the pool's too. A map cannot be re-parented by handing it a
  * different element, so the element travels with it: `MapCanvas` renders a
  * wrapper and moves this node inside, which is a DOM append rather than
@@ -59,7 +63,32 @@ interface Pooled {
   drawn: boolean;
 }
 
+/**
+ * How long the map is kept after the last page that wanted one let it go.
+ *
+ * The pool exists to make moving between map pages free, and that movement is
+ * measured in the second or two it takes to press a link and read the next
+ * page. Half a minute covers that generously while still being far shorter
+ * than any stretch spent reading a card balance or a list of favourites — the
+ * cases where holding a rendering engine open is simply waste.
+ *
+ * Letting it go is not free either: coming back after the deadline rebuilds
+ * the map from nothing, which is most of a second before anything is drawn.
+ * That is the trade, and it is the right way round — a cost paid once when
+ * returning from a long absence, against memory held during every long
+ * absence.
+ */
+const IDLE_MS = 30_000;
+
 let held: Pooled | null = null;
+/** Pending eviction, cancelled the moment the map is wanted again. */
+let eviction: ReturnType<typeof setTimeout> | null = null;
+
+function cancelEviction(): void {
+  if (eviction === null) return;
+  clearTimeout(eviction);
+  eviction = null;
+}
 
 export interface Acquired {
   map: GlMap;
@@ -79,8 +108,17 @@ export interface Acquired {
  * be by the map itself — the caller applies anything that can change (the
  * style, where it is looking) afterwards, because those are the things that
  * differ between one page and the next.
+ *
+ * `container` is not among them and cannot be passed: the element belongs to
+ * the pool and travels with the map. A caller that supplied one would be
+ * describing a map it does not own.
  */
-export function acquireMap(options: MapOptions & { style: string }): Acquired {
+export function acquireMap(
+  options: Omit<MapOptions, 'container'> & { style: string },
+): Acquired {
+  // Wanted again, so it is not going anywhere.
+  cancelEviction();
+
   if (held !== null) {
     return {
       map: held.map,
@@ -162,20 +200,28 @@ export function notePooledStyle(style: string): void {
  * unwound, because everything a page put *on* the map — its sources, its
  * layers, its markers — belongs to that page and is removed by its own
  * cleanup. This only takes the map off screen.
+ *
+ * A deadline starts here. If another page asks for the map before it expires —
+ * which is what moving between map pages looks like — the borrow cancels it
+ * and nothing was lost. If nobody does, the map is discarded and its memory
+ * goes with it. See {@link IDLE_MS}.
  */
 export function releaseMap(): void {
-  held?.container.remove();
+  if (held === null) return;
+  held.container.remove();
+
+  cancelEviction();
+  eviction = setTimeout(discardPooledMap, IDLE_MS);
 }
 
 /**
  * Destroys the pooled map outright.
  *
- * Nothing in the app calls this: the map is meant to outlive every page, and
- * the tab going away takes it with no help. It exists for tests, where a map
- * shared between two of them would carry the first one's layers into the
- * second.
+ * Called by the idle deadline above, and by tests, where a map shared between
+ * two of them would carry the first one's layers into the second.
  */
 export function discardPooledMap(): void {
+  cancelEviction();
   if (held === null) return;
   held.container.remove();
   held.map.remove();

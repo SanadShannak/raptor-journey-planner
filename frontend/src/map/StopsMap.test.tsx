@@ -3,7 +3,8 @@ import { act, render } from '@testing-library/react';
 import { LocaleProvider } from '../i18n';
 import { ThemeProvider } from '../theme';
 import { StopsMap } from './StopsMap';
-import { HOME_VIEW } from './viewRequest';
+import { stopsViewFor } from './homeView';
+import { askFor, HOME_VIEW } from './viewRequest';
 import { forgetMaps, liveMap } from '../test/mapStub';
 import type { StopIdentity } from '../types/stop';
 
@@ -36,8 +37,14 @@ const LASIPALATSI: StopIdentity = {
 /** A few metres away, as a neighbour pressed on the map would be. */
 const NEXT_DOOR: StopIdentity = { ...LASIPALATSI, id: '1020445', lat: 60.17055 };
 
-/** Helsinki, which is where `homeViewFor` rests when nothing is chosen. */
-const CITY_LAT = 60.185;
+/**
+ * Where this page opens, read from the same function the page reads.
+ *
+ * Not the planner's resting place, and not a number copied here: the stops
+ * page has a view of its own — central Helsinki, where all five modes are —
+ * and a literal would quietly stop meaning "home" the next time it moved.
+ */
+const CITY = stopsViewFor('hsl', null).center;
 
 function view(props: Partial<Parameters<typeof StopsMap>[0]> = {}) {
   return (
@@ -73,12 +80,21 @@ async function show(props: Partial<Parameters<typeof StopsMap>[0]> = {}) {
   return result;
 }
 
-/** Every latitude the map was sent to, in order. */
-const latitudes = () =>
-  liveMap().moves.map((move) => move.center?.[1] ?? NaN);
-
+/**
+ * Whether the map was sent to the page's opening view.
+ *
+ * Both coordinates, not just the latitude. That shortcut worked while this
+ * page opened on a quiet stretch nowhere near the fixtures; the view now sits
+ * in central Helsinki, a few hundred metres from Lasipalatsi, and on latitude
+ * alone the stop and the city are the same place.
+ */
 const wentToTheCity = () =>
-  latitudes().some((lat) => Math.abs(lat - CITY_LAT) < 0.001);
+  liveMap().moves.some(
+    (move) =>
+      move.center !== undefined &&
+      Math.abs(move.center[1] - CITY[0]) < 0.001 &&
+      Math.abs(move.center[0] - CITY[1]) < 0.001,
+  );
 
 beforeEach(() => {
   localStorage.clear();
@@ -178,5 +194,47 @@ describe('leaving the map', () => {
     await act(async () => liveMap().fire('style.load'));
 
     expect(() => unmount()).not.toThrow();
+  });
+});
+
+/*
+ * Where the map is *not* told to look.
+ *
+ * The complaint this answers: zoom in, open a stop, press "All stops", and the
+ * map threw the zoom away and dropped you back on the city. Nothing had asked
+ * it to — closing a stop is not a request to go anywhere — but the effect that
+ * frames the map re-ran and acted on the standing request all over again.
+ *
+ * Home is where the map opens, not somewhere it returns to.
+ */
+describe('StopsMap staying put', () => {
+  it('stays where the reader left it when a stop is closed', async () => {
+    const { rerender } = await show({ focused: LASIPALATSI });
+
+    // Where a reader who zoomed in would have got to.
+    liveMap().setZoom(18);
+    liveMap().moves.length = 0;
+
+    // "All stops": the stop closes, and nothing else is asked for.
+    await act(async () => {
+      rerender(view({ focused: null }));
+    });
+
+    expect(liveMap().moves).toEqual([]);
+    expect(liveMap().getZoom()).toBe(18);
+  });
+
+  /* A press is still a press: "city centre" must actually go there. */
+  it('goes to the city when the city is asked for', async () => {
+    const { rerender } = await show({ focused: LASIPALATSI });
+    liveMap().setZoom(18);
+    liveMap().moves.length = 0;
+
+    await act(async () => {
+      rerender(view({ focused: null, view: askFor(HOME_VIEW, { kind: 'home' }) }));
+    });
+
+    const last = liveMap().moves.at(-1);
+    expect(last?.center?.[1]).toBeCloseTo(CITY[0], 4);
   });
 });

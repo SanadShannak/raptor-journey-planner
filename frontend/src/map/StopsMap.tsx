@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFirstFraming, useMap } from './mapContext';
 import type { GeoBounds } from '../config/geocoding';
 import type { NetworkStop, StopIdentity } from '../types/stop';
@@ -124,11 +124,21 @@ function RestOn({
 }) {
   const map = useMap();
   const isFirstFraming = useFirstFraming();
+  /*
+   * The last request actually acted on.
+   *
+   * Initialised to the one this component mounted with, so that request counts
+   * as already served: what places the map on the way in is the opening frame
+   * below, not a press nobody made. After that only a *change* of id is a
+   * press, which is what `askFor` exists to produce.
+   */
+  const served = useRef(view.id);
 
   useEffect(() => {
     // The opening frame is where the map should already have been, so it is
     // placed rather than travelled to. See `useFirstFraming`.
-    const moving = animate && !isFirstFraming();
+    const first = isFirstFraming();
+    const moving = animate && !first;
 
     /*
      * Closer than the resting view, and never further out than it: arriving at
@@ -155,24 +165,46 @@ function RestOn({
      */
     if (pending) return;
 
-    if (view.kind === 'at') {
+    /*
+     * A press — "near me", or "city centre" — and only once per press.
+     *
+     * This effect re-runs for reasons that are not requests at all: closing a
+     * stop, the network arriving. Acting on the standing `view` each time is
+     * what made the map jump back to the city the moment a stop was closed,
+     * undoing whatever the reader had zoomed to. A request is a *change* of
+     * id, which is precisely what `askFor` produces.
+     */
+    if (view.id !== served.current) {
+      served.current = view.id;
+
+      if (view.kind === 'at') {
+        map.easeTo({
+          center: [view.lon, view.lat],
+          zoom: Math.max(map.getZoom(), 16),
+          animate: moving,
+        });
+        return;
+      }
+
       map.easeTo({
-        center: [view.lon, view.lat],
-        zoom: Math.max(map.getZoom(), 16),
+        center: [home.center[1], home.center[0]],
+        zoom: home.zoom,
         animate: moving,
       });
       return;
     }
 
     /*
+     * Nothing has been asked for, so the only framing left is the opening one.
+     * Every later run leaves the map exactly where it is.
+     *
      * `home` is a dependency, and has to be: it is not known at mount. The
      * network arrives from `/api/network` a moment later, and until it does
      * this is resting on the fallback city — so a map that refused to re-frame
      * would open on Helsinki for every other network and never correct itself.
-     *
-     * Safe to depend on because it changes exactly once: it is memoised on the
-     * network and its area, both set once and never again.
      */
+    if (!first) return;
+
     map.easeTo({
       center: [home.center[1], home.center[0]],
       zoom: home.zoom,
