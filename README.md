@@ -315,6 +315,59 @@ at nothing. `frontend/.env.development` supplies it for local work; copy
 
 ---
 
+### 5. Opening it on a phone
+
+Both servers have to be reachable from the phone, and only one of them already
+is. The API listens on every interface, so it needs nothing. Vite binds to
+localhost by default and has to be told otherwise:
+
+```bash
+cd backend  && npm run dev
+cd frontend && npm run dev -- --host
+```
+
+`--host` makes Vite print an address per network interface — one line per
+interface, so a machine on both Wi-Fi and Ethernet prints two:
+
+```
+➜  Local:   http://localhost:5173/
+➜  Network: http://192.168.1.42:5173/  en0
+```
+
+**Use the address *your* machine prints, and put the same one in
+`VITE_API_BASE_URL`.** The `192.168.1.42` here and below is only an example —
+yours will differ, and on a machine with several interfaces the wrong line
+looks just as plausible as the right one.
+
+That variable is the whole trick: the phone's `localhost` is the *phone*, so a
+client told to call `http://localhost:3000` asks the handset for a journey
+planner and is told nothing is there.
+
+```bash
+# frontend/.env.development.local — git-ignored, for local overrides
+VITE_API_BASE_URL=http://192.168.1.42:3000   # your address, not this one
+```
+
+Then open that same address on the phone, with both devices on the same Wi-Fi.
+macOS may ask once whether to allow incoming connections; it has to be allowed.
+
+Three things that waste an afternoon if you do not know them:
+
+* **The address is baked in at load, so changing it needs a Vite restart.** It
+  is read through `src/config/env.ts`, which validates at startup.
+* **The address changes.** It moves when the router reassigns a lease, and a
+  machine with more than one interface has more than one to choose from. A
+  stale or wrong value is a silent failure: the app loads
+  and the API calls never answer, so the clock and the stop list stay empty
+  while everything else looks fine. If that happens, re-read what Vite printed.
+* **"Near me" will not work.** `navigator.geolocation` requires a secure
+  context, and while `http://localhost` counts as one, `http://192.168.x.x`
+  does not. The button is refused by the browser rather than by the app.
+  Everything else works; if you need to test that button specifically, reach
+  the dev server over HTTPS or a tunnel that terminates it.
+
+---
+
 ### Calling the RAPTOR engine directly
 
 Everything above goes through the HTTP API, which is what the client uses. The
