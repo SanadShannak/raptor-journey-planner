@@ -59,6 +59,27 @@ export interface MapHandle {
    * the mistake it usually is.
    */
   isAlive: () => boolean;
+  /**
+   * Whether this is the first framing since the map was created, consuming
+   * the answer: the first caller gets `true` and everyone after it `false`.
+   *
+   * Owned by the map rather than by each component that frames it, and that
+   * is the point. Framing is one behaviour with two meanings. The first is not
+   * a *movement* — it is the map arriving where it was always supposed to be,
+   * because what it should show is not known until the network answers and the
+   * journey or line arrives, both of which are after the map exists. A reader
+   * who watches that happen sees the page zoom itself on the way in, every
+   * time, and nothing is communicated by it.
+   *
+   * Everything after is a real movement — a stop was pressed, a run is being
+   * followed — and should animate, because the point is to show the map went
+   * somewhere. Kept per component, each would claim its own free placement:
+   * pressing "follow" mounts a different component, and it would snap to the
+   * vehicle rather than travelling to it.
+   *
+   * Callers keep their `prefers-reduced-motion` gate and ask this as well.
+   */
+  isFirstFraming: () => boolean;
 }
 
 export const MapContext = createContext<MapHandle | null>(null);
@@ -91,6 +112,11 @@ export function useStyleEpoch(): number {
 /** Whether the style will accept sources and layers. See {@link MapHandle}. */
 export function useStyleReady(): boolean {
   return useHandle().styleReady;
+}
+
+/** Asks whether this is the map's opening frame. See {@link MapHandle}. */
+export function useFirstFraming(): () => boolean {
+  return useHandle().isFirstFraming;
 }
 
 /**

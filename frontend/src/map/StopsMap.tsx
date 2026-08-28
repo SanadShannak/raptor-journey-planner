@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { useMap } from './mapContext';
+import { useFirstFraming, useMap } from './mapContext';
 import type { GeoBounds } from '../config/geocoding';
 import type { NetworkStop, StopIdentity } from '../types/stop';
 import { MapCanvas } from './MapCanvas';
@@ -56,7 +56,7 @@ export function StopsMap({
   const reduceMotion = useReducedMotion();
 
   return (
-    <MapCanvas network={network}>
+    <MapCanvas network={network} initialView={home}>
       <StopLayer
         onStopHover={() => {}}
         onStopSelect={onStopSelect}
@@ -123,8 +123,13 @@ function RestOn({
   animate: boolean;
 }) {
   const map = useMap();
+  const isFirstFraming = useFirstFraming();
 
   useEffect(() => {
+    // The opening frame is where the map should already have been, so it is
+    // placed rather than travelled to. See `useFirstFraming`.
+    const moving = animate && !isFirstFraming();
+
     /*
      * Closer than the resting view, and never further out than it: arriving at
      * a stop from a link should show its own street, while pressing one
@@ -134,7 +139,7 @@ function RestOn({
       map.easeTo({
         center: [focused.lon, focused.lat],
         zoom: Math.max(map.getZoom(), 17),
-        animate,
+        animate: moving,
       });
       return;
     }
@@ -154,7 +159,7 @@ function RestOn({
       map.easeTo({
         center: [view.lon, view.lat],
         zoom: Math.max(map.getZoom(), 16),
-        animate,
+        animate: moving,
       });
       return;
     }
@@ -168,8 +173,12 @@ function RestOn({
      * Safe to depend on because it changes exactly once: it is memoised on the
      * network and its area, both set once and never again.
      */
-    map.easeTo({ center: [home.center[1], home.center[0]], zoom: home.zoom, animate });
-  }, [map, focused, pending, view, home, animate]);
+    map.easeTo({
+      center: [home.center[1], home.center[0]],
+      zoom: home.zoom,
+      animate: moving,
+    });
+  }, [map, focused, pending, view, home, animate, isFirstFraming]);
 
   return null;
 }
