@@ -512,3 +512,40 @@ describe('RouteMap overlays', () => {
     expect(sourceIds().sort()).toEqual(['route-line', 'route-stops']);
   });
 });
+
+/*
+ * The map outlives the page, so leaving one has to leave the map clean.
+ *
+ * This is the half of pooling that is easy to get wrong, and it fails a whole
+ * page later rather than where the mistake is: a layer left behind is only
+ * noticed when the *next* page adds one with the same name and MapLibre
+ * throws `Source "route-stops" already exists` — in an effect, which takes the
+ * render down and shows a blank page.
+ *
+ * It bit exactly once, and for a reason worth keeping written down. React runs
+ * a component's cleanups parent-first, so `MapCanvas` tidies up before any
+ * layer does; it had been clearing the reference that `isAlive` reads, which
+ * answered "the map is gone" to every layer still waiting to remove itself.
+ * Each politely skipped its own cleanup, and all of them stayed.
+ */
+describe('handing the map back', () => {
+  it('takes its overlays off, so the next page can add its own', async () => {
+    const first = await show({ variant: TRAM_1 });
+    const map = liveMap();
+    expect([...map.sources.keys()].sort()).toEqual(['route-line', 'route-stops']);
+
+    first.unmount();
+
+    expect([...map.sources.keys()]).toEqual([]);
+    expect([...map.layers.keys()]).toEqual([]);
+  });
+
+  it('can be drawn on again without colliding with what it drew before', async () => {
+    (await show({ variant: TRAM_1 })).unmount();
+
+    // The same map, borrowed again. Adding the same sources must not throw.
+    const second = await show({ variant: BUS_550 });
+    expect([...liveMap().sources.keys()].sort()).toEqual(['route-line', 'route-stops']);
+    expect(second.container).toBeTruthy();
+  });
+});

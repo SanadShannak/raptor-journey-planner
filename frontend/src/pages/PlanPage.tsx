@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
-import { tripPath } from '../app/routes';
+import { useLocation, useNavigate, useSearchParams } from 'react-router';
+import { stopPath, tripPath } from '../app/routes';
 import { ScheduleEstimateNotice } from '../components/ScheduleEstimateNotice';
 import { messageForApiError, nowInZone, useLocale } from '../i18n';
 import { usePageTitle } from '../app/usePageTitle';
@@ -29,7 +29,6 @@ import {
   type PlannerMemory,
 } from '../features/journey/plannerMemory';
 import { JourneyMap } from '../map/JourneyMap';
-import { StopInspector } from '../features/stops/StopInspector';
 
 /**
  * Whether two results are the same journey.
@@ -97,6 +96,7 @@ function endOf(place: Place | null): JourneyEnd {
 export default function PlanPage() {
   const locale = useLocale();
   const navigate = useNavigate();
+  const location = useLocation();
   const { strings, t } = locale;
   /*
    * The tab is named for what it is, which is not what the heading says. A
@@ -157,7 +157,6 @@ export default function PlanPage() {
       searched: false,
       openIndex: null,
       selectedIndex: null,
-      inspectStopId: null,
       exhausted: null,
     };
 
@@ -176,7 +175,6 @@ export default function PlanPage() {
       ...blank,
       values: asked,
       openIndex: open !== null && /^\d+$/.test(open) ? Number(open) : null,
-      inspectStopId: searchP.get('stop'),
     };
   });
 
@@ -231,12 +229,32 @@ export default function PlanPage() {
     [rememberPanel],
   );
 
-  const setInspectStopId = useCallback(
-    (next: string | null) => {
-      setInspectStopIdState(next);
-      rememberPanel('stop', next);
+  /**
+   * Opens a stop on its own page, carrying the way back.
+   *
+   * It used to swap the sidebar for a stop inspector, on the grounds that
+   * pressing a stop while reading a journey is a question about that stop and
+   * should not close the journey underneath. The reasoning was right and the
+   * remedy was wrong: what it did was replace the journey with a cramped copy
+   * of a page that already exists, in 26rem, behind a back control that only
+   * this page knew about.
+   *
+   * The objection to navigating was that the planner's search did not live in
+   * the address, so leaving would throw it away. It has lived there for a
+   * while now — the question, the open itinerary and all — so going to the
+   * stop's own page and coming back lands on the same journey, still open.
+   *
+   * The return address is handed over in history state rather than inferred,
+   * which is what lets the stop page say "Back to the journey" instead of
+   * guessing from the fact that a sender exists. See `backLabel`.
+   */
+  const inspectStop = useCallback(
+    (stopId: string) => {
+      navigate(stopPath(stopId), {
+        state: { back: `${location.pathname}${location.search}` },
+      });
     },
-    [rememberPanel],
+    [navigate, location.pathname, location.search],
   );
   const [state, setState] = useState<'idle' | 'searching' | 'failed'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -276,9 +294,6 @@ export default function PlanPage() {
    * leaves the page — and coming back to the itinerary you were not looking at
    * is coming back to the wrong place.
    */
-  const [inspectStopId, setInspectStopIdState] = useState<string | null>(
-    seed.inspectStopId,
-  );
 
   const requestId = useRef(0);
   /** Bumped to re-run the startup effect when the service comes back. */
@@ -490,10 +505,9 @@ export default function PlanPage() {
       searched,
       openIndex,
       selectedIndex,
-      inspectStopId,
       exhausted,
     });
-  }, [values, journeys, searched, openIndex, selectedIndex, inspectStopId, exhausted]);
+  }, [values, journeys, searched, openIndex, selectedIndex, exhausted]);
 
   /*
    * Runs a search the address already carries.
@@ -524,7 +538,6 @@ export default function PlanPage() {
      */
     void search(values, 'replace').then(() => {
       if (seed.openIndex !== null) setOpenIndex(seed.openIndex);
-      if (seed.inspectStopId !== null) setInspectStopId(seed.inspectStopId);
     });
     // Deliberately not depending on `values`: this fires for what arrived in
     // the URL, and every later change is somebody typing.
@@ -683,26 +696,7 @@ export default function PlanPage() {
           you scroll, so the panes are back to being one, and the separation
           is drawn instead of enforced.
         */}
-        {inspectStopId !== null ? (
-          /*
-            A stop, opened from the map. It sits ahead of the itinerary in this
-            chain because it was asked for later: pressing a stop while reading
-            a journey is a question about that stop, and answering it must not
-            close the journey underneath.
-          */
-          <StopInspector
-            stopId={inspectStopId}
-            timezone={timezone}
-            validDates={validDates}
-            networkToday={networkToday}
-            onBack={() => setInspectStopId(null)}
-            /* Back goes to whatever was showing underneath, which is the
-               open itinerary when there is one and the list otherwise. */
-            backLabel={t(
-              open !== null ? strings.stops.backToJourney : strings.stops.backToResults,
-            )}
-          />
-        ) : open !== null ? (
+        {open !== null ? (
           <div className="flex flex-col gap-5 p-5">
             <ItineraryDetail
               journey={open}
@@ -716,7 +710,7 @@ export default function PlanPage() {
                 the panel and leaves `openIndex` alone. Back returns to the
                 itinerary, which is what the inspector's own label says.
               */
-              onInspectStop={setInspectStopId}
+              onInspectStop={inspectStop}
             />
           </div>
         ) : (
@@ -921,8 +915,8 @@ export default function PlanPage() {
               current[end]?.key === place.key ? { ...current, [end]: place } : current,
             )
           }
-          onStopSelect={setInspectStopId}
-          selectedStopId={inspectStopId}
+          onStopSelect={inspectStop}
+          selectedStopId={null}
         />
       </section>
     </div>
