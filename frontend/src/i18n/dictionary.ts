@@ -340,6 +340,16 @@ export interface Dictionary {
     showAllModes: string;
     /** Shown when the map is pulled out past the zoom that draws stops. */
     zoomInForStops: string;
+    /**
+     * Shown when the map's view holds more stops than one request returns.
+     *
+     * The server caps a request and samples evenly across the box rather than
+     * clipping to a corner, so what is drawn is spread over the whole view and
+     * genuinely useful — it is simply not all of it, and the hint beside it
+     * says "every stop in view is listed here". This replaces that claim
+     * rather than sitting beside it.
+     */
+    sampledStops: string;
     /** The list of stops currently on screen. */
     visibleStops: Message;
     /** No stops in view even though the map is close enough to draw them. */

@@ -5,7 +5,7 @@ import type { NetworkStop, StopIdentity } from '../types/stop';
 import { MapCanvas } from './MapCanvas';
 import type { ViewRequest } from './viewRequest';
 import { StopLayer } from './StopLayer';
-import { stopsViewFor, STOPS_MIN_ZOOM } from './homeView';
+import { homeViewFor, STOPS_MIN_ZOOM } from './homeView';
 import { useReducedMotion } from './useReducedMotion';
 
 interface Props {
@@ -26,6 +26,8 @@ interface Props {
   filter: (stop: NetworkStop) => boolean;
   onVisibleStopsChange: (stops: NetworkStop[]) => void;
   onBelowZoomChange: (belowZoom: boolean) => void;
+  /** Says the answer was a sample rather than all of it. See `StopLayer`. */
+  onTruncatedChange: (truncated: boolean) => void;
   /** Where the visitor last asked to be taken. */
   view: ViewRequest;
 }
@@ -50,9 +52,10 @@ export function StopsMap({
   filter,
   onVisibleStopsChange,
   onBelowZoomChange,
+  onTruncatedChange,
   view,
 }: Props) {
-  const home = useMemo(() => stopsViewFor(network, area), [network, area]);
+  const home = useMemo(() => homeViewFor(network, area), [network, area]);
   const reduceMotion = useReducedMotion();
 
   return (
@@ -71,6 +74,7 @@ export function StopsMap({
         minZoom={STOPS_MIN_ZOOM}
         onVisibleStopsChange={onVisibleStopsChange}
         onBelowZoomChange={onBelowZoomChange}
+        onTruncatedChange={onTruncatedChange}
       />
       <RestOn
         home={home}

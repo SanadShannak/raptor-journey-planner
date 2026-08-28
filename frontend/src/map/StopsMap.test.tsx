@@ -3,7 +3,7 @@ import { act, render } from '@testing-library/react';
 import { LocaleProvider } from '../i18n';
 import { ThemeProvider } from '../theme';
 import { StopsMap } from './StopsMap';
-import { stopsViewFor } from './homeView';
+import { homeViewFor } from './homeView';
 import { askFor, HOME_VIEW } from './viewRequest';
 import { forgetMaps, liveMap } from '../test/mapStub';
 import type { StopIdentity } from '../types/stop';
@@ -44,7 +44,7 @@ const NEXT_DOOR: StopIdentity = { ...LASIPALATSI, id: '1020445', lat: 60.17055 }
  * page has a view of its own — central Helsinki, where all five modes are —
  * and a literal would quietly stop meaning "home" the next time it moved.
  */
-const CITY = stopsViewFor('hsl', null).center;
+const CITY = homeViewFor('hsl', null).center;
 
 function view(props: Partial<Parameters<typeof StopsMap>[0]> = {}) {
   return (
@@ -59,6 +59,7 @@ function view(props: Partial<Parameters<typeof StopsMap>[0]> = {}) {
           filter={() => true}
           onVisibleStopsChange={() => {}}
           onBelowZoomChange={() => {}}
+          onTruncatedChange={() => {}}
           view={HOME_VIEW}
           {...props}
         />

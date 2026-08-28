@@ -130,6 +130,17 @@ interface Props {
   /** Says the map is pulled out too far to draw any, which is not "none". */
   onBelowZoomChange?: ((belowZoom: boolean) => void) | undefined;
   /**
+   * Says the answer was a sample rather than all of it.
+   *
+   * The API caps a single request and takes an evenly-spaced selection across
+   * the box when it has to, so what comes back is spread rather than clipped
+   * to one corner — but it is not everything, and a page whose own words are
+   * "every stop in view is listed here" has to stop saying that when it is
+   * untrue. Reported rather than inferred from the count, because the cap is
+   * the server's to choose.
+   */
+  onTruncatedChange?: ((truncated: boolean) => void) | undefined;
+  /**
    * How far out this map still draws stops.
    *
    * A property of what the map is *for* rather than of the layer: over a
@@ -147,6 +158,7 @@ export function StopLayer({
   filter,
   onVisibleStopsChange,
   onBelowZoomChange,
+  onTruncatedChange,
   minZoom = DEFAULT_MIN_ZOOM,
 }: Props) {
   const map = useMap();
@@ -168,6 +180,8 @@ export function StopLayer({
    */
   const belowZoom = useRef(onBelowZoomChange);
   belowZoom.current = onBelowZoomChange;
+  const cut = useRef(onTruncatedChange);
+  cut.current = onTruncatedChange;
   const visibleChanged = useRef(onVisibleStopsChange);
   visibleChanged.current = onVisibleStopsChange;
 
@@ -181,6 +195,7 @@ export function StopLayer({
         // "Too far out to draw any" is not "there are none here", and a list
         // beside the map has to say the right one of those.
         belowZoom.current?.(true);
+        cut.current?.(false);
         setStops((current) => (current.length === 0 ? current : []));
         return;
       }
@@ -204,6 +219,7 @@ export function StopLayer({
            * showing the same four hundred stops and never ask for the rest.
            */
           covered.current = answer.truncated ? null : wanted;
+          cut.current?.(answer.truncated);
           setStops(answer.stops);
         })
         .catch(() => {
@@ -211,6 +227,7 @@ export function StopLayer({
           // Stops are an extra. Failing to fetch them must not disturb the
           // journey the map is drawing.
           covered.current = null;
+          cut.current?.(false);
           setStops([]);
         });
     }, SETTLE_MS);

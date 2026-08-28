@@ -20,6 +20,48 @@ The three are genuinely decoupled: the pipeline can be rebuilt without touching 
 
 ---
 
+## Quickstart
+
+In order, from a clean checkout. Each step depends on the one before it: the
+server reads what the pipeline wrote, and the client reads what the server
+serves.
+
+```bash
+# 0. Dependencies. The pipeline and backend share the root node_modules;
+#    the client has its own.
+npm install
+cd frontend && npm install && cd ..
+
+# 1. Compile the feed. Reads raw-data/<network>-gtfs-data, writes
+#    processed-data/<network>-processed-data. Minutes, not seconds — and
+#    nothing else will start until it has run at least once.
+cd offline-data-ingestion-pipeline && node runPipeline.js && cd ..
+
+# 2. The API. Loads every compiled file into memory before opening the port,
+#    so it is slow to start and fast to answer. Leave it running.
+cd backend && npm run dev
+
+# 3. The client, in a second terminal.
+cd frontend && npm run dev
+```
+
+Then open the address Vite prints — `http://localhost:5173` by default.
+
+**Step 1 is not optional and is easy to skip.** The backend does not read GTFS;
+it reads the JSON the pipeline compiles from it, synchronously, before it opens
+the port. Skip it and the server exits with an `ENOENT` naming the
+`processed-data/<network>-processed-data` file it wanted — which is at least a
+clear message, and means "run the pipeline", not "reinstall something". Run it
+again whenever you change `ACTIVE_NETWORK`: the compiled output is per-network,
+and the server reads whichever network that token names.
+
+Everything below this is reference. For the detail — prerequisites, the API's
+endpoints, opening it on a phone — see
+[Running the Project](#running-the-project); for a different city, see
+[Switching networks](#switching-networks).
+
+---
+
 ## The Pipeline Configuration Registry (`pipelineConfig.js`)
 
 To prevent hardcoding folder names inside individual parser scripts, we use a central configuration file. This allows us to scale the project easily and switch between different city networks with a single string swap.
@@ -210,43 +252,6 @@ An isolation layer that shields the core routing engine from heavy map geometry 
 Automates the ingestion chain using `child_process.execSync`, ensuring relational dependencies are strictly preserved by freezing parent execution until each sub-parser yields a successful exit code.
 
 ## Running the Project
-
-### Quickstart
-
-In order, from a clean checkout. Each step depends on the one before it: the
-server reads what the pipeline wrote, and the client reads what the server
-serves.
-
-```bash
-# 0. Dependencies. The pipeline and backend share the root node_modules;
-#    the client has its own.
-npm install
-cd frontend && npm install && cd ..
-
-# 1. Compile the feed. Reads raw-data/<network>-gtfs-data, writes
-#    processed-data/<network>-processed-data. Minutes, not seconds — and
-#    nothing else will start until it has run at least once.
-cd offline-data-ingestion-pipeline && node runPipeline.js && cd ..
-
-# 2. The API. Loads every compiled file into memory before opening the port,
-#    so it is slow to start and fast to answer. Leave it running.
-cd backend && npm run dev
-
-# 3. The client, in a second terminal.
-cd frontend && npm run dev
-```
-
-Then open the address Vite prints — `http://localhost:5173` by default.
-
-**Step 1 is not optional and is easy to skip.** The backend does not read GTFS;
-it reads the JSON the pipeline compiles from it, synchronously, before it opens
-the port. Skip it and the server exits with an `ENOENT` naming the
-`processed-data/<network>-processed-data` file it wanted — which is at least a
-clear message, and means "run the pipeline", not "reinstall something". Run it
-again whenever you change `ACTIVE_NETWORK`: the compiled output is per-network,
-and the server reads whichever network that token names.
-
----
 
 ### What you need first
 
