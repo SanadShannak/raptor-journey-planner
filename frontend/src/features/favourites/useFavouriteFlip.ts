@@ -1,7 +1,31 @@
 import { useLayoutEffect, useRef } from 'react';
 
-/** How long a card takes to glide into its new spot. */
-const DURATION_MS = 160;
+/**
+ * How long a card takes to glide into its new spot.
+ *
+ * Slow enough to read as a movement rather than a jump. It was 160ms, which is
+ * about right for a control acknowledging a press and too quick for this: a
+ * card crossing most of the row in that time is a thing that has *already
+ * arrived*, and the eye reports a flicker where the point was to show which
+ * card went where.
+ *
+ * The ceiling is the drag itself. The glide happens while a finger is still
+ * moving, and a row that is still settling when the pointer reaches the next
+ * card feels like it is lagging behind the hand — so this stays well under the
+ * time it takes to drag from one card to the next.
+ */
+const DURATION_MS = 280;
+
+/**
+ * The curve, and the reason it is not the default.
+ *
+ * `ease` starts fast and spends its tail decelerating, which at this duration
+ * reads as the card being thrown and then hesitating. A gentle ease-in-out
+ * starts and ends at rest, so a card that has been nudged one place looks
+ * pushed rather than flung — and the row settles together rather than each
+ * card arriving on its own schedule.
+ */
+const EASING = 'cubic-bezier(0.32, 0.72, 0, 1)';
 
 /**
  * Animates a row's cards sliding into their new positions after a reorder.
@@ -85,7 +109,7 @@ export function useFavouriteFlip(
       el.getBoundingClientRect();
 
       requestAnimationFrame(() => {
-        el.style.transition = `transform ${DURATION_MS}ms ease`;
+        el.style.transition = `transform ${DURATION_MS}ms ${EASING}`;
         el.style.transform = '';
       });
 

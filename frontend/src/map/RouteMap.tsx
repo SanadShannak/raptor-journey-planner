@@ -18,7 +18,7 @@ import { MapCanvas, FitTo } from './MapCanvas';
 import { MapMarker } from './MapMarker';
 import { RouteVehicles } from './RouteVehicles';
 import { StopLayer } from './StopLayer';
-import { useMap, useMapAlive, useMapEvent } from './mapContext';
+import { useFirstFraming, useMap, useMapAlive, useMapEvent } from './mapContext';
 import { useGeoJson } from './useGeoJson';
 import {
   lineLayers,
@@ -70,6 +70,7 @@ interface Props {
  */
 function Chase({ point, animate }: { point: Coordinates; animate: boolean }) {
   const map = useMap();
+  const isFirstFraming = useFirstFraming();
   const [lat, lon] = point;
 
   useEffect(() => {
@@ -78,11 +79,13 @@ function Chase({ point, animate }: { point: Coordinates; animate: boolean }) {
     map.easeTo({
       center: [lon, lat],
       zoom: Math.max(map.getZoom(), 15),
-      animate,
+      // Arriving on a followed run is a placement; keeping up with it is a
+      // movement. See `useFirstFraming`.
+      animate: animate && !isFirstFraming(),
     });
     // Deliberately keyed on the numbers rather than the array: a fresh tuple
     // with the same coordinates is not a move.
-  }, [map, lat, lon, animate]);
+  }, [map, lat, lon, animate, isFirstFraming]);
 
   return null;
 }
@@ -320,7 +323,7 @@ export function RouteMap({
       : undefined;
 
   return (
-    <MapCanvas network={network}>
+    <MapCanvas network={network} initialView={home}>
       {/*
         Drawn under the line: context, not the subject — and held back two zoom
         levels further in than the stops page for exactly that reason. A line

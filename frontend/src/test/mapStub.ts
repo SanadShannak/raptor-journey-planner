@@ -84,6 +84,9 @@ export class StubMap {
     queueMicrotask(() => {
       this.fire('load');
       this.fire('style.load');
+      // The map has drawn something. Fired here so the fade-in that waits on
+      // it resolves in tests too, rather than leaving the canvas hidden.
+      this.fire('idle');
     });
   }
 
@@ -95,6 +98,16 @@ export class StubMap {
     set.add(handler);
     this.listeners.set(type, set);
     return this;
+  }
+
+  /** One-shot subscription, as the real map offers. */
+  once(type: string, a: unknown, b?: unknown): this {
+    const handler = (typeof a === 'function' ? a : b) as Listener;
+    const wrapped: Listener = (event) => {
+      this.listeners.get(type)?.delete(wrapped);
+      handler(event);
+    };
+    return this.on(type, wrapped);
   }
 
   off(type: string, a: unknown, b?: unknown): this {

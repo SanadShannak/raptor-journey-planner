@@ -615,7 +615,7 @@ export function JourneyMap({
   };
 
   return (
-    <MapCanvas network={network}>
+    <MapCanvas network={network} initialView={home}>
       {/* Drawn under everything the journey puts on the map. */}
       <StopLayer
         onStopHover={() => setPick(null)}

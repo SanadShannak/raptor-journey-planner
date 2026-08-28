@@ -465,6 +465,41 @@
  * nothing about either scheme.
  */
 /*
+ * The map fades in once it has actually drawn something.
+ *
+ * A GL map paints its background the moment it exists and its cartography only
+ * once tiles have arrived, so there is a real stretch where the page shows an
+ * empty panel and then the whole map appears at once. Fading it turns that pop
+ * into an arrival: the panel is there for exactly as long, but it resolves.
+ *
+ * The canvas *container* rather than the canvas, because it holds the markers
+ * too — the pin at the end of a line, the ring at the start of a journey. Held
+ * back only the canvas, those hung in an empty panel waiting for the ground
+ * they are supposed to be standing on. They are the map's content and arrive
+ * with it.
+ *
+ * The controls are the exception and stay outside this, in their own
+ * container: they are furniture rather than content, and making somebody wait
+ * on tiles before a zoom button exists helps nobody.
+ *
+ * The transition is dropped for anyone who asked for less movement, who gets
+ * the map the moment it is there.
+ */
+[data-painted] .maplibregl-canvas-container {
+  opacity: 0;
+}
+
+[data-painted='true'] .maplibregl-canvas-container {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .maplibregl-canvas-container {
+    transition: opacity 320ms ease-out;
+  }
+}
+
+/*
  * Seen while tiles load, and in the gutters when the map is over-panned.
  *
  * The raster map needed a preflight escape here too — `max-width: 100%` on

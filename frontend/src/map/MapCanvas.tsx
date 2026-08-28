@@ -34,7 +34,12 @@ import {
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { useLocale } from '../i18n';
 import { useTheme } from '../theme';
-import { MapContext, useMap, type MapHandle } from './mapContext';
+import {
+  MapContext,
+  useFirstFraming,
+  useMap,
+  type MapHandle,
+} from './mapContext';
 import { lngLatBounds } from './coords';
 import { homeViewFor, type HomeView } from './homeView';
 import { tileSourceFor } from './tileSource';
@@ -43,6 +48,20 @@ import { useReducedMotion } from './useReducedMotion';
 interface Props {
   /** Which network, for the tile source. */
   network: string | null;
+  /**
+   * Where the map opens, before anything has been framed on it.
+   *
+   * Passed by the page rather than fixed here, because the right answer is a
+   * property of what the map is *for*: a page about stops opens close enough
+   * in that stops are drawn, and a page about a journey opens on the city it
+   * is about to draw one across.
+   *
+   * Without it every map opened at one shared default and then moved to where
+   * it actually belonged, which is a zoom the reader watches happen on the way
+   * to every page. The first framing is instant for the same reason — see
+   * {@link useFirstFraming}.
+   */
+  initialView?: HomeView | undefined;
   /** What the map draws on top: layers, markers, controls of its own. */
   children: ReactNode;
 }
@@ -86,7 +105,7 @@ glConfig.WORKER_URL = workerUrl;
  */
 const FIRST_VIEW = homeViewFor(null, null);
 
-export function MapCanvas({ network, children }: Props) {
+export function MapCanvas({ network, initialView, children }: Props) {
   const { direction, strings, t } = useLocale();
   const { resolved } = useTheme();
   const reduceMotion = useReducedMotion();
@@ -98,12 +117,41 @@ export function MapCanvas({ network, children }: Props) {
   /** False only while a style swap is in flight. See {@link MapHandle}. */
   const [styleReady, setStyleReady] = useState(false);
   /**
+   * Whether the map has finished drawing something worth looking at.
+   *
+   * A GL map paints its background the moment it exists and its cartography
+   * only once tiles have arrived and been drawn, so there is a real stretch
+   * where the page shows an empty panel and then the map appears in it all at
+   * once. Fading that in turns a pop into an arrival — the panel is still
+   * there for exactly as long, but it resolves rather than switches.
+   *
+   * `idle` and not `load`: `load` fires when the *style* is ready, which is
+   * before any tile has been drawn, and fading in on it just moves the pop a
+   * few hundred milliseconds later.
+   */
+  const [painted, setPainted] = useState(false);
+  /**
    * Cleared the moment the map is destroyed, and read by every cleanup that
    * would otherwise talk to it afterwards — including the ones in this file.
    * See {@link MapHandle} for why that ordering bites.
    */
   const alive = useRef(true);
   const isAlive = useCallback(() => alive.current, []);
+
+  /*
+   * Read once, at construction, and deliberately not a dependency: a map's
+   * opening view is a fact about the moment it is created, and re-reading it
+   * later would fight whatever the page has framed since.
+   */
+  const opening = useRef(initialView ?? FIRST_VIEW);
+
+  /** See {@link MapHandle} — one answer shared by every framing component. */
+  const framed = useRef(false);
+  const isFirstFraming = useCallback(() => {
+    const first = !framed.current;
+    framed.current = true;
+    return first;
+  }, []);
 
   const tiles = tileSourceFor(network);
   const style = resolved === 'dark' ? tiles.dark : tiles.light;
@@ -143,8 +191,8 @@ export function MapCanvas({ network, children }: Props) {
     const instance = new GlMap({
       container: node,
       style,
-      center: [FIRST_VIEW.center[1], FIRST_VIEW.center[0]],
-      zoom: FIRST_VIEW.zoom,
+      center: [opening.current.center[1], opening.current.center[0]],
+      zoom: opening.current.zoom,
       maxZoom: tiles.maxZoom,
       attributionControl: false,
       /*
@@ -175,6 +223,7 @@ export function MapCanvas({ network, children }: Props) {
 
     applied.current = style;
     const onLoad = () => setMap(instance);
+    const onIdle = () => setPainted(true);
     /*
      * Fired on the first style and on every one after it. `styleEpoch` counts
      * them, which is how a child knows its layers were discarded and it is
@@ -187,6 +236,7 @@ export function MapCanvas({ network, children }: Props) {
 
     instance.on('load', onLoad);
     instance.on('style.load', onStyle);
+    instance.once('idle', onIdle);
 
     return () => {
       /*
@@ -197,6 +247,7 @@ export function MapCanvas({ network, children }: Props) {
       alive.current = false;
       instance.off('load', onLoad);
       instance.off('style.load', onStyle);
+      instance.off('idle', onIdle);
       setMap(null);
       instance.remove();
     };
@@ -293,12 +344,24 @@ export function MapCanvas({ network, children }: Props) {
 
   const handle = useMemo<MapHandle | null>(
     () =>
-      map === null ? null : { map, styleEpoch, styleReady, isAlive },
-    [map, styleEpoch, styleReady, isAlive],
+      map === null
+        ? null
+        : { map, styleEpoch, styleReady, isAlive, isFirstFraming },
+    [map, styleEpoch, styleReady, isAlive, isFirstFraming],
   );
 
   return (
-    <div ref={container} className="absolute inset-0 h-full w-full">
+    /*
+      `data-painted` drives the fade; the rule lives in the stylesheet because
+      it has to reach inside MapLibre's own elements, which this component
+      never renders. The controls sit in a container of their own and are not
+      held back — they are the map's furniture rather than its content.
+    */
+    <div
+      ref={container}
+      data-painted={painted ? 'true' : 'false'}
+      className="absolute inset-0 h-full w-full"
+    >
       {handle !== null && (
         <MapContext.Provider value={handle}>{children}</MapContext.Provider>
       )}
@@ -323,19 +386,24 @@ export function FitTo({
   animate: boolean;
 }) {
   const map = useMap();
+  const isFirstFraming = useFirstFraming();
 
   useEffect(() => {
+    // The opening frame is where the map should already have been, so it is
+    // placed rather than travelled to. See `useFirstFraming`.
+    const moving = animate && !isFirstFraming();
+
     if (box === null) {
       map.easeTo({
         center: [home.center[1], home.center[0]],
         zoom: home.zoom,
-        animate,
+        animate: moving,
       });
       return;
     }
 
-    map.fitBounds(lngLatBounds(box), { padding: 32, maxZoom: 16, animate });
-  }, [map, box, home, animate]);
+    map.fitBounds(lngLatBounds(box), { padding: 32, maxZoom: 16, animate: moving });
+  }, [map, box, home, animate, isFirstFraming]);
 
   return null;
 }
