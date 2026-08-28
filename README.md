@@ -143,13 +143,34 @@ The core online algorithm that consumes pre-compiled transit arrays to answer tr
 
 ### The API Controller (`index.js`)
 #### Objective
-Exposes the RAPTOR engine to client applications via a RESTful HTTP endpoint, handling request validation, performance tracking, and payload formatting.
+Exposes the RAPTOR engine and the compiled feed to client applications over
+HTTP, handling request validation, performance tracking, and payload
+formatting. It has grown from one endpoint to eight — see
+[Endpoints](#endpoints) for the list; one router per endpoint lives in
+`server/routes/`.
 #### Operational Logic
 1. **Synchronous Memory Bootstrapping**: Leverages Node's synchronous `require()` behavior to load all massive GTFS JSON data into the V8 memory heap *before* opening the port to accept traffic.
 2. **Input Validation**: Uses utility validators to strictly enforce date formats (`YYYY-MM-DD`), time formats (`HH:MM:SS`), and optional walking speed constraints.
 3. **Performance Telemetry**: Utilizes `performance.now()` to track and log exact execution times for every route calculated.
-4. **Error Propagation**: Catches RAPTOR's internal engine error codes (e.g., `NO_ROUTE_FOUND`, `OUT_OF_BOUNDS`) and maps them to appropriate HTTP status codes (400, 404, 500) so the frontend can display helpful UI states.
-5. **Presenter Pattern (`formatItinerary.js`)**: Once the engine completes execution, the raw timeline arrays are passed through a formatter to translate raw engine seconds into human-readable strings (e.g., `18:02`, `14 min`) and attach overarching itinerary metrics.
+4. **Error Propagation**: Every failure carries `{ errorCode, error }`, and the
+   status says *who* refused rather than whether there is an answer. A
+   malformed request is a `400`; an unknown line is a `404`; a card lookup with
+   no store behind it is a `503`; an unexpected throw is a `500`. An engine
+   outcome is **none of those** — `NO_ROUTE_FOUND` and
+   `DESTINATION_OUT_OF_BOUNDS` come back with a `200`, because the request was
+   fine and "nothing runs between those points then" is an answer rather than a
+   fault. A client that goes straight to reading `legs` reports "unreadable
+   response" for what is really an empty result, so **read `errorCode` on a
+   successful response too**.
+5. **Presenter Pattern (`formatItinerary.js`)**: Once the engine completes
+   execution, the raw timeline arrays are passed through a formatter that turns
+   engine seconds into wall-clock strings in the network's timezone and attaches
+   the itinerary's own totals. Three rounding rules live here, and they are the
+   reason a client must never recompute a duration: times round to whole minutes
+   **asymmetrically** — an arrival up, a departure down, so nobody is told they
+   arrive earlier or may leave later than they can — durations round to whole
+   minutes with a floor of 1, and distances to the nearest 50 m with a floor of
+   50. See [What `/api/planner` returns](#what-apiplanner-returns).
 
 ---
 
@@ -190,6 +211,43 @@ Automates the ingestion chain using `child_process.execSync`, ensuring relationa
 
 ## Running the Project
 
+### Quickstart
+
+In order, from a clean checkout. Each step depends on the one before it: the
+server reads what the pipeline wrote, and the client reads what the server
+serves.
+
+```bash
+# 0. Dependencies. The pipeline and backend share the root node_modules;
+#    the client has its own.
+npm install
+cd frontend && npm install && cd ..
+
+# 1. Compile the feed. Reads raw-data/<network>-gtfs-data, writes
+#    processed-data/<network>-processed-data. Minutes, not seconds — and
+#    nothing else will start until it has run at least once.
+cd offline-data-ingestion-pipeline && node runPipeline.js && cd ..
+
+# 2. The API. Loads every compiled file into memory before opening the port,
+#    so it is slow to start and fast to answer. Leave it running.
+cd backend && npm run dev
+
+# 3. The client, in a second terminal.
+cd frontend && npm run dev
+```
+
+Then open the address Vite prints — `http://localhost:5173` by default.
+
+**Step 1 is not optional and is easy to skip.** The backend does not read GTFS;
+it reads the JSON the pipeline compiles from it, synchronously, before it opens
+the port. Skip it and the server exits with an `ENOENT` naming the
+`processed-data/<network>-processed-data` file it wanted — which is at least a
+clear message, and means "run the pipeline", not "reinstall something". Run it
+again whenever you change `ACTIVE_NETWORK`: the compiled output is per-network,
+and the server reads whichever network that token names.
+
+---
+
 ### What you need first
 
 * **Node.js 22 or newer.** The backend starts with `--env-file-if-exists`, which
@@ -197,21 +255,12 @@ Automates the ingestion chain using `child_process.execSync`, ensuring relationa
 * **A GTFS dataset** for the network you want, unzipped into `raw-data/`.
 * **MongoDB** — optional, and only for the travel-card endpoints. Everything
   else is served from the compiled feed held in memory. Without it the card
-  endpoints answer honestly that the store is unavailable and the rest of the
-  app is unaffected.
-
-### Install
+  endpoints answer with a `503` saying the store is unavailable, and the rest
+  of the app is unaffected.
 
 Dependencies for the pipeline and the backend live in the **root**
-`node_modules`; `backend/package.json` carries scripts only. The frontend has
-its own.
-
-```bash
-npm install                 # root — pipeline + backend
-cd frontend && npm install  # the web client
-```
-
----
+`node_modules` — `backend/package.json` carries scripts only. The client has
+its own, which is why the quickstart installs twice.
 
 ### 1. Configure the Target Transit Network
 
@@ -409,7 +458,10 @@ The engine executes the RAPTOR routing algorithm over the preprocessed transit n
 - Applies RAPTOR pruning rules to eliminate dominated journeys while preserving correctness.
 - Reconstructs the selected path.
 
-To ensure absolute data integrity and strictly decouple mathematical logic from frontend presentation (the Presenter Pattern), all durations, start times, end times, and target arrival times are output as **raw integer seconds from absolute engine midnight**.
+To keep mathematics and presentation apart, the engine deals only in **raw
+integer seconds from absolute engine midnight** — it has no opinion about how a
+time should be written. What it hands back is therefore not what the API
+returns:
 
 ```json
 {
@@ -475,83 +527,147 @@ To ensure absolute data integrity and strictly decouple mathematical logic from 
 }
 ```
 
-This payload is then formatted by the API layer itinerary formatter to present the data nicely to the frontend:
+### What `/api/planner` returns
+
+`formatItinerary.js` turns those seconds into wall-clock strings in the
+network's timezone, adds the itinerary's own totals, and that is what leaves
+the server. Captured from a live request:
+
 ```json
 {
-  "startTime": "18:02",
-  "endTime": "19:06",
-  "totalDurationMinutes": 64,
+  "startDate": "2026-08-28",
+  "startTime": "09:00",
+  "endDate": "2026-08-28",
+  "endTime": "09:20",
+  "totalDurationMinutes": 20,
   "legs": [
     {
       "mode": "WALK",
       "waitDurationMinutes": 0,
-      "startTime": "18:02",
+      "startDate": "2026-08-28",
+      "startTime": "09:00",
       "fromStop": {
         "name": "ORIGIN",
+        "id": null,
         "code": "ORIGIN_PIN",
-        "lat": 60.2050763376478,
-        "lon": 24.962304855336
+        "platform": null,
+        "lat": 60.1689,
+        "lon": 24.9317
       },
       "routeShortName": null,
       "routeType": null,
+      "lineId": null,
+      "patternId": null,
+      "routeLongName": null,
+      "directionId": null,
+      "headsign": null,
+      "destination": null,
       "intermediateStops": null,
       "toStop": {
-        "name": "Kumpulan kampus",
-        "code": "H0326",
-        "lat": 60.203071,
-        "lon": 24.965821
+        "id": "1020502",
+        "name": "Helsinki",
+        "code": "H0064",
+        "platform": null,
+        "lat": 60.17272,
+        "lon": 24.939911
       },
-      "endTime": "18:08",
+      "endDate": "2026-08-28",
+      "endTime": "09:12",
       "tripId": null,
       "transitDurationMinutes": null,
       "transitDistanceMeters": null,
-      "walkDurationMinutes": 5,
-      "walkDistanceMeters": 350,
+      "walkDurationMinutes": 12,
+      "walkDistanceMeters": 750,
       "shape": [
-        [60.2050763376478, 24.962304855336],
-        [60.203071, 24.965821]
+        [
+          60.1689,
+          24.9317
+        ],
+        [
+          60.17272,
+          24.939911
+        ]
       ]
     },
     {
       "mode": "TRANSIT",
       "waitDurationMinutes": 0,
-      "startTime": "18:08",
+      "startDate": "2026-08-28",
+      "startTime": "09:12",
       "fromStop": {
-        "name": "Kumpulan kampus",
-        "code": "H0326",
-        "lat": 60.203071,
-        "lon": 24.965821
+        "id": "1020502",
+        "name": "Helsinki",
+        "code": "H0064",
+        "platform": null,
+        "lat": 60.17272,
+        "lon": 24.939911
       },
-      "routeShortName": "6",
-      "routeType": 0,
-      "intermediateStops": [
-        {
-          "stopName": "Paavalinkirkko",
-          "stopCode": "H0330",
-          "stopArrivalTime": "18:10"
-        }
-      ],
+      "routeShortName": "U",
+      "routeType": 2,
+      "lineId": "train-U",
+      "patternId": 716,
+      "routeLongName": "Helsinki-Kirkkonummi",
+      "directionId": 0,
+      "headsign": "Kirkkonummi",
+      "destination": "Kirkkonummi",
+      "intermediateStops": [],
       "toStop": {
-        "name": "Kaisaniemenkatu",
-        "code": "H0304",
-        "lat": 60.17163,
-        "lon": 24.94737
+        "id": "1174504",
+        "name": "Pasila",
+        "code": "H0090",
+        "platform": "8",
+        "lat": 60.199483,
+        "lon": 24.932706
       },
-      "endTime": "18:24",
-      "tripId": "1006_20260831_Su_2_1805",
-      "transitDurationMinutes": 16,
-      "transitDistanceMeters": 3950,
-      "walkDurationMinutes": 0,
+      "endDate": "2026-08-28",
+      "endTime": "09:16",
+      "tripId": "3002U_20260814_Pe_1_0912",
+      "transitDurationMinutes": 4,
+      "transitDistanceMeters": 3050,
+      "walkDurationMinutes": null,
       "walkDistanceMeters": null,
       "shape": [
-        [60.203071, 24.965821],
-        [60.203072, 24.965429],
-        [60.17163, 24.94737]
+        [
+          60.17272,
+          24.939911
+        ],
+        [
+          60.178854,
+          24.939419
+        ],
+        [
+          60.199483,
+          24.932706
+        ]
       ]
     }
   ]
 }
 ```
+
+Elided for length: this itinerary has a third leg (the walk from the alighting
+stop), and each `shape` is the full run of coordinates rather than three.
+Nothing else is trimmed — every field a leg carries is above.
+
+Three things in there are worth pointing out, because a client that assumes
+otherwise breaks quietly:
+
+* **A leg is a discriminated union on `mode`.** `WALK` and `TRANSIT` legs carry
+  the same keys, and the ones that do not apply are `null` rather than absent —
+  a walk has no `routeShortName`, a ride has no `walkDistanceMeters`.
+* **Times are `HH:mm` and each leg carries its own date.** An itinerary can
+  legitimately cross midnight, because the engine loads yesterday, today and
+  tomorrow with offsets, so `endDate` may be later than `startDate`.
+* **`ORIGIN_PIN` and `TARGET_PIN` are synthetic.** When a journey starts or
+  ends at a coordinate rather than a stop, the engine invents an endpoint named
+  `ORIGIN`/`TARGET`. They are placeholders, and a client should substitute
+  whatever the traveller actually chose.
+
+Every duration in a response is measured between the rounded times that same
+response publishes, never from the engine's exact seconds. A leg's duration is
+`endTime − startTime`, a wait is the gap between the previous leg's `endTime`
+and this leg's `startTime`, and legs and waits tile the journey — they sum to
+`totalDurationMinutes`. **A client must not recompute a duration.**
 
 ## Switching networks
 
