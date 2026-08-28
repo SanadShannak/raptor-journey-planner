@@ -4,10 +4,19 @@
 
 Public transit engines process massive datasets containing millions of weekly scheduled trips. Running a routing engine directly against raw schedule files or a standard database produces unacceptably high latency.
 
-To overcome this, this project is divided into two decoupled, distinct architectures:
+To overcome this, this project is divided into three decoupled, distinct parts, each in its own directory:
+
+| Directory | What it is | Language |
+| --- | --- | --- |
+| `offline-data-ingestion-pipeline/` | Compiles raw GTFS text feeds into indexed JSON | CommonJS Node |
+| `backend/` | Express server + RAPTOR routing engine, reads the compiled JSON | CommonJS Node |
+| `frontend/` | Journey-planning web client | React + TypeScript + Vite |
 
 1. **The Offline Data Pipeline:** A sequence of ingestion compilers that read heavy, relational, text-based GTFS data and compact them into zero-indexed, contiguous memory buffers saved as highly readable `.json` files.
 2. **The Online Routing Server:** An ultra-fast, multi-modal routing environment that loads pre-compiled JSON memory blocks into RAM cache to execute RAPTOR range queries in sub-50ms runtimes.
+3. **The Web Client:** A React application that consumes the HTTP API. It draws journeys, lines and stops on a vector map, and is written so that the map is always an enhancement over an accessible list rather than the only route to any information.
+
+The three are genuinely decoupled: the pipeline can be rebuilt without touching the server, and the server runs without the client. Only the direction of dependency is fixed — the client reads the API, the API reads the compiled data, the pipeline writes it.
 
 ---
 
@@ -181,6 +190,29 @@ Automates the ingestion chain using `child_process.execSync`, ensuring relationa
 
 ## Running the Project
 
+### What you need first
+
+* **Node.js 22 or newer.** The backend starts with `--env-file-if-exists`, which
+  is native to Node and is why there is no `dotenv` dependency.
+* **A GTFS dataset** for the network you want, unzipped into `raw-data/`.
+* **MongoDB** — optional, and only for the travel-card endpoints. Everything
+  else is served from the compiled feed held in memory. Without it the card
+  endpoints answer honestly that the store is unavailable and the rest of the
+  app is unaffected.
+
+### Install
+
+Dependencies for the pipeline and the backend live in the **root**
+`node_modules`; `backend/package.json` carries scripts only. The frontend has
+its own.
+
+```bash
+npm install                 # root — pipeline + backend
+cd frontend && npm install  # the web client
+```
+
+---
+
 ### 1. Configure the Target Transit Network
 
 The project supports multiple GTFS datasets through the centralized configuration registry.
@@ -190,6 +222,10 @@ The project supports multiple GTFS datasets through the centralized configuratio
 3. Open `pipelineConfig.js`.
 4. Set the `ACTIVE_NETWORK` property to the desired network (e.g., `"amman"` or `"hsl"`).
 
+That single token drives every path in the pipeline **and** in the backend.
+The client needs a few entries of its own — see
+[Switching networks](#switching-networks) for the complete list.
+
 ---
 
 ### 2. Build the Optimized Data Structures
@@ -197,14 +233,96 @@ The project supports multiple GTFS datasets through the centralized configuratio
 Run the offline preprocessing pipeline:
 
 ```bash
-node runPipeline.js
+cd offline-data-ingestion-pipeline && node runPipeline.js
 ```
 
 This executes the complete ingestion pipeline, validates the GTFS feed, and generates all optimized JSON structures required by the routing engine.
 
 ---
 
-### 3. Execute the RAPTOR Engine
+### 3. Start the API server
+
+```bash
+cd backend && npm run dev     # http://localhost:3000, restarts on change
+cd backend && npm start       # the same without the watcher
+```
+
+Startup is deliberately slow and requests are not: `memoryCache.js` loads every
+compiled file synchronously at require time, so the whole network is in the V8
+heap before the port opens.
+
+The port defaults to `3000` and is set in `backend/server/serverConfig.js`,
+which honours `PORT`. Whatever you choose, the client's `VITE_API_BASE_URL`
+must agree with it.
+
+Optional, for the travel-card endpoints only:
+
+```bash
+cp backend/.env.example backend/.env   # then edit MONGO_URI
+```
+
+#### Endpoints
+
+| Endpoint | What it answers |
+| --- | --- |
+| `GET /api/planner` | Plans a journey between two points |
+| `GET /api/stops` | Every stop inside a bounding box |
+| `GET /api/stop/:id` | One stop, and what leaves it next |
+| `GET /api/routes` | The lines in the network, and one line's detail |
+| `GET /api/network` | Which network this is, and its timezone |
+| `GET /api/valid-dates` | The service days the compiled feed covers |
+| `GET /api/card/:number` | A travel card's balance (needs MongoDB) |
+| `GET /api/health` | A liveness probe, used to gate the client's form |
+
+Every failure carries `{ errorCode, error }`. The status says *who* refused,
+not whether there is an answer: a **200 can still carry an `errorCode`** —
+`NO_ROUTE_FOUND` and `DESTINATION_OUT_OF_BOUNDS` among them — because the
+request was fine and the engine has an outcome to report. Code that goes
+straight to reading `legs` will call that "unreadable response" when it means
+"nothing runs then". The `error` string is developer-facing English and is
+never shown to anyone.
+
+One asymmetry to know about when calling `/api/planner` by hand: **it takes
+`HH:MM:SS` and answers in `HH:mm`.** A `time` of `09:00` is rejected with
+`BAD_TIME`; `09:00:00` is accepted, and the itinerary that comes back reports
+`"startTime": "09:00"`. The client appends the seconds itself for this reason.
+
+```bash
+curl "http://localhost:3000/api/planner?originLat=60.1689&originLon=24.9317\
+&destLat=60.1985&destLon=24.9333&date=2026-08-28&time=09:00:00"
+```
+
+Note the destination parameters are `destLat`/`destLon` — not `destination*`.
+Either end may instead be given as a stop: `originStopId` / `destStopId`.
+
+---
+
+### 4. Start the web client
+
+```bash
+cd frontend && npm install
+cd frontend && npm run dev        # Vite dev server
+cd frontend && npm run build      # tsc -b && vite build
+cd frontend && npm run lint       # oxlint
+cd frontend && npm test           # vitest, single run
+cd frontend && npm run check:contrast   # WCAG AA check on the design tokens
+```
+
+The client needs `VITE_API_BASE_URL` and **will refuse to start without it** —
+there is no fallback to localhost, so a production build cannot silently point
+at nothing. `frontend/.env.development` supplies it for local work; copy
+`frontend/.env.example` to `frontend/.env.local` to override.
+
+---
+
+### Calling the RAPTOR engine directly
+
+Everything above goes through the HTTP API, which is what the client uses. The
+engine underneath can also be called on its own — useful for testing routing in
+isolation, and the reason the two are described differently below: the engine
+speaks in **raw seconds from midnight**, and the API's presenter
+(`formatItinerary.js`) is what turns those into `HH:mm` strings and rounded
+durations.
 
 Invoke the `raptorEngine` function with the following parameters:
 
@@ -381,6 +499,85 @@ This payload is then formatted by the API layer itinerary formatter to present t
   ]
 }
 ```
+
+## Switching networks
+
+`ACTIVE_NETWORK` in `pipelineConfig.js` is the whole story for the pipeline and
+the backend — one token, and every input and output path follows it. The client
+is not automatic in the same way, because the things it needs are facts about a
+city that no feed contains. Adding one means adding entries, not editing logic.
+
+| What | Where | Why it cannot be derived |
+| --- | --- | --- |
+| `ACTIVE_NETWORK` | `pipelineConfig.js` | The one token the pipeline and backend derive every path from |
+| Search bounds | `frontend/src/config/geocoding.ts` | How far out a place search should look; a feed's own extent is far wider than anywhere useful to search |
+| Geocoding adapter | `frontend/src/geocoding/` | Which service knows this city's addresses *and* its stops |
+| Basemap style | `frontend/src/map/tileSource.ts` | A city may want its operator's own cartography |
+| Where the maps open | `frontend/src/map/homeView.ts` | A resting view is a judgement about a city, not a centroid |
+
+A few notes on that last one, because it is the easiest to get wrong. The
+resting view is **not** the middle of the search bounds: those are generous on
+purpose — HSL's reach extends an hour of commuter rail north of Helsinki — and
+framing to them opens on a region where the city is a smudge. The view Helsinki
+uses sits between the central station and the market square, which is the one
+stretch holding all five modes at once: trains and the metro under the station,
+trams and buses through the middle, and the ferry at the far end.
+
+**Time is always the network's clock.** Every timestamp in this system is
+wall-clock time in the active network's timezone, taken from the feed's own
+`agency_timezone` — never the server's and never the browser's. A Helsinki
+timetable reads the same whether the server runs in Frankfurt and the visitor
+is in Amman. Values coming *out* of the API are already network-local and must
+not be converted again.
+
+---
+
+## External dependencies and keys
+
+The client's dependency footprint is deliberately small, and no key is required
+to run the project. Two are optional and improve it.
+
+| Service | Used for | Key | Without it |
+| --- | --- | --- | --- |
+| **Photon** | Place search | none | — the default, and works everywhere |
+| **Digitransit** | Place search that knows HSL's own stops | `VITE_DIGITRANSIT_SUBSCRIPTION_KEY` | Falls back to Photon: you lose stop suggestions, not search |
+| **CARTO** | Vector basemap tiles | `VITE_CARTO_API_KEY` | Tiles still load, on an anonymous tier that has grown unreliable |
+| **MongoDB** | Travel-card balances | `MONGO_URI` | Card endpoints report unavailable; nothing else is affected |
+
+Two things worth knowing about the keys:
+
+* **Both browser keys are public by design.** They ship in the bundle, are
+  issued for exactly that use, and are rate-limited per key rather than kept
+  secret. The consequence is that the quota belongs to whoever deploys this.
+* **CARTO reads its key as `key`, not `api_key`.** Sending the wrong name is
+  not an error — the CDN answers `200` either way and quietly serves an
+  "API KEY REQUIRED" watermark over real cartography, with nothing in the
+  console to say why.
+
+### Environment variables
+
+| Variable | Where | Required |
+| --- | --- | --- |
+| `PORT` | backend | No — defaults to `3000` |
+| `MONGO_URI` | backend (`backend/.env`) | No — card endpoints only |
+| `VITE_API_BASE_URL` | frontend | **Yes** — the app throws at startup without it |
+| `VITE_DIGITRANSIT_SUBSCRIPTION_KEY` | frontend | No |
+| `VITE_CARTO_API_KEY` | frontend | No |
+
+Copy `backend/.env.example` and `frontend/.env.example` for the annotated
+versions. Both are committed; the files they are copied to are git-ignored.
+
+### The map needs WebGL2
+
+The client's maps are vector — geometry drawn on the GPU from a stylesheet —
+so there is no software renderer to fall back to. Every browser in the declared
+support baseline ships WebGL2; what actually turns it off is a hardened
+configuration, a blocklisted GPU driver, or a remote session with no
+accelerated context. Those visitors get a panel where the map would be and a
+page that otherwise works exactly as it does for everyone else, which is the
+point of the rule that the map is never the only route to any information.
+
+---
 
 ## Known Limitations & Unexpected Behaviors
 
