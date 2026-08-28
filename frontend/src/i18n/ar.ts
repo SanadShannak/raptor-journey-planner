@@ -523,7 +523,9 @@ export const ar: Dictionary = {
 
     rename: 'إعادة التسمية',
     renameNamed: 'إعادة تسمية {name}',
-    renamePlaceholder: 'المنزل، العمل، المدرسة…',
+    renamePlaceholderStop: 'المنزل، العمل، المدرسة…',
+    renamePlaceholderRoute: 'خط المطار، حافلة الليل…',
+    renamePlaceholderItinerary: 'من المنزل إلى العمل، رحلة المدرسة…',
     openNamed: 'فتح {name}',
     moveEarlier: 'تحريك للأمام',
     moveLater: 'تحريك للخلف',
