@@ -3,7 +3,7 @@ import { act, render } from '@testing-library/react';
 import { LocaleProvider } from '../i18n';
 import { ThemeProvider } from '../theme';
 import { RouteMap } from './RouteMap';
-import { ROUTE_STOPS_MIN_ZOOM, STOPS_MIN_ZOOM } from './homeView';
+import { homeViewFor, ROUTE_STOPS_MIN_ZOOM, STOPS_MIN_ZOOM } from './homeView';
 import { forgetMaps, liveMap } from '../test/mapStub';
 import type { LineVariantDetail, PatternStop } from '../types/route';
 
@@ -72,8 +72,13 @@ const BUS_550: LineVariantDetail = {
   ],
 };
 
-/** Helsinki, which is where `homeViewFor` rests when nothing is chosen. */
-const CITY_LAT = 60.185;
+/**
+ * Where this map opens, read from the same function the map reads.
+ *
+ * Not a number copied here: every map in the app shares one resting place now,
+ * and a literal would quietly stop meaning "home" the next time it moved.
+ */
+const CITY = homeViewFor('hsl', null).center;
 
 function view(props: Partial<Parameters<typeof RouteMap>[0]> = {}) {
   return (
@@ -127,8 +132,18 @@ const fits = () =>
       return { west, south, east, north };
     });
 
+/*
+ * Both coordinates, not just the latitude. The resting place sits in central
+ * Helsinki now, and a fixture stop can share a latitude with it while being
+ * most of a kilometre away.
+ */
 const wentToTheCity = () =>
-  centrings().some((move) => Math.abs(move.lat - CITY_LAT) < 0.001);
+  liveMap().moves.some(
+    (move) =>
+      move.center !== undefined &&
+      Math.abs(move.center[1] - CITY[0]) < 0.001 &&
+      Math.abs(move.center[0] - CITY[1]) < 0.001,
+  );
 
 /** The degrees the first vehicle badge's arrow is turned by. */
 function rotationOf(container: HTMLElement): number {
