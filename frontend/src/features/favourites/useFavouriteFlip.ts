@@ -70,9 +70,39 @@ export function useFavouriteFlip(
 ): void {
   const rectsRef = useRef(new Map<string, DOMRect>());
 
+  /**
+   * The sequence itself, not the array holding it.
+   *
+   * This is the difference between animating a *reorder* and animating any
+   * layout change at all, and getting it wrong was visible on every visit: the
+   * page rebuilds each row's list while rendering, so the array arrived new
+   * on every render, and the effect ran on every render with it. Most of those
+   * are not reorders — a clock tick, a network answer — but they are often
+   * renders where something *moved*, because a card grows when its departures
+   * arrive and every row below it shifts down.
+   *
+   * The result was the whole page gliding into place a few hundred
+   * milliseconds after it appeared, and again whenever a timetable refreshed,
+   * as though it had been reloaded. Nothing had been reordered either time.
+   */
+  const signature = order.join('\u0000');
+  const lastSignature = useRef(signature);
+
+  /*
+   * Deliberately every render, with no dependency array.
+   *
+   * Measuring is cheap and the measurements have to stay current: a row that
+   * moved because a card grew has to be *recorded*, or the next real reorder
+   * would invert from a position the card left long ago and glide in from
+   * somewhere it had never been. What the signature gates is the animation,
+   * not the reading.
+   */
   useLayoutEffect(() => {
     const container = containerRef.current;
     if (container === null) return;
+
+    const reordered = lastSignature.current !== signature;
+    lastSignature.current = signature;
 
     const cards = container.querySelectorAll<HTMLElement>('[data-favourite]');
 
@@ -94,6 +124,8 @@ export function useFavouriteFlip(
       const prev = rectsRef.current.get(key);
       rectsRef.current.set(key, next);
 
+      // Recorded either way; animated only when the sequence actually changed.
+      if (!reordered) return;
       if (prev === undefined) return;
 
       const dx = prev.left - next.left;
@@ -124,8 +156,5 @@ export function useFavouriteFlip(
         delete el.dataset['flipping'];
       }, DURATION_MS);
     });
-    // `order` is the reorder signal — the list of keys in this row's own
-    // sequence — so the effect re-runs exactly when a drag or a keyboard move
-    // has actually changed it.
-  }, [containerRef, order]);
+  });
 }

@@ -421,7 +421,9 @@ export const en: Dictionary = {
 
     rename: 'Rename',
     renameNamed: 'Rename {name}',
-    renamePlaceholder: 'Home, Work, School…',
+    renamePlaceholderStop: 'Home, Work, School…',
+    renamePlaceholderRoute: 'Airport line, Night bus…',
+    renamePlaceholderItinerary: 'Home to work, School run…',
     openNamed: 'Open {name}',
     moveEarlier: 'Move earlier',
     moveLater: 'Move later',

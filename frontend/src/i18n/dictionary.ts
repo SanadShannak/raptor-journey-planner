@@ -685,7 +685,19 @@ export interface Dictionary {
     /** The card's name is the control: pressing it turns it into a field. */
     rename: string;
     renameNamed: string;
-    renamePlaceholder: string;
+    /**
+     * What to put in the field, suggested by kind.
+     *
+     * One phrasing cannot serve all three. A nickname for a *stop* names a
+     * place you stand — "Home", "Work". A nickname for a *line* names a
+     * service you catch, which is a different noun entirely. And a saved
+     * *journey* is a trip between two ends, so the useful shape is a direction
+     * rather than a name. Offering "Home, Work, School…" against a saved
+     * search asked the reader to name a journey after a building.
+     */
+    renamePlaceholderStop: string;
+    renamePlaceholderRoute: string;
+    renamePlaceholderItinerary: string;
     /** Names the stretched link covering a card. */
     openNamed: string;
     /**

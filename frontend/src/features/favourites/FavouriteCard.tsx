@@ -6,8 +6,27 @@ import {
 } from 'react';
 import { Link } from 'react-router';
 import { useLocale } from '../../i18n';
+import type { Dictionary, Message } from '../../i18n/dictionary';
 import { favouriteLabel, identity, type Favourite } from './favourite';
 import { moveFavourite, removeFavourite, renameFavourite } from './favouritesStore';
+
+/**
+ * What the rename field suggests, which depends on what is being renamed.
+ *
+ * The card already knows — it is handed the favourite itself — so this is a
+ * lookup rather than another prop. See the dictionary for why one phrasing
+ * cannot serve a stop, a line and a saved journey at once.
+ */
+function renamePlaceholderFor(kind: Favourite['kind'], strings: Dictionary): Message {
+  switch (kind) {
+    case 'stop':
+      return strings.favourites.renamePlaceholderStop;
+    case 'route':
+      return strings.favourites.renamePlaceholderRoute;
+    case 'itinerary':
+      return strings.favourites.renamePlaceholderItinerary;
+  }
+}
 
 interface Props {
   favourite: Favourite;
@@ -261,7 +280,7 @@ export function FavouriteCard({
                     cancel();
                   }
                 }}
-                placeholder={t(strings.favourites.renamePlaceholder)}
+                placeholder={t(renamePlaceholderFor(favourite.kind, strings))}
                 aria-label={t(strings.favourites.rename)}
                 className="rounded-control border-border-strong bg-surface text-content placeholder:text-content-muted focus-visible:outline-brand-500 pointer-events-auto relative w-full border px-1.5 py-0.5 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-1"
               />
