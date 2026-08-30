@@ -1,3 +1,4 @@
+const serverStartLoadTime = performance.now();
 const express = require("express");
 const cors = require("cors");
 const serverConfig = require("./serverConfig");
@@ -54,3 +55,10 @@ app.listen(serverConfig.PORT, () => {
     `[Server] Active Network: ${serverConfig.ACTIVE_NETWORK.toUpperCase()}`,
   );
 });
+
+const serverEndLoadTime = performance.now();
+const serverLoadExecTime = (
+  (serverEndLoadTime - serverStartLoadTime) /
+  1000
+).toFixed(2);
+console.log(`Server loaded in ${serverLoadExecTime}s.`);
