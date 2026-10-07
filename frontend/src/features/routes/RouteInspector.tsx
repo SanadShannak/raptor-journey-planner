@@ -8,6 +8,7 @@ import type { Line, LineVariantDetail, VariantTimetable } from '../../types/rout
 import { useNetworkNow, VEHICLE_TICK_MS } from '../stops/useNetworkNow';
 import { familyFor, visualForFamily } from '../journey/modeVisuals';
 import { daySpan } from './daySpan';
+import { defaultPatternId } from './defaultVariant';
 import { RouteHeader } from './RouteHeader';
 import { RouteStopList } from './RouteStopList';
 import { TripTable } from './TripTable';
@@ -19,8 +20,11 @@ import { activeVehicles, nowSeconds, type Vehicle } from './vehicleProgress';
 interface Props {
   lineId: string;
   /**
-   * Which variant to show, from the URL, or null to take the line's own first
-   * — which is its busiest, because `/api/routes/:lineId` orders them that way.
+   * Which variant to show, from the URL, or null to let the line choose.
+   *
+   * Left to {@link defaultPatternId}, which prefers the busiest variant that
+   * actually runs today over the busiest overall — see there for why those are
+   * not the same thing.
    */
   patternId: number | null;
   /**
@@ -121,7 +125,28 @@ export function RouteInspector({
   const reportVehicles = useRef(onVehicles);
   reportVehicles.current = onVehicles;
 
-  /* The line, and through it the variant. */
+  /*
+   * Which variant is on screen, readable without being a dependency.
+   *
+   * The effect below re-runs when the clock arrives, and without this it would
+   * refetch the variant it is already showing — the clock usually confirms the
+   * same choice. A dependency would be the obvious alternative and is circular:
+   * the effect sets the variant.
+   */
+  const variantRef = useRef<LineVariantDetail | null>(null);
+  variantRef.current = variant;
+
+  /*
+   * The line first, because it is the only thing that knows which variants
+   * exist.
+   *
+   * Its own effect, separate from the variant's below, and the split is what
+   * lets the *day* take part in choosing one: the choice needs both the
+   * variant list and today on the network's clock, and those arrive from two
+   * independent requests in whichever order the network decides. Resolved in
+   * one effect, a `networkToday` that landed second would either be ignored or
+   * refetch the line to be noticed.
+   */
   useEffect(() => {
     const controller = new AbortController();
 
@@ -134,32 +159,73 @@ export function RouteInspector({
     setLoading(true);
 
     void getLine(lineId, { signal: controller.signal })
-      .then(async (answer) => {
+      .then((answer) => {
         if (controller.signal.aborted) return;
         setLine(answer);
-
-        /*
-         * A `patternId` is stable for the life of a dataset but not across a
-         * pipeline re-run, so one that no longer belongs to this line falls
-         * back to the busiest variant rather than erroring. The contract asks
-         * for exactly this.
-         */
-        const wanted =
-          patternId !== null &&
-          answer.variants.some((candidate) => candidate.patternId === patternId)
-            ? patternId
-            : (answer.variants[0]?.patternId ?? null);
-
-        if (wanted === null) {
-          throw new Error('This line has no variants.');
-        }
-
-        const detail = await getLineVariant(lineId, wanted, {
-          signal: controller.signal,
-        });
+      })
+      .catch((error: unknown) => {
         if (controller.signal.aborted) return;
+        setVariant(null);
+        setErrorMessage(t(messageForApiError(error, strings)));
+        setLoading(false);
+      });
 
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lineId]);
+
+  /*
+   * Then the variant, once there is a line to choose one from.
+   *
+   * **Waits for the clock when the address names no variant**, which is the
+   * whole point of the split: the default is "the busiest variant that runs
+   * today", so choosing before `/api/network` answers would pick on a dataset
+   * ranking alone and land on a pattern that is not running — on a line the
+   * browser has just listed as active. An explicit `patternId` needs no clock
+   * and does not wait.
+   */
+  useEffect(() => {
+    if (line === null) return;
+
+    /*
+     * A `patternId` is stable for the life of a dataset but not across a
+     * pipeline re-run, so one that no longer belongs to this line falls back
+     * to the default rather than erroring. The contract asks for exactly this.
+     */
+    const explicit =
+      patternId !== null &&
+      line.variants.some((candidate) => candidate.patternId === patternId)
+        ? patternId
+        : null;
+
+    if (explicit === null && networkToday === null && line.variants.length > 0) {
+      // The clock is still on its way; choosing now would choose badly.
+      return;
+    }
+
+    const wanted = explicit ?? defaultPatternId(line.variants, networkToday);
+
+    if (wanted === null) {
+      // A line with no variants at all. Nothing to request and nothing to
+      // draw, so it reads as the generic failure it is.
+      setVariant(null);
+      setErrorMessage(t(strings.errors.generic));
+      setLoading(false);
+      return;
+    }
+
+    // Already showing it — a clock that arrives after the variant must not
+    // refetch what is on screen.
+    if (variantRef.current?.patternId === wanted) return;
+
+    const controller = new AbortController();
+    setLoading(true);
+
+    void getLineVariant(line.lineId, wanted, { signal: controller.signal })
+      .then((detail) => {
+        if (controller.signal.aborted) return;
         setVariant(detail);
+        setErrorMessage(null);
         resolved.current?.(detail);
       })
       .catch((error: unknown) => {
@@ -173,7 +239,7 @@ export function RouteInspector({
 
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lineId, patternId]);
+  }, [line, patternId, networkToday]);
 
   /*
    * The day the panel is actually asking about.

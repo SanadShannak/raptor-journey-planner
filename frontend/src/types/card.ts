@@ -11,16 +11,18 @@
  * the moment it is spent, with nothing on screen to say so.
  */
 
-/** What a card is issued as. The server's own enum, and it never changes after. */
-export type CardType = 'Standard' | 'Student' | 'Elderly' | 'Virtual';
+/**
+ * What a card is issued as. The server's own enum, and it never changes after.
+ *
+ * Mirrored from `cardType` in `backend/src/models/Card.js`, so a value added
+ * or removed there has to be reflected here — mongoose rejects anything
+ * outside its enum, which makes an extra option in a chooser a request that
+ * can only fail.
+ */
+export type CardType = 'Standard' | 'Student' | 'Elderly';
 
 /** Every type, in the order a chooser offers them. */
-export const CARD_TYPES: readonly CardType[] = [
-  'Standard',
-  'Student',
-  'Elderly',
-  'Virtual',
-];
+export const CARD_TYPES: readonly CardType[] = ['Standard', 'Student', 'Elderly'];
 
 /**
  * One movement of the balance.

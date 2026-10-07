@@ -105,29 +105,23 @@ export default function FavouritesPage() {
   }, [dragged]);
 
   /**
-   * How close to a row's edge a drag has to get before the row starts moving,
-   * and how fast it then moves, in pixels per frame.
+   * How close to the **viewport** edge a drag has to get before the page
+   * starts moving, and how fast it then moves, in pixels per frame.
    *
-   * Without this a phone could only ever reorder by one place: the row holds
-   * two cards at a time, dragging is the one gesture that cannot also scroll
-   * it, and so the third card was unreachable. The row now comes to the card.
+   * It used to scroll the row sideways, because each kind was a single
+   * horizontal scroller and dragging is the one gesture that cannot also
+   * scroll one — so on a phone, where two cards fit, the third was
+   * unreachable. The rows wrap now, which removes that problem and replaces
+   * it with the same problem on the other axis: five cards of a kind stack
+   * down a narrow screen, so the card you are dragging towards can be below
+   * the fold. The page comes to the card instead of the row doing.
    */
-  const EDGE = 64;
-  const SPEED = 12;
+  const EDGE = 72;
+  const SPEED = 14;
 
   const startDrag = (key: string) => {
     draggedRef.current = key;
     setDragged(key);
-
-    /*
-     * The row this card lives in, caught once. Looked up now rather than on
-     * every frame because the card is about to start moving between rows'
-     * worth of positions, and the row it belongs to cannot change: a card only
-     * ever reorders among its own kind.
-     */
-    const row = document
-      .querySelector(`[data-favourite="${CSS.escape(key)}"]`)
-      ?.closest<HTMLElement>('[data-row]') ?? null;
 
     /*
      * Everything the loop below needs, kept off React's state so a frame never
@@ -140,17 +134,18 @@ export default function FavouritesPage() {
       if (!live) return;
 
       /*
-       * The row scrolls itself when the pointer nears an edge, and the hit test
-       * runs on every frame rather than only on movement — which is the whole
-       * point. A finger parked at the edge is not moving, so a move-driven
-       * reorder would scroll new cards under a stationary thumb and never
-       * notice them arriving.
+       * The page scrolls itself when the pointer nears the top or bottom, and
+       * the hit test runs on every frame rather than only on movement — which
+       * is the whole point. A finger parked at the edge is not moving, so a
+       * move-driven reorder would scroll new cards under a stationary thumb
+       * and never notice them arriving.
+       *
+       * `scrollBy` rather than assigning `scrollTop`, so the browser clamps at
+       * both ends and there is nothing here to get wrong about document
+       * height.
        */
-      if (row !== null) {
-        const box = row.getBoundingClientRect();
-        if (at.x < box.left + EDGE) row.scrollLeft -= SPEED;
-        else if (at.x > box.right - EDGE) row.scrollLeft += SPEED;
-      }
+      if (at.y < EDGE) window.scrollBy(0, -SPEED);
+      else if (at.y > window.innerHeight - EDGE) window.scrollBy(0, SPEED);
 
       const moving = draggedRef.current;
       if (moving !== null) {
@@ -434,14 +429,21 @@ function FavouriteRow({
 
   return (
     /*
-      The vertical padding is room for a card to lift into. A row that scrolls
-      sideways clips everything outside itself on both axes, so without it the
-      shadow and the raised edge — the very things saying a card is held —
-      were the first to be cut off. The negative margin takes the space back
-      out of the layout.
+      The cards **wrap**; they used to run off the side in a scroller.
+
+      A horizontal scrollbar under each of three rows was the visible cost, but
+      the real one was that the cards past the edge were work to reach: a
+      sideways scroll is a gesture people have to discover, it cannot coexist
+      with the drag that reorders them, and it hid part of a list whose whole
+      job is to be taken in at a glance. Five cards per kind is a small enough
+      number to simply show.
+
+      No `overflow` of its own, so a lifted card's shadow is not clipped — that
+      is what the padding and negative margin used to be for, and with nothing
+      clipping there is nothing to compensate for.
     */
-    <div data-row ref={rowRef} className="shrink-0 -my-3 overflow-x-auto py-3">
-      <ul className="flex items-stretch gap-3">
+    <div data-row ref={rowRef} className="shrink-0">
+      <ul className="flex flex-wrap items-stretch gap-3">
         {favourites.map((favourite, index) => {
           const key = identity(favourite);
           return (

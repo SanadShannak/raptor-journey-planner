@@ -1,12 +1,7 @@
 import { useId, useState, type FormEvent } from 'react';
-import { formatNumber, messageForApiError, useLocale } from '../../i18n';
+import { messageForApiError, useLocale } from '../../i18n';
 import type { Message } from '../../i18n/dictionary';
-import {
-  AMOUNT_PLACES,
-  MINIMUM_AMOUNT,
-  amountProblem,
-  toAmountPayload,
-} from './amount';
+import { amountProblem, toAmountPayload } from './amount';
 
 interface Props {
   /** Labels the field — "Top-up amount", "Fare amount". */
@@ -22,6 +17,10 @@ interface Props {
 /**
  * A money field and its button.
  *
+ * It prints no format hint of its own: the rule is the same on both of these
+ * and the panel states it once beneath the pair. Twice, under two adjacent
+ * fields, it read as two different constraints to compare.
+ *
  * One component used twice — topping up and paying a fare are the same form
  * over the same validator, differing only in their words and in which endpoint
  * they post to. Two copies would be two places to keep the `inputMode`, the
@@ -32,7 +31,7 @@ interface Props {
  * it would make them type it again to change one character.
  */
 export function AmountForm({ label, action, pendingAction, onSubmit }: Props) {
-  const { locale, strings, t } = useLocale();
+  const { strings, t } = useLocale();
   const fieldId = useId();
   const errorId = useId();
 
@@ -108,15 +107,19 @@ export function AmountForm({ label, action, pendingAction, onSubmit }: Props) {
           aria-describedby={problem === null ? undefined : errorId}
           placeholder="0.00"
           /*
-            Pinned left-to-right. A decimal amount is a number whose digits and
-            point run one way in every locale, and unlike the card-number field
-            — which follows the page so its caret starts at the edge the reader
-            reads from — this one sits beside a currency figure the page prints
-            through `Intl`. Letting the box flip put the caret and the
-            placeholder on the opposite side from the balance above it.
+            **No `dir`.** The field follows the page, so on an Arabic page the
+            caret and the placeholder start at the right — the edge every other
+            field on that page starts at, and the edge the reader's eye is
+            already on.
+            
+            Pinning it `ltr` was the mistake: it put the caret at the far side
+            of a wide field, which reads as a box you have to go and find the
+            start of. The digits are unaffected either way — they are weak
+            characters and keep their own left-to-right order inside the field
+            regardless of which edge it begins at — which is the same reasoning
+            the card-number field was documented with before it.
           */
-          dir="ltr"
-          className="rounded-control border-border-strong bg-surface text-content placeholder:text-content-muted focus-visible:outline-brand-500 min-w-0 flex-1 border px-3 py-2 font-medium tabular-nums placeholder:font-normal focus-visible:outline-2 focus-visible:outline-offset-2"
+          className="rounded-control border-border-strong bg-surface text-content placeholder:text-content-muted focus-visible:outline-brand-500 min-w-0 flex-1 border px-4 py-2.5 font-medium tabular-nums placeholder:font-normal focus-visible:outline-2 focus-visible:outline-offset-2"
         />
 
         <button
@@ -143,25 +146,6 @@ export function AmountForm({ label, action, pendingAction, onSubmit }: Props) {
         )}
       </div>
 
-      {/*
-        The format, as a hint rather than as the label — a placeholder
-        disappears exactly when it is needed.
-
-        Both numbers are interpolated from the rule's own constants rather than
-        written into the sentence, so they are formatted in the locale's digits
-        and cannot drift from what `amountProblem` actually enforces. The
-        minimum goes through `formatNumber` with its places pinned, or `Intl`
-        would render 0.01 as "0" on a locale with no fraction digits by
-        default.
-      */}
-      <p className="text-content-muted text-xs">
-        {t(strings.card.amountHint, {
-          places: formatNumber(AMOUNT_PLACES, locale),
-          minimum: formatNumber(MINIMUM_AMOUNT, locale, {
-            minimumFractionDigits: 2,
-          }),
-        })}
-      </p>
     </form>
   );
 }

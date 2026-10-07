@@ -396,6 +396,95 @@ describe('RouteInspector', () => {
   });
 
   /*
+   * **The disagreement this prevents.** The browser lists a line as "active
+   * today", and opening it used to show whichever variant the dataset ranks
+   * busiest — which can be a seasonal or school-term pattern that runs on no
+   * day anybody is looking at. The panel then correctly reported no service on
+   * a line the list had just called active, and a reader resolves that by
+   * deciding the app is wrong.
+   */
+  it('opens a line on a variant that actually runs today', async () => {
+    const seasonal = { ...OUTBOUND, patternId: 9, serviceDates: ['2026-06-01'] };
+    // Busiest first, as `/api/routes/:lineId` orders them — and the busiest
+    // one here does not run today.
+    stubFetch({
+      line: { ...LINE_FIELDS, directions: [0, 1], variants: [seasonal, OUTBOUND] },
+    });
+
+    const requested: string[] = [];
+    vi.mocked(fetch).mockImplementation(async (url: RequestInfo | URL) => {
+      const path = new URL(String(url)).pathname;
+      if (/\/api\/routes\/[^/]+\/[^/]+$/.test(path)) requested.push(path);
+      return new Response(
+        JSON.stringify(
+          /\/api\/routes\/[^/]+\/[^/]+$/.test(path)
+            ? {
+                ...LINE_FIELDS,
+                ...OUTBOUND,
+                stops: STOPS,
+                shape: null,
+                serviceDates: ['2026-09-10', '2026-09-11'],
+              }
+            : {
+                ...LINE_FIELDS,
+                directions: [0, 1],
+                variants: [seasonal, OUTBOUND],
+              },
+        ),
+        { status: 200 },
+      );
+    });
+
+    show();
+
+    await screen.findByRole('heading', { level: 1 });
+    // Pattern 0, which runs today — not pattern 9, which is busier overall.
+    await waitFor(() =>
+      expect(requested.some((path) => path.endsWith('/0'))).toBe(true),
+    );
+    expect(requested.some((path) => path.endsWith('/9'))).toBe(false);
+  });
+
+  /* An address that names a variant is obeyed, running today or not. */
+  it('still opens the variant the address names', async () => {
+    const seasonal = { ...OUTBOUND, patternId: 9, serviceDates: ['2026-06-01'] };
+    const requested: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: RequestInfo | URL) => {
+        const path = new URL(String(url)).pathname;
+        const isVariant = /\/api\/routes\/[^/]+\/[^/]+$/.test(path);
+        if (isVariant) requested.push(path);
+        return new Response(
+          JSON.stringify(
+            isVariant
+              ? {
+                  ...LINE_FIELDS,
+                  ...seasonal,
+                  stops: STOPS,
+                  shape: null,
+                  serviceDates: ['2026-06-01'],
+                }
+              : {
+                  ...LINE_FIELDS,
+                  directions: [0, 1],
+                  variants: [OUTBOUND, seasonal],
+                },
+          ),
+          { status: 200 },
+        );
+      }),
+    );
+
+    show({ patternId: 9 });
+
+    await screen.findByRole('heading', { level: 1 });
+    await waitFor(() =>
+      expect(requested.some((path) => path.endsWith('/9'))).toBe(true),
+    );
+  });
+
+  /*
    * Flat, thirty-nine variants are a set of equally plausible wrong answers.
    * Grouped by whether they run today, the choice is a choice.
    */
