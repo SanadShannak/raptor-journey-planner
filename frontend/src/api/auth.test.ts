@@ -51,12 +51,16 @@ describe('logIn', () => {
   });
 
   /*
-   * A wrong email is a 401 and a wrong password is that 200, and both resolve
-   * to the same code with the same message. Telling an unauthenticated caller
-   * which it got is an account-enumeration oracle.
+   * A wrong email is a 401 and a wrong password a 404, and both resolve to the
+   * same code with the same message. Telling an unauthenticated caller which
+   * it got is an account-enumeration oracle.
+   *
+   * Both statuses are pinned because this endpoint has already moved once: a
+   * rejected password answered 200 before it answered 404, so the set is
+   * treated as something that can change rather than as a fact.
    */
-  it('gives an unknown email the same answer as a wrong password', async () => {
-    respondWith({ message: 'No user with this email exists' }, 401);
+  it.each([401, 404])('maps a %i to "those do not match"', async (status) => {
+    respondWith({ message: 'Rejected' }, status);
 
     const error = await logIn({ email: 'nobody@example.com', password: 'x' }).catch(
       (e: unknown) => e,

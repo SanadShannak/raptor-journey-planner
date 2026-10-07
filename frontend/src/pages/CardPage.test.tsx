@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { checkSession, forgetSession } from '../auth';
+import { forgetAuthPrompt, getAuthPrompt } from '../auth/authPrompt';
 import { forgetCards } from '../features/card/cardsStore';
 import { LocaleProvider } from '../i18n';
 import CardPage from './CardPage';
@@ -105,6 +106,7 @@ function stubApi({ signedIn = true, cards = [CARD], onWrite }: Stub = {}) {
 beforeEach(() => {
   forgetSession();
   forgetCards();
+  forgetAuthPrompt();
 });
 
 afterEach(() => {
@@ -171,14 +173,50 @@ describe('the wallet', () => {
   });
 
   /*
-   * "Checking" is its own state. Treating it as signed out would flash a
-   * sign-in prompt at every returning visitor for as long as `/api/auth/me`
-   * takes — the most noticeable way a gate like this goes wrong.
+   * **The ask is the dialog.** Arriving without a session raises the app's one
+   * sign-in modal over the page, rather than putting a second, flatter copy of
+   * it where the cards would be.
+   *
+   * Asserted on the store rather than on a rendered dialog because the dialog
+   * is mounted by the header, which this page is rendered without — the store
+   * is the whole seam between the two.
    */
-  it('does not ask anyone to log in before the session is known', () => {
+  it('raises the sign-in dialog when nobody is signed in', async () => {
+    stubApi({ signedIn: false });
+    await openWallet();
+
+    await waitFor(() => expect(getAuthPrompt()).toBe('logIn'));
+  });
+
+  /*
+   * Raised **once**. The dialog can be dismissed — somebody may have arrived
+   * by accident, or want to read the page's own explanation — and reopening it
+   * on the next render would be a dialog that cannot be closed.
+   */
+  it('does not raise it again once it has been dismissed', async () => {
+    stubApi({ signedIn: false });
+    await openWallet();
+    await waitFor(() => expect(getAuthPrompt()).toBe('logIn'));
+
+    forgetAuthPrompt();
+    // A re-render for any other reason must not put it back.
+    fireEvent.click(screen.getByRole('button', { name: 'Log in' }));
+    expect(getAuthPrompt()).toBe('logIn');
+    forgetAuthPrompt();
+    await waitFor(() => expect(getAuthPrompt()).toBeNull());
+  });
+
+  /*
+   * "Checking" is its own state. Treating it as signed out would raise the
+   * dialog in the face of every returning visitor for as long as
+   * `/api/auth/me` takes — the most noticeable way a gate like this goes
+   * wrong.
+   */
+  it('asks nobody to log in before the session is known', () => {
     stubApi();
     renderPage();
 
+    expect(getAuthPrompt()).toBeNull();
     expect(screen.queryByText(/Log in to see your travel cards/)).toBeNull();
     expect(screen.getByRole('status').textContent).toContain('Checking your account');
   });
@@ -376,33 +414,89 @@ describe('the money', () => {
     expect(screen.queryByText('Insufficient balance')).toBeNull();
   });
 
-  /* A card holds money, so losing one to a mis-aimed press asks first. */
-  it('asks before deleting a card', async () => {
+  /*
+   * A card holds money and the deletion is not reversible, so the question is
+   * a modal — unmissable, focus-trapping, not dismissed by the pointer
+   * wandering off — and it **names the card**, because the page shows several
+   * and "this card" is a question about whichever one the reader thinks is
+   * selected.
+   */
+  it('asks in a modal that names the card, and deletes nothing yet', async () => {
     const fetchMock = stubApi();
     await openWallet();
 
     fireEvent.click(await screen.findByRole('button', { name: 'Delete card' }));
 
-    expect(screen.getByText('Delete this card?')).toBeTruthy();
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByRole('heading', { name: 'Delete Commute?' })).toBeTruthy();
     expect(
       fetchMock.mock.calls.some(([, init]) => (init as RequestInit)?.method === 'DELETE'),
     ).toBe(false);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Keep it' }));
-    expect(screen.queryByText('Delete this card?')).toBeNull();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
-  it('deletes it once the question is answered', async () => {
-    stubApi({
-      onWrite: (_path, method) =>
-        method === 'DELETE' ? { body: { message: 'Card Removed', id: CARD.id }, status: 200 } : null,
+  /*
+   * **The guard item 9 asks for.** A session cookie says this browser was
+   * signed in once; it says nothing about who is at the keyboard now. So the
+   * password is confirmed *before* anything is deleted — the other order would
+   * delete the card and then ask, which is not a confirmation.
+   */
+  it('deletes nothing when the password is wrong', async () => {
+    const fetchMock = stubApi({
+      onWrite: (path) =>
+        path === '/api/auth/login'
+          ? { body: { message: 'Incorrect Password.' }, status: 404 }
+          : null,
     });
     await openWallet();
 
     fireEvent.click(await screen.findByRole('button', { name: 'Delete card' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText('Your password'), {
+      target: { value: 'not-the-password' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete card' }));
+
+    expect(
+      await within(dialog).findByText('That email and password do not match an account.'),
+    ).toBeTruthy();
+    expect(
+      fetchMock.mock.calls.some(([, init]) => (init as RequestInit)?.method === 'DELETE'),
+    ).toBe(false);
+    // Still there to correct, rather than closed on a failure.
+    expect(screen.getByRole('dialog')).toBeTruthy();
+  });
+
+  it('deletes it once the password is confirmed', async () => {
+    const fetchMock = stubApi({
+      onWrite: (path, method) => {
+        if (path === '/api/auth/login') {
+          return { body: { message: 'Login successful', data: ACCOUNT }, status: 200 };
+        }
+        return method === 'DELETE'
+          ? { body: { message: 'Card Removed', id: CARD.id }, status: 200 }
+          : null;
+      },
+    });
+    await openWallet();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete card' }));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText('Your password'), {
+      target: { value: 'password123' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete card' }));
 
     expect(await screen.findByText(/No cards yet/)).toBeTruthy();
+    // The account's own address, never typed by whoever is confirming.
+    const check = fetchMock.mock.calls.find(([url]) =>
+      String(url).endsWith('/api/auth/login'),
+    );
+    expect(check).toBeDefined();
+    const sent = (check as [unknown, RequestInit])[1];
+    expect(JSON.parse(sent.body as string).email).toBe(ACCOUNT.email);
   });
 });
 
@@ -450,6 +544,40 @@ describe('issuing a card', () => {
     expect(screen.getAllByText('12345-67890-1').length).toBeGreaterThan(0);
   });
 
+  /*
+   * **Item 8.** An empty wallet opens the form, because the form is the only
+   * thing on the page; once there are cards the list is what somebody came for
+   * and the form folds away behind its own heading.
+   */
+  it('starts open on an empty wallet and folded once there are cards', async () => {
+    stubApi({ cards: [] });
+    await openWallet();
+
+    expect(await screen.findByLabelText('Name')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Add a card' }).getAttribute('aria-expanded')).toBe('true');
+
+    vi.unstubAllGlobals();
+    forgetCards();
+    forgetSession();
+    stubApi({ cards: [CARD] });
+    await openWallet();
+
+    const disclosure = (await screen.findAllByRole('button', { name: 'Add a card' })).at(-1);
+    expect(disclosure?.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('opens the form when its heading is pressed', async () => {
+    stubApi({ cards: [CARD] });
+    await openWallet();
+
+    const disclosure = await screen.findByRole('button', { name: 'Add a card' });
+    expect(disclosure.getAttribute('aria-expanded')).toBe('false');
+
+    fireEvent.click(disclosure);
+    expect(disclosure.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByLabelText('Name')).toBeTruthy();
+  });
+
   it('explains a refused name without quoting the API', async () => {
     stubApi({
       onWrite: (path, method) =>
@@ -462,7 +590,8 @@ describe('issuing a card', () => {
     });
     await openWallet();
 
-    fireEvent.change(await screen.findByLabelText('Name'), {
+    fireEvent.click(await screen.findByRole('button', { name: 'Add a card' }));
+    fireEvent.change(screen.getByLabelText('Name'), {
       target: { value: 'Commute' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Add card' }));
@@ -474,19 +603,62 @@ describe('issuing a card', () => {
 });
 
 describe('activity', () => {
-  it('lists what moved the balance, with where and when', async () => {
+  it('leads with the kind, and says where and when under it', async () => {
     stubApi();
     await openWallet();
 
-    expect(await screen.findByText('Bus 550')).toBeTruthy();
-    expect(screen.getByText('Ticket machine')).toBeTruthy();
+    // The kind is the row's own line, not buried in the server's sentence.
+    expect(await screen.findByText('Fare')).toBeTruthy();
+    expect(screen.getByText('Top-up')).toBeTruthy();
     /*
-       The row says its kind, its day and its time, all through `Intl`. The
-       time is matched loosely on purpose: `Intl` separates "6:04" from "PM"
-       with U+202F, a narrow no-break space, and pinning that exact character
-       would make the test about a formatting detail the platform owns.
+       Where and when on one line. The time is matched loosely on purpose:
+       `Intl` separates "6:04" from "PM" with U+202F, a narrow no-break space,
+       and pinning that exact character would make the test about a formatting
+       detail the platform owns.
     */
-    expect(screen.getByText(/Fare · Aug 23 · 6:04/)).toBeTruthy();
+    /*
+       Asserted on the row, not on one text node: the place name sits in its
+       own `dir="auto"` span so a Latin name inside an Arabic line — or the
+       reverse — is isolated and does not reorder the date after it. That
+       nesting is correct and splits the sentence across elements.
+    */
+    const fareRow = screen.getByText('Bus 550').closest('li');
+    expect(fareRow?.textContent).toContain('Aug 23');
+    expect(fareRow?.textContent).toMatch(/6:04/);
+    expect(screen.getByText('Ticket machine').closest('li')?.textContent).toContain(
+      'Aug 21',
+    );
+  });
+
+  /*
+   * The server fills `description` with a restatement of the row —
+   * "Deducted fare with amount EUR 2.800" beside a kind that says Fare and a
+   * figure that says −€2.80. Shown as written, the amount appeared twice on
+   * one line and crowded out the date.
+   */
+  it('drops a description that only restates the amount', async () => {
+    stubApi({
+      cards: [
+        {
+          ...CARD,
+          usages: [
+            {
+              date: '2026-08-23',
+              time: '18:04',
+              amount: 2.8,
+              kind: 'fare',
+              description: 'Deducted fare with amount EUR 2.800',
+            },
+          ],
+        },
+      ],
+    });
+    await openWallet();
+
+    await screen.findByText('Fare');
+    expect(screen.queryByText(/Deducted fare with amount/)).toBeNull();
+    // The date survives, which is what the sentence was crowding out.
+    expect(screen.getByText(/Aug 23 · 6:04/)).toBeTruthy();
   });
 
   /*
@@ -498,7 +670,7 @@ describe('activity', () => {
     stubApi();
     await openWallet();
 
-    await screen.findByText('Bus 550');
+    await screen.findByText(/Bus 550/);
     expect(screen.getByText(/^-JOD\s?3\.300$/)).toBeTruthy();
     expect(screen.getByText(/^\+JOD\s?20\.000$/)).toBeTruthy();
   });
@@ -508,9 +680,9 @@ describe('activity', () => {
     stubApi();
     await openWallet();
 
-    await screen.findByText('Bus 550');
-    expect(screen.getByText(/^Fare ·/)).toBeTruthy();
-    expect(screen.getByText(/^Top-up ·/)).toBeTruthy();
+    await screen.findByText(/Bus 550/);
+    expect(screen.getByText('Fare')).toBeTruthy();
+    expect(screen.getByText('Top-up')).toBeTruthy();
   });
 
   it('says so when there is nothing recorded', async () => {

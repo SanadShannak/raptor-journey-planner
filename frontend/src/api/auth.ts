@@ -113,13 +113,18 @@ export async function register(
 /**
  * Signs in, or reports that the credentials do not match.
  *
- * **A rejected password arrives as a 200.** The server returns
- * `{ message: "Incorrect Password." }` with a success status and no
- * `Set-Cookie`, so a caller that trusted the status would show somebody a
- * signed-in app they are not signed in to — and the next protected call would
- * 401 for no apparent reason. The absence of an account in the body is what
- * actually distinguishes the two outcomes, so that is what is tested. A wrong
- * email is an ordinary 401 and lands in the same place.
+ * Three statuses mean "those do not match", and the set has already changed
+ * once: a rejected password answered **200** with no `Set-Cookie`, and now
+ * answers 404. So the body is what is actually trusted — the absence of an
+ * account in it is the thing that distinguishes a failure, whatever status
+ * carried it — and the status list below only decides which *code* to attach.
+ * A caller that trusted a 200 would have shown somebody a signed-in app they
+ * were not signed in to, with the next protected call 401ing for no apparent
+ * reason.
+ *
+ * A wrong email is a 401 and a wrong password a 404; both land on
+ * {@link INVALID_CREDENTIALS}, because telling them apart is an
+ * account-enumeration oracle.
  */
 export async function logIn(
   input: LogInInput,
@@ -132,7 +137,10 @@ export async function logIn(
       ...(options.signal ? { signal: options.signal } : {}),
     });
   } catch (error: unknown) {
-    if (isApiError(error) && (error.status === 400 || error.status === 401)) {
+    if (
+      isApiError(error) &&
+      (error.status === 400 || error.status === 401 || error.status === 404)
+    ) {
       throw error.withCode(codeForSubmission(error, INVALID_CREDENTIALS));
     }
     throw error;
@@ -140,13 +148,46 @@ export async function logIn(
 
   const account = toAccount(body);
   if (account === null) {
-    // A 200 with no account is the wrong-password case, not a broken server.
+    // A success status with no account in it is a rejected credential, not a
+    // broken server — which is how this endpoint once reported a wrong
+    // password, and the reason the body rather than the status is the test.
     throw new ApiError('http', 'Login did not return an account.', {
       status: 200,
       code: INVALID_CREDENTIALS,
     });
   }
   return account;
+}
+
+/**
+ * Confirms that the person at the keyboard knows the account's password.
+ *
+ * What guards a destructive act — deleting a card — from somebody who walked
+ * up to an unattended screen. A session cookie says a browser was signed in
+ * once; it says nothing about who is holding the device now.
+ *
+ * **Implemented over the login endpoint, because there is no other.** The API
+ * has no "verify my password" route, so this signs in again as the same
+ * account: a match resolves, a mismatch rejects with
+ * {@link INVALID_CREDENTIALS} exactly as a failed sign-in does. Two
+ * consequences are worth knowing. The server issues a fresh cookie on success,
+ * which restarts the thirty-day expiry — harmless, and arguably right for
+ * somebody who has just proved who they are. And a *failed* attempt leaves the
+ * existing session untouched, because `logIn` here is the raw request rather
+ * than `signIn`, so nothing is written to the session store either way.
+ *
+ * A dedicated endpoint would be better: it would not re-issue a cookie, and it
+ * could be rate-limited separately from sign-in.
+ *
+ * @param email The signed-in account's own address, from the session — never
+ *   typed by the person confirming, who is only asked for the password.
+ */
+export async function verifyPassword(
+  email: string,
+  password: string,
+  options: CallOptions = {},
+): Promise<void> {
+  await logIn({ email, password }, options);
 }
 
 /**

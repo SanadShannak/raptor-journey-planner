@@ -220,7 +220,11 @@ export default function CardPage() {
                 </div>
               </section>
 
-              <AddCardForm full={full} onAdded={(card) => setSelectedId(card.id)} />
+              <AddCardForm
+                full={full}
+                hasCards={cards.length > 0}
+                onAdded={(card) => setSelectedId(card.id)}
+              />
             </div>
 
             {/*

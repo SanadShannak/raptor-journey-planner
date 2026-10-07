@@ -615,7 +615,7 @@ export interface Dictionary {
     nicknameRequired: string;
     typeLabel: string;
     /** One per `CardType`, which is the server's own fixed enum. */
-    types: { Standard: string; Student: string; Elderly: string; Virtual: string };
+    types: { Standard: string; Student: string; Elderly: string };
     add: string;
     adding: string;
 
@@ -627,7 +627,7 @@ export interface Dictionary {
     fareAction: string;
     farePending: string;
     /**
-     * The shape of an amount.
+     * The shape of an amount, said once for both money fields.
      *
      * Three decimal places rather than two, because the limit belongs to the
      * API rather than to the currency — a euro has two and a dinar has three,
@@ -638,10 +638,20 @@ export interface Dictionary {
     amountMalformed: string;
     amountTooSmall: string;
 
-    /* Discarding one, which asks first: a card holds money. */
+    /*
+     * Discarding one, which asks in a modal and behind the password.
+     *
+     * A card holds money and the deletion is not reversible, so the question
+     * is unmissable and the answer proves who is asking — a session cookie
+     * says this browser was signed in once, not who is at the keyboard now.
+     */
     discard: string;
-    discardConfirm: string;
+    /** Names the card, because the page shows several. */
+    discardTitle: string;
+    discardWarning: string;
+    discardPasswordLabel: string;
     discardYes: string;
+    discardPending: string;
     discardNo: string;
 
     /* What comes back. */

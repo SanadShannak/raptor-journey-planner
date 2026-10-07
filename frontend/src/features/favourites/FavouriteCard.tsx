@@ -75,6 +75,12 @@ const CONTROL =
 /**
  * One saved thing, as a card in its category's row.
  *
+ * A fixed width that may shrink but never grow: the rows wrap, and cards that
+ * stretched to fill a line would be a different size on every row depending on
+ * how many landed there — three wide ones above two very wide ones. Pinned, a
+ * row of five and a row of two are the same cards. `max-w-full` is the one
+ * concession, for a screen narrower than the card itself.
+ *
  * **The whole card leads somewhere**, so the link is an overlay stretched
  * underneath the content rather than wrapped around the name — a button cannot
  * live inside an anchor, and the card carries several. The content is
@@ -262,7 +268,7 @@ export function FavouriteCard({
         so the lift still happens for a reader who has asked for less movement —
         it simply arrives rather than eases.
       */
-      className={`bg-surface-raised rounded-card relative flex w-80 flex-none flex-col border transition-[box-shadow,translate,border-color,opacity] duration-150 ${
+      className={`bg-surface-raised rounded-card relative flex w-80 max-w-full flex-none flex-col border transition-[box-shadow,translate,border-color,opacity] duration-150 ${
         dragging
           ? 'border-brand-500 shadow-lifted z-10 -translate-y-1 cursor-grabbing'
           : someoneElseDragging
