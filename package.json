@@ -19,9 +19,13 @@
   },
   "homepage": "https://github.com/SanadShannak/raptor-journey-planner#readme",
   "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "csv-parser": "^3.2.1",
     "express": "^5.2.1",
+    "express-validator": "^7.3.2",
+    "jsonwebtoken": "^9.0.3",
     "leaflet": "^1.9.4",
     "mongoose": "^9.9.3",
     "react-leaflet": "^5.0.0"
