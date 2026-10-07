@@ -14,10 +14,17 @@ import { isApiError } from '../api/errors';
 import type { Dictionary, Message } from './dictionary';
 
 /**
- * Every `errorCode` the backend can send, mapped to a dictionary key.
+ * Every `errorCode` the app can see, mapped to a dictionary key.
  *
  * Typed against `Dictionary['errors']` so a renamed message is a compile
  * error rather than a silent fallback to the generic text.
+ *
+ * **Two kinds of code arrive here.** The feed-backed endpoints send their own
+ * `errorCode` in the body. The account endpoints send none at all — only
+ * `{ message }` or a field list — so `api/auth.ts`, `api/cards.ts` and
+ * `api/savedItems.ts` synthesise one from the status of the call they made,
+ * and those land in the second group below. From this function's point of view
+ * the two are indistinguishable, which is the point of synthesising them.
  *
  * `NO_ROUTE_FOUND` is deliberately absent: it is an empty state, and callers
  * branch on `isNoRouteFound` from the API layer before they get here.
@@ -40,6 +47,20 @@ const MESSAGE_FOR_CODE: Record<string, keyof Dictionary['errors']> = {
   BAD_CARD_NUMBER: 'badCardNumber',
   CARD_STORE_UNAVAILABLE: 'cardStoreUnavailable',
   INTERNAL_SERVER_ERROR: 'serverError',
+
+  /* Synthesised by the API modules for the account endpoints. */
+  UNAUTHORIZED: 'unauthorized',
+  EMAIL_IN_USE: 'emailInUse',
+  INVALID_CREDENTIALS: 'invalidCredentials',
+  INVALID_SUBMISSION: 'invalidSubmission',
+  INSUFFICIENT_BALANCE: 'insufficientBalance',
+  INVALID_AMOUNT: 'invalidAmount',
+  CARD_LIMIT_REACHED: 'cardLimitReached',
+  DUPLICATE_CARD_NICKNAME: 'duplicateCardNickname',
+  ALREADY_SAVED: 'alreadySaved',
+  DUPLICATE_NICKNAME: 'duplicateNickname',
+  SAVED_LIMIT_REACHED: 'savedLimitReached',
+  SAVED_ITEM_NOT_FOUND: 'savedItemNotFound',
 };
 
 /**
@@ -65,6 +86,14 @@ export function messageForApiError(error: unknown, strings: Dictionary): Message
 
   const key = error.code === null ? undefined : MESSAGE_FOR_CODE[error.code];
   if (key !== undefined) return strings.errors[key];
+
+  /*
+   * A 401 that nothing mapped still means the session is gone, and that is
+   * worth saying precisely: a new protected endpoint added later cannot forget
+   * to be recognised here, and "something went wrong" would send somebody
+   * looking for a fault instead of to the log-in button.
+   */
+  if (error.status === 401) return strings.errors.unauthorized;
 
   // An unrecognised code from a newer backend, or an unstructured body.
   return error.status !== null && error.status >= 500

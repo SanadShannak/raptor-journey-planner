@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePageTitle } from '../app/usePageTitle';
 import { getNetwork } from '../api/network';
-import { nowInZone, useLocale } from '../i18n';
+import { AccountGate } from '../auth';
+import { messageForApiError, nowInZone, useLocale } from '../i18n';
 import type { Message } from '../i18n/dictionary';
 import {
   FAVOURITES_PER_KIND,
@@ -9,8 +10,14 @@ import {
   type Favourite,
   type FavouriteKind,
 } from '../features/favourites/favourite';
-import { reorderFavourite } from '../features/favourites/favouritesStore';
-import { useFavourites } from '../features/favourites/useFavourites';
+import {
+  loadFavourites,
+  reorderFavourite,
+} from '../features/favourites/favouritesStore';
+import {
+  useLoadFavourites,
+  useSavedState,
+} from '../features/favourites/useFavourites';
 import { useFavouriteFlip } from '../features/favourites/useFavouriteFlip';
 import { FavouriteStopRow } from '../features/favourites/FavouriteStopRow';
 import { FavouriteRouteRow } from '../features/favourites/FavouriteRouteRow';
@@ -38,7 +45,12 @@ export default function FavouritesPage() {
   const { strings, t } = useLocale();
   usePageTitle(t(strings.pages.favourites.documentTitle));
 
-  const favourites = useFavourites();
+  /*
+   * The list is fetched by the page that shows it rather than by the layout:
+   * three requests nobody looking at a timetable has any use for.
+   */
+  useLoadFavourites();
+  const { status, items: favourites, error } = useSavedState();
 
   const [timezone, setTimezone] = useState<string | null>(null);
   const [networkToday, setNetworkToday] = useState<string | null>(null);
@@ -258,17 +270,55 @@ export default function FavouritesPage() {
           worth a row of cards' worth of height to say.
         */}
         <p className="text-content-muted max-w-prose">
-          {t(strings.favourites.intro)} {t(strings.favourites.savedOnDevice)}
+          {t(strings.favourites.intro)} {t(strings.favourites.savedToAccount)}
         </p>
       </div>
 
       {/*
-        All three rows, always — an empty one says so rather than disappearing.
-        A page whose sections come and go as things are saved is one a reader
-        has to re-read on every visit to find out what is on it, and the empty
-        state is also the only place that says where each kind's star lives.
+        The list needs an account now, so the page says so where the rows would
+        be rather than redirecting: the heading and the explanation above are
+        still worth reading, and a visitor who signs in from here is still on
+        the page they asked for. See `AccountGate`.
       */}
-      <div className="flex flex-col gap-2">
+      <AccountGate reason={strings.account.favouritesNeedAccount}>
+        {/*
+          The list could not be fetched. Said once for the page rather than per
+          row — three copies of one network failure is three times the words and
+          none of the extra information — and offered with the way to ask again,
+          because a failed fetch is the one error here somebody can act on.
+        */}
+        {status === 'failed' ? (
+          <div
+            role="alert"
+            className="rounded-card border-danger text-danger flex flex-wrap items-center gap-x-3 gap-y-2 border px-4 py-3 text-sm"
+          >
+            <span>{t(messageForApiError(error, strings))}</span>
+            <button
+              type="button"
+              onClick={() => void loadFavourites()}
+              className="rounded-control border-border-strong text-content hover:bg-surface-muted focus-visible:outline-brand-500 cursor-pointer px-2.5 py-1 text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
+            >
+              {t(strings.planner.retryConnection)}
+            </button>
+          </div>
+        ) : (
+          /*
+            All three rows, always — an empty one says so rather than
+            disappearing. A page whose sections come and go as things are saved
+            is one a reader has to re-read on every visit to find out what is on
+            it, and the empty state is also the only place that says where each
+            kind's star lives.
+
+            `aria-busy` while the first load is in flight, so a screen reader is
+            told the rows are on their way rather than reading three empty
+            states as the answer. Only the *first* load: `loading` is also the
+            state during a refetch, and a page that announced itself busy every
+            time a rename came back would interrupt constantly.
+          */
+          <div
+            className="flex flex-col gap-2"
+            aria-busy={status === 'loading' && favourites.length === 0 ? true : undefined}
+          >
           {rows.map(({ kind, heading, empty }) => {
             const mine = favourites.filter((favourite) => favourite.kind === kind);
 
@@ -321,14 +371,22 @@ export default function FavouritesPage() {
                 )}
 
                 {mine.length === 0 ? (
+                  /*
+                    "Nothing saved yet" is a claim about the account, and it is
+                    not one this page can make until the answer has arrived.
+                    While the first load is in flight it says so instead —
+                    otherwise every visit opens by stating three things that
+                    may well be false and then correcting itself.
+                  */
                   <p className="rounded-card border-border bg-surface-muted text-content-muted border px-3 py-2.5 text-sm">
-                    {t(empty)}
+                    {t(status === 'ready' ? empty : strings.favourites.loadingSaved)}
                   </p>
                 ) : (
                   <FavouriteRow
                     favourites={mine}
                     now={now}
                     networkToday={networkToday}
+                    timezone={timezone}
                     dragged={dragged}
                     onRemoved={afterRemove}
                     onDragStart={startDrag}
@@ -337,7 +395,9 @@ export default function FavouritesPage() {
               </section>
             );
           })}
-      </div>
+          </div>
+        )}
+      </AccountGate>
     </div>
   );
 }
@@ -354,6 +414,7 @@ function FavouriteRow({
   favourites,
   now,
   networkToday,
+  timezone,
   dragged,
   onRemoved,
   onDragStart,
@@ -361,6 +422,7 @@ function FavouriteRow({
   favourites: readonly Favourite[];
   now: ReturnType<typeof useNetworkNow>;
   networkToday: string | null;
+  timezone: string | null;
   dragged: string | null;
   onRemoved: () => void;
   onDragStart: (key: string) => void;
@@ -388,6 +450,7 @@ function FavouriteRow({
               favourite={favourite}
               now={now}
               networkToday={networkToday}
+              timezone={timezone}
               onRemoved={onRemoved}
               dragging={dragged === key}
               canGoEarlier={index > 0}
@@ -407,6 +470,7 @@ function Card({
   favourite,
   now,
   networkToday,
+  timezone,
   onRemoved,
   dragging,
   canGoEarlier,
@@ -417,6 +481,7 @@ function Card({
   favourite: Favourite;
   now: ReturnType<typeof useNetworkNow>;
   networkToday: string | null;
+  timezone: string | null;
   onRemoved: () => void;
   dragging: boolean;
   canGoEarlier: boolean;
@@ -442,6 +507,8 @@ function Card({
         <FavouriteRouteRow favourite={favourite} networkToday={networkToday} {...shared} />
       );
     case 'itinerary':
-      return <FavouriteJourneyRow favourite={favourite} {...shared} />;
+      return (
+        <FavouriteJourneyRow favourite={favourite} timezone={timezone} {...shared} />
+      );
   }
 }

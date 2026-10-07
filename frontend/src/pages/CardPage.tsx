@@ -1,61 +1,53 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import {
-  formatClockTime,
-  formatDate,
-  formatMoney,
-  messageForApiError,
-  useLocale,
-} from '../i18n';
 import { usePageTitle } from '../app/usePageTitle';
 import { getNetwork } from '../api/network';
-import { lookupCard } from '../api/card';
-import type { CardUsage, TravelCard } from '../types/card';
-import {
-  cardNumberProblem,
-  formatCardNumber,
-  isCompleteCardNumber,
-  digitsOf,
-} from '../features/card/cardNumber';
-import { SAVED_CARDS_LIMIT } from '../features/card/savedCard';
-import { SaveCardButton } from '../features/card/SaveCardButton';
-import { SavedCardTile } from '../features/card/SavedCardTile';
-import { useSavedCards } from '../features/card/useSavedCards';
-
-type State = 'idle' | 'checking' | 'found' | 'failed';
+import { CARD_LIMIT } from '../api/cards';
+import { AccountGate } from '../auth';
+import { formatMoney, messageForApiError, useLocale } from '../i18n';
+import { AddCardForm } from '../features/card/AddCardForm';
+import { CardDetail } from '../features/card/CardDetail';
+import { loadCards } from '../features/card/cardsStore';
+import { useLoadCards, useWallet } from '../features/card/useCards';
 
 /**
- * What is on a travel card.
+ * The wallet.
  *
- * Deliberately not behind sign-in. Somebody standing at a machine wanting to
- * know whether they can board does not have an account, and the number printed
- * on the card is the only thing they need to be holding. Nothing is stored: the
- * number lives in this component's state and goes nowhere else, which is also
- * why it is not in the URL.
+ * **This page used to be a public inquiry and is now an account's own cards.**
+ * It asked for the number printed on a card somebody was holding and showed
+ * that card's balance, with no sign-in — which was the right design for a
+ * backend that answered `/api/card/:number` to anyone. That endpoint is gone.
+ * Numbers are now minted by the server, a card belongs to the account that
+ * created it, and `/api/cards/:number` only ever answers about your own. So
+ * the number is no longer a question anybody can ask; it is an answer the
+ * server gives.
  *
- * The balance is money, so it is printed through `Intl` in whatever the network
- * charges in — `/api/network` says which. How many decimal places that is is a
- * property of the currency rather than a choice: three for a dinar, two for a
- * euro, and hard-coding either would be wrong on half the networks this app can
- * load.
+ * Laid out as the lookup form once was — a fixed column and the detail beside
+ * it — because the shape still fits: the left side is the short list of things
+ * to choose between, and the right is the one card being read.
+ *
+ * Selection is kept in component state rather than in the address. The planner
+ * puts its open itinerary in the URL because an itinerary is somewhere to come
+ * *back* to, and a card is not: there is nothing to share, nothing to restore,
+ * and a card id in a link somebody pastes is one more identifier loose in the
+ * world for no gain.
  */
 export default function CardPage() {
   const { locale, strings, t } = useLocale();
   usePageTitle(t(strings.pages.card.title));
+  /*
+   * Names the list of cards for a screen reader, by pointing it at the heading
+   * already above it rather than repeating the words in an `aria-label`. Two
+   * lists sit on this page — the cards and the open card's activity — so an
+   * unnamed one leaves a reader to work out which they have landed in.
+   */
+  const listHeadingId = useId();
 
-  const fieldId = useId();
-  const hintId = useId();
-  const errorId = useId();
+  useLoadCards();
+  const { status, cards, error } = useWallet();
 
-  const [number, setNumber] = useState('');
-  const [card, setCard] = useState<TravelCard | null>(null);
-  const [state, setState] = useState<State>('idle');
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [currency, setCurrency] = useState<string | null>(null);
-
-  const request = useRef<AbortController | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
-
-  const savedCards = useSavedCards();
 
   /*
    * Which money to print in. Failing is not worth reporting: `formatMoney`
@@ -70,80 +62,38 @@ export default function CardPage() {
       })
       .catch(() => {});
 
-    return () => {
-      controller.abort();
-      request.current?.abort();
-    };
+    return () => controller.abort();
   }, []);
 
   /*
-   * Validated on submit, not on every keystroke. Complaining that a number is
-   * too short while somebody is still typing it is complaining about work in
-   * progress — the field is incomplete for as long as it takes to fill in.
+   * Which card is open, resolved against the list rather than trusted.
+   *
+   * The selection is an id and the list is fetched, so the two can disagree —
+   * a card removed in another tab, or a sign-out and back in as somebody else.
+   * Resolving on every render means a stale id simply falls back to the first
+   * card instead of leaving the panel blank, and it also gives the page its
+   * "first card is open on arrival" behaviour with no effect to run.
    */
-  function check() {
-    const problem = cardNumberProblem(number);
-    if (problem !== null) {
-      setState('failed');
-      setCard(null);
-      setErrorMessage(
-        t(
-          problem === 'empty'
-            ? strings.card.numberRequired
-            : strings.card.numberIncomplete,
-        ),
-      );
-      return;
-    }
+  const selected =
+    cards.find((card) => card.id === selectedId) ?? cards[0] ?? null;
 
-    request.current?.abort();
-    const controller = new AbortController();
-    request.current = controller;
+  const full = cards.length >= CARD_LIMIT;
 
-    setState('checking');
-    setErrorMessage(null);
-
-    void lookupCard(number, { signal: controller.signal })
-      .then((found) => {
-        if (controller.signal.aborted) return;
-        setCard(found);
-        setState('found');
-      })
-      .catch((error: unknown) => {
-        if (controller.signal.aborted) return;
-        setCard(null);
-        setState('failed');
-        /*
-         * Through the shared mapping, which turns `CARD_NOT_FOUND` into "check
-         * the digits" and a store that is down into "this part is unavailable"
-         * — and never shows the API's own developer-facing English.
-         */
-        setErrorMessage(t(messageForApiError(error, strings)));
-      });
-  }
-
-  /** Any change makes the answer on screen stale, so it goes with the change. */
-  function changeNumber(next: string) {
-    setNumber(formatCardNumber(next));
-    if (card !== null || errorMessage !== null) {
-      request.current?.abort();
-      setCard(null);
-      setErrorMessage(null);
-      setState('idle');
-    }
-  }
-
-  const complete = isCompleteCardNumber(number);
-  const inputDirection = locale === 'ar' ? 'rtl' : 'ltr';
-
-  const afterCardRemoved = () => headingRef.current?.focus();
+  /*
+   * Where focus goes when the open card is discarded — otherwise it falls to
+   * the body and a keyboard reader is dropped at the top of the document with
+   * no idea what happened.
+   */
+  const afterDiscarded = () => {
+    setSelectedId(null);
+    headingRef.current?.focus();
+  };
 
   return (
     /*
       Full width, with the same gutters `FavouritesPage` uses, rather than the
-      capped column every prose page gets — a balance and an activity list
-      have somewhere to spread out, and My Cards is a row of tiles that wants
-      the width a narrow column would have clipped.
+      capped column every prose page gets — a balance and an activity list have
+      somewhere to spread out.
     */
     <div className="flex w-full flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
       <div className="flex flex-col gap-2">
@@ -152,286 +102,156 @@ export default function CardPage() {
           tabIndex={-1}
           className="focus-visible:outline-brand-500 rounded-control text-3xl font-semibold tracking-tight"
         >
-          {t(strings.card.inquiryTitle)}
+          {t(strings.card.walletTitle)}
         </h1>
         <p className="text-content-muted max-w-prose">
-          {t(strings.card.inquiryIntro)}
+          {t(strings.card.walletIntro)}
         </p>
       </div>
 
       {/*
-        My Cards, always shown — an empty row says so rather than the section
-        disappearing, the same choice `FavouritesPage` makes for its own rows.
-        Kept on this device exactly the way favourites are: only the number and
-        a nickname are stored, never a balance, so nothing here can go stale in
-        somebody's pocket.
+        The wallet needs an account, so the page says so where the cards would
+        be rather than redirecting — the heading and the explanation above are
+        still worth reading, and somebody who signs in from here is still on
+        the page they asked for. See `AccountGate`.
       */}
-      <section className="flex shrink-0 flex-col gap-2">
-        <div className="flex items-baseline justify-between gap-3">
-          <h2 className="text-lg font-semibold tracking-tight">
-            {t(strings.card.myCardsTitle)}
-          </h2>
-          <p className="text-content-muted text-xs tabular-nums">
-            {t(strings.favourites.countOfLimit, {
-              count: savedCards.length,
-              limit: SAVED_CARDS_LIMIT,
-            })}
-          </p>
-        </div>
-        <p className="text-content-muted max-w-prose text-sm">
-          {t(strings.card.myCardsIntro)} {t(strings.card.savedOnDevice)}
-        </p>
-
-        {savedCards.length === 0 ? (
-          <p className="rounded-card border-border bg-surface-muted text-content-muted border px-3 py-2.5 text-sm">
-            {t(strings.card.noSavedCards)}
-          </p>
-        ) : (
-          <div className="shrink-0 -my-3 overflow-x-auto py-3">
-            <ul className="flex items-stretch gap-3">
-              {savedCards.map((saved) => (
-                <SavedCardTile
-                  key={saved.number}
-                  card={saved}
-                  currency={currency}
-                  onRemoved={afterCardRemoved}
-                />
-              ))}
-            </ul>
-          </div>
-        )}
-      </section>
-
-      {/*
-        The lookup, and its answer beside it rather than underneath it — the
-        form stays a fixed, comfortable width, and the space that frees up on a
-        wide screen is exactly what an activity list needed instead of running
-        edge to edge itself.
-      */}
-      <section className="grid grid-cols-1 items-start gap-8 lg:grid-cols-[26rem_1fr]">
-        <form
-          noValidate
-          onSubmit={(event) => {
-            event.preventDefault();
-            check();
-          }}
-          className="flex flex-col gap-2"
-        >
-          <label htmlFor={fieldId} className="text-sm font-medium">
-            {t(strings.card.numberLabel)}
-          </label>
-
-          <div className="flex flex-wrap items-start gap-2">
-            <input
-              id={fieldId}
-              /*
-                 `inputMode` rather than `type="number"`: a card number is a
-                 string of digits, not a quantity. A number input would offer
-                 spinners, drop the leading zero of `01234-…`, and let the wheel
-                 change it under the pointer.
-              */
-              inputMode="numeric"
-              autoComplete="off"
-              value={number}
-              onChange={(event) => changeNumber(event.target.value)}
-              aria-describedby={errorMessage === null ? hintId : `${errorId} ${hintId}`}
-              aria-invalid={state === 'failed' ? true : undefined}
-              // Eleven digits and two dashes.
-              maxLength={13}
-              placeholder="12345-67890-1"
-              className="rounded-control border-border-strong bg-surface text-content placeholder:text-content-muted focus-visible:outline-brand-500 min-w-0 flex-1 border px-3 py-2 font-medium tabular-nums placeholder:font-normal focus-visible:outline-2 focus-visible:outline-offset-2"
-              /*
-                Follows the page's own direction rather than being pinned to
-                `ltr`: on an Arabic page the field, its caret, and its
-                placeholder all read from the right, the same as every other
-                field on the page. The digits themselves are unaffected — they
-                are weak characters and keep their own left-to-right order
-                inside the field regardless of which edge it starts from.
-              */
-              dir={inputDirection}
-            />
-
+      <AccountGate reason={strings.account.walletNeedsAccount}>
+        {status === 'failed' ? (
+          <div
+            role="alert"
+            className="rounded-card border-danger text-danger flex flex-wrap items-center gap-x-3 gap-y-2 border px-4 py-3 text-sm"
+          >
+            <span>{t(messageForApiError(error, strings))}</span>
             <button
-              type="submit"
-              disabled={state === 'checking' || !complete}
-              className="rounded-control bg-action text-on-action hover:bg-action-hover hover:text-on-action-hover focus-visible:outline-brand-500 flex-none cursor-pointer px-4 py-2 font-medium focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              type="button"
+              onClick={() => void loadCards()}
+              className="rounded-control border-border-strong text-content hover:bg-surface-muted focus-visible:outline-brand-500 cursor-pointer px-2.5 py-1 text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
             >
-              {t(state === 'checking' ? strings.card.checking : strings.card.check)}
+              {t(strings.planner.retryConnection)}
             </button>
           </div>
-
-          {/* The format, as a hint under the field rather than as its label —
-              a placeholder disappears exactly when it is needed. */}
-          {/*
-            No `dir` here. Forcing the paragraph left-to-right laid the whole
-            Arabic sentence out backwards to fix one number inside it; the number
-            is isolated in the string instead, where the problem actually is.
-          */}
-          <p id={hintId} className="text-content-muted text-xs">
-            {t(strings.card.numberHint)}
-          </p>
-
-          {/*
-            Its own live region rather than `alert`: a mistyped digit is not an
-            emergency, and `polite` says so without a screen reader losing
-            whatever it was already reading.
-          */}
-          <div aria-live="polite">
-            {state === 'failed' && errorMessage !== null && (
-              <p
-                id={errorId}
-                className="rounded-card border-danger text-danger border px-4 py-3 text-sm"
-              >
-                {errorMessage}
-              </p>
-            )}
-          </div>
-        </form>
-
-        {/*
-          One live region for the answer, so a screen reader is told the
-          result once rather than having to go looking for it.
-        */}
-        <div aria-live="polite" aria-busy={state === 'checking'}>
-          {state === 'found' && card !== null && (
-            <div className="rounded-card border-border bg-surface-raised shadow-card flex flex-col gap-4 border p-5 lg:p-6">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="flex flex-col gap-1">
-                  <p className="text-content-muted text-xs font-semibold tracking-wide uppercase">
-                    {t(strings.card.balance)}
-                  </p>
-                  <p className="text-4xl font-semibold tabular-nums">
-                    {formatMoney(card.balance, currency, locale)}
+        ) : (
+          <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-[26rem_1fr]">
+            <div className="flex flex-col gap-4">
+              <section className="flex flex-col gap-2">
+                <div className="flex items-baseline justify-between gap-3">
+                  <h2
+                    id={listHeadingId}
+                    className="text-lg font-semibold tracking-tight"
+                  >
+                    {t(strings.card.myCardsTitle)}
+                  </h2>
+                  <p className="text-content-muted text-xs tabular-nums">
+                    {t(strings.favourites.countOfLimit, {
+                      count: cards.length,
+                      limit: CARD_LIMIT,
+                    })}
                   </p>
                 </div>
 
-                <SaveCardButton number={digitsOf(card.number)} />
-              </div>
-
-              <div className="text-content-muted flex flex-col gap-1 text-sm">
-                <p className="flex flex-wrap gap-2">
-                  <span>{t(strings.card.numberLabel)}</span>
-                  <span className="text-content tabular-nums" dir="ltr">
-                    {card.number}
-                  </span>
-                </p>
-
-                {/* One sentence, so one element. A description list here would be
-                    a term with nothing to define it against. */}
-                <p>
-                  {card.lastUsedDate === null
-                    ? t(strings.card.neverUsed)
-                    : t(strings.card.lastUsed, {
-                        date: formatDate(card.lastUsedDate, locale, {
-                          day: 'numeric',
-                          month: 'long',
-                          year: 'numeric',
-                        }),
-                      })}
-                </p>
-              </div>
-
-              {/* Zero is a balance, not a missing one, and it is the one number
-                  that changes what somebody does next. */}
-              {card.balance === 0 && (
-                <p className="rounded-control bg-surface-muted text-content px-3 py-2 text-sm">
-                  {t(strings.card.emptyCard)}
-                </p>
-              )}
-
-              <Activity usages={card.usages} currency={currency} />
-            </div>
-          )}
-        </div>
-      </section>
-    </div>
-  );
-}
-
-
-/**
- * What has happened to the balance.
- *
- * The balance answers "can I board"; this answers "why is it that". A charge
- * somebody does not recognise is the reason anybody looks a card up twice, so
- * the list leads with where and when rather than with the amount.
- *
- * Direction is never carried by colour alone: every row states its kind in
- * words, and the sign is part of the formatted number rather than a coloured
- * arrow. Green and red here are emphasis on something already said.
- */
-function Activity({
-  usages,
-  currency,
-}: {
-  usages: CardUsage[];
-  currency: string | null;
-}) {
-  const { locale, strings, t } = useLocale();
-
-  if (usages.length === 0) {
-    return (
-      <p className="border-border text-content-muted border-t pt-3 text-sm">
-        {t(strings.card.noActivity)}
-      </p>
-    );
-  }
-
-  return (
-    <section className="border-border flex flex-col gap-2 border-t pt-3">
-      <h2 className="text-content-muted text-xs font-semibold tracking-wide uppercase">
-        {t(strings.card.activity)}
-      </h2>
-
-      <ul className="flex flex-col">
-        {usages.map((usage, index) => {
-          const topUp = usage.kind === 'topUp';
-
-          return (
-            <li
-              /*
-               * Two taps can share a minute — a machine that charges twice, a
-               * card read at a gate and a reader — so the index is part of the
-               * key. There is no id on a usage to use instead.
-               */
-              key={`${usage.date ?? ''}-${usage.time ?? ''}-${index}`}
-              className="border-border flex items-baseline gap-3 border-b py-2 last:border-b-0"
-            >
-              <span className="flex min-w-0 flex-1 flex-col">
-                <span dir="auto" className="truncate text-sm font-medium">
-                  {usage.description ??
-                    t(topUp ? strings.card.topUp : strings.card.unknownPlace)}
-                </span>
-                <span className="text-content-muted text-xs">
-                  {t(topUp ? strings.card.topUp : strings.card.fare)}
-                  {usage.date === null
-                    ? ''
-                    : ` · ${formatDate(usage.date, locale, {
-                        day: 'numeric',
-                        month: 'short',
-                      })}`}
-                  {usage.time === null ? '' : ` · ${formatClockTime(usage.time, locale)}`}
-                </span>
-              </span>
-
-              <span
-                className={`flex-none text-sm font-semibold tabular-nums ${
-                  topUp ? 'text-success' : 'text-content'
-                }`}
-              >
                 {/*
-                  Signed through `Intl`, not by gluing a character on: a
-                  locale's minus is not always the ASCII hyphen, and the sign
-                  belongs on the side the locale puts it.
+                  `aria-busy` only on the *first* load. `loading` is also the
+                  state during a refetch, and a list that announced itself busy
+                  every time a top-up came back would interrupt constantly.
                 */}
-                {formatMoney(topUp ? usage.amount : -usage.amount, currency, locale, {
-                  signed: true,
-                })}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
+                <div
+                  aria-busy={
+                    status === 'loading' && cards.length === 0 ? true : undefined
+                  }
+                >
+                  {cards.length === 0 ? (
+                    /*
+                      "No cards yet" is a claim about the account, and not one
+                      this page can make until the answer has arrived.
+                    */
+                    <p className="rounded-card border-border bg-surface-muted text-content-muted border px-3 py-2.5 text-sm">
+                      {t(
+                        status === 'ready'
+                          ? strings.card.noCards
+                          : strings.card.loadingCards,
+                      )}
+                    </p>
+                  ) : (
+                    <ul aria-labelledby={listHeadingId} className="flex flex-col gap-2">
+                      {cards.map((card) => {
+                        const open = selected?.id === card.id;
+                        return (
+                          <li key={card.id}>
+                            {/*
+                              A button rather than a link: choosing which card
+                              to read changes what this page shows and is not
+                              somewhere to navigate to. `aria-current` says
+                              which one is open, which a pressed state alone
+                              would leave to colour.
+                            */}
+                            <button
+                              type="button"
+                              onClick={() => setSelectedId(card.id)}
+                              aria-current={open ? 'true' : undefined}
+                              className={`rounded-card focus-visible:outline-brand-500 flex w-full cursor-pointer items-center justify-between gap-3 border px-3 py-2.5 text-start focus-visible:outline-2 focus-visible:outline-offset-2 ${
+                                open
+                                  ? 'border-brand-500 bg-surface-raised'
+                                  : 'border-border bg-surface hover:bg-surface-muted'
+                              }`}
+                            >
+                              <span className="flex min-w-0 flex-col">
+                                {/* See `FavouriteCard` for why a name that may
+                                    be in the other script needs `plaintext`
+                                    *and* a pinned physical alignment. */}
+                                <span className="block truncate text-sm font-medium [unicode-bidi:plaintext] ltr:text-left rtl:text-right">
+                                  {card.nickname}
+                                </span>
+                                <span
+                                  className="text-content-muted text-xs tabular-nums"
+                                  dir="ltr"
+                                >
+                                  {card.number}
+                                </span>
+                              </span>
+                              <span className="flex-none text-sm font-semibold tabular-nums">
+                                {formatMoney(card.balance, currency, locale)}
+                              </span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              </section>
+
+              <AddCardForm full={full} onAdded={(card) => setSelectedId(card.id)} />
+            </div>
+
+            {/*
+              **Not** a live region, which it was at first and should not be.
+
+              The panel is full of controls now — two amount forms, a rename, a
+              delete — and a live region announces everything inside it on
+              every change, so topping up read the whole panel back and
+              switching cards did it again. What actually changed is the
+              balance, so `CardDetail` announces that one sentence itself.
+            */}
+            <div>
+              {selected !== null && (
+                <CardDetail
+                  /*
+                    Keyed on the card, so switching cards starts the panel from
+                    scratch: its rename field, its confirmation and its two
+                    amount forms all belong to one particular card, and
+                    carrying a half-typed fare across to another would be a
+                    number aimed at the wrong balance.
+                  */
+                  key={selected.id}
+                  card={selected}
+                  currency={currency}
+                  onDiscarded={afterDiscarded}
+                />
+              )}
+            </div>
+          </div>
+        )}
+      </AccountGate>
+    </div>
   );
 }

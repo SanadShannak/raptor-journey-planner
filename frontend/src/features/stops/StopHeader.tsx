@@ -79,18 +79,14 @@ export function StopHeader({ stop, servingLines }: Props) {
             {stop.name}
           </h1>
 
-          <FavouriteButton
-            favourite={{
-              kind: 'stop',
-              nickname: null,
-              stopId: stop.id,
-              name: stop.name,
-              code: stop.code,
-              modes: [...new Set(servingLines.map((line) => line.routeType))].sort(
-                (a, b) => a - b,
-              ),
-            }}
-          />
+          {/*
+            Only the id. The name, the code and the modes used to travel with
+            it so a saved card could paint before anything answered; the
+            account stores none of them, and the server derives the default
+            nickname from the feed itself — which it reads more
+            authoritatively than this page happens to.
+          */}
+          <FavouriteButton favourite={{ kind: 'stop', stopId: stop.id }} />
         </div>
 
         {stop.description !== null && (

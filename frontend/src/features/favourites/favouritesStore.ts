@@ -1,30 +1,59 @@
 import {
+  addSavedItem,
+  getSavedItems,
+  removeSavedItem,
+  renameSavedItem,
+  type SavedItems,
+} from '../../api/savedItems';
+import { ApiError, isApiError, isUnauthorized } from '../../api/errors';
+import { sessionExpired } from '../../auth/sessionStore';
+import {
   FAVOURITES_PER_KIND,
   identity,
   type Favourite,
+  type FavouriteDraft,
   type FavouriteKind,
 } from './favourite';
-import {
-  FAVOURITES_STORAGE_KEY,
-  readFavourites,
-  writeFavourites,
-} from './favouritesStorage';
 
 /**
  * Every saved favourite, for the whole app.
  *
  * A module-level store with a set of listeners, the same shape as
- * `backendHealth.ts` and `navigationDepth.ts` — no state library, consistent
- * with everything else here. It differs from `plannerMemory.ts` in the one way
- * that matters: this one *is* persisted, because a favourite that did not
- * survive a reload would not be a favourite.
+ * `backendHealth.ts` and `sessionStore.ts` — no state library, consistent with
+ * everything else here. What changed with accounts is where the list lives:
+ * it used to be read synchronously out of `localStorage` at import time, and
+ * is now fetched, which is why this module has a status and an error where it
+ * previously had neither. Every surface that reads it needs the three states
+ * CLAUDE.md asks of any async surface, and they have to come from somewhere.
  *
- * Order is the array's own order, and it is the reader's to change. New entries
- * are appended rather than unshifted, so saving something never disturbs an
- * arrangement somebody made on purpose.
+ * The list is **not cached across sessions**. A favourite is now a row on an
+ * account rather than a note on a device, so the device has no business
+ * keeping a copy: a stale list would be wrong for anybody who signed in
+ * elsewhere, and right only for the one case the server already answers
+ * quickly.
  */
 
-let items: readonly Favourite[] = readFavourites();
+export type SavedStatus =
+  /** Nobody has asked yet, or the account changed and the answer was dropped. */
+  | 'idle'
+  | 'loading'
+  | 'ready'
+  /** The request failed for a reason that was not an expired session. */
+  | 'failed';
+
+interface SavedState {
+  status: SavedStatus;
+  items: readonly Favourite[];
+  /** Why the last load failed, for a surface that has to say so. */
+  error: ApiError | null;
+}
+
+const EMPTY: SavedState = { status: 'idle', items: [], error: null };
+
+let state: SavedState = EMPTY;
+
+/** Distinguishes a load from a *later* one, so a stale answer cannot land. */
+let requestId = 0;
 
 const listeners = new Set<() => void>();
 
@@ -33,14 +62,14 @@ function announce(): void {
 }
 
 /**
- * Replaces the list, persists it, and tells everyone.
+ * Replaces the state and tells everyone.
  *
- * The array reference changes only here, which is what
- * {@link getFavourites} relies on.
+ * The object reference changes only here, which is what {@link getSavedState}
+ * relies on: `useSyncExternalStore` compares snapshots by reference, so
+ * returning a fresh object on every read would re-render forever.
  */
-function commit(next: readonly Favourite[]): void {
-  items = next;
-  writeFavourites(next);
+function commit(next: SavedState): void {
+  state = next;
   announce();
 }
 
@@ -51,80 +80,265 @@ export function subscribeToFavourites(listener: () => void): () => void {
   };
 }
 
+/** The state as it stands. Returns the held object, never a fresh one. */
+export function getSavedState(): SavedState {
+  return state;
+}
+
 /**
  * The list as it stands.
  *
- * **Returns the held array, never a fresh one.** `useSyncExternalStore`
- * compares snapshots by reference and re-renders when they differ, so building
- * a new array here — even an identical one — would re-render forever. Every
- * derived view (grouping, filtering) belongs in a `useMemo` at the call site,
- * not in this function.
+ * Kept as its own reader because most call sites want only the array, and
+ * handing them the whole state object would make every one of them re-render
+ * when the status changed underneath an unchanged list.
  */
 export function getFavourites(): readonly Favourite[] {
-  return items;
+  return state.items;
 }
 
+/* ------------------------------------------------------- the local ordering */
+
+/**
+ * The reader's own arrangement, for as long as the tab lives.
+ *
+ * **This is the one piece of local state the account could not take over, and
+ * it is a limitation rather than a design.** The subdocuments carry no order
+ * field, so `GET /api/user/saved-*` answers in insertion order and there is
+ * nowhere to record that somebody dragged their third saved stop to the front.
+ *
+ * A module-level value rather than storage of any kind, which is the same
+ * distinction `plannerMemory.ts` draws and for a weaker version of the same
+ * reason: it survives every navigation inside the app, because the tab keeps
+ * running the same JavaScript, and it does not survive a reload. Persisting it
+ * would mean a device-local opinion about an account-held list — wrong on the
+ * next machine, and silently diverging from whatever order a second tab had
+ * settled on.
+ *
+ * It is applied to **every** server answer, not just the first. Each mutation
+ * returns the whole user, so without this a rename would snap the row back to
+ * insertion order and look like the drag had been undone by the rename.
+ *
+ * Adding an `order` field to the subdocuments, or accepting one on the rename
+ * endpoint, is what it would take to make this durable.
+ */
+let preferredOrder: readonly string[] = [];
+
+/**
+ * Sorts a kind's rows by the local arrangement, keeping the rest as they came.
+ *
+ * Anything the reader has never moved has no entry, and sorts after everything
+ * they have — so a newly saved favourite appears at the end of its row rather
+ * than jumping into the middle of an arrangement somebody made on purpose.
+ */
+function applyPreferredOrder(items: readonly Favourite[]): readonly Favourite[] {
+  if (preferredOrder.length === 0) return items;
+
+  const rank = new Map(preferredOrder.map((key, index) => [key, index]));
+  const positionOf = (favourite: Favourite): number =>
+    rank.get(identity(favourite)) ?? Number.MAX_SAFE_INTEGER;
+
+  /*
+   * Index as the tie-break, which keeps this a *stable* sort across engines
+   * rather than relying on one. Two rows the reader has never moved must stay
+   * in the order the server sent them.
+   */
+  return items
+    .map((favourite, index) => ({ favourite, index, position: positionOf(favourite) }))
+    .sort((a, b) => a.position - b.position || a.index - b.index)
+    .map((entry) => entry.favourite);
+}
+
+/** Records the arrangement as it now stands, so the next answer can reproduce it. */
+function rememberOrder(items: readonly Favourite[]): void {
+  preferredOrder = items.map(identity);
+}
+
+/* ----------------------------------------------------------------- reading */
+
+/**
+ * The three lists, flattened into the one array the page draws from.
+ *
+ * Flat rather than grouped because `identity` is unique across kinds and the
+ * page already filters by kind to lay out its rows — and because the drag
+ * loop, the FLIP animation and the React keys all want one sequence.
+ */
+function flatten(items: SavedItems): readonly Favourite[] {
+  return applyPreferredOrder([...items.stops, ...items.routes, ...items.itineraries]);
+}
+
+/**
+ * Fetches the list, superseding any load already in flight.
+ *
+ * A 401 is **not** a failure to report: it means the session went away, which
+ * the session store is told about so the whole app can stop claiming somebody
+ * is signed in. The list goes back to idle rather than to failed, because
+ * there is nothing wrong — there is simply nobody to have favourites.
+ */
+export async function loadFavourites(): Promise<void> {
+  const id = ++requestId;
+  commit({ status: 'loading', items: state.items, error: null });
+
+  try {
+    const items = await getSavedItems();
+    if (id !== requestId) return;
+    const ordered = flatten(items);
+    rememberOrder(ordered);
+    commit({ status: 'ready', items: ordered, error: null });
+  } catch (error: unknown) {
+    if (id !== requestId) return;
+
+    if (isUnauthorized(error)) {
+      sessionExpired();
+      commit(EMPTY);
+      return;
+    }
+
+    commit({
+      status: 'failed',
+      items: [],
+      error: isApiError(error) ? error : null,
+    });
+  }
+}
+
+/**
+ * Drops the list without asking for another.
+ *
+ * What signing out does. The next sign-in loads afresh, so one account's
+ * favourites can never be shown under another's name — which is the failure
+ * mode of keeping a list around "until it is replaced".
+ */
+export function forgetFavourites(): void {
+  requestId += 1;
+  preferredOrder = [];
+  commit(EMPTY);
+}
+
+/* ---------------------------------------------------------------- queries */
+
 export function isFavourite(key: string): boolean {
-  return items.some((favourite) => identity(favourite) === key);
+  return state.items.some((favourite) => identity(favourite) === key);
+}
+
+/** The saved row matching a content key, or null — what a rename needs an id from. */
+export function findFavourite(key: string): Favourite | null {
+  return state.items.find((favourite) => identity(favourite) === key) ?? null;
 }
 
 export function countOfKind(kind: FavouriteKind): number {
-  return items.filter((favourite) => favourite.kind === kind).length;
+  return state.items.filter((favourite) => favourite.kind === kind).length;
 }
 
-/** Whether another of this kind would fit. */
+/**
+ * Whether another of this kind would fit.
+ *
+ * Advisory only. The server decides, with a 422, and it is the authority: this
+ * count is read from a list that is always a little behind. It exists so the
+ * star can explain itself *before* a press rather than only after one.
+ */
 export function hasRoomFor(kind: FavouriteKind): boolean {
   return countOfKind(kind) < FAVOURITES_PER_KIND;
 }
 
-/**
- * Saves one, unless it is already saved or its kind is full.
- *
- * Returns whether it was added, so a caller can explain a refusal rather than
- * appearing to do nothing. Saving something already saved is a no-op rather
- * than a duplicate or an error — pressing a full star twice is not a mistake
- * worth reporting.
- */
-export function addFavourite(favourite: Favourite): boolean {
-  if (isFavourite(identity(favourite))) return false;
-  if (!hasRoomFor(favourite.kind)) return false;
+/* ----------------------------------------------------------------- writes */
 
-  commit([...items, favourite]);
+/**
+ * Applies a mutation's response.
+ *
+ * Every write returns the whole user, so all three lists are replaced at once
+ * — a rename cannot leave the other two kinds showing what they showed before.
+ * The local arrangement is re-applied on the way in; see {@link preferredOrder}.
+ */
+function accept(items: SavedItems): void {
+  requestId += 1;
+  const ordered = flatten(items);
+  // Re-recorded, like a load does, so the two paths cannot drift: whatever
+  // position a newly saved favourite lands in is the one it keeps.
+  rememberOrder(ordered);
+  commit({ status: 'ready', items: ordered, error: null });
+}
+
+/**
+ * Turns an expired session into one, and re-throws everything else.
+ *
+ * Shared by the three writes so none of them can forget: a cookie can lapse
+ * between any two requests, and a store that kept reporting authorisation
+ * errors on a page that still claimed somebody was signed in would be asking
+ * the reader to work out what happened.
+ */
+function rethrow(error: unknown): never {
+  if (isUnauthorized(error)) {
+    sessionExpired();
+    forgetFavourites();
+  }
+  throw error;
+}
+
+/**
+ * Saves one.
+ *
+ * Rejects with the API's `ApiError` so the caller can say *why* — already
+ * saved, kind full, stop not in this dataset — rather than appearing to do
+ * nothing. Nothing is written optimistically: the server assigns the id and
+ * the default nickname, and a row drawn before it answered would have neither,
+ * so it could not be renamed or removed until a refresh.
+ */
+export async function saveFavourite(draft: FavouriteDraft): Promise<void> {
+  try {
+    accept(await addSavedItem(draft));
+  } catch (error: unknown) {
+    rethrow(error);
+  }
+}
+
+export async function removeFavourite(
+  kind: FavouriteKind,
+  itemId: string,
+): Promise<void> {
+  try {
+    accept(await removeSavedItem(kind, itemId));
+  } catch (error: unknown) {
+    rethrow(error);
+  }
+}
+
+/**
+ * Saves it, or removes it if this exact thing is already saved.
+ *
+ * Returns what the star should now show, so a caller does not have to re-read
+ * the store to find out whether its press added or removed.
+ */
+export async function toggleFavourite(draft: FavouriteDraft): Promise<boolean> {
+  const existing = findFavourite(identity(draft));
+  if (existing !== null) {
+    await removeFavourite(existing.kind, existing.id);
+    return false;
+  }
+  await saveFavourite(draft);
   return true;
 }
 
-export function removeFavourite(key: string): void {
-  const next = items.filter((favourite) => identity(favourite) !== key);
-  if (next.length === items.length) return;
-  commit(next);
-}
-
-/** Adds it, or removes it if it is already there. Returns the new state. */
-export function toggleFavourite(favourite: Favourite): boolean {
-  const key = identity(favourite);
-  if (isFavourite(key)) {
-    removeFavourite(key);
-    return false;
-  }
-  return addFavourite(favourite);
-}
-
 /**
- * Renames one, or clears the name back to the one it came with.
+ * Renames one.
  *
- * A name of only spaces is stored as null rather than as whitespace, so an
- * emptied field reliably restores the original label instead of leaving a row
- * that looks untitled.
+ * There is no "clear the name back to the one it came with" any more: the
+ * server supplies the default at the moment of saving and has no endpoint for
+ * restoring it, so an empty field is refused rather than silently doing
+ * something else. `renameSavedItem` is where that refusal lives.
  */
-export function renameFavourite(key: string, nickname: string): void {
-  const trimmed = nickname.trim();
-  const next = items.map((favourite) =>
-    identity(favourite) === key
-      ? { ...favourite, nickname: trimmed === '' ? null : trimmed }
-      : favourite,
-  );
-  commit(next);
+export async function renameFavourite(
+  kind: FavouriteKind,
+  itemId: string,
+  nickname: string,
+): Promise<void> {
+  try {
+    accept(await renameSavedItem(kind, itemId, nickname));
+  } catch (error: unknown) {
+    rethrow(error);
+  }
 }
+
+/* --------------------------------------------------------------- ordering */
 
 /**
  * Moves one up or down **within its own kind**.
@@ -133,12 +347,14 @@ export function renameFavourite(key: string, nickname: string): void {
  * flat array would look like nothing happening whenever the neighbour is of a
  * different kind. Both positions are found among that kind's own entries, then
  * translated back to the flat array.
+ *
+ * Local to the tab — see {@link preferredOrder}.
  */
 export function moveFavourite(key: string, direction: -1 | 1): void {
-  const target = items.find((favourite) => identity(favourite) === key);
+  const target = state.items.find((favourite) => identity(favourite) === key);
   if (target === undefined) return;
 
-  const sameKind = items.filter((favourite) => favourite.kind === target.kind);
+  const sameKind = state.items.filter((favourite) => favourite.kind === target.kind);
   const from = sameKind.indexOf(target);
   const to = from + direction;
   if (to < 0 || to >= sameKind.length) return;
@@ -146,13 +362,15 @@ export function moveFavourite(key: string, direction: -1 | 1): void {
   const partner = sameKind[to];
   if (partner === undefined) return;
 
-  const fromFlat = items.indexOf(target);
-  const toFlat = items.indexOf(partner);
+  const fromFlat = state.items.indexOf(target);
+  const toFlat = state.items.indexOf(partner);
 
-  const next = [...items];
+  const next = [...state.items];
   next[fromFlat] = partner;
   next[toFlat] = target;
-  commit(next);
+
+  rememberOrder(next);
+  commit({ ...state, items: next });
 }
 
 /**
@@ -169,8 +387,8 @@ export function moveFavourite(key: string, direction: -1 | 1): void {
 export function reorderFavourite(key: string, targetKey: string): void {
   if (key === targetKey) return;
 
-  const moving = items.find((favourite) => identity(favourite) === key);
-  const target = items.find((favourite) => identity(favourite) === targetKey);
+  const moving = state.items.find((favourite) => identity(favourite) === key);
+  const target = state.items.find((favourite) => identity(favourite) === targetKey);
   if (moving === undefined || target === undefined) return;
   if (moving.kind !== target.kind) return;
 
@@ -181,7 +399,7 @@ export function reorderFavourite(key: string, targetKey: string): void {
    */
   const slots: number[] = [];
   const order: Favourite[] = [];
-  items.forEach((favourite, index) => {
+  state.items.forEach((favourite, index) => {
     if (favourite.kind !== moving.kind) return;
     slots.push(index);
     order.push(favourite);
@@ -194,60 +412,12 @@ export function reorderFavourite(key: string, targetKey: string): void {
   order.splice(from, 1);
   order.splice(to, 0, moving);
 
-  const next = [...items];
+  const next = [...state.items];
   slots.forEach((slot, position) => {
     const favourite = order[position];
     if (favourite !== undefined) next[slot] = favourite;
   });
 
-  commit(next);
-}
-
-/**
- * Keeps a stored copy in step with what the network now says.
- *
- * A stop gets renamed, a line's long name changes. The saved fields are a cache
- * so the row can paint before anything answers, and this is how that cache
- * heals: whatever a live response says wins. A no-op when nothing actually
- * differs, so it cannot loop a component that calls it from an effect.
- */
-export function refreshFavourite(key: string, patch: Partial<Favourite>): void {
-  const current = items.find((favourite) => identity(favourite) === key);
-  if (current === undefined) return;
-
-  const merged = { ...current, ...patch } as Favourite;
-
-  // Identity must not move underneath a favourite — patching is for labels.
-  if (identity(merged) !== key) return;
-
-  /*
-   * Key order is stable — `merged` is `current` spread first, and a patch only
-   * ever carries keys `current` already has — so comparing the serialised form
-   * is a sound "did anything actually move" test.
-   */
-  if (JSON.stringify(merged) === JSON.stringify(current)) return;
-
-  commit(items.map((favourite) => (identity(favourite) === key ? merged : favourite)));
-}
-
-/**
- * Another tab changed the list.
- *
- * Favourites are durable and long-lived, so two open tabs disagreeing is a real
- * thing somebody would notice. The event fires only in the *other* tabs, so
- * this never fights the write that caused it.
- */
-if (typeof window !== 'undefined') {
-  window.addEventListener('storage', (event) => {
-    if (event.key !== null && event.key !== FAVOURITES_STORAGE_KEY) return;
-    items = readFavourites();
-    announce();
-  });
-}
-
-/** For tests, which share one module across a file. */
-export function forgetFavourites(): void {
-  items = [];
-  writeFavourites(items);
-  announce();
+  rememberOrder(next);
+  commit({ ...state, items: next });
 }

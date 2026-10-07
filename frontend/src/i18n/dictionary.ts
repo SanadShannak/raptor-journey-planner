@@ -143,7 +143,7 @@ export interface Dictionary {
     plan: { title: string; documentTitle: string };
     routes: { title: string; documentTitle: string };
     stops: { title: string; documentTitle: string };
-    card: { title: string; needsAccount: string };
+    card: { title: string };
     favourites: { title: string; documentTitle: string };
     notFound: { title: string; body: string; backHome: string };
   };
@@ -599,14 +599,50 @@ export interface Dictionary {
    * make one is asking the wrong question.
    */
   card: {
-    inquiryTitle: string;
-    inquiryIntro: string;
-    /** Labels the field. The format goes in the hint, not in the label. */
+    /* The page itself. */
+    walletTitle: string;
+    walletIntro: string;
+    /** Labels the number, which is now shown rather than asked for. */
     numberLabel: string;
-    /** The shape of the number, shown under the field and never as a label. */
-    numberHint: string;
-    check: string;
-    checking: string;
+
+    /*
+     * Issuing one. The number is **minted by the server**, so the form asks
+     * only for the two things a person actually decides.
+     */
+    addTitle: string;
+    nicknameLabel: string;
+    nicknamePlaceholder: string;
+    nicknameRequired: string;
+    typeLabel: string;
+    /** One per `CardType`, which is the server's own fixed enum. */
+    types: { Standard: string; Student: string; Elderly: string; Virtual: string };
+    add: string;
+    adding: string;
+
+    /* Moving money. Both amounts are calculated and stored on the server. */
+    topUpLabel: string;
+    topUpAction: string;
+    topUpPending: string;
+    fareLabel: string;
+    fareAction: string;
+    farePending: string;
+    /**
+     * The shape of an amount.
+     *
+     * Three decimal places rather than two, because the limit belongs to the
+     * API rather than to the currency — a euro has two and a dinar has three,
+     * and the server accepts three on every network.
+     */
+    amountHint: string;
+    amountRequired: string;
+    amountMalformed: string;
+    amountTooSmall: string;
+
+    /* Discarding one, which asks first: a card holds money. */
+    discard: string;
+    discardConfirm: string;
+    discardYes: string;
+    discardNo: string;
 
     /* What comes back. */
     balance: string;
@@ -614,7 +650,8 @@ export interface Dictionary {
     neverUsed: string;
     /** Zero is a balance, not an absence, and says something worth acting on. */
     emptyCard: string;
-    checkAnother: string;
+    /** Announced after money moves — the figure itself is already on screen. */
+    balanceNow: string;
 
     /* What has happened to the balance. */
     activity: string;
@@ -625,36 +662,29 @@ export interface Dictionary {
     /** A tap with a date but nothing said about where. */
     unknownPlace: string;
 
-    /* What went wrong, in the reader's terms rather than the server's. */
-    numberRequired: string;
-    numberIncomplete: string;
-
     /*
-     * My Cards — saved numbers, kept on the device exactly the way favourites
-     * are. No balance is ever stored: only the number and a nickname, so a
-     * tile always asks again rather than showing a figure that might already
-     * be wrong.
+     * The wallet's own list. Every card on it belongs to the account and comes
+     * from the server, so there is nothing here about a device: the balance is
+     * fetched to be true, and a stored one would go stale the moment it was
+     * spent with nothing on screen to say so.
      */
-    save: string;
-    unsave: string;
-    limitReached: string;
     myCardsTitle: string;
-    myCardsIntro: string;
-    savedOnDevice: string;
-    noSavedCards: string;
+    /** Nobody has a card yet — which only the server can tell us. */
+    noCards: string;
+    /** The list is on its way, so "no cards" is not yet a thing to claim. */
+    loadingCards: string;
+    limitReached: string;
     rename: string;
     renameNamed: string;
-    renamePlaceholder: string;
-    removeSaved: string;
     refreshBalance: string;
   };
 
   /**
    * Saved stops, lines, and journeys.
    *
-   * Kept on the device rather than against an account, and the interface says
-   * so plainly — sign-in is inert here, so implying favourites follow a person
-   * between machines would be a promise the product cannot keep.
+   * Kept against the account rather than on the device, which is what the
+   * interface now says: they follow a person between machines, because they
+   * are rows on their user record.
    */
   favourites: {
     /* The star, wherever it appears. Its name says what pressing it does. */
@@ -667,7 +697,9 @@ export interface Dictionary {
 
     /* The page. */
     intro: string;
-    savedOnDevice: string;
+    savedToAccount: string;
+    /** The list is on its way, so "nothing saved" is not yet a thing to claim. */
+    loadingSaved: string;
     /**
      * A kind with nothing saved in it yet.
      *
@@ -764,15 +796,47 @@ export interface Dictionary {
     password: string;
     submitLogIn: string;
     submitSignUp: string;
+    submitting: string;
     switchToSignUp: string;
     switchToLogIn: string;
-    /** Shown on submit — accounts do not exist yet, and pretending is worse. */
-    unavailable: string;
     nameRequired: string;
+    /** The server's own rule: letters, digits and spaces, 3–20 characters. */
+    nameInvalid: string;
     emailRequired: string;
     emailInvalid: string;
     passwordRequired: string;
     passwordTooShort: string;
+  };
+
+  /**
+   * Having an account, as distinct from getting one.
+   *
+   * `auth` names the two forms and their fields; this names everything about
+   * being signed in — whose session it is, how to end it, and what each gated
+   * surface is missing without one.
+   */
+  account: {
+    /* The menu in the bar. */
+    menuLabel: string;
+    signedInAs: string;
+    logOut: string;
+    loggingOut: string;
+
+    /* What a gate says. One sentence per surface, because they differ. */
+    /** While the session is still being checked — never "sign in" yet. */
+    checking: string;
+    /**
+     * The session could not be checked at all.
+     *
+     * Kept apart from being signed out, because they call for different words:
+     * inviting somebody to sign in against a backend that is not answering
+     * sends them to a form that will fail the same way.
+     */
+    unreachable: string;
+    walletNeedsAccount: string;
+    favouritesNeedAccount: string;
+    /** Why the star cannot act. Shown in its own tooltip, like the other two. */
+    saveNeedsAccount: string;
   };
   theme: {
     /** Accessible label for the colour-scheme switcher. */
@@ -886,5 +950,41 @@ export interface Dictionary {
     badCardNumber: string;
     /** The card store is down. Nothing else in the app depends on it. */
     cardStoreUnavailable: string;
+
+    /*
+     * The account endpoints, which send no `errorCode` of their own — these
+     * are mapped from codes `api/auth.ts`, `api/cards.ts` and
+     * `api/savedItems.ts` synthesise from the status of the call they made.
+     */
+    /** The cookie is gone: expired, cleared, or naming a deleted user. */
+    unauthorized: string;
+    /** Somebody has already registered that address. */
+    emailInUse: string;
+    /**
+     * The email and the password do not go together.
+     *
+     * One message for "no such email" and "wrong password" deliberately.
+     * Telling an unauthenticated caller which of the two it got answers "does
+     * this person have an account here" to anybody willing to ask.
+     */
+    invalidCredentials: string;
+    /** A field was rejected and the form could not place the complaint. */
+    invalidSubmission: string;
+    /** The fare is more than the card holds. */
+    insufficientBalance: string;
+    /** Zero, negative, or more decimal places than the server accepts. */
+    invalidAmount: string;
+    /** As many cards as the account may hold. */
+    cardLimitReached: string;
+    /** Another of this account's cards already has that name. */
+    duplicateCardNickname: string;
+    /** This exact stop, direction or journey is already saved. */
+    alreadySaved: string;
+    /** Another saved item of the same kind already has that name. */
+    duplicateNickname: string;
+    /** Five of this kind are already saved. */
+    savedLimitReached: string;
+    /** The stop, line or saved row named is not there. */
+    savedItemNotFound: string;
   };
 }

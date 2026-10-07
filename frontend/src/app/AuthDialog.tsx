@@ -1,7 +1,9 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
-import { useLocale } from '../i18n';
-
-export type AuthMode = 'logIn' | 'signUp';
+import { isApiError } from '../api/errors';
+import { INVALID_SUBMISSION } from '../api/auth';
+import { useSession } from '../auth';
+import { messageForApiError, useLocale } from '../i18n';
+import type { AuthMode } from '../auth/authPrompt';
 
 interface Props {
   /** Which form to show. The header mounts this keyed on the mode, so
@@ -12,6 +14,13 @@ interface Props {
   onClose: () => void;
 }
 
+/** What the server calls each field, so its complaints can be placed. */
+const FIELDS = ['name', 'email', 'password'] as const;
+type Field = (typeof FIELDS)[number];
+
+/** The server's own minimum, restated so the form can say so first. */
+const PASSWORD_MINIMUM = 8;
+
 /**
  * Sign-in and registration, in a native `<dialog>`.
  *
@@ -19,22 +28,31 @@ interface Props {
  * without a focus-trap dependency. `<dialog>` sits exactly on the browser
  * baseline (Safari 15.4).
  *
- * A dialog rather than a page because signing in is never required here:
- * whatever the visitor was doing stays behind it and is still there when they
- * close it. Nothing on the site is gated.
+ * A dialog rather than a page because signing in is never a *gate* here: the
+ * planner, the stops, the lines and the timetables all work without an
+ * account, so whatever the visitor was doing stays behind this and is still
+ * there when they close it. Two pages do need an account now — the wallet and
+ * the saved list — and they say so where their content would be rather than
+ * sending anybody here; see `AccountGate`. Either way this dialog opens over
+ * the page somebody is on, which is why it leaves no history entry.
  *
- * The form is real — labelled inputs, autocomplete, validation, error text
- * tied to its field — so the eventual backend work is replacing one submit
- * handler. Only the submit is inert, and it says so plainly rather than
- * pretending to sign anyone in.
+ * Validation happens twice on purpose, and the two are not redundant. The
+ * checks here answer instantly and keep an obviously incomplete form from
+ * costing a round trip. The server's are the authority — it owns the password
+ * length, the name's character set, and the only real test of an email
+ * address, which is whether anything is delivered to it — and its per-field
+ * complaints are placed on the fields it names. What is never shown is its
+ * *wording*: `fieldErrors` is read for which field, and the message comes from
+ * the dictionary.
  */
 export function AuthDialog({ mode, onChangeMode, onClose }: Props) {
   const { strings, t } = useLocale();
+  const { logIn, register } = useSession();
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [submitted, setSubmitted] = useState(false);
+  const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
+  const [failure, setFailure] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
   const titleId = useId();
-  const noticeId = useId();
 
   /*
    * The one thing here that is genuine external synchronisation: a <dialog>
@@ -48,42 +66,106 @@ export function AuthDialog({ mode, onChangeMode, onClose }: Props) {
 
   const isSignUp = mode === 'signUp';
 
-  function validate(form: HTMLFormElement): Record<string, string> {
-    const data = new FormData(form);
-    const found: Record<string, string> = {};
+  function validate(data: FormData): Partial<Record<Field, string>> {
+    const found: Partial<Record<Field, string>> = {};
 
     if (isSignUp && String(data.get('name') ?? '').trim() === '') {
-      found['name'] = t(strings.auth.nameRequired);
+      found.name = t(strings.auth.nameRequired);
     }
 
     const email = String(data.get('email') ?? '').trim();
-    if (email === '') found['email'] = t(strings.auth.emailRequired);
+    if (email === '') found.email = t(strings.auth.emailRequired);
     // Deliberately loose: the only authority on an address is delivery to it.
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      found['email'] = t(strings.auth.emailInvalid);
+      found.email = t(strings.auth.emailInvalid);
     }
 
     const password = String(data.get('password') ?? '');
-    if (password === '') found['password'] = t(strings.auth.passwordRequired);
-    else if (isSignUp && password.length < 8) {
-      found['password'] = t(strings.auth.passwordTooShort);
+    if (password === '') found.password = t(strings.auth.passwordRequired);
+    /*
+     * Checked on both forms, not only on sign-up. The server's login validator
+     * applies the same eight-character minimum, so a shorter password sent to
+     * it comes back as a field complaint rather than as "those do not match" —
+     * and a reader told their *correct* short password is invalid would have no
+     * way to make sense of that. Saying it here keeps the two consistent.
+     */
+    else if (password.length < PASSWORD_MINIMUM) {
+      found.password = t(strings.auth.passwordTooShort);
     }
 
     return found;
   }
 
-  function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const found = validate(event.currentTarget);
+  /**
+   * Places the server's per-field complaints on this form's fields.
+   *
+   * Only the field *names* are used. The messages are the server's own English
+   * and are never shown, so each one becomes this dictionary's message for
+   * that field — which means the form says the same thing whether the
+   * complaint came from here or from there.
+   */
+  function applyFieldErrors(fieldErrors: Readonly<Record<string, string>>): boolean {
+    const found: Partial<Record<Field, string>> = {};
+
+    for (const field of FIELDS) {
+      if (fieldErrors[field] === undefined) continue;
+      found[field] =
+        field === 'name'
+          ? t(strings.auth.nameInvalid)
+          : field === 'email'
+            ? t(strings.auth.emailInvalid)
+            : t(strings.auth.passwordTooShort);
+    }
+
     setErrors(found);
-    setSubmitted(Object.keys(found).length === 0);
+    return Object.keys(found).length > 0;
   }
 
-  const field = (
-    name: 'name' | 'email' | 'password',
-    type: string,
-    autoComplete: string,
-  ) => {
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (pending) return;
+
+    const data = new FormData(event.currentTarget);
+    const found = validate(data);
+    setErrors(found);
+    setFailure(null);
+    if (Object.keys(found).length > 0) return;
+
+    const email = String(data.get('email') ?? '').trim();
+    const password = String(data.get('password') ?? '');
+
+    setPending(true);
+    try {
+      if (isSignUp) {
+        await register({ name: String(data.get('name') ?? '').trim(), email, password });
+      } else {
+        await logIn({ email, password });
+      }
+      /*
+       * Closed on success and nothing else happens. The session store has
+       * already recorded the account, every surface that cares is subscribed
+       * to it, and the page behind the dialog is the one the visitor was on —
+       * so there is nowhere to navigate and nothing to reload.
+       */
+      onClose();
+    } catch (error: unknown) {
+      /*
+       * A field-level rejection is placed on its field; anything else is a
+       * statement about the attempt as a whole and goes above the button,
+       * where the eye is already looking after a press.
+       */
+      const placed =
+        isApiError(error) && error.code === INVALID_SUBMISSION
+          ? applyFieldErrors(error.fieldErrors)
+          : false;
+
+      if (!placed) setFailure(t(messageForApiError(error, strings)));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  const field = (name: Field, type: string, autoComplete: string) => {
     const errorId = `${name}-error`;
     const message = errors[name];
     return (
@@ -120,7 +202,11 @@ export function AuthDialog({ mode, onChangeMode, onClose }: Props) {
       }}
       className="rounded-card bg-surface text-content shadow-card border-border m-auto w-[min(28rem,calc(100vw-2rem))] border p-0 backdrop:bg-black/50"
     >
-      <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4 p-6">
+      <form
+        onSubmit={(event) => void onSubmit(event)}
+        noValidate
+        className="flex flex-col gap-4 p-6"
+      >
         <div className="flex items-start justify-between gap-4">
           <h2 id={titleId} className="text-xl font-semibold">
             {t(strings.auth[mode])}
@@ -155,18 +241,33 @@ export function AuthDialog({ mode, onChangeMode, onClose }: Props) {
         )}
 
         {/*
-          Announced rather than silently appearing, because it is the answer to
-          an action the visitor just took.
+          Why the attempt did not work — a wrong password, an email already
+          registered, a backend that is not answering. An `alert` because it is
+          the answer to a press and it replaces the outcome somebody expected,
+          and it sits directly above the button so it is where the eye already
+          is.
         */}
-        <p aria-live="polite" id={noticeId} className="text-content-muted text-sm">
-          {submitted ? t(strings.auth.unavailable) : ''}
-        </p>
+        <div aria-live="assertive">
+          {failure !== null && (
+            <p className="rounded-card border-danger text-danger border px-3 py-2 text-sm">
+              {failure}
+            </p>
+          )}
+        </div>
 
         <button
           type="submit"
-          className="rounded-control bg-brand-fill text-on-brand focus-visible:outline-brand-500 cursor-pointer px-4 py-2 font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
+          disabled={pending}
+          aria-busy={pending || undefined}
+          className="rounded-control bg-brand-fill text-on-brand focus-visible:outline-brand-500 cursor-pointer px-4 py-2 font-medium focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {t(isSignUp ? strings.auth.submitSignUp : strings.auth.submitLogIn)}
+          {t(
+            pending
+              ? strings.auth.submitting
+              : isSignUp
+                ? strings.auth.submitSignUp
+                : strings.auth.submitLogIn,
+          )}
         </button>
 
         <button

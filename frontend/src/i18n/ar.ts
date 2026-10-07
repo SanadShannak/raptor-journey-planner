@@ -87,6 +87,19 @@ export const ar: Dictionary = {
     cardNotFound: 'لا توجد بطاقة بهذا الرقم. تحقّق من الأرقام وحاول مرة أخرى.',
     badCardNumber: 'هذا ليس رقم بطاقة. رقم البطاقة أحد عشر رقمًا.',
     cardStoreUnavailable: 'الاستعلام عن الرصيد غير متاح حاليًا. أما بقية الموقع فيعمل كالمعتاد.',
+
+    unauthorized: 'تم تسجيل خروجك. سجّل الدخول مرة أخرى للمتابعة.',
+    emailInUse: 'يوجد حساب بهذا البريد الإلكتروني بالفعل. سجّل الدخول بدلًا من ذلك.',
+    invalidCredentials: 'البريد الإلكتروني وكلمة المرور لا يطابقان أي حساب.',
+    invalidSubmission: 'تحقّق من البيانات التي أدخلتها وحاول مرة أخرى.',
+    insufficientBalance: 'رصيد هذه البطاقة غير كافٍ. اشحنها أولًا.',
+    invalidAmount: 'هذا المبلغ غير صالح. استخدم الأرقام بحد أقصى ثلاث خانات عشرية.',
+    cardLimitReached: 'لديك بالفعل أقصى عدد من البطاقات يسمح به الحساب. احذف واحدة لإفساح المجال.',
+    duplicateCardNickname: 'إحدى بطاقاتك الأخرى تحمل هذا الاسم. اختر اسمًا مختلفًا.',
+    alreadySaved: 'هذا موجود في مفضّلتك بالفعل.',
+    duplicateNickname: 'عنصر مفضّل آخر يحمل هذا الاسم. اختر اسمًا مختلفًا.',
+    savedLimitReached: 'حفظت أقصى عدد يسمح به الحساب من هذا النوع. أزل واحدًا لإفساح المجال.',
+    savedItemNotFound: 'هذا لم يعد موجودًا. ربما أُزيل من قبل.',
   },
 
   nav: {
@@ -119,10 +132,7 @@ export const ar: Dictionary = {
     plan: { title: 'خطط رحلة', documentTitle: 'مخطط الرحلات' },
     routes: { title: 'الخطوط', documentTitle: 'الخطوط' },
     stops: { title: 'المحطات', documentTitle: 'المحطات' },
-    card: {
-      title: 'بطاقة السفر',
-      needsAccount: 'التحقق من رصيد البطاقة يتطلّب حسابًا. الحسابات غير متاحة بعد.',
-    },
+    card: { title: 'بطاقات السفر' },
     favourites: { title: 'المفضّلة', documentTitle: 'المفضّلة' },
     notFound: {
       title: 'الصفحة غير موجودة',
@@ -455,30 +465,45 @@ export const ar: Dictionary = {
   },
 
   card: {
-    inquiryTitle: 'استعلم عن رصيد بطاقة',
-    inquiryIntro: 'أدخل الرقم المطبوع على البطاقة. لا تحتاج إلى حساب، ولا يُحفظ شيء ما لم تختر حفظه.',
+    walletTitle: 'بطاقات السفر',
+    walletIntro: 'أضف بطاقة، واشحنها، واطّلع على ما صُرف منها. البطاقات محفوظة في حسابك، فتظهر كما هي على كل جهاز تسجّل الدخول منه.',
     numberLabel: 'رقم البطاقة',
-    /*
-     * The example is wrapped in U+2066 LRI … U+2069 PDI.
-     *
-     * Without them the hyphens in `12345-67890-1` are bidi-neutral, so
-     * inside a right-to-left sentence the algorithm reorders the groups
-     * and the example renders as `1-67890-12345` — a different number,
-     * shown to somebody being told how to type theirs. The isolate says
-     * "this run is left-to-right and does not interact with its
-     * surroundings", which is exactly what a card number is.
-     *
-     * Invisible in an editor. Do not "clean up" the string.
-     */
-    numberHint: 'أحد عشر رقمًا كما هي مطبوعة: ⁦12345-67890-1⁩',
-    check: 'استعلم عن الرصيد',
-    checking: 'جارٍ الاستعلام…',
+
+    addTitle: 'إضافة بطاقة',
+    nicknameLabel: 'الاسم',
+    nicknamePlaceholder: 'بطاقة المنزل، بطاقة العمل…',
+    nicknameRequired: 'أعطِ البطاقة اسمًا.',
+    typeLabel: 'النوع',
+    types: {
+      Standard: 'عادية',
+      Student: 'طلابية',
+      Elderly: 'كبار السن',
+      Virtual: 'افتراضية',
+    },
+    add: 'أضف البطاقة',
+    adding: 'جارٍ الإضافة…',
+
+    topUpLabel: 'مبلغ الشحن',
+    topUpAction: 'اشحن',
+    topUpPending: 'جارٍ الشحن…',
+    fareLabel: 'مبلغ الأجرة',
+    fareAction: 'ادفع الأجرة',
+    farePending: 'جارٍ الدفع…',
+    amountHint: 'حتى {places} خانات عشرية، و{minimum} على الأقل.',
+    amountRequired: 'أدخل المبلغ.',
+    amountMalformed: 'أدخل المبلغ بالأرقام، بحد أقصى ثلاث خانات عشرية.',
+    amountTooSmall: 'هذا المبلغ صغير جدًا.',
+
+    discard: 'حذف البطاقة',
+    discardConfirm: 'هل تريد حذف هذه البطاقة؟',
+    discardYes: 'احذف',
+    discardNo: 'أبقِها',
 
     balance: 'الرصيد',
     lastUsed: 'آخر استخدام {date}',
     neverUsed: 'لم تُستخدم بعد',
     emptyCard: 'هذه البطاقة فارغة. اشحنها قبل السفر.',
-    checkAnother: 'استعلم عن بطاقة أخرى',
+    balanceNow: 'الرصيد الآن {amount}.',
 
     activity: 'الحركات الأخيرة',
     fare: 'أجرة',
@@ -486,20 +511,12 @@ export const ar: Dictionary = {
     noActivity: 'لا توجد حركات مسجّلة على هذه البطاقة بعد.',
     unknownPlace: 'رحلة',
 
-    numberRequired: 'أدخل رقم البطاقة.',
-    numberIncomplete: 'هذا الرقم قصير جدًا. رقم البطاقة أحد عشر رقمًا.',
-
-    save: 'حفظ في بطاقاتي',
-    unsave: 'إزالة من بطاقاتي',
-    limitReached: 'يمكنك حفظ {count} بطاقات. أزل واحدة لإفساح المجال.',
     myCardsTitle: 'بطاقاتي',
-    myCardsIntro: 'البطاقات التي حفظتها، ورصيد كل واحدة منها.',
-    savedOnDevice: 'البطاقات المحفوظة تبقى على هذا الجهاز.',
-    noSavedCards: 'لا توجد بطاقات محفوظة بعد. استعلم عن بطاقة واحفظها لترى رصيدها بلمحة في المرة القادمة.',
+    noCards: 'لا توجد بطاقات بعد. أضف واحدة وسيُصدَر رقمها لك.',
+    loadingCards: 'جارٍ تحميل بطاقاتك…',
+    limitReached: 'يمكنك الاحتفاظ بـ{count} بطاقات. احذف واحدة لإفساح المجال.',
     rename: 'إعادة التسمية',
     renameNamed: 'إعادة تسمية {name}',
-    renamePlaceholder: 'بطاقة المنزل، بطاقة العمل…',
-    removeSaved: 'إزالة البطاقة المحفوظة',
     refreshBalance: 'تحديث الرصيد',
   },
 
@@ -510,7 +527,8 @@ export const ar: Dictionary = {
     limitReached: 'يمكنك حفظ {count} من كل نوع. أزل واحدًا لإفساح المجال.',
 
     intro: 'كل ما حفظته، وما يغادر تاليًا.',
-    savedOnDevice: 'تُحفظ المفضّلة على هذا الجهاز.',
+    savedToAccount: 'تُحفظ المفضّلة في حسابك.',
+    loadingSaved: 'جارٍ تحميل ما حفظته…',
     noStops: 'لا محطات محفوظة. اضغط النجمة على محطة لحفظها هنا.',
     noRoutes: 'لا خطوط محفوظة. اضغط النجمة على خط لحفظه هنا.',
     noItineraries: 'لا رحلات محفوظة. أكمل بحثًا واضغط النجمة بجانبه.',
@@ -557,13 +575,26 @@ export const ar: Dictionary = {
     password: 'كلمة المرور',
     submitLogIn: 'تسجيل الدخول',
     submitSignUp: 'إنشاء الحساب',
+    submitting: 'لحظة واحدة…',
     switchToSignUp: 'ليس لديك حساب؟ أنشئ حسابًا',
     switchToLogIn: 'لديك حساب بالفعل؟ سجّل الدخول',
-    unavailable: 'الحسابات غير متاحة بعد. كل ما عدا ذلك في الموقع يعمل دون حساب.',
     nameRequired: 'أدخل اسمك.',
+    nameInvalid: 'استخدم من 3 إلى 20 حرفًا أو رقمًا أو مسافة.',
     emailRequired: 'أدخل بريدك الإلكتروني.',
     emailInvalid: 'أدخل بريدًا إلكترونيًا مثل name@example.com.',
     passwordRequired: 'أدخل كلمة مرور.',
     passwordTooShort: 'استخدم 8 أحرف على الأقل.',
+  },
+  account: {
+    menuLabel: 'حسابك',
+    signedInAs: 'مسجّل الدخول باسم',
+    logOut: 'تسجيل الخروج',
+    loggingOut: 'جارٍ تسجيل الخروج…',
+
+    checking: 'جارٍ التحقق من حسابك…',
+    unreachable: 'لم نتمكّن من الوصول إلى الخادم للتحقق من حسابك. حاول بعد قليل.',
+    walletNeedsAccount: 'سجّل الدخول لترى بطاقات السفر الخاصة بك، ولشحنها، ولمعرفة ما صُرف منها.',
+    favouritesNeedAccount: 'سجّل الدخول لترى المحطات والخطوط والرحلات التي حفظتها.',
+    saveNeedsAccount: 'سجّل الدخول لحفظ هذا.',
   },
 };

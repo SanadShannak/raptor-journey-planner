@@ -19,6 +19,7 @@ export {
   formatClockTime,
   formatDate,
   formatNumber,
+  isoDateInZone,
   nowInZone,
   parseIsoDate,
   type MessageValues,

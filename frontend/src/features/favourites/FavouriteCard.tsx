@@ -5,7 +5,7 @@ import {
   type ReactNode,
 } from 'react';
 import { Link } from 'react-router';
-import { useLocale } from '../../i18n';
+import { messageForApiError, useLocale } from '../../i18n';
 import type { Dictionary, Message } from '../../i18n/dictionary';
 import { favouriteLabel, identity, type Favourite } from './favourite';
 import { moveFavourite, removeFavourite, renameFavourite } from './favouritesStore';
@@ -124,6 +124,16 @@ export function FavouriteCard({
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(favourite.nickname ?? '');
+  /**
+   * What the server said no to, already localised.
+   *
+   * A rename and a removal are requests now, so both can be refused — a
+   * nickname another card already has, a row a second tab removed first — and
+   * a card that appeared to ignore the press would be the worst of the
+   * available outcomes. Cleared by the next attempt.
+   */
+  const [problem, setProblem] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const fieldRef = useRef<HTMLInputElement>(null);
   const nameRef = useRef<HTMLButtonElement>(null);
 
@@ -157,17 +167,76 @@ export function FavouriteCard({
 
   const title = favouriteLabel(favourite, fallbackLabel);
 
-  function commit() {
-    renameFavourite(key, draft);
+  function close() {
     setEditing(false);
     // Back to the name that opened the field, or focus falls to the body.
     nameRef.current?.focus();
   }
 
+  /**
+   * Sends the new name, unless there is nothing to send.
+   *
+   * Two cases resolve to "leave it alone" rather than to a request. An
+   * **unchanged** name needs no round trip. An **emptied** field used to mean
+   * "clear the nickname back to the name it came with", and that meaning no
+   * longer exists: the server fills an omitted nickname at the moment of
+   * saving and has no endpoint for restoring its own default, so a blank is
+   * restored locally instead of being sent somewhere it would simply be
+   * refused.
+   *
+   * On a refusal the field **closes** and the reason is shown beneath. Leaving
+   * it open would be the obvious alternative and is a trap: `onBlur` commits,
+   * so a field still open after a failed blur-commit sends the same rejected
+   * name again the next time focus leaves it, for as long as it keeps failing.
+   */
+  async function commit() {
+    const next = draft.trim();
+    const current = favourite.nickname ?? '';
+
+    if (next === '' || next === current) {
+      setDraft(current);
+      close();
+      return;
+    }
+
+    setProblem(null);
+    setBusy(true);
+    close();
+    try {
+      await renameFavourite(favourite.kind, favourite.id, next);
+    } catch (error: unknown) {
+      setDraft(current);
+      setProblem(t(messageForApiError(error, strings)));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function cancel() {
     setDraft(favourite.nickname ?? '');
-    setEditing(false);
-    nameRef.current?.focus();
+    close();
+  }
+
+  /**
+   * Removes the card, and moves focus only if it actually went.
+   *
+   * `onRemoved` sends focus to the page heading because the element holding it
+   * is about to unmount. Calling it on a *failed* removal would throw focus
+   * across the page and leave the card sitting there, so the refusal is
+   * reported in place instead and focus stays on the control that was pressed.
+   */
+  async function discard() {
+    if (busy) return;
+    setProblem(null);
+    setBusy(true);
+    try {
+      await removeFavourite(favourite.kind, favourite.id);
+      onRemoved();
+    } catch (error: unknown) {
+      setProblem(t(messageForApiError(error, strings)));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -269,11 +338,11 @@ export function FavouriteCard({
                 ref={fieldRef}
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
-                onBlur={commit}
+                onBlur={() => void commit()}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') {
                     event.preventDefault();
-                    commit();
+                    void commit();
                   }
                   if (event.key === 'Escape') {
                     event.preventDefault();
@@ -406,10 +475,9 @@ export function FavouriteCard({
 
           <button
             type="button"
-            onClick={() => {
-              removeFavourite(key);
-              onRemoved();
-            }}
+            onClick={() => void discard()}
+            disabled={busy}
+            aria-busy={busy || undefined}
             className={`${CONTROL} hover:text-danger`}
           >
             <span className="sr-only">{t(strings.favourites.remove)}</span>
@@ -418,6 +486,25 @@ export function FavouriteCard({
             </svg>
           </button>
         </div>
+
+        {/*
+          Why the last press did not take.
+
+          An `alert` rather than a status: it is the answer to something the
+          reader just did, and it replaces an outcome they were expecting. It
+          sits inside the card so it is attached to the thing it is about, and
+          it is the one piece of card content that turns pointer events back on
+          — otherwise a press on the message would fall through to the
+          stretched link and open the stop it is complaining about.
+        */}
+        {problem !== null && (
+          <p
+            role="alert"
+            className="text-danger pointer-events-auto relative -mx-0.5 pt-1 text-xs"
+          >
+            {problem}
+          </p>
+        )}
       </div>
     </li>
   );

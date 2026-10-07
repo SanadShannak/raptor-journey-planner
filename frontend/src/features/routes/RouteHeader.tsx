@@ -137,14 +137,8 @@ export function RouteHeader({ variant, span, tripsOnDay, day, networkToday, onFl
         <FavouriteButton
           favourite={{
             kind: 'route',
-            nickname: null,
             lineId: variant.lineId,
             patternId: variant.patternId,
-            routeShortName: variant.routeShortName,
-            routeType: variant.routeType,
-            routeLongName: variant.routeLongName,
-            headsign: variant.headsign,
-            directionId: variant.directionId,
           }}
         />
       </div>

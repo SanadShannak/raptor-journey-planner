@@ -23,13 +23,44 @@ function optional(value: string | undefined): string | null {
   return trimmed ? trimmed : null;
 }
 
-/** Strips any trailing slash so callers can always join with a leading `/`. */
+/**
+ * Strips any trailing slash so callers can always join with a leading `/`.
+ *
+ * A base of `/` therefore normalises to the empty string, which is how
+ * **same-origin** is spelled throughout this app: `buildUrl` resolves a
+ * relative base against the page's own origin. A lone `/` is still a value,
+ * so {@link required} keeps failing fast when the variable is genuinely unset
+ * — "same origin, deliberately" and "nobody configured this" stay distinct.
+ */
 function normalizeBaseUrl(url: string): string {
   return url.replace(/\/+$/, '');
 }
 
 export const env = {
-  /** Origin of the journey-planning backend, e.g. `http://localhost:3000`. */
+  /*
+   * Where the backend is, and why the answer is normally "here".
+   *
+   * Either an absolute origin (`http://localhost:3000`) or a same-origin path
+   * prefix, of which `/` — the empty string once normalised — is the usual
+   * one. **Same-origin is the configuration that works**, and that is a
+   * consequence of the session being a cookie rather than a preference:
+   *
+   * The server answers `Access-Control-Allow-Origin: *` together with
+   * `Access-Control-Allow-Credentials: true`, and the Fetch standard requires
+   * a browser to reject exactly that pairing for any request carrying
+   * credentials — a wildcard cannot be the origin that was *trusted* with a
+   * cookie. So an absolute base pointed at a different origin gets a CORS
+   * failure on every authenticated call, with the cookie never sent. The dev
+   * server proxies `/api` to the backend instead (see `vite.config.ts`), which
+   * removes the cross-origin hop rather than trying to negotiate it, and the
+   * same arrangement — one origin, a reverse proxy in front of both — is what
+   * a deployment wants anyway.
+   *
+   * An absolute origin is still accepted, because it is right for the
+   * unauthenticated feed endpoints and for pointing a local frontend at a
+   * shared backend. Expect anything under `/api/auth`, `/api/user` or
+   * `/api/cards` to fail when it is set.
+   */
   apiBaseUrl: normalizeBaseUrl(
     required('VITE_API_BASE_URL', import.meta.env.VITE_API_BASE_URL),
   ),

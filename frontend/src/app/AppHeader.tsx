@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { getNetwork } from '../api/network';
+import { dismissAuth, requestAuth, useAuthPrompt, useSession } from '../auth';
 import { formatClockTime, useLocale, LanguageToggle } from '../i18n';
 import { useNetworkNow } from '../features/stops/useNetworkNow';
 import { ThemeToggle } from '../theme';
-import { AuthDialog, type AuthMode } from './AuthDialog';
+import { AuthDialog } from './AuthDialog';
+import { AccountMenu } from './AccountMenu';
 import { PrimaryNav } from './PrimaryNav';
 import { paths } from './routes';
 import { useBackendHealth } from './useBackendHealth';
@@ -27,7 +29,15 @@ import { useBackendHealth } from './useBackendHealth';
  */
 export function AppHeader() {
   const { locale, strings, t } = useLocale();
-  const [authMode, setAuthMode] = useState<AuthMode | null>(null);
+  /*
+   * Which sign-in form is open comes from a store rather than from this
+   * component's state, because the header is no longer the only thing that
+   * asks for it: an `AccountGate` standing in for a page's content asks too,
+   * and the dialog is rendered here so it survives navigation between the
+   * pages that ask. See `auth/authPrompt.ts`.
+   */
+  const authMode = useAuthPrompt();
+  const { signedIn, checking } = useSession();
   const { service, retry } = useBackendHealth();
 
   /*
@@ -156,7 +166,7 @@ export function AppHeader() {
         )}
         </div>
 
-        <PrimaryNav onAuth={setAuthMode} />
+        <PrimaryNav />
 
         {/* `ms-auto` handles the row layout and `justify-self-end` the grid
             one. Both are logical, so the group sits at the trailing edge —
@@ -183,20 +193,38 @@ export function AppHeader() {
             className="bg-chrome-border mx-1 hidden h-5 w-px md:block"
           />
 
-          <button
-            type="button"
-            onClick={() => setAuthMode('logIn')}
-            className="rounded-control text-on-chrome focus-visible:outline-on-chrome hidden h-9 cursor-pointer items-center px-3 text-sm font-medium leading-none focus-visible:outline-2 focus-visible:outline-offset-2 md:inline-flex"
-          >
-            {t(strings.auth.logIn)}
-          </button>
-          <button
-            type="button"
-            onClick={() => setAuthMode('signUp')}
-            className="rounded-control bg-on-chrome text-chrome focus-visible:outline-on-chrome hidden h-9 cursor-pointer items-center px-3 text-sm font-semibold leading-none focus-visible:outline-2 focus-visible:outline-offset-2 md:inline-flex"
-          >
-            {t(strings.auth.signUp)}
-          </button>
+          {/*
+            Three states, and the empty one is deliberate.
+
+            While the session is being checked this slot holds its height and
+            says nothing: offering "Log in" to somebody who is already signed in
+            — and then swapping it for their name a moment later — is worse than
+            a brief gap, and it is the single most noticeable way a header like
+            this goes wrong. The reserved height is what keeps the bar from
+            jumping as the answer arrives.
+          */}
+          {checking ? (
+            <span aria-hidden="true" className="hidden h-9 md:block" />
+          ) : signedIn ? (
+            <AccountMenu />
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => requestAuth('logIn')}
+                className="rounded-control text-on-chrome focus-visible:outline-on-chrome hidden h-9 cursor-pointer items-center px-3 text-sm font-medium leading-none focus-visible:outline-2 focus-visible:outline-offset-2 md:inline-flex"
+              >
+                {t(strings.auth.logIn)}
+              </button>
+              <button
+                type="button"
+                onClick={() => requestAuth('signUp')}
+                className="rounded-control bg-on-chrome text-chrome focus-visible:outline-on-chrome hidden h-9 cursor-pointer items-center px-3 text-sm font-semibold leading-none focus-visible:outline-2 focus-visible:outline-offset-2 md:inline-flex"
+              >
+                {t(strings.auth.signUp)}
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -232,8 +260,8 @@ export function AppHeader() {
         <AuthDialog
           key={authMode}
           mode={authMode}
-          onChangeMode={setAuthMode}
-          onClose={() => setAuthMode(null)}
+          onChangeMode={requestAuth}
+          onClose={dismissAuth}
         />
       )}
     </header>
