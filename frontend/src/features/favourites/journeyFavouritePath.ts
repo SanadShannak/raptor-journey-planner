@@ -1,6 +1,6 @@
 import { paths } from '../../app/routes';
 import type { NetworkMoment } from '../stops/minutesUntil';
-import type { ItineraryFavourite } from './favourite';
+import { roundCoordinate, type ItineraryFavourite } from './favourite';
 
 /**
  * Where a saved journey goes when it is pressed.
@@ -24,9 +24,7 @@ import type { ItineraryFavourite } from './favourite';
  */
 
 /** The same precision the address bar uses everywhere else. */
-const COORDINATE_PLACES = 6;
-
-const round = (value: number): string => String(Number(value.toFixed(COORDINATE_PLACES)));
+const round = (value: number): string => String(roundCoordinate(value));
 
 export function journeyFavouriteParams(
   favourite: ItineraryFavourite,

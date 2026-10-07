@@ -7,8 +7,7 @@ import type { StopBoard } from '../../types/stop';
 import { DepartureRow } from '../stops/DepartureRow';
 import type { NetworkMoment } from '../stops/minutesUntil';
 import { StopCode } from '../stops/StopFacts';
-import { identity, type StopFavourite } from './favourite';
-import { refreshFavourite } from './favouritesStore';
+import type { StopFavourite } from './favourite';
 import { DeparturePager, FavouriteCard } from './FavouriteCard';
 
 interface Props {
@@ -56,6 +55,15 @@ const FETCHED = 15;
  * Deliberately the *same* request the stop page makes — `getStopBoard`, the
  * same polling cadence, the same `DepartureRow` — so a departure reads
  * identically here and there. Nothing about "next departures" is reimplemented.
+ *
+ * **The stop's name and code come from that board**, not from the saved row.
+ * The account stores only the `stopId`, so there is nothing to write a
+ * correction back to any more — which removes a whole mechanism rather than
+ * breaking one: the board is asked every minute regardless, and whatever it
+ * says is by definition current. What covers the wait is the nickname, which
+ * the server defaults to the stop's own name at the moment of saving, so the
+ * card reads properly from its first paint and only the code badge arrives
+ * late.
  */
 export function FavouriteStopRow({
   favourite,
@@ -76,7 +84,6 @@ export function FavouriteStopRow({
   const [page, setPage] = useState(0);
 
   const { stopId } = favourite;
-  const key = identity(favourite);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -88,11 +95,6 @@ export function FavouriteStopRow({
           if (controller.signal.aborted) return;
           setBoard(answer);
           setFailed(false);
-          /*
-           * The stored name is a cache; the live answer is the record. This is
-           * where a stop renamed since it was saved corrects itself.
-           */
-          refreshFavourite(key, { name: answer.stop.name, code: answer.stop.code });
         })
         .catch(() => {
           if (controller.signal.aborted) return;
@@ -121,7 +123,7 @@ export function FavouriteStopRow({
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [stopId, key]);
+  }, [stopId]);
 
   const departures = board?.departures ?? [];
   const pages = Math.max(1, Math.ceil(departures.length / PAGE));
@@ -141,7 +143,12 @@ export function FavouriteStopRow({
     <FavouriteCard
       favourite={favourite}
       to={stopPath(stopId)}
-      fallbackLabel={favourite.name}
+      /*
+        Only reached when the row has no nickname at all, which the server's
+        own default makes rare. The id is the last resort rather than a blank
+        heading: it is at least the thing the card actually points at.
+      */
+      fallbackLabel={board?.stop.name ?? stopId}
       onRemoved={onRemoved}
       dragging={dragging}
       canGoEarlier={canGoEarlier}
@@ -150,7 +157,7 @@ export function FavouriteStopRow({
       onDragStart={onDragStart}
       pager={<DeparturePager page={shownPage} pages={pages} onPage={setPage} />}
       subtitle={
-        favourite.code === null ? null : <StopCode code={favourite.code} />
+        board?.stop.code == null ? null : <StopCode code={board.stop.code} />
       }
     >
       <div>

@@ -1,16 +1,9 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router';
+import { requestAuth, useSession } from '../auth';
 import { LanguageToggle, useLocale } from '../i18n';
 import { ThemeToggle } from '../theme';
 import { paths } from './routes';
-
-interface Props {
-  /**
-   * Opens the auth dialog. The panel is the only place these controls exist on
-   * a narrow screen, where the bar has no room to spell them out.
-   */
-  onAuth: (mode: 'logIn' | 'signUp') => void;
-}
 
 /**
  * Primary navigation.
@@ -25,8 +18,9 @@ interface Props {
  * Rendered as a single element so the header can place it as one grid cell and
  * centre it between the brand and the account controls.
  */
-export function PrimaryNav({ onAuth }: Props) {
+export function PrimaryNav() {
   const { strings, t } = useLocale();
+  const { account, signedIn, checking, logOut } = useSession();
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const [lastPathname, setLastPathname] = useState(pathname);
@@ -159,20 +153,57 @@ export function PrimaryNav({ onAuth }: Props) {
 
         <span aria-hidden="true" className="bg-chrome-border my-1 h-px w-full" />
 
-        <button
-          type="button"
-          onClick={() => onAuth('logIn')}
-          className={`${linkClass} cursor-pointer text-start`}
-        >
-          {t(strings.auth.logIn)}
-        </button>
-        <button
-          type="button"
-          onClick={() => onAuth('signUp')}
-          className={`${linkClass} cursor-pointer text-start`}
-        >
-          {t(strings.auth.signUp)}
-        </button>
+        {/*
+          The account, which on a phone lives only here — the bar has no room
+          for it once the clock and the panel toggle have had theirs, and
+          hiding it outright would strand anybody on a small screen with no way
+          to reach an account at all.
+
+          Nothing is rendered while the session is being checked: offering
+          "Log in" to somebody who is signed in, and then replacing it with
+          their name, is worse than a brief gap. There is no reserved height
+          here because the panel is a disclosure that is already changing the
+          page's height when it opens.
+        */}
+        {checking ? null : signedIn && account !== null ? (
+          <>
+            <p className="text-on-chrome/80 px-3 py-1 text-xs">
+              {t(strings.account.signedInAs)}
+            </p>
+            {/* The email identifies the account; pinned left-to-right because
+                an address reads the same way round in every language. */}
+            <p
+              dir="ltr"
+              className="text-on-chrome truncate px-3 pb-1 text-sm font-medium ltr:text-left rtl:text-right"
+            >
+              {account.email}
+            </p>
+            <button
+              type="button"
+              onClick={() => void logOut()}
+              className={`${linkClass} cursor-pointer text-start`}
+            >
+              {t(strings.account.logOut)}
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => requestAuth('logIn')}
+              className={`${linkClass} cursor-pointer text-start`}
+            >
+              {t(strings.auth.logIn)}
+            </button>
+            <button
+              type="button"
+              onClick={() => requestAuth('signUp')}
+              className={`${linkClass} cursor-pointer text-start`}
+            >
+              {t(strings.auth.signUp)}
+            </button>
+          </>
+        )}
       </div>
     </nav>
   );

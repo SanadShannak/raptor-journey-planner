@@ -1,250 +1,361 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fromSearchParams } from '../journey/searchParams';
 import { DEFAULT_WALKING_PACE } from '../../config/journey';
+import { forgetSession } from '../../auth/sessionStore';
 import {
-  FAVOURITES_PER_KIND,
   identity,
+  type FavouriteDraft,
   type ItineraryFavourite,
-  type RouteFavourite,
   type StopFavourite,
 } from './favourite';
 import {
-  addFavourite,
   forgetFavourites,
   getFavourites,
+  getSavedState,
   isFavourite,
+  loadFavourites,
   moveFavourite,
-  refreshFavourite,
   removeFavourite,
   renameFavourite,
   reorderFavourite,
+  saveFavourite,
   toggleFavourite,
 } from './favouritesStore';
-import { readFavourites, writeFavourites } from './favouritesStorage';
 import { journeyFavouriteParams } from './journeyFavouritePath';
 
 /*
  * The store is one module shared by every test in this file, so it is emptied
- * between them — the same rule `forgetPlanner` follows.
+ * between them — the same rule `forgetPlanner` follows. The session store goes
+ * with it, because a 401 reaches into it.
  */
 beforeEach(() => {
   forgetFavourites();
+  forgetSession();
 });
 
-const stop = (id: string): StopFavourite => ({
-  kind: 'stop',
-  nickname: null,
-  stopId: id,
-  name: `Stop ${id}`,
-  code: 'H0101',
-  modes: [3],
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
-const route = (patternId: number): RouteFavourite => ({
+/* ------------------------------------------------------------- the fixtures */
+
+const stopDraft = (id: string): FavouriteDraft => ({ kind: 'stop', stopId: id });
+
+const routeDraft = (patternId: number): FavouriteDraft => ({
   kind: 'route',
-  nickname: null,
   lineId: 'tram-1',
   patternId,
-  routeShortName: '1',
-  routeType: 0,
-  routeLongName: 'Eira - Käpylä',
-  headsign: 'Käpylä',
-  directionId: 0,
 });
 
-const journey = (pace: ItineraryFavourite['pace']): ItineraryFavourite => ({
+const journeyDraft = (pace: ItineraryFavourite['pace']): FavouriteDraft => ({
   kind: 'itinerary',
-  nickname: null,
   origin: { label: 'Eira', lat: 60.155, lon: 24.94 },
   destination: { label: 'Käpylä', lat: 60.221, lon: 24.95 },
   pace,
-  savedOn: '2026-08-27',
 });
+
+/** A saved stop subdocument, as the server stores one. */
+const savedStop = (id: string) => ({
+  _id: `id-${id}`,
+  nickname: `Stop ${id}`,
+  stopId: id,
+  savedOn: '2026-10-07T21:07:35.592Z',
+});
+
+const savedRoute = (patternId: number) => ({
+  _id: `id-route-${patternId}`,
+  nickname: 'Eira - Käpylä',
+  lineId: 'tram-1',
+  patternId,
+  routeShortName: '1',
+  routeLongName: 'Eira - Käpylä',
+  savedOn: '2026-10-07T21:07:35.592Z',
+});
+
+/** Serves the three list reads, then the user document for every write. */
+function serveLists(user: {
+  savedStops?: unknown[];
+  savedRoutes?: unknown[];
+  savedItineraries?: unknown[];
+}): ReturnType<typeof vi.fn> {
+  const stops = user.savedStops ?? [];
+  const routes = user.savedRoutes ?? [];
+  const itineraries = user.savedItineraries ?? [];
+
+  const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+    const method = init?.method ?? 'GET';
+
+    if (method === 'GET') {
+      const list = url.includes('saved-stops')
+        ? stops
+        : url.includes('saved-routes')
+          ? routes
+          : itineraries;
+      return Promise.resolve(new Response(JSON.stringify({ data: list })));
+    }
+
+    // Writes answer with the whole user document.
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({
+          data: { savedStops: stops, savedRoutes: routes, savedItineraries: itineraries },
+        }),
+      ),
+    );
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
+}
+
+/* -------------------------------------------------------------- the identity */
 
 describe('identity', () => {
   it('tells the two directions of one line apart', () => {
-    expect(identity(route(1))).not.toBe(identity(route(2)));
+    expect(identity(routeDraft(1))).not.toBe(identity(routeDraft(2)));
   });
 
-  /* The answer to open question 1: pace is part of what was saved. */
+  /* Pace is part of what was saved: the same two points at a different pace
+     is a different question with a different answer. */
   it('treats the same journey at a different pace as a different favourite', () => {
-    expect(identity(journey('slow'))).not.toBe(identity(journey('fast')));
+    expect(identity(journeyDraft('slow'))).not.toBe(identity(journeyDraft('fast')));
   });
 
   it('ignores coordinate noise beyond the precision the URL carries', () => {
-    const a = journey('average');
-    const b: ItineraryFavourite = {
-      ...a,
-      origin: { ...a.origin, lat: 60.1550000001 },
-    };
-    expect(identity(b)).toBe(identity(a));
-  });
-});
-
-describe('the store', () => {
-  it('does not add the same thing twice', () => {
-    expect(addFavourite(stop('A'))).toBe(true);
-    expect(addFavourite(stop('A'))).toBe(false);
-    expect(getFavourites()).toHaveLength(1);
-  });
-
-  it('caps each kind independently', () => {
-    for (let n = 0; n < FAVOURITES_PER_KIND; n += 1) {
-      expect(addFavourite(stop(`S${n}`))).toBe(true);
-    }
-    expect(addFavourite(stop('one-too-many'))).toBe(false);
-
-    // A different kind still has all of its own room.
-    expect(addFavourite(route(1))).toBe(true);
-  });
-
-  it('toggles off again', () => {
-    toggleFavourite(stop('A'));
-    expect(isFavourite(identity(stop('A')))).toBe(true);
-    toggleFavourite(stop('A'));
-    expect(isFavourite(identity(stop('A')))).toBe(false);
-  });
-
-  it('keeps a stable array reference until something changes', () => {
-    const before = getFavourites();
-    expect(getFavourites()).toBe(before);
-
-    addFavourite(stop('A'));
-    expect(getFavourites()).not.toBe(before);
-  });
-
-  it('stores an emptied nickname as none at all', () => {
-    addFavourite(stop('A'));
-    const key = identity(stop('A'));
-
-    renameFavourite(key, '  Home  ');
-    expect(getFavourites()[0]?.nickname).toBe('Home');
-
-    renameFavourite(key, '   ');
-    expect(getFavourites()[0]?.nickname).toBeNull();
-  });
-
-  it('moves an entry within its own kind, ignoring other kinds between', () => {
-    addFavourite(stop('A'));
-    addFavourite(route(1));
-    addFavourite(stop('B'));
-
-    moveFavourite(identity(stop('B')), -1);
-
-    const stops = getFavourites().filter((f) => f.kind === 'stop');
-    expect(stops.map((f) => (f as StopFavourite).stopId)).toEqual(['B', 'A']);
-  });
-
-  it('will not move past the end', () => {
-    addFavourite(stop('A'));
-    moveFavourite(identity(stop('A')), -1);
-    expect(getFavourites()).toHaveLength(1);
-  });
-
-  it('refreshes a stale stored label from a live answer', () => {
-    addFavourite(stop('A'));
-    refreshFavourite(identity(stop('A')), { name: 'Renamed' });
-    expect(getFavourites()[0]).toMatchObject({ name: 'Renamed' });
-  });
-
-  it('refuses a patch that would move the identity', () => {
-    addFavourite(stop('A'));
-    refreshFavourite(identity(stop('A')), { stopId: 'B' } as Partial<StopFavourite>);
-    expect(getFavourites()[0]).toMatchObject({ stopId: 'A' });
-  });
-
-  it('removes the right one', () => {
-    addFavourite(stop('A'));
-    addFavourite(stop('B'));
-    removeFavourite(identity(stop('A')));
-    expect(getFavourites()).toHaveLength(1);
-    expect(getFavourites()[0]).toMatchObject({ stopId: 'B' });
-  });
-});
-
-describe('storage', () => {
-  it('round-trips every kind', () => {
-    const items = [stop('A'), route(7), journey('fast')];
-    writeFavourites(items);
-    expect(readFavourites()).toEqual(items);
-  });
-
-  it('reads an empty list when nothing has been written', () => {
-    expect(readFavourites()).toEqual([]);
+    const a = journeyDraft('average') as Extract<FavouriteDraft, { kind: 'itinerary' }>;
+    expect(
+      identity({ ...a, origin: { ...a.origin, lat: 60.1550000001 } }),
+    ).toBe(identity(a));
   });
 
   /*
-   * localStorage is user-editable and survives deploys, so these are the real
-   * inputs — not hypotheticals.
+   * The load-bearing property: a draft the star builds and the row the server
+   * sends back must key the same, or the star would not recognise what it
+   * just saved.
    */
-  it('survives outright rubbish', () => {
-    localStorage.setItem('favourites', 'not json at all');
-    expect(readFavourites()).toEqual([]);
+  it('keys a draft and the saved row it became the same', () => {
+    const row: StopFavourite = {
+      kind: 'stop',
+      id: 'id-A',
+      stopId: 'A',
+      nickname: 'Stop A',
+      savedAt: null,
+    };
+    expect(identity(row)).toBe(identity(stopDraft('A')));
+  });
+});
+
+/* ----------------------------------------------------------------- the store */
+
+describe('loadFavourites', () => {
+  it('flattens the three lists into one sequence', async () => {
+    serveLists({ savedStops: [savedStop('A')], savedRoutes: [savedRoute(1)] });
+
+    await loadFavourites();
+
+    expect(getSavedState().status).toBe('ready');
+    expect(getFavourites().map((row) => row.kind)).toEqual(['stop', 'route']);
   });
 
-  it('ignores an envelope from another version', () => {
-    localStorage.setItem(
-      'favourites',
-      JSON.stringify({ version: 99, items: [stop('A')] }),
+  /*
+   * A 401 is not a failure to report — it means the session went away. The
+   * list goes back to idle rather than to failed, because there is nothing
+   * wrong: there is simply nobody to have favourites.
+   */
+  it('reads a 401 as an absent session rather than an error', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(() =>
+        Promise.resolve(new Response(JSON.stringify({ message: 'Not authorized' }), { status: 401 })),
+      ),
     );
-    expect(readFavourites()).toEqual([]);
+
+    await loadFavourites();
+
+    expect(getSavedState().status).toBe('idle');
+    expect(getSavedState().error).toBeNull();
+    expect(getFavourites()).toEqual([]);
   });
 
-  it('drops only the entry that is broken, keeping the rest', () => {
-    localStorage.setItem(
-      'favourites',
-      JSON.stringify({
-        version: 1,
-        items: [stop('A'), { kind: 'stop', nickname: null }, stop('B')],
-      }),
+  it('reports anything else as failed, with the error kept for the page', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(() =>
+        Promise.resolve(new Response(JSON.stringify({ message: 'boom' }), { status: 500 })),
+      ),
     );
-    expect(readFavourites().map((f) => (f as StopFavourite).stopId)).toEqual(['A', 'B']);
+
+    await loadFavourites();
+
+    expect(getSavedState().status).toBe('failed');
+    expect(getSavedState().error).not.toBeNull();
   });
 
-  it('rejects a mode it does not recognise rather than defaulting it', () => {
-    localStorage.setItem(
-      'favourites',
-      JSON.stringify({ version: 1, items: [{ ...stop('A'), modes: [704] }] }),
-    );
-    expect(readFavourites()).toEqual([]);
+  /*
+   * `useSyncExternalStore` compares snapshots by reference, so a fresh object
+   * on every read would re-render forever.
+   */
+  it('keeps a stable snapshot reference until something changes', async () => {
+    const before = getSavedState();
+    expect(getSavedState()).toBe(before);
+
+    serveLists({ savedStops: [savedStop('A')] });
+    await loadFavourites();
+
+    expect(getSavedState()).not.toBe(before);
+  });
+});
+
+describe('saving and removing', () => {
+  it('reflects what the server came back with, not what was asked for', async () => {
+    serveLists({ savedStops: [savedStop('A')] });
+
+    await saveFavourite(stopDraft('A'));
+
+    // The id and the default nickname are the server's, so they can only
+    // arrive in its response — nothing is written optimistically.
+    expect(getFavourites()[0]).toMatchObject({
+      id: 'id-A',
+      stopId: 'A',
+      nickname: 'Stop A',
+    });
   });
 
-  it('rejects a journey whose coordinates are off the globe', () => {
-    const bad = journey('average');
-    localStorage.setItem(
-      'favourites',
-      JSON.stringify({
-        version: 1,
-        items: [{ ...bad, origin: { ...bad.origin, lat: 999 } }],
-      }),
+  it('rejects rather than failing quietly when the server refuses', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ message: 'This stop is already saved.' }), {
+            status: 400,
+          }),
+        ),
+      ),
     );
-    expect(readFavourites()).toEqual([]);
+
+    await expect(saveFavourite(stopDraft('A'))).rejects.toThrow();
   });
 
-  /* Journeys saved before `savedOn` existed must still load. */
-  it('reads a journey with no savedOn as one saved on no known day', () => {
-    const { savedOn: _omitted, ...withoutStamp } = journey('average');
-    localStorage.setItem(
-      'favourites',
-      JSON.stringify({ version: 1, items: [withoutStamp] }),
-    );
-    expect(readFavourites()[0]).toMatchObject({ kind: 'itinerary', savedOn: null });
+  it('toggles off by addressing the stored row, not the draft', async () => {
+    serveLists({ savedStops: [savedStop('A')] });
+    await loadFavourites();
+    expect(isFavourite(identity(stopDraft('A')))).toBe(true);
+
+    const fetchMock = serveLists({});
+    await toggleFavourite(stopDraft('A'));
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(init.method).toBe('DELETE');
+    // The subdocument id, which is the only thing a removal can be sent to.
+    expect(url).toContain('/api/user/saved-stops/id-A');
+    expect(isFavourite(identity(stopDraft('A')))).toBe(false);
   });
 
-  it('drops an unreadable savedOn without dropping the journey', () => {
-    localStorage.setItem(
-      'favourites',
-      JSON.stringify({ version: 1, items: [{ ...journey('average'), savedOn: 'nope' }] }),
-    );
-    expect(readFavourites()[0]).toMatchObject({ kind: 'itinerary', savedOn: null });
+  it('removes the right one', async () => {
+    serveLists({ savedStops: [savedStop('A'), savedStop('B')] });
+    await loadFavourites();
+
+    serveLists({ savedStops: [savedStop('B')] });
+    await removeFavourite('stop', 'id-A');
+
+    expect(getFavourites()).toHaveLength(1);
+    expect(getFavourites()[0]).toMatchObject({ stopId: 'B' });
   });
 
-  it('rejects a pace the app does not offer', () => {
-    localStorage.setItem(
-      'favourites',
-      JSON.stringify({ version: 1, items: [{ ...journey('average'), pace: 'sprint' }] }),
+  it('renames through the server and takes the answer as the truth', async () => {
+    serveLists({ savedStops: [{ ...savedStop('A'), nickname: 'Home' }] });
+
+    await renameFavourite('stop', 'id-A', 'Home');
+
+    expect(getFavourites()[0]?.nickname).toBe('Home');
+  });
+});
+
+/* ---------------------------------------------------------------- the order */
+
+describe('ordering', () => {
+  /*
+   * The arrangement is local to the tab — the subdocuments carry no order
+   * field — so what these cover is that it behaves consistently while it
+   * lasts, and that it survives a server answer rather than being undone by
+   * the next rename.
+   */
+  it('moves an entry within its own kind, ignoring other kinds between', async () => {
+    serveLists({
+      savedStops: [savedStop('A'), savedStop('B')],
+      savedRoutes: [savedRoute(1)],
+    });
+    await loadFavourites();
+
+    moveFavourite(identity(stopDraft('B')), -1);
+
+    const stops = getFavourites().filter(
+      (row): row is StopFavourite => row.kind === 'stop',
     );
-    expect(readFavourites()).toEqual([]);
+    expect(stops.map((row) => row.stopId)).toEqual(['B', 'A']);
+  });
+
+  it('will not move past the end', async () => {
+    serveLists({ savedStops: [savedStop('A')] });
+    await loadFavourites();
+
+    moveFavourite(identity(stopDraft('A')), -1);
+    expect(getFavourites()).toHaveLength(1);
+  });
+
+  it('drops a card where another one sits', async () => {
+    serveLists({ savedStops: [savedStop('A'), savedStop('B'), savedStop('C')] });
+    await loadFavourites();
+
+    reorderFavourite(identity(stopDraft('A')), identity(stopDraft('C')));
+
+    expect(
+      getFavourites().map((row) => (row as StopFavourite).stopId),
+    ).toEqual(['B', 'C', 'A']);
+  });
+
+  it('refuses to move a card into another kind', async () => {
+    serveLists({ savedStops: [savedStop('A')], savedRoutes: [savedRoute(1)] });
+    await loadFavourites();
+
+    reorderFavourite(identity(stopDraft('A')), identity(routeDraft(1)));
+    expect(getFavourites().map((row) => row.kind)).toEqual(['stop', 'route']);
+  });
+
+  /*
+   * The reason the arrangement is re-applied to every answer rather than only
+   * to the first. Each mutation returns the whole user in insertion order, so
+   * without this a rename would snap a dragged card back and look like the
+   * rename had undone the drag.
+   */
+  it('survives a later server answer rather than snapping back', async () => {
+    serveLists({ savedStops: [savedStop('A'), savedStop('B')] });
+    await loadFavourites();
+
+    reorderFavourite(identity(stopDraft('B')), identity(stopDraft('A')));
+    expect(getFavourites().map((row) => (row as StopFavourite).stopId)).toEqual(['B', 'A']);
+
+    // A rename comes back with the server's own order, A then B.
+    serveLists({ savedStops: [savedStop('A'), { ...savedStop('B'), nickname: 'Home' }] });
+    await renameFavourite('stop', 'id-B', 'Home');
+
+    expect(getFavourites().map((row) => (row as StopFavourite).stopId)).toEqual(['B', 'A']);
+  });
+
+  /* A newly saved favourite joins the end rather than jumping into the middle
+     of an arrangement somebody made on purpose. */
+  it('puts something never arranged after everything that was', async () => {
+    serveLists({ savedStops: [savedStop('A'), savedStop('B')] });
+    await loadFavourites();
+    reorderFavourite(identity(stopDraft('B')), identity(stopDraft('A')));
+
+    serveLists({ savedStops: [savedStop('A'), savedStop('B'), savedStop('C')] });
+    await saveFavourite(stopDraft('C'));
+
+    expect(getFavourites().map((row) => (row as StopFavourite).stopId)).toEqual([
+      'B',
+      'A',
+      'C',
+    ]);
   });
 });
 
@@ -255,63 +366,36 @@ describe('storage', () => {
 describe('opening a saved journey', () => {
   const NOW = { date: '2026-09-10', time: '14:05' };
 
+  const saved = (pace: ItineraryFavourite['pace']): ItineraryFavourite => ({
+    kind: 'itinerary',
+    id: 'id-j',
+    nickname: null,
+    origin: { label: 'Eira', lat: 60.155, lon: 24.94 },
+    destination: { label: 'Käpylä', lat: 60.221, lon: 24.95 },
+    pace,
+    savedAt: '2026-10-07T21:08:04.392Z',
+  });
+
   it('writes today and now, never the saved moment', () => {
-    const params = journeyFavouriteParams(journey('fast'), NOW);
+    const params = journeyFavouriteParams(saved('fast'), NOW);
     expect(params.get('date')).toBe('2026-09-10');
     expect(params.get('time')).toBe('14:05');
   });
 
   it('round-trips through the planner’s own reader', () => {
-    const saved = journey('slow');
-    const params = journeyFavouriteParams(saved, NOW);
-    const restored = fromSearchParams(params, DEFAULT_WALKING_PACE);
+    const journey = saved('slow');
+    const restored = fromSearchParams(
+      journeyFavouriteParams(journey, NOW),
+      DEFAULT_WALKING_PACE,
+    );
 
     expect(restored).not.toBeNull();
     expect(restored?.origin?.label).toBe('Eira');
-    expect(restored?.origin?.lat).toBeCloseTo(saved.origin.lat, 6);
+    expect(restored?.origin?.lat).toBeCloseTo(journey.origin.lat, 6);
     expect(restored?.destination?.label).toBe('Käpylä');
-    expect(restored?.destination?.lon).toBeCloseTo(saved.destination.lon, 6);
+    expect(restored?.destination?.lon).toBeCloseTo(journey.destination.lon, 6);
     expect(restored?.pace).toBe('slow');
     expect(restored?.date).toBe('2026-09-10');
     expect(restored?.time).toBe('14:05');
-  });
-});
-
-describe('reorderFavourite', () => {
-  it('drops a card where another one sits', () => {
-    addFavourite(stop('A'));
-    addFavourite(stop('B'));
-    addFavourite(stop('C'));
-
-    reorderFavourite(identity(stop('A')), identity(stop('C')));
-
-    expect(getFavourites().map((f) => (f as StopFavourite).stopId)).toEqual([
-      'B',
-      'C',
-      'A',
-    ]);
-  });
-
-  it('ignores entries of another kind sitting between them', () => {
-    addFavourite(stop('A'));
-    addFavourite(route(1));
-    addFavourite(stop('B'));
-
-    reorderFavourite(identity(stop('B')), identity(stop('A')));
-
-    const kinds = getFavourites().map((f) => f.kind);
-    expect(kinds).toEqual(['stop', 'route', 'stop']);
-    expect(
-      getFavourites()
-        .filter((f): f is StopFavourite => f.kind === 'stop')
-        .map((f) => f.stopId),
-    ).toEqual(['B', 'A']);
-  });
-
-  it('refuses to move a card into another kind', () => {
-    addFavourite(stop('A'));
-    addFavourite(route(1));
-    reorderFavourite(identity(stop('A')), identity(route(1)));
-    expect(getFavourites().map((f) => f.kind)).toEqual(['stop', 'route']);
   });
 });

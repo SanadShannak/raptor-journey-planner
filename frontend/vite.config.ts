@@ -2,11 +2,55 @@
 // block below is actually read and type-checked; vite's own export ignores it.
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
+// `vitest/config` re-exports `defineConfig` but not `loadEnv`, which is vite's
+// own; the two coexist here deliberately — see the note above `defineConfig`.
+import { loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
-export default defineConfig({
+/**
+ * Where the dev server forwards `/api` to.
+ *
+ * Overridable with `VITE_DEV_API_PROXY` for a backend on another port or
+ * machine; the default matches `backend/src/serverConfig.js`.
+ */
+const DEFAULT_PROXY_TARGET = 'http://localhost:3000';
+
+export default defineConfig(({ mode }) => ({
   plugins: [react(), tailwindcss()],
+  /*
+   * The backend, served from this origin.
+   *
+   * Not a convenience — it is what makes the cookie session possible at all.
+   * The API sends `Access-Control-Allow-Origin: *` alongside
+   * `Access-Control-Allow-Credentials: true`, and the Fetch standard requires
+   * browsers to reject that pairing for any credentialed request: a wildcard
+   * cannot name the origin a cookie was entrusted to. A direct call from
+   * :5173 to :3000 therefore fails CORS on every authenticated endpoint and
+   * the `jwt` cookie is never sent.
+   *
+   * Proxying removes the cross-origin hop rather than negotiating it. The
+   * browser only ever talks to its own origin, so there is no preflight, no
+   * wildcard to reject, and `SameSite=Strict` is satisfied by construction.
+   * `VITE_API_BASE_URL` is `/` to match — see `src/config/env.ts`.
+   *
+   * `changeOrigin` so the forwarded request carries the backend's own Host.
+   * Cookies are untouched: the backend sets `Path=/` and no `Domain`, so the
+   * browser attributes `jwt` to the dev origin and sends it back on every
+   * proxied call.
+   *
+   * A production deploy wants the same shape — one origin, a reverse proxy in
+   * front of the static build and the API. Pointing the browser straight at a
+   * different origin needs the server to reflect that origin instead of `*`.
+   */
+  server: {
+    proxy: {
+      '/api': {
+        target: loadEnv(mode, process.cwd(), '').VITE_DEV_API_PROXY || DEFAULT_PROXY_TARGET,
+        changeOrigin: true,
+      },
+    },
+  },
   /*
    * MapLibre is left out of dependency pre-bundling.
    *
@@ -68,4 +112,4 @@ export default defineConfig({
     // assert request URLs against.
     env: { VITE_API_BASE_URL: 'http://api.test' },
   },
-});
+}));

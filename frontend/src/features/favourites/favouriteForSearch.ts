@@ -1,5 +1,5 @@
 import { isReady, type JourneyFormValues } from '../journey/journeySearch';
-import type { ItineraryFavourite } from './favourite';
+import type { FavouriteDraft } from './favourite';
 
 /**
  * The favourite a search would save, or null when it is not ready to be saved.
@@ -10,22 +10,18 @@ import type { ItineraryFavourite } from './favourite';
  *
  * `isReady` is the same test the submit button uses, so the star and the button
  * agree about what "filled in" means rather than each deciding for itself.
+ *
+ * It no longer needs to be told what day it is. The old device-local record
+ * stamped its own `savedOn` and so had to be handed the network's today; the
+ * server stamps the row itself, which is both one less thing for this to know
+ * and the more trustworthy clock of the two.
  */
-export function favouriteForSearch(
-  values: JourneyFormValues,
-  /**
-   * Today on the **network's** clock, or null before `/api/network` answers.
-   * Never the browser's: a visitor in Amman saving a Helsinki commute at
-   * 00:30 saved it on the Helsinki day, which is the one the card should say.
-   */
-  networkToday: string | null,
-): ItineraryFavourite | null {
+export function favouriteForSearch(values: JourneyFormValues): FavouriteDraft | null {
   const { origin, destination } = values;
   if (!isReady(values) || origin === null || destination === null) return null;
 
   return {
     kind: 'itinerary',
-    nickname: null,
     origin: { label: origin.label, lat: origin.lat, lon: origin.lon },
     destination: {
       label: destination.label,
@@ -33,6 +29,5 @@ export function favouriteForSearch(
       lon: destination.lon,
     },
     pace: values.pace,
-    savedOn: networkToday,
   };
 }

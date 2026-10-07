@@ -1,5 +1,5 @@
 import { paths } from '../../app/routes';
-import { formatDate, useLocale } from '../../i18n';
+import { formatDate, isoDateInZone, useLocale } from '../../i18n';
 import { WALKING_PACES } from '../../config/journey';
 import type { NetworkMoment } from '../stops/minutesUntil';
 import type { ItineraryFavourite } from './favourite';
@@ -9,6 +9,16 @@ import { journeyFavouritePath } from './journeyFavouritePath';
 interface Props {
   favourite: ItineraryFavourite;
   now: NetworkMoment | null;
+  /**
+   * The network's IANA zone, or null until `/api/network` answers.
+   *
+   * Needed because the server stamps `savedAt` as a UTC instant and the card
+   * states a *day* — and which day that is depends on whose clock is asked. A
+   * journey saved at 00:30 in Helsinki carries a UTC date the reader never
+   * experienced, so the zone is what turns the instant into the date they
+   * would recognise.
+   */
+  timezone: string | null;
   onRemoved: () => void;
   dragging: boolean;
   canGoEarlier: boolean;
@@ -41,6 +51,7 @@ const PACE_LABEL = {
 export function FavouriteJourneyRow({
   favourite,
   now,
+  timezone,
   onRemoved,
   dragging,
   canGoEarlier,
@@ -52,6 +63,18 @@ export function FavouriteJourneyRow({
 
   const target = journeyFavouritePath(favourite, now);
   const pace = t(strings.planner[PACE_LABEL[favourite.pace]]);
+
+  /*
+   * Omitted rather than guessed while the zone is unknown, and omitted again
+   * for a row the server sent without an instant. The line is the only fact on
+   * an unnamed card that is not already spelled out below it, so a wrong date
+   * there would be the one thing distinguishing two similar journeys — and
+   * distinguishing them incorrectly.
+   */
+  const savedOn =
+    favourite.savedAt === null || timezone === null
+      ? null
+      : isoDateInZone(favourite.savedAt, timezone);
 
   const field = (label: string, value: string, strong: boolean) => (
     <div className={`flex items-baseline gap-2 ${TEXT_INSET}`}>
@@ -115,10 +138,10 @@ export function FavouriteJourneyRow({
         journey saved before the date was recorded.
       */
       subtitle={
-        favourite.savedOn === null ? null : (
+        savedOn === null ? null : (
           <span className="block">
             {t(strings.favourites.savedOn, {
-              date: formatDate(favourite.savedOn, locale, {
+              date: formatDate(savedOn, locale, {
                 day: 'numeric',
                 month: 'short',
                 year: 'numeric',

@@ -255,6 +255,54 @@ export function formatDate(
 }
 
 /**
+ * Which calendar day an instant falls on, on a given IANA clock.
+ *
+ * For the handful of values that arrive as a **UTC timestamp** rather than as
+ * a wall-clock string — `savedOn` on a saved stop, route or journey is the
+ * only family of them — where the server stamps the moment a row was written
+ * and says nothing about whose day that was. Everything else the API returns
+ * is already network-local and must not be converted again.
+ *
+ * Resolved through `Intl` rather than by reading the string's own date part,
+ * which is UTC's answer: a card saved at 00:30 in Helsinki was stamped
+ * 22:30 the previous day, and the date in the string is a day the reader
+ * never experienced.
+ *
+ * Returns `YYYY-MM-DD`, the same shape `formatDate` and `parseIsoDate` take,
+ * so the result is an ordinary API-style date from here on. Null for a value
+ * that is not a parseable instant — a field a future server stops sending, or
+ * one it sends empty.
+ */
+export function isoDateInZone(instant: string, timeZone: string): string | null {
+  const at = new Date(instant);
+  if (Number.isNaN(at.getTime())) return null;
+
+  /*
+   * `en-CA` for the same reason `nowInZone` uses it: its short date format is
+   * already `YYYY-MM-DD`, so the parts come back in the order they are needed
+   * rather than having to be reassembled against a locale's own conventions.
+   */
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+    .formatToParts(at)
+    .reduce<Record<string, string>>((accumulator, part) => {
+      accumulator[part.type] = part.value;
+      return accumulator;
+    }, {});
+
+  const year = parts['year'];
+  const month = parts['month'];
+  const day = parts['day'];
+  if (year === undefined || month === undefined || day === undefined) return null;
+
+  return `${year}-${month}-${day}`;
+}
+
+/**
  * The current date and time on a given IANA clock.
  *
  * Every timestamp in this system is wall-clock time in the network's zone, so

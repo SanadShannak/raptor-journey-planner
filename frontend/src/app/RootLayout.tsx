@@ -1,5 +1,6 @@
 import { Suspense, useRef } from 'react';
 import { Outlet, matchPath, useLocation } from 'react-router';
+import { useStartSessionCheck } from '../auth';
 import { useLocale } from '../i18n';
 import { AppHeader } from './AppHeader';
 import { paths } from './routes';
@@ -46,6 +47,17 @@ export function RootLayout() {
    * its answer regardless of which page that was.
    */
   useStartHealthCheck();
+
+  /*
+   * And the session, for the same reason again. It has to be *asked* rather
+   * than read, because the session is an HTTP-only cookie: the browser will
+   * send it, but script cannot see it, so the only way to know whether a
+   * returning visitor still has one is to make a request that uses it. Asked
+   * once per load here rather than once per page, so the header can word its
+   * account controls on any page and the two gated pages find the answer
+   * already in hand.
+   */
+  useStartSessionCheck();
 
   const fullHeight =
     pathname === paths.home ||
