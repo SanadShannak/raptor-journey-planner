@@ -1,6 +1,5 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { verifyPassword } from '../../api/auth';
-import { useSession } from '../../auth/useSession';
 import { messageForApiError, useLocale } from '../../i18n';
 import type { TravelCard } from '../../types/card';
 import { discardCard } from './cardsStore';
@@ -31,10 +30,13 @@ interface Props {
  * The card is named in the question. "Delete this card?" over a page showing
  * five of them is a question about whichever one the reader *thinks* is
  * selected, which is precisely the mistake a confirmation exists to prevent.
+ *
+ * The password goes to `/api/auth/verify-password`, which takes no email: the
+ * account is the one the session cookie names, so there is nothing here that
+ * could confirm against somebody else's.
  */
 export function DeleteCardDialog({ card, onDeleted, onClose }: Props) {
   const { strings, t } = useLocale();
-  const { account } = useSession();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const fieldId = useId();
@@ -63,16 +65,6 @@ export function DeleteCardDialog({ card, onDeleted, onClose }: Props) {
       return;
     }
 
-    /*
-     * No account means no session, which the page's own gate is already
-     * dealing with. Nothing useful can be confirmed here, so the dialog gets
-     * out of the way rather than failing in place.
-     */
-    if (account === null) {
-      onClose();
-      return;
-    }
-
     setProblem(null);
     setPending(true);
     try {
@@ -80,7 +72,7 @@ export function DeleteCardDialog({ card, onDeleted, onClose }: Props) {
        * Confirmed first, deleted second. The other order would delete the card
        * and then ask, which is not a confirmation.
        */
-      await verifyPassword(account.email, password);
+      await verifyPassword(password);
       await discardCard(card.id);
       onDeleted();
     } catch (error: unknown) {

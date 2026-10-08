@@ -650,6 +650,8 @@ export interface Dictionary {
     discardTitle: string;
     discardWarning: string;
     discardPasswordLabel: string;
+    /** Why it cannot go: the money on it would go with it. */
+    discardNeedsEmpty: string;
     discardYes: string;
     discardPending: string;
     discardNo: string;
@@ -986,6 +988,8 @@ export interface Dictionary {
     invalidAmount: string;
     /** As many cards as the account may hold. */
     cardLimitReached: string;
+    /** The card still holds money, so the server refused to remove it. */
+    cardHasBalance: string;
     /** Another of this account's cards already has that name. */
     duplicateCardNickname: string;
     /** This exact stop, direction or journey is already saved. */
