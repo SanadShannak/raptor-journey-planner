@@ -166,28 +166,38 @@ export async function logIn(
  * up to an unattended screen. A session cookie says a browser was signed in
  * once; it says nothing about who is holding the device now.
  *
- * **Implemented over the login endpoint, because there is no other.** The API
- * has no "verify my password" route, so this signs in again as the same
- * account: a match resolves, a mismatch rejects with
- * {@link INVALID_CREDENTIALS} exactly as a failed sign-in does. Two
- * consequences are worth knowing. The server issues a fresh cookie on success,
- * which restarts the thirty-day expiry — harmless, and arguably right for
- * somebody who has just proved who they are. And a *failed* attempt leaves the
- * existing session untouched, because `logIn` here is the raw request rather
- * than `signIn`, so nothing is written to the session store either way.
+ * It takes **no email**, which is the point of having its own endpoint: the
+ * account comes from the session cookie, so there is nothing here to aim at a
+ * different account and nothing to re-issue. This used to go through
+ * `/api/auth/login` as the same account, which worked but restarted the
+ * thirty-day session on every confirmation and shared sign-in's rate limiting.
  *
- * A dedicated endpoint would be better: it would not re-issue a cookie, and it
- * could be rate-limited separately from sign-in.
- *
- * @param email The signed-in account's own address, from the session — never
- *   typed by the person confirming, who is only asked for the password.
+ * The field is named `password`, which is what `verifyPasswordValidationRules`
+ * validates — the controller currently destructures `enteredPassword`, so the
+ * two disagree and nothing can satisfy both. Written against the validator,
+ * because that is the half the request has to get past first.
  */
 export async function verifyPassword(
-  email: string,
   password: string,
   options: CallOptions = {},
 ): Promise<void> {
-  await logIn({ email, password }, options);
+  try {
+    await postJson('/api/auth/verify-password', {
+      body: { password },
+      ...(options.signal ? { signal: options.signal } : {}),
+    });
+  } catch (error: unknown) {
+    if (isApiError(error) && (error.status === 400 || error.status === 401)) {
+      /*
+       * A 401 here is the wrong password, **not** an expired session —
+       * `requireAuth` runs first and would have answered before the password
+       * was ever compared. So this one must not be left for `isUnauthorized`
+       * to read as a lapsed cookie and sign the reader out mid-confirmation.
+       */
+      throw error.withCode(codeForSubmission(error, INVALID_CREDENTIALS));
+    }
+    throw error;
+  }
 }
 
 /**

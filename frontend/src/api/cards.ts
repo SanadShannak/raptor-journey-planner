@@ -37,6 +37,9 @@ export const INVALID_AMOUNT = 'INVALID_AMOUNT';
 /** No such card on this account. */
 export const CARD_NOT_FOUND = 'CARD_NOT_FOUND';
 
+/** The card still holds money, so it cannot be thrown away. */
+export const CARD_HAS_BALANCE = 'CARD_HAS_BALANCE';
+
 /**
  * How many cards one account may hold.
  *
@@ -214,6 +217,13 @@ export async function renameCard(
  *
  * Returns nothing: the delete response carries only the id it removed, which
  * the caller already had.
+ *
+ * A refusal because the card still holds money is read off the status rather
+ * than the message, the same way the fare endpoint's two 400s are told apart:
+ * a 400 that **names a field** is the id validator complaining, and one that
+ * names none is the balance. A 409 is mapped too, since "the thing is in a
+ * state that forbids this" is what that status is for and it is the other
+ * reasonable choice for this refusal.
  */
 export async function removeCard(id: string, options: CallOptions = {}): Promise<void> {
   try {
@@ -221,7 +231,12 @@ export async function removeCard(id: string, options: CallOptions = {}): Promise
       ...(options.signal ? { signal: options.signal } : {}),
     });
   } catch (error: unknown) {
-    mapError(error, { 404: CARD_NOT_FOUND });
+    if (isApiError(error) && error.status === 400) {
+      throw error.withCode(
+        rejectedAField(error) ? 'INVALID_SUBMISSION' : CARD_HAS_BALANCE,
+      );
+    }
+    mapError(error, { 404: CARD_NOT_FOUND, 409: CARD_HAS_BALANCE });
   }
 }
 

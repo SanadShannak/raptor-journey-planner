@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  CARD_HAS_BALANCE,
   CARD_LIMIT_REACHED,
+  CARD_NOT_FOUND,
   DUPLICATE_CARD_NICKNAME,
   INSUFFICIENT_BALANCE,
   INVALID_AMOUNT,
@@ -8,6 +10,7 @@ import {
   listCards,
   payFare,
   refreshCard,
+  removeCard,
   topUpCard,
 } from './cards';
 import { ApiError } from './errors';
@@ -156,6 +159,48 @@ describe('addCard', () => {
 
     const error = await addCard({ nickname: 'Work Card' }).catch((e: unknown) => e);
     expect((error as ApiError).code).toBe(DUPLICATE_CARD_NICKNAME);
+  });
+});
+
+describe('removeCard', () => {
+  it('resolves when the card is gone', async () => {
+    respondWith({ message: 'Card Removed Successfully', id: CARD.id });
+    await expect(removeCard(CARD.id)).resolves.toBeUndefined();
+  });
+
+  /*
+   * A card holds money and deleting is irreversible, so a card with a balance
+   * is refused. The two 400s have to be told apart the same way the fare
+   * endpoint's are: a rejected **id** names a field, the balance names none.
+   */
+  it('reads a fieldless 400 as "it still has money on it"', async () => {
+    respondWith({ message: 'Card still has a balance.' }, 400);
+
+    const error = await removeCard(CARD.id).catch((e: unknown) => e);
+    expect((error as ApiError).code).toBe(CARD_HAS_BALANCE);
+  });
+
+  /* 409 is what "the thing is in a state that forbids this" is for, and the
+     other reasonable choice for this refusal, so both are mapped. */
+  it('reads a 409 the same way', async () => {
+    respondWith({ message: 'Card still has a balance.' }, 409);
+
+    const error = await removeCard(CARD.id).catch((e: unknown) => e);
+    expect((error as ApiError).code).toBe(CARD_HAS_BALANCE);
+  });
+
+  it('keeps a rejected id a validation failure, not a balance refusal', async () => {
+    respondWith({ errors: [{ msg: 'Card ID cannot be empty', path: 'id' }] }, 400);
+
+    const error = await removeCard('').catch((e: unknown) => e);
+    expect((error as ApiError).code).toBe('INVALID_SUBMISSION');
+  });
+
+  it('reads a 404 as no such card', async () => {
+    respondWith({ message: 'Card not found or unauthorized to delete.' }, 404);
+
+    const error = await removeCard(CARD.id).catch((e: unknown) => e);
+    expect((error as ApiError).code).toBe(CARD_NOT_FOUND);
   });
 });
 

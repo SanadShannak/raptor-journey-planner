@@ -415,6 +415,33 @@ describe('the money', () => {
   });
 
   /*
+   * **The money is the reason.** Deleting is irreversible and the balance goes
+   * with it, so a card that still holds some cannot be thrown away — and the
+   * control says why rather than being an unexplained dead press.
+   */
+  it('refuses to delete a card that still holds money, and says why', async () => {
+    const fetchMock = stubApi();
+    await openWallet();
+
+    const button = await screen.findByRole('button', { name: 'Delete card' });
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    // Never `disabled`: a disabled button is unfocusable and screen readers
+    // skip it, so the reason would reach nobody.
+    expect(button.hasAttribute('disabled')).toBe(false);
+
+    const describedBy = button.getAttribute('aria-describedby');
+    expect(document.getElementById(describedBy ?? '')?.textContent).toBe(
+      'Spend or move the remaining balance before deleting this card.',
+    );
+
+    fireEvent.click(button);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(
+      fetchMock.mock.calls.some(([, init]) => (init as RequestInit)?.method === 'DELETE'),
+    ).toBe(false);
+  });
+
+  /*
    * A card holds money and the deletion is not reversible, so the question is
    * a modal — unmissable, focus-trapping, not dismissed by the pointer
    * wandering off — and it **names the card**, because the page shows several
@@ -422,13 +449,13 @@ describe('the money', () => {
    * selected.
    */
   it('asks in a modal that names the card, and deletes nothing yet', async () => {
-    const fetchMock = stubApi();
+    const fetchMock = stubApi({ cards: [EMPTY_CARD] });
     await openWallet();
 
     fireEvent.click(await screen.findByRole('button', { name: 'Delete card' }));
 
     const dialog = screen.getByRole('dialog');
-    expect(within(dialog).getByRole('heading', { name: 'Delete Commute?' })).toBeTruthy();
+    expect(within(dialog).getByRole('heading', { name: 'Delete Spare?' })).toBeTruthy();
     expect(
       fetchMock.mock.calls.some(([, init]) => (init as RequestInit)?.method === 'DELETE'),
     ).toBe(false);
@@ -445,9 +472,10 @@ describe('the money', () => {
    */
   it('deletes nothing when the password is wrong', async () => {
     const fetchMock = stubApi({
+      cards: [EMPTY_CARD],
       onWrite: (path) =>
-        path === '/api/auth/login'
-          ? { body: { message: 'Incorrect Password.' }, status: 404 }
+        path === '/api/auth/verify-password'
+          ? { body: { message: 'Incorrect Password.' }, status: 401 }
           : null,
     });
     await openWallet();
@@ -471,12 +499,13 @@ describe('the money', () => {
 
   it('deletes it once the password is confirmed', async () => {
     const fetchMock = stubApi({
+      cards: [EMPTY_CARD],
       onWrite: (path, method) => {
-        if (path === '/api/auth/login') {
-          return { body: { message: 'Login successful', data: ACCOUNT }, status: 200 };
+        if (path === '/api/auth/verify-password') {
+          return { body: { data: ACCOUNT }, status: 200 };
         }
         return method === 'DELETE'
-          ? { body: { message: 'Card Removed', id: CARD.id }, status: 200 }
+          ? { body: { message: 'Card Removed', id: EMPTY_CARD.id }, status: 200 }
           : null;
       },
     });
@@ -490,13 +519,51 @@ describe('the money', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete card' }));
 
     expect(await screen.findByText(/No cards yet/)).toBeTruthy();
-    // The account's own address, never typed by whoever is confirming.
+
+    /*
+     * Only the password travels. The endpoint takes no email — the account is
+     * the one the session cookie names — so there is nothing in this request
+     * that could confirm against somebody else's.
+     */
     const check = fetchMock.mock.calls.find(([url]) =>
-      String(url).endsWith('/api/auth/login'),
+      String(url).endsWith('/api/auth/verify-password'),
     );
     expect(check).toBeDefined();
     const sent = (check as [unknown, RequestInit])[1];
-    expect(JSON.parse(sent.body as string).email).toBe(ACCOUNT.email);
+    expect(JSON.parse(sent.body as string)).toEqual({ password: 'password123' });
+  });
+
+  /*
+   * The server decides, and this page is only ever as fresh as its last
+   * response — so a refusal that arrives anyway is read and shown, rather than
+   * being treated as impossible because the local check passed.
+   */
+  it('reports the server refusing a delete it thought was allowed', async () => {
+    stubApi({
+      cards: [EMPTY_CARD],
+      onWrite: (path, method) => {
+        if (path === '/api/auth/verify-password') {
+          return { body: { data: ACCOUNT }, status: 200 };
+        }
+        return method === 'DELETE'
+          ? { body: { message: 'Card still has a balance.' }, status: 409 }
+          : null;
+      },
+    });
+    await openWallet();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete card' }));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText('Your password'), {
+      target: { value: 'password123' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete card' }));
+
+    expect(
+      await within(dialog).findByText(/This card still has money on it/),
+    ).toBeTruthy();
+    // Never the server's own English.
+    expect(screen.queryByText('Card still has a balance.')).toBeNull();
   });
 });
 

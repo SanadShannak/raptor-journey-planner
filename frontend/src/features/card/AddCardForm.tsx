@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { CARD_LIMIT } from '../../api/cards';
+import { Select } from '../../components/Select';
 import { messageForApiError, useLocale } from '../../i18n';
 import { CARD_TYPES, type CardType, type TravelCard } from '../../types/card';
 import { createCard } from './cardsStore';
@@ -42,7 +43,6 @@ const NICKNAME_LIMIT = 40;
 export function AddCardForm({ full, hasCards, onAdded }: Props) {
   const { strings, t } = useLocale();
   const nameId = useId();
-  const typeId = useId();
   const errorId = useId();
   const panelId = useId();
 
@@ -178,36 +178,21 @@ export function AddCardForm({ full, hasCards, onAdded }: Props) {
         />
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor={typeId} className="text-sm font-medium">
-          {t(strings.card.typeLabel)}
-        </label>
-        {/*
-          A native `<select>`. Four fixed options with no search and no
-          multi-select is exactly what it is for, and it brings keyboard
-          support, the platform's own picker on a phone, and a real label
-          association for nothing.
-        */}
-        <select
-          id={typeId}
-          value={cardType}
-          onChange={(event) => setCardType(event.target.value as CardType)}
-          /*
-            `pe-9` leaves the browser's own dropdown arrow somewhere to sit.
-            It is drawn inside the padding box at the inline end, so without
-            the reserved room a long option name runs underneath it — and
-            being logical, the reservation moves to the other side in Arabic
-            along with the arrow.
-          */
-          className="rounded-control border-border-strong bg-surface text-content focus-visible:outline-brand-500 border py-2.5 ps-4 pe-9 text-sm focus-visible:outline-2 focus-visible:outline-offset-2"
-        >
-          {CARD_TYPES.map((type) => (
-            <option key={type} value={type}>
-              {t(strings.card.types[type])}
-            </option>
-          ))}
-        </select>
-      </div>
+      {/*
+        The house dropdown, not the browser's. A native `<select>` draws its
+        own caret, focus ring and padding — none of which the theme reaches —
+        so it sat in this form as visibly a different control from every other
+        field, with its arrow hard against the border.
+      */}
+      <Select
+        label={t(strings.card.typeLabel)}
+        value={cardType}
+        onChange={setCardType}
+        options={CARD_TYPES.map((type) => ({
+          value: type,
+          label: t(strings.card.types[type]),
+        }))}
+      />
 
       <button
         type="submit"

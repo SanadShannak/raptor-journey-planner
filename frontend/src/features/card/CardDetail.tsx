@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import {
   formatClockTime,
   formatDate,
@@ -26,17 +26,15 @@ interface Props {
 const NICKNAME_LIMIT = 40;
 
 /**
- * Lines a run of text up with the *border* of a bordered chip beneath it.
+ * A transparent border on the name, so its focus ring has the chip's shape.
  *
- * The same pairing `FavouriteCard` documents, and the same reason: a chip's
- * visible edge is its border, not the text inside it, so matching the chip's
- * inner text leaves the chip itself hanging out to the side. A transparent
- * border on the plain line and a one-pixel inset on the chip's wrapper put the
- * first glyph and the chip's border on one edge — and give the plain line's
- * own focus ring the chip's shape while they are at it.
+ * It no longer has an edge to match: the type chip sits across the row from
+ * the name rather than under it, so the two are at opposite ends and there is
+ * nothing to line up. What the border still buys is the ring — a focusable
+ * run of plain text otherwise outlines tighter than the bordered chip beside
+ * it, and the two read as different kinds of control.
  */
 const TEXT_INSET = 'border border-transparent';
-const CHIP_INSET = 'ms-px';
 
 /**
  * One card: what is on it, what can be done to it, and what has happened.
@@ -79,6 +77,18 @@ export function CardDetail({ card, currency, onDiscarded }: Props) {
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const nameRef = useRef<HTMLButtonElement>(null);
   const deleteRef = useRef<HTMLButtonElement>(null);
+  const blockedId = useId();
+
+  /**
+   * A card with money on it is not thrown away.
+   *
+   * The balance is the reason: deleting is irreversible and the money goes
+   * with it, so the card has to be spent down or the balance moved before it
+   * can go. Checked here so the control can explain itself without a round
+   * trip, and checked again by the server, which is what actually decides —
+   * this figure is only ever as fresh as the last response.
+   */
+  const blocked = card.balance > 0;
 
   function close() {
     setEditing(false);
@@ -180,12 +190,17 @@ export function CardDetail({ card, currency, onDiscarded }: Props) {
         out of.
       */}
       <div className="rounded-card bg-brand-fill text-on-brand flex flex-col gap-6 p-5">
-        <div className="flex items-start justify-between gap-3">
-          {/*
-            Name over type, left-aligned and edge-matched. They are one
-            statement — what this card is called and what it is — so they stack
-            rather than sitting at opposite corners.
-          */}
+        {/*
+          Name at the leading edge, type at the trailing one.
+
+          Stacked, they were one statement read top to bottom; across the row
+          they are two facts the eye can take separately — which is how a card
+          is actually read, the name being what you look for and the type being
+          what you check. `items-center` rather than `items-start`, because a
+          one-line name and a one-line chip on the same row should share a
+          centre rather than a top edge.
+        */}
+        <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 flex-col gap-1">
             {editing ? (
               <input
@@ -239,36 +254,20 @@ export function CardDetail({ card, currency, onDiscarded }: Props) {
               </button>
             )}
 
-            <div className={CHIP_INSET}>
-              {/*
-                `border-current` rather than a token, so the chip is drawn in
-                the same ink as the text on it — which is the pair the contrast
-                check has already verified, with no second combination to add.
-              */}
-              <span className="rounded-control inline-flex items-center border border-current px-1.5 py-0.5 text-xs font-medium">
-                {t(strings.card.types[card.cardType])}
-              </span>
-            </div>
           </div>
 
           {/*
-            The same mark the app bar carries, as the card's "issuer" badge —
-            a card without one looks like a form that happens to be coloured.
+            `border-current` rather than a token, so the chip is drawn in the
+            same ink as the text on it — which is the pair the contrast check
+            has already verified, with no second combination to add.
+
+            It takes the corner the issuer mark used to hold. Two marks in one
+            corner is clutter, and between a decorative glyph and the fact of
+            what kind of card this is, the fact earns the place.
           */}
-          <svg
-            viewBox="0 0 48 48"
-            width="26"
-            height="26"
-            fill="none"
-            aria-hidden="true"
-            className="flex-none opacity-70"
-          >
-            <g stroke="currentColor" strokeWidth="3.4" strokeLinecap="round">
-              <path d="M15 17.5v6.2a4 4 0 0 0 4 4h10a4 4 0 0 1 4 4v2.8" strokeDasharray="0.1 6.8" />
-              <circle cx="15" cy="13" r="4.6" />
-              <circle cx="33" cy="35" r="4.6" />
-            </g>
-          </svg>
+          <span className="rounded-control inline-flex flex-none items-center border border-current px-1.5 py-0.5 text-xs font-medium">
+            {t(strings.card.types[card.cardType])}
+          </span>
         </div>
 
         <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
@@ -406,12 +405,42 @@ export function CardDetail({ card, currency, onDiscarded }: Props) {
         use every visit is a control they eventually press by accident; at the
         end of the panel it is somewhere you go rather than somewhere you pass.
       */}
-      <div className="border-border flex justify-end border-t pt-4">
+      <div className="border-border flex flex-wrap items-center justify-end gap-x-3 gap-y-1 border-t pt-4">
+        {/*
+          Why it cannot go, stated **before** the press rather than after one.
+
+          A control that is off for an unexplained reason reads as broken, and
+          the remedy here is something the reader can act on — the fare field
+          is right there. The server is still the authority: it refuses the
+          request too, and that refusal maps to this same sentence.
+        */}
+        {blocked && (
+          <p id={blockedId} className="text-content-muted text-xs">
+            {t(strings.card.discardNeedsEmpty)}
+          </p>
+        )}
+
+        {/*
+          **Never `disabled`.** A disabled button is unfocusable and screen
+          readers skip past it, so the one person who most needs to know why
+          the control is off would never find out. It stays focusable, carries
+          `aria-disabled`, and is described by the reason beside it — the same
+          treatment the favourites star gets.
+        */}
         <button
           ref={deleteRef}
           type="button"
-          onClick={() => setDeleting(true)}
-          className="rounded-control text-danger focus-visible:outline-brand-500 cursor-pointer px-3 py-1.5 text-xs font-medium underline decoration-transparent decoration-dotted underline-offset-4 transition-colors hover:decoration-current focus-visible:outline-2 focus-visible:outline-offset-2"
+          aria-disabled={blocked || undefined}
+          aria-describedby={blocked ? blockedId : undefined}
+          onClick={() => {
+            if (blocked) return;
+            setDeleting(true);
+          }}
+          className={`rounded-control text-danger focus-visible:outline-brand-500 px-3 py-1.5 text-xs font-medium underline decoration-transparent decoration-dotted underline-offset-4 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 ${
+            blocked
+              ? 'cursor-not-allowed opacity-50'
+              : 'cursor-pointer hover:decoration-current'
+          }`}
         >
           {t(strings.card.discard)}
         </button>

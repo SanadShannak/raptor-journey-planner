@@ -56,6 +56,7 @@ const MESSAGE_FOR_CODE: Record<string, keyof Dictionary['errors']> = {
   INSUFFICIENT_BALANCE: 'insufficientBalance',
   INVALID_AMOUNT: 'invalidAmount',
   CARD_LIMIT_REACHED: 'cardLimitReached',
+  CARD_HAS_BALANCE: 'cardHasBalance',
   DUPLICATE_CARD_NICKNAME: 'duplicateCardNickname',
   ALREADY_SAVED: 'alreadySaved',
   DUPLICATE_NICKNAME: 'duplicateNickname',
