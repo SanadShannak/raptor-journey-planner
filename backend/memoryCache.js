@@ -1,7 +1,12 @@
 const fs = require("fs");
 const path = require("path");
-// Custom dynamic configuration
-const config = require("../offline-data-ingestion-pipeline/pipelineConfig");
+/*
+ * Read through serverConfig rather than from the pipeline directly, so the
+ * server has one answer to "which network is this" -- see resolveActiveNetwork
+ * there. A deployed image is told by its environment; a checkout falls back to
+ * the pipeline config that compiled the feed on disk.
+ */
+const config = require("./src/serverConfig");
 // Dynamic directory paths based on whatever network is active (hsl, amman, etc..)
 const activeNetwork = config.ACTIVE_NETWORK;
 // Dynamic path to directory of all processed data
