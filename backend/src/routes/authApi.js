@@ -4,6 +4,7 @@ const validateRequest = require("../middleware/validationMiddleware");
 const {
   registerValidationRules,
   loginValidationRules,
+  verifyPasswordValidationRules,
 } = require("../validators/authValidator");
 
 const {
@@ -11,6 +12,7 @@ const {
   loginUser,
   logoutUser,
   getUserProfile,
+  verifyUserPassword,
 } = require("../controllers/authController");
 
 const requireAuth = require("../middleware/requireAuth");
@@ -26,5 +28,13 @@ router.post(
 router.post("/login", loginValidationRules, validateRequest, loginUser);
 
 router.post("/logout", logoutUser);
+
+router.post(
+  "/verify-password",
+  requireAuth,
+  verifyPasswordValidationRules,
+  validateRequest,
+  verifyUserPassword,
+);
 
 module.exports = router;

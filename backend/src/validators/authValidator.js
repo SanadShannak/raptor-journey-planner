@@ -39,4 +39,16 @@ const loginValidationRules = [
     .withMessage("Password cannot be empty"),
 ];
 
-module.exports = { registerValidationRules, loginValidationRules };
+const verifyPasswordValidationRules = [
+  body("password")
+    .trim()
+    .isLength({ min: 8 })
+    .withMessage("Password must be at least 8 characters")
+    .notEmpty()
+    .withMessage("Password cannot be empty"),
+];
+module.exports = {
+  registerValidationRules,
+  loginValidationRules,
+  verifyPasswordValidationRules,
+};

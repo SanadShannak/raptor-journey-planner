@@ -13,7 +13,7 @@ const cardSchema = new mongoose.Schema(
     nickname: { type: String, default: "" },
     cardType: {
       type: String,
-      enum: ["Standard", "Student", "Elderly", "Virtual"],
+      enum: ["Standard", "Student", "Elderly"],
       default: "Standard",
     },
     balance: {
