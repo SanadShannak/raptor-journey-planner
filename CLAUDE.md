@@ -150,7 +150,7 @@ The corollary: **a row that is a `<Link>` must not also navigate on click.** Bot
 Geocoding is an adapter behind the `Geocoder` interface in `src/types/place.ts`, resolved once in `src/geocoding/index.ts` — the right one depends on the network, so adding a city means adding an adapter, not changing the form.
 
 - **Photon** is the default and needs no key. It is one of the few free geocoders that permits typeahead; Nominatim forbids it. It knows OpenStreetMap, not our feed, so it can never supply a stop id.
-- **Digitransit** is used when `VITE_DIGITRANSIT_SUBSCRIPTION_KEY` is set, and knows HSL's own stops. Its `addendum.GTFS` carries modes, stop code, and platform, which is what lets six results named "Pasila" be told apart. A key in a browser bundle is public by design; the dev one is committed in `frontend/.env.development` and is rate-limited per key.
+- **Digitransit** is used when `VITE_DIGITRANSIT_SUBSCRIPTION_KEY` is set, and knows HSL's own stops. Its `addendum.GTFS` carries modes, stop code, and platform, which is what lets six results named "Pasila" be told apart. A key in a browser bundle is public by design and rate-limited per key — but public *in a bundle* and public *in a repository* are different exposures, the second being scraped by bots within minutes of a push. So the dev key lives in `frontend/.env.development.local`, which is git-ignored; without one, place search falls back to Photon and loses stop suggestions rather than breaking.
 
 Two rules that cost real bugs: a stop id arrives as `GTFS:HSL:1020444#H0101` and the `#platform` suffix is **not** part of the id, and an unrecognised mode is **dropped rather than defaulted** — telling someone a rail platform is a bus stop sends them to the wrong side of the station.
 
