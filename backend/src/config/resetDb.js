@@ -27,6 +27,7 @@ const wipeDB = async () => {
     console.log("Connected to database. Wiping ..");
     await mongoose.connection.dropDatabase();
     console.log("Successfully wiped database.");
+
     process.exit(0);
   } catch (error) {
     console.error("Error wiping database", error);
