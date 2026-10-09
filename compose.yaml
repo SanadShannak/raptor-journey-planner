@@ -1,0 +1,67 @@
+services:
+
+  backend:
+    build:
+      context: .
+      dockerfile: ./backend/Dockerfile
+    deploy:
+      resources:
+        limits:
+          memory: 1400mb
+    container_name: journey-planner-backend
+    restart: always
+    env_file:
+      - .env.backend
+    volumes:
+      - type: bind
+        source: ./processed-data/${ACTIVE_NETWORK}-processed-data
+        target: /processed-data/${ACTIVE_NETWORK}-processed-data
+        read_only: true
+    networks:
+      - journey-planner-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10mb"
+        max-file: "3"
+        
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: ./frontend/Dockerfile
+    deploy:
+      resources:
+        limits:
+          memory: 128mb
+    container_name: journey-planner-frontend
+    restart: always
+    env_file:
+      - .env.frontend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./frontend/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - journey-planner-network
+    depends_on:
+      backend:
+        condition: service_healthy
+
+networks:
+  journey-planner-network:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
+
