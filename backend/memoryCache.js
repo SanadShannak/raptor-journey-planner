@@ -71,10 +71,10 @@ const optionalProcessedDataFiles = [
    * does for any trip it cannot resolve.
    */
   {
-    name: "tripToShapeIdMap",
+    name: "tripShapeIndex",
     filePath: path.join(
       allProcessedDataFolderPath,
-      "trip-to-shape-mapping.json",
+      "trip-shape-index.processed.json",
     ),
   },
   {
@@ -114,7 +114,7 @@ const cachedData = {
   activeServices: null,
   reverseTripMapping: null,
   spatialGrid: null,
-  tripToShapeIdMap: null,
+  tripShapeIndex: null,
   shapes: null,
   networkMeta: null,
   tripHeadsigns: null,
@@ -216,6 +216,21 @@ const modes = [
 console.log(`modes: ${modes.length} vehicle types in this network`);
 
 /**
+ * Which shape a trip rides and where each of its stops sits along it, or null
+ * when this feed has no shapes. Read through the same `by_trip` -> `values`
+ * indirection as the headsigns: trips on a pattern share one stop-offset
+ * table, and storing it per trip cost 593 MB of heap on HSL for 1,206
+ * distinct tables.
+ */
+function getTripShape(flatTripId) {
+  const index = cachedData.tripShapeIndex;
+  if (!index) return null;
+  const valueIndex = index.by_trip?.[flatTripId];
+  if (valueIndex === undefined || valueIndex === null) return null;
+  return index.values?.[valueIndex] ?? null;
+}
+
+/**
  * The destination sign for a trip, or null when this feed has no headsigns.
  * Reads the per-trip index rather than the pattern's own headsign, because a
  * pattern's trips do not always share one.
@@ -234,5 +249,6 @@ module.exports = {
   getCapabilities: () => capabilities,
   getModes: () => modes,
   getNetworkMeta: () => cachedData.networkMeta,
+  getTripShape,
   getTripHeadsign,
 };

@@ -1,16 +1,16 @@
 const memoryCache = require("../../memoryCache");
 
 const cachedData = memoryCache.getCache();
-const tripToShapeIdMap = cachedData.tripToShapeIdMap;
+const getTripShape = memoryCache.getTripShape;
 const shapes = cachedData.shapes;
 
 function injectTransitShape(tripId, startStop, endStop, stops) {
   /*
    * Safety Check: does this network have shape data at all? shapes.txt is
-   * optional in GTFS, so both of these are null for a feed without it and
-   * every leg takes the straight-line fallback below.
+   * optional in GTFS, so for a feed without it getTripShape answers null and
+   * `shapes` is null too, and every leg takes the straight-line fallback below.
    */
-  const tripShapeData = tripToShapeIdMap?.[tripId];
+  const tripShapeData = getTripShape(tripId);
 
   if (tripShapeData && tripShapeData.shape_id && shapes) {
     const shapeId = tripShapeData.shape_id;
