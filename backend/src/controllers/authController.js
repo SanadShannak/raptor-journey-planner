@@ -46,7 +46,7 @@ const loginUser = async (req, res) => {
     const correctPassword = await targetUser.matchPassword(password);
 
     if (!correctPassword)
-      return res.status(404).json({
+      return res.status(401).json({
         message: "Incorrect Password.",
       });
 
