@@ -509,6 +509,8 @@ export const en: Dictionary = {
     unreachable: 'We could not reach the server to check your account. Try again in a moment.',
     walletNeedsAccount: 'Log in to see your travel cards, top them up and check what has been spent.',
     favouritesNeedAccount: 'Log in to see the stops, lines and journeys you have saved.',
+    restNeedsNoAccount:
+      'Everything else works without an account — plan a journey, browse stops and lines, and check any timetable.',
     saveNeedsAccount: 'Log in to save this.',
   },
 };

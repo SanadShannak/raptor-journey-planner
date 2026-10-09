@@ -847,6 +847,14 @@ export interface Dictionary {
     unreachable: string;
     walletNeedsAccount: string;
     favouritesNeedAccount: string;
+    /**
+     * What still works without one.
+     *
+     * Shown under the two buttons on a gated page. A gate that only states its
+     * price reads as the price of the whole app; this is the line that makes
+     * it the price of one page.
+     */
+    restNeedsNoAccount: string;
     /** Why the star cannot act. Shown in its own tooltip, like the other two. */
     saveNeedsAccount: string;
   };

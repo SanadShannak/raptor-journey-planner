@@ -168,42 +168,51 @@ describe('the wallet', () => {
       await screen.findByText(/Log in to see your travel cards/),
     ).toBeTruthy();
     expect(screen.getByRole('heading', { level: 1 })).toBeTruthy();
-    // And offers the way in, rather than only explaining.
+    // And offers both ways in, rather than only explaining.
     expect(screen.getByRole('button', { name: 'Log in' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Sign up' })).toBeTruthy();
+    // Including what does not need an account, so the gate is not a dead end.
+    expect(screen.getByText(/Everything else works without an account/)).toBeTruthy();
   });
 
   /*
-   * **The ask is the dialog.** Arriving without a session raises the app's one
-   * sign-in modal over the page, rather than putting a second, flatter copy of
-   * it where the cards would be.
+   * **Nothing opens by itself.** Arriving without a session used to raise the
+   * app's sign-in modal between one frame and the next, which took focus out
+   * of a page the reader had only just opened and covered the explanation of
+   * why an account was wanted. The invitation is the panel; the dialog is what
+   * pressing it opens.
    *
    * Asserted on the store rather than on a rendered dialog because the dialog
    * is mounted by the header, which this page is rendered without — the store
    * is the whole seam between the two.
    */
-  it('raises the sign-in dialog when nobody is signed in', async () => {
+  it('does not raise the sign-in dialog on its own', async () => {
     stubApi({ signedIn: false });
     await openWallet();
 
+    expect(await screen.findByRole('button', { name: 'Log in' })).toBeTruthy();
+    expect(getAuthPrompt()).toBeNull();
+  });
+
+  it('raises the sign-in dialog when the panel is pressed', async () => {
+    stubApi({ signedIn: false });
+    await openWallet();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Log in' }));
     await waitFor(() => expect(getAuthPrompt()).toBe('logIn'));
   });
 
   /*
-   * Raised **once**. The dialog can be dismissed — somebody may have arrived
-   * by accident, or want to read the page's own explanation — and reopening it
-   * on the next render would be a dialog that cannot be closed.
+   * The second control asks for the other form, not the same one. Somebody
+   * who has never had an account should not have to find the switch inside a
+   * login form to discover they can make one.
    */
-  it('does not raise it again once it has been dismissed', async () => {
+  it('raises the sign-up form from its own control', async () => {
     stubApi({ signedIn: false });
     await openWallet();
-    await waitFor(() => expect(getAuthPrompt()).toBe('logIn'));
 
-    forgetAuthPrompt();
-    // A re-render for any other reason must not put it back.
-    fireEvent.click(screen.getByRole('button', { name: 'Log in' }));
-    expect(getAuthPrompt()).toBe('logIn');
-    forgetAuthPrompt();
-    await waitFor(() => expect(getAuthPrompt()).toBeNull());
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign up' }));
+    await waitFor(() => expect(getAuthPrompt()).toBe('signUp'));
   });
 
   /*

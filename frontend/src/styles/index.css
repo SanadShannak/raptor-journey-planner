@@ -443,9 +443,45 @@
   }
 }
 
+/*
+ * The sign-in dialog arriving.
+ *
+ * Larger than `settle-in` because what arrives is larger. A modal takes the
+ * whole screen's attention and inerts everything behind it, so the four-pixel
+ * nudge that suits one result card among several reads as a twitch at this
+ * size — while a dialog that simply exists, already focused, on the frame
+ * after a press reads as the page having been replaced.
+ *
+ * A short rise and a hair of scale, under a fifth of a second: long enough to
+ * say the dialog came from the control that was pressed, short enough that
+ * somebody is typing their email before they would think to wait for it.
+ *
+ * Entry only, as with the cards. React unmounts this the moment it closes, so
+ * an exit would mean holding it mounted past its own life for a frame nobody
+ * stays to watch.
+ */
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+/*
+ * The ground dimming under it, a little slower than the dialog itself so the
+ * dialog is what the eye follows and the darkening is what it merely notices.
+ */
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+  }
+}
+
 @theme {
   --animate-settle-in: settle-in 160ms ease-out both;
   --animate-fade-in: fade-in 140ms ease-out both;
+  --animate-dialog-in: dialog-in 180ms ease-out both;
+  --animate-backdrop-in: backdrop-in 240ms ease-out both;
 }
 
 /*
