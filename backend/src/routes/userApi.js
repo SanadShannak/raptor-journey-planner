@@ -29,8 +29,11 @@ router.use(requireAuth);
 
 router.get("/saved-stops", getUserSavedStops);
 router
+  .route("/saved-stops/:stopId")
+  .post(addSavedStopValidationRules, validateRequest, addUserSavedStop);
+
+router
   .route("/saved-stops/:itemId")
-  .post(addSavedStopValidationRules, validateRequest, addUserSavedStop)
   .patch(
     renameSavedItemValidationRules,
     validateRequest,

@@ -87,12 +87,19 @@ const removeCard = async (req, res) => {
   try {
     const { id } = req.params;
     const user = req.user;
-    const card = await Card.findOneAndDelete({ _id: id, user: user._id });
+    const card = await Card.findOne({ _id: id, user: user._id });
 
     if (!card)
       return res
         .status(404)
         .json({ message: "Card not found or unauthorized to delete." });
+
+    if (card.balance > 0)
+      return res
+        .status(400)
+        .json({ message: "Card has active balance. Cannot delete." });
+
+    await Card.deleteOne({ _id: id });
 
     return res.status(200).json({ message: "Card Removed Successfully", id });
   } catch (error) {

@@ -46,7 +46,7 @@ const loginUser = async (req, res) => {
     const correctPassword = await targetUser.matchPassword(password);
 
     if (!correctPassword)
-      return res.json({
+      return res.status(404).json({
         message: "Incorrect Password.",
       });
 
@@ -69,17 +69,55 @@ const loginUser = async (req, res) => {
 };
 
 const logoutUser = async (req, res) => {
-  clearAuthCookie(res);
+  try {
+    clearAuthCookie(res);
 
-  return res.status(200).json({
-    message: "Logged out successfully",
-  });
+    return res.status(200).json({
+      message: "Logged out successfully",
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
 };
 
 const getUserProfile = async (req, res) => {
-  const userId = req.user._id;
-  const user = await User.findById(userId).select("-password");
-  return res.status(200).json({ data: user });
+  try {
+    const userId = req.user._id;
+    const user = await User.findById(userId).select("-password");
+    return res.status(200).json({ data: user });
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
 };
 
-module.exports = { registerUser, loginUser, logoutUser, getUserProfile };
+const verifyUserPassword = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { password } = req.body;
+    const user = await User.findById(userId);
+
+    const correctPassword = await user.matchPassword(password);
+    if (!correctPassword)
+      return res.status(401).json({ message: "Incorrect Password." });
+    return res.status(200).json({ data: user });
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
+
+module.exports = {
+  registerUser,
+  loginUser,
+  logoutUser,
+  getUserProfile,
+  verifyUserPassword,
+};
