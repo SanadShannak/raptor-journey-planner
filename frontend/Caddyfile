@@ -1,0 +1,51 @@
+# The address this site answers on -- and the single line that decides TLS.
+#
+# Left alone it is `:80`: plain HTTP, which is what local testing wants and
+# all that works without a domain name. Set SITE_ADDRESS to a real hostname
+# and Caddy obtains a certificate for it on first request, serves HTTPS, and
+# redirects HTTP to it. Nothing else in this file changes, and neither does
+# the image -- which is the point.
+#
+# The whole address is substituted, not just the port. A hostname has no colon
+# in front of it, so `:{$DOMAIN:80}` expands to `:example.com` and Caddy
+# rejects it as a port number -- it works locally and fails only in
+# production, which is the worst place to find out.
+{$SITE_ADDRESS::80} {
+	root * /srv
+
+	# Compression at site level, so it covers proxied JSON as well as the
+	# bundle. An itinerary is repetitive text and compresses about as well as
+	# the HTML does.
+	encode gzip zstd
+
+	# The API.
+	#
+	# `handle`, not `handle_path`: the backend mounts its routes at /api/...,
+	# so the prefix has to survive the hop. handle_path would strip it and the
+	# backend would answer 404 to a perfectly good request.
+	handle /api/* {
+		reverse_proxy journey-planner-backend:3000
+	}
+
+	# The build output, served strictly.
+	#
+	# Everything under here is a hashed filename, so a request is either for a
+	# real file or for a mistake, and a mistake must say so. Without this block
+	# the fallback below would answer a missing bundle with the app shell, and
+	# the browser -- having asked for JavaScript and received HTML -- reports
+	# `Unexpected token '<'`, which points nowhere near the actual fault.
+	handle /assets/* {
+		file_server
+	}
+
+	# Everything else is the application.
+	#
+	# React Router invents /plan and /favourites in the browser, so there is no
+	# file at those paths: try the real one first, and otherwise hand back the
+	# shell and let the client read the URL for itself. This is what makes a
+	# refresh or a shared link work.
+	handle {
+		try_files {path} /index.html
+		file_server
+	}
+}
