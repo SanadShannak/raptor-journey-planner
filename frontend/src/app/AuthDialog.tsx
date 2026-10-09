@@ -36,6 +36,13 @@ const PASSWORD_MINIMUM = 8;
  * sending anybody here; see `AccountGate`. Either way this dialog opens over
  * the page somebody is on, which is why it leaves no history entry.
  *
+ * **It is only ever opened by a press.** Nothing raises it on arrival. A modal
+ * that appears by itself takes keyboard focus out of the page the moment it
+ * loads, which is both an interruption and a way to lose your place; one that
+ * appears because a button was pressed is the expected consequence of pressing
+ * it, and that is also what makes the entry animation worth having — it points
+ * back at the control it came from.
+ *
  * Validation happens twice on purpose, and the two are not redundant. The
  * checks here answer instantly and keep an obviously incomplete form from
  * costing a round trip. The server's are the authority — it owns the password
@@ -200,7 +207,13 @@ export function AuthDialog({ mode, onChangeMode, onClose }: Props) {
       onClick={(event) => {
         if (event.target === dialogRef.current) onClose();
       }}
-      className="rounded-card bg-surface text-content shadow-card border-border m-auto w-[min(28rem,calc(100vw-2rem))] border p-0 backdrop:bg-black/50"
+      /*
+       * `motion-safe:` on both halves, matching every other animation here. The
+       * global reduced-motion rule already collapses the duration, and the
+       * variant means the rule has nothing to collapse rather than something to
+       * shorten.
+       */
+      className="rounded-card bg-surface text-content shadow-lifted border-border m-auto w-[min(28rem,calc(100vw-2rem))] border p-0 backdrop:bg-black/50 motion-safe:animate-dialog-in motion-safe:backdrop:animate-backdrop-in"
     >
       <form
         onSubmit={(event) => void onSubmit(event)}
