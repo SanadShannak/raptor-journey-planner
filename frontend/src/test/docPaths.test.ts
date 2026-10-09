@@ -29,7 +29,7 @@ const DOCS = ['CLAUDE.md', '.claude/skills/api-contract/SKILL.md'] as const;
 /*
  * CLAUDE.md's "Frontend conventions" and "Localisation" sections write frontend
  * paths relative to `frontend/` (`src/i18n/en.ts`), while its architecture
- * sections write them from the repo root (`backend/server/index.js`). Both are
+ * sections write them from the repo root (`backend/src/index.js`). Both are
  * unambiguous to a reader, so both resolve here.
  */
 const BASE_DIRS = ['', 'frontend'] as const;
@@ -186,7 +186,7 @@ describe('repo paths quoted in the docs', () => {
 
 describe('classify', () => {
   it('reads a quoted repo path as one, from either base directory', () => {
-    expect(classify('backend/server/utils/formatItinerary.js')).toBe('path');
+    expect(classify('backend/src/utils/formatItinerary.js')).toBe('path');
     expect(classify('src/i18n/en.ts')).toBe('path');
     expect(classify('frontend/.env.development')).toBe('path');
     expect(classify('backend/')).toBe('path');
@@ -223,9 +223,9 @@ describe('classify', () => {
   });
 
   it('fails a path that no longer exists', () => {
-    expect(classify('backend/server/utils/formatMoney.js')).toBe('path');
-    expect(resolves('backend/server/utils/formatMoney.js')).toBe(false);
-    expect(resolves('backend/server/utils/formatItinerary.js')).toBe(true);
+    expect(classify('backend/src/utils/formatMoney.js')).toBe('path');
+    expect(resolves('backend/src/utils/formatMoney.js')).toBe(false);
+    expect(resolves('backend/src/utils/formatItinerary.js')).toBe(true);
   });
 });
 

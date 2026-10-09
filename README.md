@@ -305,7 +305,7 @@ Startup is deliberately slow and requests are not: `memoryCache.js` loads every
 compiled file synchronously at require time, so the whole network is in the V8
 heap before the port opens.
 
-The port defaults to `3000` and is set in `backend/server/serverConfig.js`,
+The port defaults to `3000` and is set in `backend/src/serverConfig.js`,
 which honours `PORT`. Whatever you choose, the client's `VITE_API_BASE_URL`
 must agree with it.
 
