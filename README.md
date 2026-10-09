@@ -163,7 +163,7 @@ Fuses sparse station coordinate data with high-density polyline drawing instruct
 #### Logic Metrics
 1. **Defensive Validation**: Gracefully skips processing without crashing if the optional `shapes.txt` feed is not provided by the transit agency.
 2. **Two-Pointer Merge Algorithm**: Strictly sorts both station stops and polyline points by distance and sequence, merging them in a single $O(N)$ pass to guarantee stations are perfectly anchored to the map line.
-3. **$O(1)$ Memory Indexing**: Distributes static array slicing indices to individual trips (`trip-to-shape-mapping.json`), ensuring the routing engine can extract a 50-kilometer polyline in under a millisecond.
+3. **$O(1)$ Memory Indexing**: Builds one stop-offset table per distinct shape and points every trip at the table it shares (`trip-shape-index.processed.json`), ensuring the routing engine can extract a 50-kilometer polyline in under a millisecond. HSL's 380,746 trips ride 1,206 distinct tables, so indexing them rather than giving each trip its own copy costs 1.8 MB on disk and 4 MB of server heap instead of 130 MB and 593 MB.
 
 ---
 

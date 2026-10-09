@@ -40,6 +40,17 @@ const tripMappingInput = path.join(
 // Final Output Paths for the routing API to consume
 const tripShapesOutputPath = path.join(
   __dirname,
+  `../../processed-data/${activeNetwork}-processed-data/trip-shape-index.processed.json`,
+);
+/*
+ * The per-trip file this index replaced. Removed on every run so a stale copy
+ * from an older build cannot sit beside the new one: the server treats an
+ * unreadable shape index as "this feed has no shapes" and quietly draws every
+ * leg as a straight line, which looks like a data problem rather than a
+ * leftover file.
+ */
+const supersededTripShapesOutputPath = path.join(
+  __dirname,
   `../../processed-data/${activeNetwork}-processed-data/trip-to-shape-mapping.json`,
 );
 const shapesOutputPath = path.join(
@@ -373,8 +384,30 @@ function compileFinalTripShapesMap() {
       masterStopIndices[shapeId] = currentStopIndexMap;
     }
 
-    // Step 4.3: Distribute indices
-    const finalTripsMap = {};
+    /*
+     * Step 4.3: Index trips onto the shape offsets they share.
+     *
+     * `masterStopIndices` is already one entry per shape. Writing a private
+     * copy of it for every trip is what this step used to do, and on HSL that
+     * meant 380,746 copies of 1,206 distinct values — 10.7 million stop
+     * offsets to encode 35,107 facts, costing 593 MB of server heap for 130 MB
+     * of text, because the cost of a trip in V8 is two objects and a few dozen
+     * properties rather than the bytes it prints as.
+     *
+     * So trips point at a shared table instead, the same `values` / `by_trip`
+     * indirection parseRoutes.js writes for destination signs.
+     *
+     * The fingerprint is the whole value, not the shape id. Trips on one shape
+     * usually do share a stop set — none on HSL today differ — but the offsets
+     * come from the trip's own stop list, so a short-turn or a variant that
+     * skips stops can legitimately hold a subset of the same shape's offsets.
+     * Keying on the shape id alone would hand such a trip another trip's stops;
+     * keying on the value cannot, whatever the feed.
+     */
+    const shapeIndexValues = [];
+    const shapeIndexByFingerprint = new Map();
+    const shapeIndexByTrip = [];
+
     for (const [tripId, tripStopsArray] of Object.entries(
       tripToStopDistancesMap,
     )) {
@@ -386,16 +419,39 @@ function compileFinalTripShapesMap() {
         tripStopIndexMap[stop.id] = masterStopIndices[shapeId][stop.id];
       }
 
-      finalTripsMap[tripId] = {
+      const tripShapeValue = {
         shape_id: shapeId,
         stop_index_in_shape_map: tripStopIndexMap,
       };
+
+      /*
+       * Fingerprinted as it will be written, so two trips whose offsets differ
+       * only by a key JSON.stringify drops anyway are correctly treated as one
+       * value.
+       */
+      const fingerprint = JSON.stringify(tripShapeValue);
+      let valueIndex = shapeIndexByFingerprint.get(fingerprint);
+      if (valueIndex === undefined) {
+        valueIndex = shapeIndexValues.length;
+        shapeIndexValues.push(tripShapeValue);
+        shapeIndexByFingerprint.set(fingerprint, valueIndex);
+      }
+      shapeIndexByTrip[tripId] = valueIndex;
     }
 
     // Step 4.4: Write to disk
-    console.log("Writing API shape payloads to disk...");
-    fs.writeFileSync(tripShapesOutputPath, JSON.stringify(finalTripsMap));
+    console.log(
+      `Writing API shape payloads to disk: ${shapeIndexValues.length} distinct stop-offset tables across ${shapeIndexByTrip.length} trips...`,
+    );
+    fs.writeFileSync(
+      tripShapesOutputPath,
+      JSON.stringify({
+        values: shapeIndexValues,
+        by_trip: shapeIndexByTrip,
+      }),
+    );
     fs.writeFileSync(shapesOutputPath, JSON.stringify(mergedShapesMap));
+    fs.rmSync(supersededTripShapesOutputPath, { force: true });
 
     resolve();
   });

@@ -509,7 +509,7 @@ function compileAndWriteRoutes() {
        * A representative shape for drawing the line, not an exact one: 76 of
        * HSL's patterns have trips on more than one shape (diversions, partial
        * geometries), so the most-used shape is chosen. Journey legs do not use
-       * this — they slice the trip's own shape via trip-to-shape-mapping.
+       * this — they slice the trip's own shape via trip-shape-index.
        */
       if (routeData._shapeCounts.size > 0) {
         let bestShape = null;
