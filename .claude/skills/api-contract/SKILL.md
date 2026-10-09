@@ -5,9 +5,9 @@ description: The backend journey-planning API contract — endpoints, query para
 
 # Journey-planning API contract
 
-Base URL comes from `VITE_API_BASE_URL`. The server port defaults to `3000`, set in `backend/server/serverConfig.js` (honours `process.env.PORT`).
+Base URL comes from `VITE_API_BASE_URL`. The server port defaults to `3000`, set in `backend/src/serverConfig.js` (honours `process.env.PORT`).
 
-The authoritative sources, in order: a live response, then `backend/server/utils/formatItinerary.js` (the presenter that builds the payload), then `backend/server/routes/plannerApi.js` (validation and query params). **Never invent a field.** If something here disagrees with a live response, the live response wins — and this file needs updating.
+The authoritative sources, in order: a live response, then `backend/src/utils/formatItinerary.js` (the presenter that builds the payload), then `backend/src/routes/plannerApi.js` (validation and query params). **Never invent a field.** If something here disagrees with a live response, the live response wins — and this file needs updating.
 
 ## Endpoints
 
@@ -69,7 +69,7 @@ choice.** A dinar has three (`1.300 JOD`) and a euro two; `Intl.NumberFormat`
 knows, and hard-coding either is wrong on half the networks this repo can load.
 
 GTFS carries it in `fare_attributes.currency_type`, which the pipeline does not
-yet compile — `backend/server/utils/networkCurrency.js` therefore answers from a
+yet compile — `backend/src/utils/networkCurrency.js` therefore answers from a
 per-network table, exactly as `NETWORK_TIMEZONES` answers for a feed with no
 agency.txt, and will prefer the feed's value the day network-meta has one.
 **Null is a real answer**: print a bare number rather than guessing, because a
@@ -225,9 +225,9 @@ Array of `[latitude, longitude]` pairs — latitude first, matching Leaflet's `L
 
 Applied by the backend presenter, so values arrive pre-rounded — do not round again.
 
-- Times: whole minutes, and **asymmetrically** — an arrival rounds *up*, a departure rounds *down*, so nobody is told they arrive earlier or may leave later than they really can (`backend/server/utils/roundSecondsToMinute.js`).
-- Durations: whole minutes, with a floor of 1 for any non-zero duration (`backend/server/utils/formatDuration.js`).
-- Distances: nearest 50 m, with a floor of 50 for any non-zero distance (`backend/server/utils/formatDistance.js`).
+- Times: whole minutes, and **asymmetrically** — an arrival rounds *up*, a departure rounds *down*, so nobody is told they arrive earlier or may leave later than they really can (`backend/src/utils/roundSecondsToMinute.js`).
+- Durations: whole minutes, with a floor of 1 for any non-zero duration (`backend/src/utils/formatDuration.js`).
+- Distances: nearest 50 m, with a floor of 50 for any non-zero distance (`backend/src/utils/formatDistance.js`).
 
 ### Durations agree with the times beside them
 
@@ -247,7 +247,7 @@ Verify with `node` against a running server rather than by reading the engine, w
 
 Non-2xx responses carry `{ errorCode, error }`. `error` is developer-facing English — **never show it to end users**; map `errorCode` to a localised string instead.
 
-**400** — validation, from `backend/server/routes/plannerApi.js`:
+**400** — validation, from `backend/src/routes/plannerApi.js`:
 `MISSING_ORIGIN`, `MISSING_DESTINATION`, `BAD_DATE`, `BAD_TIME`
 
 **404 (legacy) / 200 (current)** — engine outcomes, from `backend/raptor-engines/raptorEngine.js`. See *Engine outcomes may arrive inside a 200* below; a client should handle both:
@@ -268,7 +268,7 @@ Unknown paths return an Express **HTML** 404, not JSON — the client must toler
 
 ### Engine outcomes may arrive inside a 200
 
-`backend/server/routes/plannerApi.js` sends an engine outcome — everything in
+`backend/src/routes/plannerApi.js` sends an engine outcome — everything in
 the list above, `NO_ROUTE_FOUND` included — as the same `{ errorCode, error }`
 envelope but with a **200** status. The status says only that the request was
 served, not that a journey was found. Route-handler validation failures (the

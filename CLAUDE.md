@@ -40,7 +40,7 @@ cd frontend && npm run check:contrast          # WCAG AA check on design tokens,
 
 The frontend has a Vitest suite. **The pipeline and backend have no tests and are not to get any** — `npm test` there is an unimplemented stub. Verify backend behaviour by calling the running server.
 
-The backend port defaults to `3000` and is set in `backend/server/serverConfig.js`, which honours `process.env.PORT`. The frontend's `VITE_API_BASE_URL` must agree with it.
+The backend port defaults to `3000` and is set in `backend/src/serverConfig.js`, which honours `process.env.PORT`. The frontend's `VITE_API_BASE_URL` must agree with it.
 
 ## Architecture
 
@@ -60,11 +60,11 @@ The parsers compact relational GTFS text into zero-indexed contiguous arrays: a 
 
 ### Request path
 
-`backend/server/index.js` (mounts routers) → `backend/server/routes/plannerApi.js` (validates the query) → `backend/raptor-engines/raptorEngine.js` (routes, in seconds-from-midnight) → `backend/server/utils/formatItinerary.js` (presenter: seconds → `HH:mm`, rounding) → JSON.
+`backend/src/app.js` (mounts routers) → `backend/src/routes/plannerApi.js` (validates the query) → `backend/raptor-engines/raptorEngine.js` (routes, in seconds-from-midnight) → `backend/src/utils/formatItinerary.js` (presenter: seconds → `HH:mm`, rounding) → JSON.
 
-Everything server-side lives under `backend/server/` apart from the engine, which sits at `backend/raptor-engines/`. One router per endpoint in `backend/server/routes/`.
+Everything server-side lives under `backend/src/` apart from the engine, which sits at `backend/raptor-engines/`. One router per endpoint in `backend/src/routes/`.
 
-`formatItinerary.js` is the definitive source for the response shape the frontend consumes — read it rather than guessing at fields. Three rounding behaviours from `backend/server/utils/`: times round to whole minutes *asymmetrically* — an arrival up, a departure down, so nobody is told they arrive earlier or may leave later than they can (`roundSecondsToMinute`); durations round to whole minutes with a floor of 1 (`formatDuration`); distances round to the nearest 50 m with a floor of 50 (`formatDistance`).
+`formatItinerary.js` is the definitive source for the response shape the frontend consumes — read it rather than guessing at fields. Three rounding behaviours from `backend/src/utils/`: times round to whole minutes *asymmetrically* — an arrival up, a departure down, so nobody is told they arrive earlier or may leave later than they can (`roundSecondsToMinute`); durations round to whole minutes with a floor of 1 (`formatDuration`); distances round to the nearest 50 m with a floor of 50 (`formatDistance`).
 
 **Every duration in a response is measured between the rounded times that same response publishes, never from the engine's exact seconds.** A leg's duration is `endTime − startTime`, a wait is the gap between the previous leg's `endTime` and this leg's `startTime`, and the legs and waits tile the journey — they sum to `totalDurationMinutes`, which is itself `endTime − startTime`. Dates move with the times, so rounding an arrival up across midnight advances `endDate` with it.
 
@@ -94,7 +94,7 @@ Endpoints are `GET /api/planner` (journey planning), `GET /api/stop/:id`, `GET /
 
 Every failure, whatever its status, carries `{ errorCode, error }`. **The status tells you who refused, not whether there is an answer:**
 
-- **400** — the request was malformed, from `backend/server/routes/plannerApi.js`.
+- **400** — the request was malformed, from `backend/src/routes/plannerApi.js`.
 - **200 with an `errorCode`** — the request was fine and the *engine* has an outcome to report, `NO_ROUTE_FOUND` among them. There is no `legs` in such a body, so code that goes straight to parsing an itinerary reports "unreadable response" for what is really "nothing runs then". **Read `errorCode` on a successful response too.**
 - **500** — `INTERNAL_SERVER_ERROR`.
 
