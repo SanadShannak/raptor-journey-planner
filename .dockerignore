@@ -1,0 +1,14 @@
+**/node_modules
+**/CLAUDE.md
+**/.claude
+**/.gitignore
+**/README.md
+**/raw-data
+**/processed-data
+**/.env
+**/.env.*
+**/dist
+**/.vscode
+**/.git
+**/tempCodeRunnerFile.js
+**/Dockerfile
