@@ -23,40 +23,27 @@ FROM node:22.23.3-slim
 
 WORKDIR /app
 
-# Dependencies first, and only the files that declare them. Docker reuses a
-# cached layer until that step's inputs change, so installing before the source
-# is copied means editing a route does not reinstall every package.
+
 COPY package*.json ./
 
-# `ci` installs exactly what the lock file pins rather than re-resolving
-# versions, so this image builds the same way in six months.
+
 RUN npm ci --omit=dev
 
-# The server. Its contents land directly in /app, so src/index.js is the entry
-# point and the data path above follows from that choice.
+
 COPY ./backend .
 
 ENV NODE_ENV=production \
     PORT=3000 \
     NODE_OPTIONS="--max-old-space-size=1024"
 
-# Containers run as root unless told otherwise, which makes any flaw in the app
-# a flaw with full privileges. The official image ships an unprivileged user,
-# and nothing here needs to write to its own files.
+
 USER node
 
-# Documentation rather than a firewall rule: it records the port the app
-# listens on. Whether it reaches the outside world is decided when it runs.
+
 EXPOSE 3000
 
-# Ask the app whether it works, rather than assuming a live process means a
-# healthy server. `fetch` is built into Node 22, so this needs no curl in the
-# image. The start period is generous because the whole timetable is read into
-# memory before the port opens.
+
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-# Node directly, not `npm start`. That script passes --env-file-if-exists=.env
-# and there is no .env here by design; npm would also sit between Docker and
-# the server, swallowing the signals that ask it to shut down cleanly.
 CMD ["node", "src/index.js"]
