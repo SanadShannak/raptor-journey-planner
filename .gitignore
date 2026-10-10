@@ -151,4 +151,5 @@ processed-data/*-processed-data/
 
 .env
 
-compose.override.yaml
+compose.local.yaml
+backend/src/config/resetDb.js
