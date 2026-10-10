@@ -42,14 +42,10 @@ services:
     restart: always
     env_file:
       - .env.frontend
-    ports:
-      - "80:80"
-      - "443:443"
     volumes:
       - ./frontend/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
     networks:
+      - othman_default
       - journey-planner-network
     logging:
       driver: "json-file"
@@ -61,10 +57,10 @@ services:
         condition: service_healthy
 
 networks:
+  othman_default:
+    external: true
   journey-planner-network:
     driver: bridge
 
-volumes:
-  caddy_data:
-  caddy_config:
+
 
