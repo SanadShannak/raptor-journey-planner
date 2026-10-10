@@ -1,9 +1,8 @@
 services:
 
   backend:
-    build:
-      context: .
-      dockerfile: ./backend/Dockerfile
+    image: ghcr.io/sanadshannak/journey-planner-backend:1.0
+    platform: linux/amd64
     deploy:
       resources:
         limits:
@@ -33,9 +32,8 @@ services:
       start_period: 60s
 
   frontend:
-    build:
-      context: .
-      dockerfile: ./frontend/Dockerfile
+    image: ghcr.io/sanadshannak/journey-planner-frontend:1.0
+    platform: linux/amd64
     deploy:
       resources:
         limits:
@@ -53,6 +51,11 @@ services:
       - caddy_config:/config
     networks:
       - journey-planner-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10mb"
+        max-file: "3"
     depends_on:
       backend:
         condition: service_healthy

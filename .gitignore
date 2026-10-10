@@ -150,3 +150,5 @@ processed-data/*-processed-data/
 .DS_Store
 
 .env
+
+compose.override.yaml
