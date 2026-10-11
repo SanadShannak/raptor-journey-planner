@@ -11,7 +11,8 @@ function required(name: string, value: string | undefined): string {
   if (!trimmed) {
     throw new Error(
       `Missing environment variable ${name}. ` +
-        `Copy .env.example to .env.local and set it before starting the app.`,
+        `It is set in frontend/.env, which is committed — restore that file, or ` +
+        `check that nothing in .env.local sets it to an empty value.`,
     );
   }
   return trimmed;

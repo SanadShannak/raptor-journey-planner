@@ -57,6 +57,13 @@ const GENERATED = [
   'active-services.processed.json',
 ] as const;
 
+/*
+ * Local-only, and gitignored on purpose rather than as build output: each holds
+ * one person's keys. The docs name them to say where those keys go, and their
+ * whole point is that a fresh clone does not have them.
+ */
+const LOCAL_ONLY = ['backend/.env', 'frontend/.env.local'] as const;
+
 const trackedFiles = new Set(
   execSync('git ls-files -z', {
     cwd: repoRoot,
@@ -117,7 +124,7 @@ function inlineCodeSpans(markdown: string): Quote[] {
   return quotes;
 }
 
-type Verdict = 'prose' | 'generated' | 'path';
+type Verdict = 'prose' | 'generated' | 'local' | 'path';
 
 function classify(span: string): Verdict {
   if (NOT_A_PATH.test(span)) return 'prose';
@@ -132,6 +139,7 @@ function classify(span: string): Verdict {
   if (GENERATED.some((entry) => normalised === entry || normalised.startsWith(`${entry}/`))) {
     return 'generated';
   }
+  if ((LOCAL_ONLY as readonly string[]).includes(normalised)) return 'local';
 
   // Anything ending in a source extension is a file reference wherever it sits,
   // so a path invented wholesale still fails rather than being waved through.
@@ -188,7 +196,7 @@ describe('classify', () => {
   it('reads a quoted repo path as one, from either base directory', () => {
     expect(classify('backend/src/utils/formatItinerary.js')).toBe('path');
     expect(classify('src/i18n/en.ts')).toBe('path');
-    expect(classify('frontend/.env.development')).toBe('path');
+    expect(classify('frontend/.env')).toBe('path');
     expect(classify('backend/')).toBe('path');
     expect(classify('frontend/src/api')).toBe('path');
     expect(classify('itineraryRows.ts')).toBe('path');
@@ -220,6 +228,10 @@ describe('classify', () => {
     expect(classify('processed-data/')).toBe('generated');
     expect(classify('active-services.processed.json')).toBe('generated');
     expect(classify('node_modules')).toBe('generated');
+  });
+
+  it('exempts the local-only files the docs name but git deliberately does not carry', () => {
+    expect(classify('frontend/.env.local')).toBe('local');
   });
 
   it('fails a path that no longer exists', () => {

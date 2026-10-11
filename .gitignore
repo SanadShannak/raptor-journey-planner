@@ -151,5 +151,9 @@ processed-data/*-processed-data/
 
 .env
 
-compose.local.yaml
+# Compose merges compose.override.yaml into compose.yaml automatically, with no
+# flag and no warning. One appearing on the server would silently change what
+# runs there, so it can never be committed. Local work uses compose.local.yaml,
+# which is only ever read when named with -f.
+compose.override.yaml
 backend/src/config/resetDb.js

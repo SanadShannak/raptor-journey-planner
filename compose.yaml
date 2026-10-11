@@ -1,7 +1,7 @@
 services:
 
   backend:
-    image: ghcr.io/sanadshannak/journey-planner-backend:1.0
+    image: ghcr.io/sanadshannak/journey-planner-backend:1.1
     platform: linux/amd64
     deploy:
       resources:
@@ -10,11 +10,13 @@ services:
     container_name: journey-planner-backend
     restart: always
     env_file:
-      - .env.backend
+      - backend/.env
+    environment:
+      ACTIVE_NETWORK: ${ACTIVE_NETWORK:?Set ACTIVE_NETWORK in the .env file beside this compose file}
     volumes:
       - type: bind
-        source: ./processed-data/${ACTIVE_NETWORK}-processed-data
-        target: /processed-data/${ACTIVE_NETWORK}-processed-data
+        source: ./processed-data/${ACTIVE_NETWORK:?Set ACTIVE_NETWORK in the .env file beside this compose file}-processed-data
+        target: /processed-data/${ACTIVE_NETWORK:?Set ACTIVE_NETWORK in the .env file beside this compose file}-processed-data
         read_only: true
     networks:
       - journey-planner-network
@@ -32,7 +34,7 @@ services:
       start_period: 60s
 
   frontend:
-    image: ghcr.io/sanadshannak/journey-planner-frontend:1.0
+    image: ghcr.io/sanadshannak/journey-planner-frontend:1.1
     platform: linux/amd64
     deploy:
       resources:
@@ -40,8 +42,6 @@ services:
           memory: 128mb
     container_name: journey-planner-frontend
     restart: always
-    env_file:
-      - .env.frontend
     volumes:
       - ./frontend/Caddyfile:/etc/caddy/Caddyfile:ro
     networks:

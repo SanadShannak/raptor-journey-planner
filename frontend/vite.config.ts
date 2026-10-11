@@ -106,10 +106,21 @@ export default defineConfig(({ mode }) => ({
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
-    // Vite only loads .env.development in dev mode, and src/config/env.ts
-    // deliberately throws when the base URL is missing. Supplying it here keeps
-    // the fail-fast behaviour intact while giving tests a fixed origin to
-    // assert request URLs against.
-    env: { VITE_API_BASE_URL: 'http://api.test' },
+    /*
+     * Every VITE_ variable pinned, so the suite cannot depend on anyone's local
+     * files. Vite loads .env.local in every mode, tests included — so without
+     * this, a developer's real Digitransit key switches the geocoder under test
+     * from Photon to Digitransit, and the tests start calling the real service
+     * with that key.
+     *
+     * The base URL is an absolute origin rather than frontend/.env's `/` so tests
+     * can assert the request URLs they see; src/config/env.ts's fail-fast check
+     * stays intact everywhere else. Empty keys read as "no key".
+     */
+    env: {
+      VITE_API_BASE_URL: 'http://api.test',
+      VITE_DIGITRANSIT_SUBSCRIPTION_KEY: '',
+      VITE_CARTO_API_KEY: '',
+    },
   },
 }));
