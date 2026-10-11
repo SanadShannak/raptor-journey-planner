@@ -29,7 +29,9 @@ Accounts confirm their email address through a link, and a forgotten
 password is reset the same way. The emails go out through
 [Resend](https://resend.com); see [Email](#email) for setting it up. An
 unconfirmed account can still do everything — a banner simply asks for the
-address to be confirmed.
+address to be confirmed. The **Account** page (`/account`, from the account menu)
+shows whether the address is confirmed, changes the password, and emails a
+reset link for someone signed in who has forgotten theirs.
 
 In production each part runs as a container behind a reverse proxy — see
 [Deployment](#deployment).

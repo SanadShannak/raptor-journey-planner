@@ -199,7 +199,42 @@ const resetPassword = async (req, res) => {
   return res.status(200).json({ message: "Password reset", data: describeAccount(user) });
 };
 
+/**
+ * Changes the password of the account that is signed in.
+ *
+ * The current password is asked for even though a session exists: a session
+ * is a cookie on a device, and anyone at an unlocked computer has it. Knowing
+ * the password is what proves it is the owner.
+ *
+ * A wrong current password is a **400**, not the 401 `verify-password` uses.
+ * A 401 means "your session is over" everywhere else in this API, and a
+ * client that read it that way would sign somebody out for a typo.
+ *
+ * Like a reset, a change ends every **other** session — the reason to change
+ * a password is usually that somebody else might know it — and this device is
+ * given a fresh session so it is not caught by that cut-off itself.
+ */
+const changePassword = async (req, res) => {
+  const user = await User.findById(req.user._id);
+
+  if (!(await user.matchPassword(req.body.currentPassword))) {
+    throw new AppError(400, "INCORRECT_PASSWORD", "The current password is incorrect.", {
+      errors: [{ path: "currentPassword", msg: "Incorrect password" }],
+    });
+  }
+
+  user.password = req.body.newPassword;
+  user.passwordChangedAt = new Date(Date.now() - 1000);
+  await user.save();
+  // A reset link asked for before the change would undo it.
+  await revokeTokens(user._id, "reset-password");
+
+  setAuthCookie(res, user._id);
+  return res.status(200).json({ message: "Password changed", data: describeAccount(user) });
+};
+
 module.exports = {
+  changePassword,
   resendVerification,
   verifyEmail,
   forgotPassword,

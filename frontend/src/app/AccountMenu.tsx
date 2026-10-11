@@ -2,7 +2,9 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { PendingLabel } from '../components/Pending';
 import { pendingButtonClass } from '../components/pendingButtonClass';
 import { useSession } from '../auth';
+import { Link } from 'react-router';
 import { useLocale } from '../i18n';
+import { paths } from './routes';
 
 /**
  * Who is signed in, and the way out.
@@ -137,6 +139,14 @@ export function AccountMenu() {
         >
           {account.email}
         </p>
+
+        <Link
+          to={paths.account}
+          onClick={() => setOpen(false)}
+          className="rounded-control text-content hover:bg-surface-muted focus-visible:outline-brand-500 -mx-1 mt-1 px-1 py-1 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
+        >
+          {t(strings.accountPage.settingsLink)}
+        </Link>
 
         <button
           type="button"

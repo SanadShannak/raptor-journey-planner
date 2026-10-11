@@ -48,6 +48,9 @@ export interface RegisterInput {
   locale?: Locale | undefined;
 }
 
+/** The current password given to change-password did not match. */
+export const INCORRECT_PASSWORD = 'INCORRECT_PASSWORD';
+
 /** A reset or verification link that is wrong, used, or expired. */
 export const INVALID_TOKEN = 'INVALID_TOKEN';
 
@@ -337,4 +340,37 @@ export async function resendVerification(
     body: { locale },
     ...(options.signal ? { signal: options.signal } : {}),
   });
+}
+
+/**
+ * Changes the signed-in account's password; the server keeps this device
+ * signed in and ends every other session.
+ *
+ * A 400 is either the current password not matching ({@link INCORRECT_PASSWORD},
+ * which arrives as the server's own code) or the new one being too short
+ * ({@link INVALID_SUBMISSION}). The field complaint says which field.
+ */
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+  options: CallOptions = {},
+): Promise<Account> {
+  let body: unknown;
+  try {
+    body = await postJson('/api/auth/change-password', {
+      body: { currentPassword, newPassword },
+      ...(options.signal ? { signal: options.signal } : {}),
+    });
+  } catch (error: unknown) {
+    if (isApiError(error) && error.status === 400 && error.code !== INCORRECT_PASSWORD) {
+      throw error.withCode(INVALID_SUBMISSION);
+    }
+    throw error;
+  }
+
+  const account = toAccount(body);
+  if (account === null) {
+    throw new ApiError('malformed', 'Change-password response carried no account.');
+  }
+  return account;
 }

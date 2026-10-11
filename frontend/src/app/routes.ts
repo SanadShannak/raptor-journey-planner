@@ -18,6 +18,7 @@ export const paths = {
   stopDetail: '/stops/:stopId',
   card: '/card',
   favourites: '/favourites',
+  account: '/account',
   /** Where the links in verification and reset emails land. */
   verifyEmail: '/verify-email',
   resetPassword: '/reset-password',

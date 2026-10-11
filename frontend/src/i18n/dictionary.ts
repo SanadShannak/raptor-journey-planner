@@ -851,6 +851,27 @@ export interface Dictionary {
    * Every step is a title and a sentence or two. Each page's tour is its own
    * block so a step can be added to one page without renumbering another.
    */
+  /** The account page: details, confirming the address, the password. */
+  accountPage: {
+    /** What the sign-in prompt says on this page when nobody is signed in. */
+    needsAccount: string;
+    title: string;
+    settingsLink: string;
+    details: string;
+    name: string;
+    email: string;
+    verified: string;
+    notVerified: string;
+    changePassword: string;
+    currentPassword: string;
+    newPassword: string;
+    submitChange: string;
+    changed: string;
+    wrongCurrent: string;
+    forgotPrompt: string;
+    sendResetLink: string;
+    resetSent: string;
+  };
   /** Email verification and password reset: the banner and both pages. */
   verification: {
     bannerText: string;

@@ -3,7 +3,9 @@ import {
   EMAIL_IN_USE,
   INVALID_CREDENTIALS,
   INVALID_SUBMISSION,
+  INCORRECT_PASSWORD,
   INVALID_TOKEN,
+  changePassword,
   getSession,
   logIn,
   logOut,
@@ -260,5 +262,43 @@ describe('password reset and email verification', () => {
     await expect(verifyEmail('old')).rejects.toBeInstanceOf(ApiError);
     respondWith({ errorCode: 'INVALID_TOKEN', error: 'expired' }, 400);
     await expect(verifyEmail('old')).rejects.toMatchObject({ code: INVALID_TOKEN });
+  });
+});
+
+describe('changePassword', () => {
+  it('returns the account when the change goes through', async () => {
+    respondWith({ message: 'Password changed', data: { ...ACCOUNT, emailVerified: true } });
+    await expect(changePassword('oldpassword', 'newpassword1')).resolves.toEqual(READ);
+  });
+
+  /*
+   * A wrong current password is a 400 with its own code — never a 401, which
+   * everything else reads as the session being over, and which would sign
+   * somebody out for a typo.
+   */
+  it('keeps a wrong current password apart from a too-short new one', async () => {
+    respondWith(
+      {
+        errorCode: 'INCORRECT_PASSWORD',
+        error: 'The current password is incorrect.',
+        errors: [{ path: 'currentPassword', msg: 'Incorrect password' }],
+      },
+      400,
+    );
+    await expect(changePassword('wrong', 'newpassword1')).rejects.toMatchObject({
+      code: INCORRECT_PASSWORD,
+    });
+
+    respondWith(
+      {
+        errorCode: 'VALIDATION_FAILED',
+        error: 'Some fields were rejected.',
+        errors: [{ path: 'newPassword', msg: 'Password must be at least 8 characters' }],
+      },
+      400,
+    );
+    await expect(changePassword('oldpassword', 'short')).rejects.toMatchObject({
+      code: INVALID_SUBMISSION,
+    });
   });
 });

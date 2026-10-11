@@ -7,6 +7,7 @@ const {
   verifyPasswordValidationRules,
   forgotPasswordValidationRules,
   resetPasswordValidationRules,
+  changePasswordValidationRules,
   verifyEmailValidationRules,
 } = require("../validators/authValidator");
 
@@ -20,6 +21,7 @@ const {
   verifyEmail,
   forgotPassword,
   resetPassword,
+  changePassword,
 } = require("../controllers/authController");
 
 const requireAuth = require("../middleware/requireAuth");
@@ -82,6 +84,15 @@ router.post(
   resetPasswordValidationRules,
   validateRequest,
   resetPassword,
+);
+
+router.post(
+  "/change-password",
+  requireAuth,
+  arcjetProtect,
+  changePasswordValidationRules,
+  validateRequest,
+  changePassword,
 );
 
 module.exports = router;

@@ -286,11 +286,12 @@ status mapping still holds:
 | `/verify-email/resend` | `{ locale? }` | `200`; needs a session; `503 EMAIL_UNAVAILABLE` if it could not send |
 | `/forgot-password` | `{ email, locale? }` | Always `200`, whether or not the address has an account |
 | `/reset-password` | `{ token, password }` | `200 { data: account }` and a session cookie; `400 INVALID_TOKEN`, or `400 VALIDATION_FAILED` for the password |
+| `/change-password` | `{ currentPassword, newPassword }` | `200 { data: account }` with a fresh cookie; needs a session. A wrong current password is **`400 INCORRECT_PASSWORD`** (never 401, which would read as the session ending), with `errors` naming `currentPassword` |
 
 `locale` (`"en"` or `"ar"`) picks the email's language; `register` takes it too.
 Every account response — register, login, reset, `/me` — carries
 `emailVerified: boolean`. A completed reset ends every older session (their
-next request gets `401 UNAUTHORIZED`).
+next request gets `401 UNAUTHORIZED`), and so does a password change — except on the device that made it, which gets a fresh cookie.
 
 **Refusals:** `429 RATE_LIMITED` — more than 300 requests a minute from one
 address anywhere, or more than ten login, sign-up or password-check attempts a

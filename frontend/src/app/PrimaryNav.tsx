@@ -181,6 +181,9 @@ export function PrimaryNav() {
             >
               {account.email}
             </p>
+            <NavLink to={paths.account} className={linkClass}>
+              {t(strings.accountPage.settingsLink)}
+            </NavLink>
             <button
               type="button"
               onClick={() => void logOut()}

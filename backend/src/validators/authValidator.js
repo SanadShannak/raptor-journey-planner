@@ -67,7 +67,16 @@ const verifyEmailValidationRules = [
   body("token").isString().notEmpty().withMessage("Token is required"),
 ];
 
+const changePasswordValidationRules = [
+  body("currentPassword").isString().notEmpty().withMessage("Current password is required"),
+  body("newPassword")
+    .trim()
+    .isLength({ min: 8 })
+    .withMessage("Password must be at least 8 characters"),
+];
+
 module.exports = {
+  changePasswordValidationRules,
   forgotPasswordValidationRules,
   resetPasswordValidationRules,
   verifyEmailValidationRules,

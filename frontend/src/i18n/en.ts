@@ -510,6 +510,42 @@ export const en: Dictionary = {
     forgotSent: 'If an account exists for {email}, a link to reset its password is on its way. It works for one hour.',
     backToLogIn: 'Back to log in',
   },
+  accountPage: {
+    needsAccount:
+      'Log in to see your account, confirm your email address or change your password.',
+    title:
+      'Your account',
+    settingsLink:
+      'Account settings',
+    details:
+      'Details',
+    name:
+      'Name',
+    email:
+      'Email',
+    verified:
+      'Confirmed',
+    notVerified:
+      'Not confirmed yet',
+    changePassword:
+      'Change password',
+    currentPassword:
+      'Current password',
+    newPassword:
+      'New password',
+    submitChange:
+      'Change password',
+    changed:
+      'Your password is changed. Any other devices you were signed in on have been signed out.',
+    wrongCurrent:
+      'That is not your current password.',
+    forgotPrompt:
+      'Forgot your current password? We can email you a link to choose a new one.',
+    sendResetLink:
+      'Email me a reset link',
+    resetSent:
+      'A link to reset your password is on its way to {email}. It works for one hour.',
+  },
   verification: {
     bannerText:
       'Confirm your email address. We sent a link to {email}.',
