@@ -347,6 +347,8 @@ export interface Dictionary {
     /** Switches every mode back on. */
     showAllModes: string;
     /** Shown when the map is pulled out past the zoom that draws stops. */
+    /** The stops page, before its first answer about what is in view. */
+    loadingStops: string;
     zoomInForStops: string;
     /**
      * Shown when the map's view holds more stops than one request returns.

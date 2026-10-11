@@ -235,6 +235,7 @@ export const en: Dictionary = {
     filterByMode: 'Modes',
     noMatchingStops: 'No stop in view is served by the modes you have left on. Try moving the map, or switching a mode back on.',
     showAllModes: 'Show all modes',
+    loadingStops: 'Finding stops…',
     zoomInForStops: 'Zoom in to see stops',
     sampledStops:
       'Too many stops here to list them all — showing a selection. Zoom in for the rest.',

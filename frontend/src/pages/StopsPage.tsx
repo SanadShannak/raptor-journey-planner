@@ -1,3 +1,5 @@
+import { useBackendHealth } from '../app/useBackendHealth';
+import { ListPlaceholder, Placeholder } from '../components/Pending';
 import { useTour } from '../features/tour';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router';
@@ -76,6 +78,17 @@ export default function StopsPage() {
   const [belowZoom, setBelowZoom] = useState(false);
   /** Whether the last answer was a sample rather than all of it. */
   const [sampled, setSampled] = useState(false);
+  /**
+   * Whether any answer about the stops in view has come back yet.
+   *
+   * Until one has, an empty list means "not yet", not "nothing here" — and
+   * the page used to say "no stops in view" over the centre of the city while
+   * the first request was still on its way. Placeholders stand in instead.
+   * Only the *first* answer counts: panning afterwards keeps the list it has
+   * until the new one lands, rather than blanking it on every drag.
+   */
+  const [answered, setAnswered] = useState(false);
+  const { service } = useBackendHealth();
 
   /**
    * The modes chosen, and every mode this network runs.
@@ -229,8 +242,12 @@ export default function StopsPage() {
         if (controller.signal.aborted) return;
         setVisible(answer.stops);
         setBelowZoom(false);
+        setAnswered(true);
       })
       .catch(() => {
+        // A cancelled request is not an answer; a failed one is.
+        if (controller.signal.aborted) return;
+        setAnswered(true);
         // Same bargain the map's own layer makes: stops are an extra, and
         // failing to fetch them must not disturb the rest of the page.
       });
@@ -240,6 +257,7 @@ export default function StopsPage() {
 
   const onVisibleStopsChange = useCallback((stops: NetworkStop[]) => {
     setVisible(stops);
+    setAnswered(true);
   }, []);
 
   /*
@@ -273,6 +291,9 @@ export default function StopsPage() {
             availableModes={networkModes}
             belowZoom={belowZoom}
             sampled={sampled}
+            // Not while the service is down: no answer is coming, and the
+            // header already says so.
+            waiting={!answered && !belowZoom && service !== 'down'}
             modes={modes}
             onModesChange={setModes}
             onOpen={openStop}
@@ -360,6 +381,7 @@ function StopBrowser({
   availableModes,
   belowZoom,
   sampled,
+  waiting,
   modes,
   onModesChange,
   onOpen,
@@ -373,6 +395,8 @@ function StopBrowser({
   availableModes: GtfsRouteType[];
   belowZoom: boolean;
   sampled: boolean;
+  /** No answer about the stops in view has arrived yet. */
+  waiting: boolean;
   modes: ReadonlySet<GtfsRouteType>;
   onModesChange: (modes: ReadonlySet<GtfsRouteType>) => void;
   onOpen: (stopId: string) => void;
@@ -497,10 +521,32 @@ function StopBrowser({
       <p aria-live="polite" className="text-content-muted text-xs">
         {belowZoom
           ? t(strings.stops.zoomInForStops)
-          : t(strings.stops.visibleStops, { count: stops.length })}
+          : waiting
+            ? t(strings.stops.loadingStops)
+            : t(strings.stops.visibleStops, { count: stops.length })}
       </p>
 
-      {!belowZoom && totalInView === 0 && (
+      {waiting && (
+        <ListPlaceholder
+          rowHeight={45}
+          row={(width, index) => (
+            /* The real row's box, with an icon-sized shape for the modes and
+               a short one at the end where the stop code goes. */
+            <span
+              key={index}
+              className="border-border -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 border-b px-2 py-2.5"
+            >
+              <Placeholder className="size-4 flex-none" />
+              <span className="flex h-6 min-w-0 flex-1 items-center">
+                <Placeholder className={`h-4 ${width}`} />
+              </span>
+              <Placeholder className="h-3 w-10 flex-none" />
+            </span>
+          )}
+        />
+      )}
+
+      {!waiting && !belowZoom && totalInView === 0 && (
         <p className="text-content-muted rounded-card border-border border px-4 py-5 text-sm">
           {t(strings.stops.noStopsHere)}
         </p>
@@ -514,7 +560,12 @@ function StopBrowser({
         </p>
       )}
 
-      <ul className="flex flex-col">
+      {/*
+        Keyed on whether the first answer is in, so the list mounts at that
+        moment and fades in over the placeholders rather than replacing them in
+        one frame. Later answers, from panning, update it in place.
+      */}
+      <ul key={waiting ? 'waiting' : 'answered'} className="motion-safe:animate-content-in flex flex-col">
         {stops.map((stop) => (
           <li key={stop.id}>
             <button

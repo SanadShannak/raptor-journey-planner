@@ -184,6 +184,12 @@ export function StopLayer({
   cut.current = onTruncatedChange;
   const visibleChanged = useRef(onVisibleStopsChange);
   visibleChanged.current = onVisibleStopsChange;
+  /**
+   * Whether any request has answered yet. Until one has, the empty list this
+   * layer starts with is not news — reporting it told the page beside the map
+   * that there were no stops in view while the first request was in flight.
+   */
+  const heard = useRef(false);
 
   const refresh = () => {
     window.clearTimeout(timer.current);
@@ -220,6 +226,7 @@ export function StopLayer({
            */
           covered.current = answer.truncated ? null : wanted;
           cut.current?.(answer.truncated);
+          heard.current = true;
           setStops(answer.stops);
         })
         .catch(() => {
@@ -228,6 +235,7 @@ export function StopLayer({
           // journey the map is drawing.
           covered.current = null;
           cut.current?.(false);
+          heard.current = true;
           setStops([]);
         });
     }, SETTLE_MS);
@@ -319,6 +327,7 @@ export function StopLayer({
   // Reported after render rather than during it: setting another component's
   // state is not something a render is allowed to do.
   useEffect(() => {
+    if (!heard.current) return;
     visibleChanged.current?.(inView);
   }, [inView]);
 

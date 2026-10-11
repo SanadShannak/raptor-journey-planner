@@ -120,3 +120,33 @@ export function TimetablePlaceholder() {
     </PlaceholderGroup>
   );
 }
+
+/**
+ * Enough placeholder rows to fill the space a list will take, and no fewer.
+ *
+ * A list of stops or routes runs past the bottom of the screen, so a couple
+ * of grey rows at its head left most of the pane blank and then filled it all
+ * at once. This draws as many as the window is tall, at the real row's height
+ * — the rows decide their own shape, through `row` — so the list arriving
+ * replaces the placeholders one for one and nothing below it moves.
+ *
+ * The widths vary from row to row, the way names do, so the column reads as
+ * a list rather than as stripes.
+ */
+export function ListPlaceholder({
+  rowHeight,
+  row,
+}: {
+  /** The real row's height in pixels, used only to work out how many to draw. */
+  rowHeight: number;
+  row: (width: string, index: number) => ReactNode;
+}) {
+  const count = Math.max(6, Math.ceil(window.innerHeight / rowHeight));
+  return (
+    <PlaceholderGroup className="flex flex-col">
+      {Array.from({ length: count }, (_, index) => row(NAME_WIDTHS[index % NAME_WIDTHS.length] ?? 'w-1/2', index))}
+    </PlaceholderGroup>
+  );
+}
+
+const NAME_WIDTHS = ['w-1/2', 'w-2/3', 'w-2/5', 'w-3/5', 'w-1/3', 'w-3/4', 'w-1/2', 'w-2/5'];

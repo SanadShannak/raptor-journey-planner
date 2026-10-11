@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useState } from 'react';
-import { Placeholder, PlaceholderGroup } from '../../components/Pending';
+import { ListPlaceholder, Placeholder } from '../../components/Pending';
 import { getLines } from '../../api/routes';
 import { useBackendHealth } from '../../app/useBackendHealth';
 import { messageForApiError, modeLabel, useLocale } from '../../i18n';
@@ -203,14 +203,21 @@ export function LineBrowser({ availableModes, onOpen }: Props) {
         line above already says "Loading routes…" to a screen reader.
       */}
       {lines === null && loading && service !== 'down' && (
-        <PlaceholderGroup className="flex flex-col">
-          {[0, 1, 2, 3, 4, 5, 6, 7].map((row) => (
-            <span key={row} className="border-border flex items-center gap-3 border-b py-2.5">
-              <Placeholder className="h-6 w-12" />
-              <Placeholder className="h-4 flex-1" />
+        <ListPlaceholder
+          rowHeight={49}
+          row={(width, index) => (
+            /* The real row's box: the same padding, border and pull into the
+               gutter, with a badge-sized shape where the badge goes. */
+            <span
+              key={index}
+              className="border-border -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 border-b px-2 py-2.5"
+            >
+              <Placeholder className="h-7 w-12 flex-none" />
+              <Placeholder className={`h-4 ${width}`} />
+              <Placeholder className="ms-auto h-3 w-14 flex-none" />
             </span>
-          ))}
-        </PlaceholderGroup>
+          )}
+        />
       )}
 
       {/*
