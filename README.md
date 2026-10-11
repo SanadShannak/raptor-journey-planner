@@ -483,10 +483,15 @@ downloads, so neither file may ever hold a real secret. The two keys are
 public by design (see [External dependencies](#external-dependencies-and-keys)).
 
 **A first visit shows a short guided tour** of each page that has one (the
-planner, routes, stops, travel card and favourites), and the **?** button in
-the header — in the menu on a phone — replays it. Which tours a browser has
-seen is kept in its `localStorage` under `tours-seen`; delete that key in the
-browser's dev tools to see them again as a newcomer would.
+planner, an opened journey, routes, stops, travel card and favourites), and
+the **?** button in the header replays it. Below 1280px wide — phones and
+tablets — the header folds its links, settings and the **?** button into the
+menu. Some steps act out what they describe (opening the map's "start here"
+card, the first route or stop, the add-card form) and are undone afterwards,
+so the tour always ends on the page, scroll position and control it was
+started from. Which tours a browser has seen is kept in its `localStorage`
+under `tours-seen`; delete that key in the browser's dev tools to see them
+again as a newcomer would.
 
 Tests ignore both files. `vite.config.ts` pins every `VITE_` variable for the
 test run, because Vite loads `.env.local` in test mode too, and a real
