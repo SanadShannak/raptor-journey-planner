@@ -94,7 +94,7 @@ export const en: Dictionary = {
     skipToContent: 'Skip to content',
     openMenu: 'Menu',
     back: 'Back',
-    closeMenu: 'Close menu',
+    closeMenu: 'Close',
     home: 'Home',
     plan: 'Planner',
     routes: 'Routes',

@@ -108,6 +108,14 @@ export interface Dictionary {
      * the stop behind the run" is worse than the plain word.
      */
     back: string;
+    /**
+     * The same toggle once the panel is open.
+     *
+     * One short word, not "Close menu": on a phone this shares the bar with
+     * the brand, the clock and the account controls, and the longer label
+     * pushed it up against them. The button's `aria-expanded` already tells a
+     * screen reader what it closes, so the word "menu" bought nothing there.
+     */
     closeMenu: string;
     home: string;
     plan: string;

@@ -109,7 +109,7 @@ export const ar: Dictionary = {
     skipToContent: 'تخطي إلى المحتوى',
     openMenu: 'القائمة',
     back: 'رجوع',
-    closeMenu: 'إغلاق القائمة',
+    closeMenu: 'إغلاق',
     home: 'الرئيسية',
     plan: 'مخطط الرحلات',
     routes: 'الخطوط',
