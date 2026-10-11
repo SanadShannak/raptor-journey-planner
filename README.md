@@ -915,6 +915,17 @@ The image's Caddyfile has three `handle` blocks, first match winning:
 * everything else → the file if it exists, otherwise `index.html`, so a refresh
   on `/favourites` reaches the client-side router.
 
+Every response, the page's and the API's, also carries a set of security
+headers from the same file: a Content-Security-Policy, `nosniff`, a referrer
+policy, a permissions policy that allows location to this page only, and HSTS.
+**The policy lists every outside host the client talks to** — CARTO's
+`basemaps.cartocdn.com` and its tile subdomains, `photon.komoot.io`, and
+`api.digitransit.fi` — and the browser blocks anything else. The dev server
+sends none of these headers, so a new third-party service works under
+`npm run dev` and fails silently in the container until its host is added to
+`connect-src` (or `img-src`) there. Check it with the containers running
+locally: a violation shows in the browser console as `Refused to connect`.
+
 Its address is `{$SITE_ADDRESS::80}`. Unset, it serves plain HTTP on port 80,
 which is what it does in production — TLS is the edge proxy's job, so neither
 compose file passes the variable at all. For a deployment with no proxy in
@@ -1318,6 +1329,10 @@ enough — and two browser keys are optional and improve the client.
 | **Digitransit** | Place search that knows HSL's own stops | `VITE_DIGITRANSIT_SUBSCRIPTION_KEY` | Falls back to Photon: you lose stop suggestions, not search |
 | **CARTO** | Vector basemap tiles | `VITE_CARTO_API_KEY` | Tiles still load, on an anonymous tier that has grown unreliable |
 | **MongoDB** | Accounts, saved stops/lines/journeys, travel cards | `MONGO_URI` | **Required** — the server exits at startup without a connection |
+
+Each of the outside hosts above is named in the Content-Security-Policy in
+`frontend/Caddyfile`; adding a service means adding its host there too (see
+*The images*).
 
 Two things worth knowing about the keys:
 

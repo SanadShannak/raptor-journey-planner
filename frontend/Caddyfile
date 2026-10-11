@@ -2,6 +2,38 @@
 	root * /srv
 	encode gzip zstd
 
+	# Security headers for every response, the page and /api alike.
+	#
+	# The Content-Security-Policy names every origin the app is known to
+	# reach and nothing else, so a script that got in some other way could
+	# not send anything out:
+	#   - map style, sprites, glyphs and tiles: basemaps.cartocdn.com and
+	#     its tiles subdomains (connect-src, img-src)
+	#   - place search: photon.komoot.io, or api.digitransit.fi when a key
+	#     is built in (connect-src)
+	#   - MapLibre's worker is served from this origin; blob: is kept for
+	#     the browsers that build it from a blob instead
+	# A new third-party host is a change to this list too, or the browser
+	# blocks it in production while the dev server lets it through.
+	#
+	# style-src keeps 'unsafe-inline' because React's style attributes and
+	# MapLibre's own markers are inline styles. Scripts get no such
+	# allowance.
+	header {
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://basemaps.cartocdn.com https://*.basemaps.cartocdn.com; font-src 'self'; connect-src 'self' https://basemaps.cartocdn.com https://*.basemaps.cartocdn.com https://photon.komoot.io https://api.digitransit.fi; worker-src 'self' blob:; child-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Location only for this page, and only when the visitor presses
+		# "Use my location"; nothing else here needs a device.
+		Permissions-Policy "geolocation=(self), camera=(), microphone=(), payment=(), usb=()"
+		Cross-Origin-Opener-Policy "same-origin"
+		# The edge proxy already serves the site over HTTPS only. Deliberately
+		# without includeSubDomains or preload, which commit other names
+		# under the domain and are hard to take back.
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+
 	handle /api/* {
 		reverse_proxy journey-planner-backend:3000
 	}
