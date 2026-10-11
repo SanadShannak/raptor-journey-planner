@@ -503,6 +503,15 @@ started from. Which tours a browser has seen is kept in its `localStorage`
 under `tours-seen`; delete that key in the browser's dev tools to see them
 again as a newcomer would.
 
+**Renaming a favourite or a travel card shows the new name at once**, on every
+page, before the server answers. The client checks the server's own rules
+first so a name never appears only to snap back: no blank names, at most 40
+characters, and no name another favourite of the same kind (or another card)
+already has, ignoring case. Two quirks of the server are mirrored rather than
+fought: a change of case alone ("home" → "Home") is "unchanged" for saved
+items and is not sent, and card names compare without case but with accents.
+Anything the server still refuses puts the old name back.
+
 Tests ignore both files. `vite.config.ts` pins every `VITE_` variable for the
 test run, because Vite loads `.env.local` in test mode too, and a real
 Digitransit key there would switch the geocoder under test and send the suite's

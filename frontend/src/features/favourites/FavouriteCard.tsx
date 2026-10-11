@@ -10,7 +10,8 @@ import { Link } from 'react-router';
 import { messageForApiError, useLocale } from '../../i18n';
 import type { Dictionary, Message } from '../../i18n/dictionary';
 import { favouriteLabel, identity, type Favourite } from './favourite';
-import { moveFavourite, removeFavourite, renameFavourite } from './favouritesStore';
+import { NICKNAME_LIMIT } from '../../api/savedItems';
+import { moveFavourite, removeFavourite, renameFavourite, sameNickname } from './favouritesStore';
 import { notePaintedPositions } from './useFavouriteFlip';
 
 /**
@@ -199,12 +200,17 @@ export function FavouriteCard({
    * it open would be the obvious alternative and is a trap: `onBlur` commits,
    * so a field still open after a failed blur-commit sends the same rejected
    * name again the next time focus leaves it, for as long as it keeps failing.
+   *
+   * The new name shows at once — the store applies it before the server
+   * answers — and a name the server is known to refuse, one another favourite
+   * of this kind already has, is refused before it is ever drawn.
    */
   async function commit() {
     const next = draft.trim();
     const current = favourite.nickname ?? '';
 
-    if (next === '' || next === current) {
+    // Case alone is no change to the server, which keeps the old spelling.
+    if (next === '' || sameNickname(next, current)) {
       setDraft(current);
       close();
       return;
@@ -422,6 +428,7 @@ export function FavouriteCard({
                     cancel();
                   }
                 }}
+                maxLength={NICKNAME_LIMIT}
                 placeholder={t(renamePlaceholderFor(favourite.kind, strings))}
                 aria-label={t(strings.favourites.rename)}
                 className="rounded-control border-border-strong bg-surface text-content placeholder:text-content-muted focus-visible:outline-brand-500 pointer-events-auto relative w-full border px-1.5 py-0.5 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-1"

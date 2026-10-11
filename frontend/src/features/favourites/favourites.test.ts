@@ -18,6 +18,7 @@ import {
   removeFavourite,
   renameFavourite,
   reorderFavourite,
+  sameNickname,
   saveFavourite,
   toggleFavourite,
 } from './favouritesStore';
@@ -267,6 +268,101 @@ describe('saving and removing', () => {
     await renameFavourite('stop', 'id-A', 'Home');
 
     expect(getFavourites()[0]?.nickname).toBe('Home');
+  });
+});
+
+/* ----------------------------------------------------- renaming, optimistically */
+
+describe('renaming', () => {
+  /*
+   * The name is drawn before the server answers, so the rules the server
+   * would refuse a name by are checked first — a name shown and then taken
+   * back is the failure this whole arrangement exists to avoid.
+   */
+  it('shows the new name before the server has answered', async () => {
+    serveLists({ savedStops: [savedStop('A')] });
+    await loadFavourites();
+
+    const pending = renameFavourite('stop', 'id-A', '  Home ');
+    expect(getFavourites()[0]?.nickname).toBe('Home');
+    await pending.catch(() => {});
+  });
+
+  it('refuses a name another of the same kind has, ignoring case, without sending it', async () => {
+    const fetchMock = serveLists({ savedStops: [savedStop('A'), savedStop('B')] });
+    await loadFavourites();
+    fetchMock.mockClear();
+
+    await expect(renameFavourite('stop', 'id-A', 'stop b')).rejects.toMatchObject({
+      code: 'DUPLICATE_NICKNAME',
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(getFavourites()[0]?.nickname).toBe('Stop A');
+  });
+
+  /* Unique within a kind only — the server checks each list on its own. */
+  it('lets a stop share a name with a saved route', async () => {
+    serveLists({ savedStops: [savedStop('A')], savedRoutes: [savedRoute(1)] });
+    await loadFavourites();
+
+    const pending = renameFavourite('stop', 'id-A', 'Eira - Käpylä');
+    expect(getFavourites().find((f) => f.kind === 'stop')?.nickname).toBe('Eira - Käpylä');
+    await pending.catch(() => {});
+  });
+
+  it('refuses an over-long name without sending it', async () => {
+    const fetchMock = serveLists({ savedStops: [savedStop('A')] });
+    await loadFavourites();
+    fetchMock.mockClear();
+
+    await expect(renameFavourite('stop', 'id-A', 'x'.repeat(41))).rejects.toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('puts the old name back when the server refuses anyway', async () => {
+    const fetchMock = serveLists({ savedStops: [savedStop('A')] });
+    await loadFavourites();
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ errorCode: 'DUPLICATE_NICKNAME', error: 'x' }), {
+          status: 400,
+        }),
+      ),
+    );
+
+    await expect(renameFavourite('stop', 'id-A', 'Home')).rejects.toBeTruthy();
+    expect(getFavourites()[0]?.nickname).toBe('Stop A');
+  });
+
+  /* The server answers a case-only change "unchanged" and keeps the old spelling. */
+  it('counts a change of case alone as the same name', () => {
+    expect(sameNickname('Home', ' home ')).toBe(true);
+    expect(sameNickname('Home', 'Hime')).toBe(false);
+  });
+});
+
+describe('loading', () => {
+  /*
+   * An empty row during a refetch must read the same as the rows beside it:
+   * from the answer already held, not as a placeholder.
+   */
+  it('keeps the previous answer, empty rows included, while asking again', async () => {
+    serveLists({ savedItineraries: [] });
+    await loadFavourites();
+    expect(getSavedState().answered).toBe(true);
+
+    const again = loadFavourites();
+    expect(getSavedState().status).toBe('loading');
+    expect(getSavedState().answered).toBe(true);
+    await again;
+  });
+
+  it('has no answer before the first load, nor after signing out', async () => {
+    expect(getSavedState().answered).toBe(false);
+    serveLists({});
+    await loadFavourites();
+    forgetFavourites();
+    expect(getSavedState().answered).toBe(false);
   });
 });
 

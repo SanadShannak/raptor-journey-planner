@@ -1,4 +1,5 @@
 import {
+  DUPLICATE_CARD_NICKNAME,
   addCard,
   listCards,
   payFare,
@@ -187,10 +188,54 @@ export async function discardCard(id: string): Promise<void> {
   }
 }
 
+/**
+ * Whether another card on the account already has this name, as the server
+ * judges it: a Mongo collation of strength 2, which ignores case but not
+ * accents — "Work" clashes with "work", but not with "Wörk".
+ */
+function nicknameTaken(id: string, nickname: string): boolean {
+  return state.cards.some(
+    (card) =>
+      card.id !== id &&
+      card.nickname.localeCompare(nickname, 'en', { sensitivity: 'accent' }) === 0,
+  );
+}
+
+/** Puts one nickname into the list as it stands, keeping everything else. */
+function withNickname(id: string, nickname: string): void {
+  commit({
+    ...state,
+    cards: state.cards.map((card) => (card.id === id ? { ...card, nickname } : card)),
+  });
+}
+
+/**
+ * Renames a card, **optimistically**: the new name is in the store, and so on
+ * every surface that reads it, the moment this is called.
+ *
+ * A name another card already has is refused here, before it is drawn or
+ * sent — the server's own duplicate rule, checked first so the name never
+ * appears only to snap back. If the server refuses it anyway, the old name
+ * returns, unless a later rename has already replaced it.
+ */
 export async function rename(id: string, nickname: string): Promise<void> {
+  const name = nickname.trim();
+  if (nicknameTaken(id, name)) {
+    throw new ApiError('http', 'Refused before sending: duplicate card nickname', {
+      status: 400,
+      code: DUPLICATE_CARD_NICKNAME,
+    });
+  }
+
+  const previous = state.cards.find((card) => card.id === id)?.nickname;
+
+  withNickname(id, name);
   try {
-    replace(await renameCard(id, nickname));
+    replace(await renameCard(id, name));
   } catch (error: unknown) {
+    if (previous !== undefined && state.cards.find((card) => card.id === id)?.nickname === name) {
+      withNickname(id, previous);
+    }
     rethrow(error);
   }
 }

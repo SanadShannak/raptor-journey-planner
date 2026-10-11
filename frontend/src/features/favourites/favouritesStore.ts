@@ -1,4 +1,6 @@
 import {
+  DUPLICATE_NICKNAME,
+  NICKNAME_LIMIT,
   addSavedItem,
   getSavedItems,
   removeSavedItem,
@@ -46,9 +48,19 @@ interface SavedState {
   items: readonly Favourite[];
   /** Why the last load failed, for a surface that has to say so. */
   error: ApiError | null;
+  /**
+   * Whether `items` is an answer from the server, rather than nothing yet.
+   *
+   * Stays true through a refetch, which is what lets a page draw the answer
+   * it already has — empty rows included — while asking again. Without it an
+   * empty list during a refetch reads exactly like one that has never been
+   * loaded, so a row with nothing saved showed a placeholder beside a row
+   * whose cards were already drawn.
+   */
+  answered: boolean;
 }
 
-const EMPTY: SavedState = { status: 'idle', items: [], error: null };
+const EMPTY: SavedState = { status: 'idle', items: [], error: null, answered: false };
 
 let state: SavedState = EMPTY;
 
@@ -176,14 +188,14 @@ function flatten(items: SavedItems): readonly Favourite[] {
  */
 export async function loadFavourites(): Promise<void> {
   const id = ++requestId;
-  commit({ status: 'loading', items: state.items, error: null });
+  commit({ ...state, status: 'loading', error: null });
 
   try {
     const items = await getSavedItems();
     if (id !== requestId) return;
     const ordered = flatten(items);
     rememberOrder(ordered);
-    commit({ status: 'ready', items: ordered, error: null });
+    commit({ status: 'ready', items: ordered, error: null, answered: true });
   } catch (error: unknown) {
     if (id !== requestId) return;
 
@@ -197,6 +209,7 @@ export async function loadFavourites(): Promise<void> {
       status: 'failed',
       items: [],
       error: isApiError(error) ? error : null,
+      answered: false,
     });
   }
 }
@@ -255,7 +268,7 @@ function accept(items: SavedItems): void {
   // Re-recorded, like a load does, so the two paths cannot drift: whatever
   // position a newly saved favourite lands in is the one it keeps.
   rememberOrder(ordered);
-  commit({ status: 'ready', items: ordered, error: null });
+  commit({ status: 'ready', items: ordered, error: null, answered: true });
 }
 
 /**
@@ -319,21 +332,91 @@ export async function toggleFavourite(draft: FavouriteDraft): Promise<boolean> {
 }
 
 /**
- * Renames one.
+ * Whether two nicknames are the same name **as the server judges it**: it
+ * lower-cases both before comparing, for duplicates and for "unchanged" alike.
  *
- * There is no "clear the name back to the one it came with" any more: the
- * server supplies the default at the moment of saving and has no endpoint for
+ * Which means a change of case alone is not a change. The server answers it
+ * "Same nickname provided. Unchanged." and keeps the old spelling, so a
+ * caller treats it as nothing to send — showing the new spelling first would
+ * only be a name that snaps back.
+ */
+export function sameNickname(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+/**
+ * Why the server would refuse this name, or null if it would take it.
+ *
+ * The same rules `changeUserSaved*Nickname` and its validator apply, checked
+ * here first because the rename is drawn **before** the server answers: a
+ * name that is shown and then reverted is worse than one refused outright, so
+ * every refusal that can be known in advance is made in advance. The server
+ * still decides — this list can be a moment behind it — and anything it
+ * refuses that this did not foresee is undone.
+ */
+function nicknameRefusal(kind: FavouriteKind, itemId: string, nickname: string): ApiError | null {
+  const refuse = (code: string) =>
+    new ApiError('http', `Refused before sending: ${code}`, { status: 400, code });
+
+  const name = nickname.trim();
+  if (name === '' || name.length > NICKNAME_LIMIT) return refuse('INVALID_SUBMISSION');
+
+  // Unique within its own kind only: a stop and a journey may share a name.
+  const taken = state.items.some(
+    (favourite) =>
+      favourite.kind === kind &&
+      favourite.id !== itemId &&
+      favourite.nickname !== null &&
+      sameNickname(favourite.nickname, name),
+  );
+  return taken ? refuse(DUPLICATE_NICKNAME) : null;
+}
+
+/** Puts one nickname into the list as it stands, keeping everything else. */
+function withNickname(itemId: string, kind: FavouriteKind, nickname: string): void {
+  commit({
+    ...state,
+    items: state.items.map((favourite) =>
+      favourite.kind === kind && favourite.id === itemId ? { ...favourite, nickname } : favourite,
+    ),
+  });
+}
+
+/**
+ * Renames one, **optimistically**: the new name is in the store, and so on
+ * every surface that reads it, the moment this is called.
+ *
+ * Only after {@link nicknameRefusal} has passed it — a name the server is
+ * known to refuse rejects here without being drawn or sent. If the server
+ * refuses it anyway, the old name comes back, but only if this rename's name
+ * is still the one showing: a second rename made meanwhile is not undone by
+ * the first one failing.
+ *
+ * There is no "clear the name back to the one it came with": the server
+ * supplies the default at the moment of saving and has no endpoint for
  * restoring it, so an empty field is refused rather than silently doing
- * something else. `renameSavedItem` is where that refusal lives.
+ * something else.
  */
 export async function renameFavourite(
   kind: FavouriteKind,
   itemId: string,
   nickname: string,
 ): Promise<void> {
+  const refusal = nicknameRefusal(kind, itemId, nickname);
+  if (refusal !== null) throw refusal;
+
+  const name = nickname.trim();
+  // Nothing to draw early for a row this list does not hold; it is still sent.
+  const previous = state.items.find((f) => f.kind === kind && f.id === itemId)?.nickname ?? null;
+
+  withNickname(itemId, kind, name);
   try {
-    accept(await renameSavedItem(kind, itemId, nickname));
+    accept(await renameSavedItem(kind, itemId, name));
   } catch (error: unknown) {
+    const now = state.items.find((f) => f.kind === kind && f.id === itemId);
+    if (now !== undefined && now.nickname === name && previous !== null) {
+      withNickname(itemId, kind, previous);
+    }
     rethrow(error);
   }
 }

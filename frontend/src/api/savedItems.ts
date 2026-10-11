@@ -36,6 +36,9 @@ export const ALREADY_SAVED = 'ALREADY_SAVED';
 /** Another saved item of the same kind already has the requested nickname. */
 export const DUPLICATE_NICKNAME = 'DUPLICATE_NICKNAME';
 
+/** The longest nickname the server's validator accepts for a saved item. */
+export const NICKNAME_LIMIT = 40;
+
 /** Five of this kind are already saved. */
 export const SAVED_LIMIT_REACHED = 'SAVED_LIMIT_REACHED';
 

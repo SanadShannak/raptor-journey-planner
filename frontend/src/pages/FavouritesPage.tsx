@@ -55,7 +55,7 @@ export default function FavouritesPage() {
    * three requests nobody looking at a timetable has any use for.
    */
   useLoadFavourites();
-  const { status, items: favourites, error } = useSavedState();
+  const { status, items: favourites, error, answered } = useSavedState();
 
   const [timezone, setTimezone] = useState<string | null>(null);
   const [networkToday, setNetworkToday] = useState<string | null>(null);
@@ -453,13 +453,13 @@ export default function FavouritesPage() {
             entitled to hold its announcements back from.
           */}
           <p role="status" className="sr-only">
-            {status !== 'ready' && favourites.length === 0
+            {!answered
               ? t(strings.favourites.loadingSaved)
               : ''}
           </p>
           <div
             className="flex flex-col gap-2"
-            aria-busy={status === 'loading' && favourites.length === 0 ? true : undefined}
+            aria-busy={status === 'loading' && !answered ? true : undefined}
           >
           {rows.map(({ kind, heading, empty }) => {
             const mine = favourites.filter((favourite) => favourite.kind === kind);
@@ -519,12 +519,19 @@ export default function FavouritesPage() {
                 {mine.length === 0 ? (
                   /*
                     "Nothing saved yet" is a claim about the account, and it is
-                    not one this page can make until the answer has arrived.
-                    While the first load is in flight it says so instead —
-                    otherwise every visit opens by stating three things that
-                    may well be false and then correcting itself.
+                    not one this page can make until an answer has arrived.
+                    Until then every row is a placeholder — otherwise a visit
+                    opens by stating things that may well be false and then
+                    correcting itself.
+
+                    `answered`, not `status === 'ready'`: opening the page asks
+                    again, and during that refetch the previous answer is still
+                    the best one there is. Keyed on status, a row with cards
+                    kept them while an empty row beside it fell back to a
+                    placeholder — two rows of one answer telling different
+                    stories. Every row now shows the same answer, or none does.
                   */
-                  status === 'ready' ? (
+                  answered ? (
                     <p className="rounded-card border-border bg-surface-muted text-content-muted motion-safe:animate-content-in border px-3 py-2.5 text-sm">
                       {t(empty)}
                     </p>
