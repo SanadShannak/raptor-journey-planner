@@ -306,6 +306,15 @@ export default function PlanPage() {
 
   const requestId = useRef(0);
   const mapRef = useRef<HTMLElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const revealPending = useRef(false);
+  useEffect(() => {
+    if (!revealPending.current || journeys.length === 0) return;
+    revealPending.current = false;
+    bringIntoView(resultsRef.current);
+    // `bringIntoView` reads only refs and the window.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [journeys]);
   /** Bumped to re-run the startup effect when the service comes back. */
   const [attempt, setAttempt] = useState(0);
 
@@ -616,38 +625,64 @@ export default function PlanPage() {
      */
     clearResults();
     void search(values, 'replace').then((found) => {
-      if (found) revealMap();
+      if (found) revealResults();
     });
   }
 
   /**
-   * Brings the map back into view once a search has something to draw.
+   * Scrolls the stacked layout to one of its parts, when it is out of view.
    *
-   * Only on the stacked layout. There the map sits above the form, and the
-   * button that runs a search is far enough below it that pressing it leaves
-   * the map scrolled off the top: the route was drawn, the first result was
-   * chosen, and nothing on screen changed but a spinner coming and going.
-   * Side by side, from `lg`, the map never leaves the screen and moving the
-   * page would only be a jolt.
-   *
-   * Only when the map is actually out of view, too — a search run with the
-   * map already on screen has nothing to reveal. Focus stays where it is:
-   * the live region in the sidebar is what tells a screen reader the search
-   * finished, and pulling focus to a map would strand a keyboard user above
-   * the results they asked for.
+   * Only on the stacked layout. Side by side, from `lg`, the sidebar and the
+   * map are both always on screen and moving the page would only be a jolt.
+   * Focus stays where it is: the live region in the sidebar is what tells a
+   * screen reader the search finished.
    *
    * Instant rather than smooth for anyone who has asked for less movement.
    * The stylesheet's reduced-motion rule cannot reach this — a scroll started
    * from script takes its behaviour from the call, not from CSS.
    */
-  function revealMap() {
-    const map = mapRef.current;
-    if (map === null || typeof window.matchMedia !== 'function') return;
+  function bringIntoView(element: HTMLElement | null) {
+    if (element === null || typeof window.matchMedia !== 'function') return;
     if (window.matchMedia(SIDE_BY_SIDE).matches) return;
-    if (map.getBoundingClientRect().top >= 0) return;
+
+    const { top } = element.getBoundingClientRect();
+    const margin = 16;
+    // Already near the top of the screen: nothing to bring in.
+    if (top >= 0 && top <= window.innerHeight / 3) return;
 
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    map.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+    window.scrollBy({ top: top - margin, behavior: reduced ? 'auto' : 'smooth' });
+  }
+
+  /**
+   * After a search that found something, the results.
+   *
+   * On a phone the button that runs a search is at the foot of the form, and
+   * the answers arrive below it — so pressing it used to leave the page
+   * where it was, with a spinner coming and going and nothing else visibly
+   * changing. It went to the map for a while; the cards are the better
+   * landing, because they are what a choice is made from, and pressing one
+   * brings the map to it (see `selectJourney`).
+   *
+   * Flagged here and done by the effect below, once the cards have actually
+   * been drawn — measured any sooner, they are not there yet.
+   */
+  function revealResults() {
+    revealPending.current = true;
+  }
+
+  /**
+   * Choosing a journey from the list. On a phone, where the map is above the
+   * form and out of sight, it comes into view to show the journey chosen;
+   * pressing the chosen one again opens it, as everywhere.
+   */
+  function selectJourney(index: number) {
+    if (index === active) {
+      setOpenIndex(index);
+      return;
+    }
+    setSelectedIndex(index);
+    bringIntoView(mapRef.current);
   }
 
   /** Shifts the query a minute past the last departure already shown. */
@@ -849,18 +884,14 @@ export default function PlanPage() {
               {journeys.length > 0 && (
                 <>
                   {/* Wrapped only so the tour has the list to point at. */}
-                  <div data-tour="plan-results" className="flex flex-col gap-3">
+                  <div ref={resultsRef} data-tour="plan-results" className="flex flex-col gap-3">
                   {journeys.map((journey, index) => (
                     <ItineraryOverview
                       key={`${journey.startDate}-${journey.startTime}-${index}`}
                       journey={journey}
                       searchedDate={values.date}
                       selected={index === active}
-                      onOpen={() =>
-                        index === active
-                          ? setOpenIndex(index)
-                          : setSelectedIndex(index)
-                      }
+                      onOpen={() => selectJourney(index)}
                     />
                   ))}
                   </div>
