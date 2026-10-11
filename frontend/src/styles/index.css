@@ -477,11 +477,32 @@
   }
 }
 
+/*
+ * The star filling on a press.
+ *
+ * It fills before the server has answered, so this is the acknowledgement of
+ * the press rather than of the save — a quick swell and back, about a fifth
+ * of a second, which on a phone is the only sign the tap landed. Scaled from
+ * the middle so it stays centred in its box and nudges nothing beside it.
+ */
+@keyframes star-pop {
+  40% {
+    transform: scale(1.25);
+  }
+}
+
 @theme {
+  --animate-star-pop: star-pop 220ms ease-out;
   --animate-settle-in: settle-in 160ms ease-out both;
   --animate-fade-in: fade-in 140ms ease-out both;
   --animate-dialog-in: dialog-in 180ms ease-out both;
   --animate-backdrop-in: backdrop-in 240ms ease-out both;
+  /*
+   * Loading placeholders: the same fade as a name over a stop, held back a
+   * quarter of a second first so an answer that arrives inside that never
+   * shows them at all. See `PlaceholderGroup`.
+   */
+  --animate-placeholder-in: fade-in 200ms ease-out 250ms both;
 }
 
 /*

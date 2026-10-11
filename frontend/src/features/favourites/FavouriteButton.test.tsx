@@ -167,14 +167,35 @@ describe('the star', () => {
     expect(screen.queryByText('This stop is already saved.')).toBeNull();
   });
 
-  /* The fill follows the stored row, so it only fills once the save happened. */
-  it('fills only after the server has saved it', async () => {
+  /*
+   * The star answers the press at once and the server catches up. Waiting a
+   * round trip to fill read as a press that missed, and got pressed again.
+   */
+  it('fills as soon as it is pressed, and stays filled once saved', async () => {
     stubApi();
     const button = await star();
     expect(button.getAttribute('aria-pressed')).toBe('false');
 
     fireEvent.click(button);
 
-    await vi.waitFor(() => expect(button.getAttribute('aria-pressed')).toBe('true'));
+    expect(button.getAttribute('aria-pressed')).toBe('true');
+    expect(button.getAttribute('aria-busy')).toBe('true');
+
+    await vi.waitFor(() => expect(button.getAttribute('aria-busy')).toBeNull());
+    expect(button.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  /* A refusal undoes the guess, and says why rather than quietly un-filling. */
+  it('goes back to empty when the server refuses the save', async () => {
+    stubApi({
+      write: { body: { message: 'This stop is already saved.' }, status: 400 },
+    });
+    const button = await star();
+
+    fireEvent.click(button);
+    expect(button.getAttribute('aria-pressed')).toBe('true');
+
+    await screen.findByRole('alert');
+    expect(button.getAttribute('aria-pressed')).toBe('false');
   });
 });

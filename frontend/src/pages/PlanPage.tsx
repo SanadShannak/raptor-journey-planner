@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { PendingLabel } from '../components/Pending';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { stopPath, tripPath } from '../app/routes';
 import { ScheduleEstimateNotice } from '../components/ScheduleEstimateNotice';
@@ -872,9 +873,11 @@ export default function PlanPage() {
                     disabled={extending}
                     className="rounded-control border-border-strong text-content hover:bg-surface-muted focus-visible:outline-brand-500 cursor-pointer self-center px-4 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-progress disabled:opacity-70"
                   >
-                    {extending
-                      ? t(strings.planner.searching)
-                      : t(strings.planner.later)}
+                    <PendingLabel pending={extending}>
+                      {extending
+                        ? t(strings.planner.searching)
+                        : t(strings.planner.later)}
+                    </PendingLabel>
                   </button>
 
                   {exhausted !== null && (

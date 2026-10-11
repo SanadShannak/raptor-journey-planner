@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Placeholder, PlaceholderGroup } from '../components/Pending';
 import { usePageTitle } from '../app/usePageTitle';
 import { getNetwork } from '../api/network';
 import { AccountGate } from '../auth';
@@ -310,6 +311,17 @@ export default function FavouritesPage() {
             state during a refetch, and a page that announced itself busy every
             time a rename came back would interrupt constantly.
           */
+          <>
+          {/*
+            The placeholders below are silent, so the wait is said here, once
+            for the page — outside the busy region, which a screen reader is
+            entitled to hold its announcements back from.
+          */}
+          <p role="status" className="sr-only">
+            {status !== 'ready' && favourites.length === 0
+              ? t(strings.favourites.loadingSaved)
+              : ''}
+          </p>
           <div
             className="flex flex-col gap-2"
             aria-busy={status === 'loading' && favourites.length === 0 ? true : undefined}
@@ -373,9 +385,31 @@ export default function FavouritesPage() {
                     otherwise every visit opens by stating three things that
                     may well be false and then correcting itself.
                   */
-                  <p className="rounded-card border-border bg-surface-muted text-content-muted border px-3 py-2.5 text-sm">
-                    {t(status === 'ready' ? empty : strings.favourites.loadingSaved)}
-                  </p>
+                  status === 'ready' ? (
+                    <p className="rounded-card border-border bg-surface-muted text-content-muted border px-3 py-2.5 text-sm">
+                      {t(empty)}
+                    </p>
+                  ) : (
+                    /*
+                      Card-shaped, at a card's width, so the row does not jump
+                      when the real ones replace them. The words are said once
+                      for the page, below, rather than three times here.
+                    */
+                    <PlaceholderGroup className="flex flex-wrap gap-3">
+                      {[0, 1].map((card) => (
+                        <span
+                          key={card}
+                          className="rounded-card border-border flex w-80 max-w-full flex-col gap-2 border p-2.5"
+                        >
+                          <Placeholder className="h-5 w-2/3" />
+                          <Placeholder className="h-3 w-1/4" />
+                          <Placeholder className="mt-1 h-4 w-full" />
+                          <Placeholder className="h-4 w-5/6" />
+                          <Placeholder className="h-4 w-4/6" />
+                        </span>
+                      ))}
+                    </PlaceholderGroup>
+                  )
                 ) : (
                   <FavouriteRow
                     favourites={mine}
@@ -391,6 +425,7 @@ export default function FavouritesPage() {
             );
           })}
           </div>
+          </>
         )}
       </AccountGate>
     </div>

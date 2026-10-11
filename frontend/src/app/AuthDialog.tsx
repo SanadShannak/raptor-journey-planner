@@ -1,4 +1,6 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import { PendingLabel } from '../components/Pending';
+import { pendingButtonClass } from '../components/pendingButtonClass';
 import { isApiError } from '../api/errors';
 import { INVALID_SUBMISSION } from '../api/auth';
 import { useSession } from '../auth';
@@ -272,15 +274,17 @@ export function AuthDialog({ mode, onChangeMode, onClose }: Props) {
           type="submit"
           disabled={pending}
           aria-busy={pending || undefined}
-          className="rounded-control bg-brand-fill text-on-brand focus-visible:outline-brand-500 cursor-pointer px-4 py-2 font-medium focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+          className={`rounded-control bg-brand-fill text-on-brand focus-visible:outline-brand-500 cursor-pointer px-4 py-2 font-medium focus-visible:outline-2 focus-visible:outline-offset-2 ${pendingButtonClass(pending)}`}
         >
-          {t(
-            pending
-              ? strings.auth.submitting
-              : isSignUp
-                ? strings.auth.submitSignUp
-                : strings.auth.submitLogIn,
-          )}
+          <PendingLabel pending={pending}>
+            {t(
+              pending
+                ? strings.auth.submitting
+                : isSignUp
+                  ? strings.auth.submitSignUp
+                  : strings.auth.submitLogIn,
+            )}
+          </PendingLabel>
         </button>
 
         <button

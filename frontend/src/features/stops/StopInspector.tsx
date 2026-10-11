@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { Placeholder, PlaceholderGroup } from '../../components/Pending';
 import { getStopBoard, getStopTimetable } from '../../api/stops';
 import { useBackendHealth } from '../../app/useBackendHealth';
 import { DateSelect } from '../../components/DateSelect';
@@ -239,7 +240,14 @@ export function StopInspector({
       )}
 
       {stop === null && loading && service !== 'down' && (
-        <p className="text-content-muted text-sm">{t(strings.stops.loadingStop)}</p>
+        <PlaceholderGroup label={strings.stops.loadingStop} className="flex flex-col gap-3">
+          <Placeholder className="h-7 w-2/3" />
+          <Placeholder className="h-4 w-1/3" />
+          <Placeholder className="mt-2 h-9 w-full" />
+          {[0, 1, 2, 3, 4].map((row) => (
+            <Placeholder key={row} className="h-6 w-full" />
+          ))}
+        </PlaceholderGroup>
       )}
 
       {stop !== null && (

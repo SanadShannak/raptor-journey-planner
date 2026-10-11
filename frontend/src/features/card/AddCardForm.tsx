@@ -1,4 +1,6 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import { PendingLabel } from '../../components/Pending';
+import { pendingButtonClass } from '../../components/pendingButtonClass';
 import { CARD_LIMIT } from '../../api/cards';
 import { Select } from '../../components/Select';
 import { messageForApiError, useLocale } from '../../i18n';
@@ -198,9 +200,11 @@ export function AddCardForm({ full, hasCards, onAdded }: Props) {
         type="submit"
         disabled={pending || full}
         aria-busy={pending || undefined}
-        className="rounded-control bg-brand-fill text-on-brand focus-visible:outline-brand-500 cursor-pointer px-4 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+        className={`rounded-control bg-brand-fill text-on-brand focus-visible:outline-brand-500 cursor-pointer px-4 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 ${pendingButtonClass(pending)}`}
       >
-        {t(pending ? strings.card.adding : strings.card.add)}
+        <PendingLabel pending={pending}>
+          {t(pending ? strings.card.adding : strings.card.add)}
+        </PendingLabel>
       </button>
 
       <div aria-live="polite">

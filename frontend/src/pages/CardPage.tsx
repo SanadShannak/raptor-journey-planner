@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { Placeholder, PlaceholderGroup } from '../components/Pending';
 import { usePageTitle } from '../app/usePageTitle';
 import { getNetwork } from '../api/network';
 import { CARD_LIMIT } from '../api/cards';
@@ -164,13 +165,30 @@ export default function CardPage() {
                       "No cards yet" is a claim about the account, and not one
                       this page can make until the answer has arrived.
                     */
-                    <p className="rounded-card border-border bg-surface-muted text-content-muted border px-3 py-2.5 text-sm">
-                      {t(
-                        status === 'ready'
-                          ? strings.card.noCards
-                          : strings.card.loadingCards,
-                      )}
-                    </p>
+                    status === 'ready' ? (
+                      <p className="rounded-card border-border bg-surface-muted text-content-muted border px-3 py-2.5 text-sm">
+                        {t(strings.card.noCards)}
+                      </p>
+                    ) : (
+                      // Two rows the shape of a card in the list.
+                      <PlaceholderGroup
+                        label={strings.card.loadingCards}
+                        className="flex flex-col gap-2"
+                      >
+                        {[0, 1].map((row) => (
+                          <span
+                            key={row}
+                            className="rounded-card border-border flex items-center justify-between gap-3 border px-3 py-2.5"
+                          >
+                            <span className="flex flex-1 flex-col gap-1.5">
+                              <Placeholder className="h-4 w-1/2" />
+                              <Placeholder className="h-3 w-1/3" />
+                            </span>
+                            <Placeholder className="h-5 w-16" />
+                          </span>
+                        ))}
+                      </PlaceholderGroup>
+                    )
                   ) : (
                     <ul aria-labelledby={listHeadingId} className="flex flex-col gap-2">
                       {cards.map((card) => {

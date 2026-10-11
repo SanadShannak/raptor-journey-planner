@@ -1,4 +1,6 @@
 import { useId, useState, type FormEvent } from 'react';
+import { PendingLabel } from '../../components/Pending';
+import { pendingButtonClass } from '../../components/pendingButtonClass';
 import { messageForApiError, useLocale } from '../../i18n';
 import type { Message } from '../../i18n/dictionary';
 import { amountProblem, toAmountPayload } from './amount';
@@ -126,9 +128,9 @@ export function AmountForm({ label, action, pendingAction, onSubmit }: Props) {
           type="submit"
           disabled={pending}
           aria-busy={pending || undefined}
-          className="rounded-control bg-action text-on-action hover:bg-action-hover hover:text-on-action-hover focus-visible:outline-brand-500 flex-none cursor-pointer px-4 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+          className={`rounded-control bg-action text-on-action hover:bg-action-hover hover:text-on-action-hover focus-visible:outline-brand-500 flex-none cursor-pointer px-4 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 ${pendingButtonClass(pending)}`}
         >
-          {t(pending ? pendingAction : action)}
+          <PendingLabel pending={pending}>{t(pending ? pendingAction : action)}</PendingLabel>
         </button>
       </div>
 

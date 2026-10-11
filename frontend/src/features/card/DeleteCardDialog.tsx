@@ -1,4 +1,6 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import { PendingLabel } from '../../components/Pending';
+import { pendingButtonClass } from '../../components/pendingButtonClass';
 import { verifyPassword } from '../../api/auth';
 import { messageForApiError, useLocale } from '../../i18n';
 import type { TravelCard } from '../../types/card';
@@ -164,9 +166,11 @@ export function DeleteCardDialog({ card, onDeleted, onClose }: Props) {
             type="submit"
             disabled={pending}
             aria-busy={pending || undefined}
-            className="rounded-control border-danger text-danger focus-visible:outline-brand-500 cursor-pointer border px-4 py-2 text-sm font-semibold hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+            className={`rounded-control border-danger text-danger focus-visible:outline-brand-500 cursor-pointer border px-4 py-2 text-sm font-semibold hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 ${pendingButtonClass(pending)}`}
           >
-            {t(pending ? strings.card.discardPending : strings.card.discardYes)}
+            <PendingLabel pending={pending}>
+              {t(pending ? strings.card.discardPending : strings.card.discardYes)}
+            </PendingLabel>
           </button>
         </div>
       </form>
