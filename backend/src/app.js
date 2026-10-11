@@ -4,6 +4,7 @@ const cookieParser = require("cookie-parser");
 const pinoHttp = require("pino-http");
 const logger = require("./utils/logger");
 const { notFound, errorHandler } = require("./middleware/errorHandler");
+const helmet = require("helmet");
 
 const validDatesApi = require("./routes/validDatesApi");
 const plannerApi = require("./routes/plannerApi");
@@ -33,6 +34,9 @@ const app = express();
  * need reading: a 5xx is an error, a 4xx a warning, everything else info.
  * The health check is not logged at all — Docker asks it every 30 seconds.
  */
+
+app.set("trust proxy", 2);
+
 app.use(
   pinoHttp({
     logger,
@@ -52,7 +56,7 @@ app.use(
     },
   }),
 );
-
+app.use(helmet());
 app.use(cors({ credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
