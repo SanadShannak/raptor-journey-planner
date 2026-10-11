@@ -89,6 +89,9 @@ function TourDialog({ id, step }: { id: TourId; step: number }) {
    * only by steps that genuinely had nothing to show.
    */
   const [skipped, setSkipped] = useState<ReadonlySet<number>>(new Set());
+  /** Steps the reader has been shown, kept current during render. */
+  const [visited, setVisited] = useState<ReadonlySet<number>>(() => new Set([step]));
+  if (!visited.has(step)) setVisited(new Set(visited).add(step));
   /*
    * And steps that plainly cannot appear: no element on the page now, and
    * nothing earlier in the tour that could bring one — no scene that opens
@@ -102,9 +105,9 @@ function TourDialog({ id, step }: { id: TourId; step: number }) {
       entry.scene !== undefined ||
       steps.slice(0, index).some((earlier) => earlier.scene !== undefined) ||
       findTarget(entry.target) !== null;
-    // Steps already passed stay counted even once a scene has taken their
-    // element off the page — they were shown.
-    return couldAppear || index <= step ? [index] : [];
+    // Steps already shown stay counted even once a scene has taken their
+    // element off the page.
+    return couldAppear || visited.has(index) ? [index] : [];
   });
   const position = shown.indexOf(step);
   const previous = shown.filter((index) => index < step).at(-1);
