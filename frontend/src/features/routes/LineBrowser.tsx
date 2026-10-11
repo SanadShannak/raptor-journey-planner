@@ -213,7 +213,16 @@ export function LineBrowser({ availableModes, onOpen }: Props) {
         </PlaceholderGroup>
       )}
 
-      <ul data-tour="routes-list" className="flex flex-col">
+      {/*
+        Keyed on whether the list has arrived, so it mounts afresh at that
+        moment and fades in over the placeholder rows rather than replacing
+        them in one frame.
+      */}
+      <ul
+        key={lines === null ? 'waiting' : 'loaded'}
+        data-tour="routes-list"
+        className="motion-safe:animate-content-in flex flex-col"
+      >
         {shown.map((line) => (
           <li key={line.lineId}>
             <button

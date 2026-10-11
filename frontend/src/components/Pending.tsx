@@ -67,12 +67,15 @@ export function Placeholder({ className = '' }: { className?: string | undefined
 }
 
 /**
- * A group of {@link Placeholder}s, appearing only if the wait is real.
+ * A group of {@link Placeholder}s, there from the very first frame.
  *
- * Held back for a moment before it fades in. Most answers here arrive in
- * well under that — the feed is in memory — and shapes that flashed for a
- * frame and were replaced read as flicker rather than as loading. A wait long
- * enough to notice gets them; one too short to notice gets nothing.
+ * It used to wait a quarter of a second and then fade in, on the theory that
+ * a fast answer should never show placeholders at all. In practice that was
+ * the worst of both: the space sat empty, *then* the shapes arrived, *then*
+ * the content replaced them — three states for one wait. Now the shapes are
+ * simply what the space looks like until the content is ready, and it is the
+ * content that fades in over them (`animate-content-in`), so a quick answer
+ * reads as the page settling rather than flickering.
  *
  * With a `label` it is also the announcement: a polite status whose words a
  * screen reader reads while everyone else sees the shapes. Without one it is
@@ -90,12 +93,30 @@ export function PlaceholderGroup({
   const { t } = useLocale();
 
   return (
-    <div
-      role={label === undefined ? undefined : 'status'}
-      className={`motion-safe:animate-placeholder-in ${className}`}
-    >
+    <div role={label === undefined ? undefined : 'status'} className={className}>
       {label !== undefined && <span className="sr-only">{t(label)}</span>}
       {children}
     </div>
+  );
+}
+
+/**
+ * A timetable on its way: a header row and a column of times.
+ *
+ * Shared by a stop's day and a route's day, which are both a grid of times
+ * under a short heading, and fetched separately from the page around them
+ * each time a different day is picked.
+ */
+export function TimetablePlaceholder() {
+  return (
+    <PlaceholderGroup className="flex flex-col gap-2">
+      <Placeholder className="h-5 w-1/3" />
+      {[0, 1, 2, 3, 4, 5, 6].map((row) => (
+        <span key={row} className="flex items-center gap-3">
+          <Placeholder className="h-5 w-12" />
+          <Placeholder className="h-5 flex-1" />
+        </span>
+      ))}
+    </PlaceholderGroup>
   );
 }

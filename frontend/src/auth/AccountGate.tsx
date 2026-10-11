@@ -15,6 +15,16 @@ interface Props {
   reason: Message;
   /** Shown once the server has confirmed an account. */
   children: ReactNode;
+  /**
+   * What the page looks like while the session is still being checked — the
+   * same placeholders its content shows while *it* loads.
+   *
+   * Without one, the gate shows its own "checking your account" panel. With
+   * one, a returning visitor sees the page's own shapes from the first frame
+   * straight through to their content, instead of a spinner panel that is
+   * then swapped for placeholders that are then swapped for the content.
+   */
+  placeholder?: ReactNode | undefined;
 }
 
 /**
@@ -49,7 +59,7 @@ interface Props {
  * sign-in form against a backend that is not answering sends somebody to a
  * form that will fail the same way.
  */
-export function AccountGate({ reason, children }: Props) {
+export function AccountGate({ reason, children, placeholder }: Props) {
   const { strings, t } = useLocale();
   const { signedIn, checking, unreachable } = useSession();
 
@@ -65,6 +75,17 @@ export function AccountGate({ reason, children }: Props) {
    * answer arriving changes the words inside a box that was already there
    * rather than replacing one box with a different one.
    */
+  if (checking && placeholder !== undefined) {
+    return (
+      <div aria-busy="true">
+        <p role="status" className="sr-only">
+          {t(strings.account.checking)}
+        </p>
+        {placeholder}
+      </div>
+    );
+  }
+
   if (checking) {
     return (
       <div className="rounded-card border-border bg-surface-raised motion-safe:animate-fade-in flex flex-col items-center gap-4 border px-6 py-10 text-center">

@@ -526,11 +526,13 @@
   --animate-dialog-in: dialog-in 180ms ease-out both;
   --animate-backdrop-in: backdrop-in 240ms ease-out both;
   /*
-   * Loading placeholders: the same fade as a name over a stop, held back a
-   * quarter of a second first so an answer that arrives inside that never
-   * shows them at all. See `PlaceholderGroup`.
+   * Content arriving where placeholders stood. Opacity only, and a little
+   * slower than anything else here — about a third of a second — so the swap
+   * from grey shapes to real content reads as the page settling rather than
+   * as one thing being cut for another. No movement: a transform on a box
+   * this size would also re-anchor anything fixed inside it while it ran.
    */
-  --animate-placeholder-in: fade-in 200ms ease-out 250ms both;
+  --animate-content-in: fade-in 320ms ease-out both;
 }
 
 /*

@@ -345,7 +345,19 @@ export default function FavouritesPage() {
         still worth reading, and a visitor who signs in from here is still on
         the page they asked for. See `AccountGate`.
       */}
-      <AccountGate reason={strings.account.favouritesNeedAccount}>
+      <AccountGate
+        reason={strings.account.favouritesNeedAccount}
+        placeholder={
+          <div className="flex flex-col gap-2">
+            {rows.map(({ kind, heading }) => (
+              <section key={kind} className="flex shrink-0 flex-col gap-2">
+                <h2 className="text-lg font-semibold tracking-tight">{t(heading)}</h2>
+                <FavouriteCardsPlaceholder />
+              </section>
+            ))}
+          </div>
+        }
+      >
         {/*
           The list could not be fetched. Said once for the page rather than per
           row — three copies of one network failure is three times the words and
@@ -459,7 +471,7 @@ export default function FavouritesPage() {
                     may well be false and then correcting itself.
                   */
                   status === 'ready' ? (
-                    <p className="rounded-card border-border bg-surface-muted text-content-muted border px-3 py-2.5 text-sm">
+                    <p className="rounded-card border-border bg-surface-muted text-content-muted motion-safe:animate-content-in border px-3 py-2.5 text-sm">
                       {t(empty)}
                     </p>
                   ) : (
@@ -468,20 +480,7 @@ export default function FavouritesPage() {
                       when the real ones replace them. The words are said once
                       for the page, below, rather than three times here.
                     */
-                    <PlaceholderGroup className="flex flex-wrap gap-3">
-                      {[0, 1].map((card) => (
-                        <span
-                          key={card}
-                          className="rounded-card border-border flex w-80 max-w-full flex-col gap-2 border p-2.5"
-                        >
-                          <Placeholder className="h-5 w-2/3" />
-                          <Placeholder className="h-3 w-1/4" />
-                          <Placeholder className="mt-1 h-4 w-full" />
-                          <Placeholder className="h-4 w-5/6" />
-                          <Placeholder className="h-4 w-4/6" />
-                        </span>
-                      ))}
-                    </PlaceholderGroup>
+                    <FavouriteCardsPlaceholder />
                   )
                 ) : (
                   <FavouriteRow
@@ -550,7 +549,7 @@ function FavouriteRow({
       is what the padding and negative margin used to be for, and with nothing
       clipping there is nothing to compensate for.
     */
-    <div data-row ref={rowRef} className="shrink-0">
+    <div data-row ref={rowRef} className="motion-safe:animate-content-in shrink-0">
       <ul className="flex flex-wrap items-stretch gap-3">
         {favourites.map((favourite, index) => {
           const key = identity(favourite);
@@ -621,4 +620,28 @@ function Card({
         <FavouriteJourneyRow favourite={favourite} timezone={timezone} {...shared} />
       );
   }
+}
+
+/**
+ * Two cards' worth of placeholders, at a card's width, so a row does not jump
+ * when the real ones replace them. Silent: the page says it is loading once,
+ * rather than once per row.
+ */
+function FavouriteCardsPlaceholder() {
+  return (
+    <PlaceholderGroup className="flex flex-wrap gap-3">
+      {[0, 1].map((card) => (
+        <span
+          key={card}
+          className="rounded-card border-border flex w-80 max-w-full flex-col gap-2 border p-2.5"
+        >
+          <Placeholder className="h-5 w-2/3" />
+          <Placeholder className="h-3 w-1/4" />
+          <Placeholder className="mt-1 h-4 w-full" />
+          <Placeholder className="h-4 w-5/6" />
+          <Placeholder className="h-4 w-4/6" />
+        </span>
+      ))}
+    </PlaceholderGroup>
+  );
 }

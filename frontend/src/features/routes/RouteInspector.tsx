@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Placeholder, PlaceholderGroup } from '../../components/Pending';
+import { Placeholder, PlaceholderGroup, TimetablePlaceholder } from '../../components/Pending';
 import { getLine, getLineVariant, getVariantTimetable } from '../../api/routes';
 import { useBackendHealth } from '../../app/useBackendHealth';
 import { DateSelect } from '../../components/DateSelect';
@@ -433,6 +433,7 @@ export function RouteInspector({
       </button>
 
       {variant !== null && (
+        <div className="motion-safe:animate-content-in">
         <RouteHeader
           variant={variant}
           span={span}
@@ -450,6 +451,7 @@ export function RouteInspector({
             flipTarget === null ? null : () => onSelectVariant(flipTarget.patternId)
           }
         />
+        </div>
       )}
 
       {/*
@@ -480,8 +482,9 @@ export function RouteInspector({
         </PlaceholderGroup>
       )}
 
+      {/* Fades in over the placeholders it replaces; see `animate-content-in`. */}
       {variant !== null && (
-        <>
+        <div className="motion-safe:animate-content-in flex flex-col gap-5">
           {line !== null && (
             <VariantPicker
               variants={line.variants}
@@ -635,8 +638,12 @@ export function RouteInspector({
                 vehicles={vehicles}
               />
             </>
+          ) : dayTimetable === null ? (
+            // Only while a day is actually being fetched: no day, or a failed
+            // one, already says so above.
+            shownDate !== '' && errorMessage === null && <TimetablePlaceholder />
           ) : (
-            dayTimetable !== null && (
+            <div key={dayTimetable.date} className="motion-safe:animate-content-in">
               <TripTable
                 timetable={dayTimetable}
                 origin={pair.origin}
@@ -645,11 +652,11 @@ export function RouteInspector({
                 onDestinationChange={setDestination}
                 now={now}
               />
-            )
+            </div>
           )}
 
           <ScheduleEstimateNotice />
-        </>
+        </div>
       )}
     </div>
   );

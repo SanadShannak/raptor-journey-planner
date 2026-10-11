@@ -1,3 +1,4 @@
+import type { Message } from '../i18n/dictionary';
 import { useTour } from '../features/tour';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Placeholder, PlaceholderGroup } from '../components/Pending';
@@ -118,7 +119,17 @@ export default function CardPage() {
         still worth reading, and somebody who signs in from here is still on
         the page they asked for. See `AccountGate`.
       */}
-      <AccountGate reason={strings.account.walletNeedsAccount}>
+      <AccountGate
+        reason={strings.account.walletNeedsAccount}
+        placeholder={
+          <div className="flex max-w-[26rem] flex-col gap-2">
+            <h2 className="text-lg font-semibold tracking-tight">
+              {t(strings.card.myCardsTitle)}
+            </h2>
+            <CardRowsPlaceholder />
+          </div>
+        }
+      >
         {status === 'failed' ? (
           <div
             role="alert"
@@ -168,31 +179,17 @@ export default function CardPage() {
                       this page can make until the answer has arrived.
                     */
                     status === 'ready' ? (
-                      <p className="rounded-card border-border bg-surface-muted text-content-muted border px-3 py-2.5 text-sm">
+                      <p className="rounded-card border-border bg-surface-muted text-content-muted motion-safe:animate-content-in border px-3 py-2.5 text-sm">
                         {t(strings.card.noCards)}
                       </p>
                     ) : (
-                      // Two rows the shape of a card in the list.
-                      <PlaceholderGroup
-                        label={strings.card.loadingCards}
-                        className="flex flex-col gap-2"
-                      >
-                        {[0, 1].map((row) => (
-                          <span
-                            key={row}
-                            className="rounded-card border-border flex items-center justify-between gap-3 border px-3 py-2.5"
-                          >
-                            <span className="flex flex-1 flex-col gap-1.5">
-                              <Placeholder className="h-4 w-1/2" />
-                              <Placeholder className="h-3 w-1/3" />
-                            </span>
-                            <Placeholder className="h-5 w-16" />
-                          </span>
-                        ))}
-                      </PlaceholderGroup>
+                      <CardRowsPlaceholder label={strings.card.loadingCards} />
                     )
                   ) : (
-                    <ul aria-labelledby={listHeadingId} className="flex flex-col gap-2">
+                    <ul
+                      aria-labelledby={listHeadingId}
+                      className="motion-safe:animate-content-in flex flex-col gap-2"
+                    >
                       {cards.map((card) => {
                         const open = selected?.id === card.id;
                         return (
@@ -277,5 +274,25 @@ export default function CardPage() {
         )}
       </AccountGate>
     </div>
+  );
+}
+
+/** Two rows the shape of a card in the list, while the list is on its way. */
+function CardRowsPlaceholder({ label }: { label?: Message | undefined }) {
+  return (
+    <PlaceholderGroup label={label} className="flex flex-col gap-2">
+      {[0, 1].map((row) => (
+        <span
+          key={row}
+          className="rounded-card border-border flex items-center justify-between gap-3 border px-3 py-2.5"
+        >
+          <span className="flex flex-1 flex-col gap-1.5">
+            <Placeholder className="h-4 w-1/2" />
+            <Placeholder className="h-3 w-1/3" />
+          </span>
+          <Placeholder className="h-5 w-16" />
+        </span>
+      ))}
+    </PlaceholderGroup>
   );
 }

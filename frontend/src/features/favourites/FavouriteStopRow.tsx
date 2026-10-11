@@ -179,7 +179,7 @@ export function FavouriteStopRow({
         ) : departures.length === 0 ? (
           <p className="text-content-muted text-sm">{t(strings.favourites.noDepartures)}</p>
         ) : (
-          <ul className="flex flex-col text-sm">
+          <ul className="motion-safe:animate-content-in flex flex-col text-sm">
             {visible.map((departure, index) => (
               <DepartureRow
                 key={`${departure.tripId ?? departure.lineId}-${departure.date}-${departure.time}-${index}`}

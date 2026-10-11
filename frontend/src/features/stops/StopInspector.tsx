@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { Placeholder, PlaceholderGroup } from '../../components/Pending';
+import { Placeholder, PlaceholderGroup, TimetablePlaceholder } from '../../components/Pending';
 import { getStopBoard, getStopTimetable } from '../../api/stops';
 import { useBackendHealth } from '../../app/useBackendHealth';
 import { DateSelect } from '../../components/DateSelect';
@@ -214,7 +214,11 @@ export function StopInspector({
         </button>
       )}
 
-      {stop !== null && <StopHeader stop={stop} servingLines={servingLines} />}
+      {stop !== null && (
+        <div className="motion-safe:animate-content-in">
+          <StopHeader stop={stop} servingLines={servingLines} />
+        </div>
+      )}
 
       {/*
         The backend being down is a fact the shared header already states —
@@ -250,8 +254,9 @@ export function StopInspector({
         </PlaceholderGroup>
       )}
 
+      {/* Fades in over the placeholders it replaces; see `animate-content-in`. */}
       {stop !== null && (
-        <>
+        <div className="motion-safe:animate-content-in flex flex-col gap-5">
           {/*
             A radio group rather than two buttons: these are two answers to one
             question, exactly one of them is true at a time, and the arrow keys
@@ -323,12 +328,16 @@ export function StopInspector({
             ? board !== null && (
                 <UpcomingBoard board={board} now={now} selectedLines={selectedLines} />
               )
-            : timetable !== null && (
-                <DayTimetable timetable={timetable} selectedLines={selectedLines} />
+            : timetable !== null ? (
+                <div key={timetable.date} className="motion-safe:animate-content-in">
+                  <DayTimetable timetable={timetable} selectedLines={selectedLines} />
+                </div>
+              ) : (
+                loading && <TimetablePlaceholder />
               )}
 
           <ScheduleEstimateNotice />
-        </>
+        </div>
       )}
     </div>
   );

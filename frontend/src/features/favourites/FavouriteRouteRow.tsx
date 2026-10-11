@@ -238,7 +238,7 @@ export function FavouriteRouteRow({
             a row drags the eye off the column of times it belongs to — the
             same arrangement a stop's own departure row uses.
           */
-          <ul className="flex flex-col">
+          <ul className="motion-safe:animate-content-in flex flex-col">
             {visible.map((next) => (
               <li
                 key={`${next.call.date}-${next.call.time}`}

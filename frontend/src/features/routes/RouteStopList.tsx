@@ -1,3 +1,4 @@
+import { Placeholder } from '../../components/Pending';
 import { Link, useLocation } from 'react-router';
 import { formatClockTime, formatDate, useLocale } from '../../i18n';
 import type { Dictionary, Message } from '../../i18n/dictionary';
@@ -660,8 +661,18 @@ function NextDeparture({
   const { locale, strings, t } = useLocale();
 
   // Times are on their way. Say nothing rather than "nothing runs", which is a
-  // claim this row is not yet in a position to make.
-  if (pending) return <span className="w-28 flex-none" />;
+  // claim this row is not yet in a position to make — but hold the place with
+  // a placeholder the size of the time that is coming, when there is a day to
+  // fetch times for at all.
+  if (pending) {
+    return viewedDate === '' ? (
+      <span className="w-28 flex-none" />
+    ) : (
+      <span className="flex w-28 flex-none justify-end">
+        <Placeholder className="h-4 w-16" />
+      </span>
+    );
+  }
 
   if (next === null) {
     return (
