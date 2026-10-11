@@ -221,3 +221,9 @@ export function favouriteLabel(favourite: Favourite, fallback: string): string {
 export function toWalkingPace(value: unknown): WalkingPace {
   return WALKING_PACE_ORDER.find((pace) => pace === value) ?? DEFAULT_WALKING_PACE;
 }
+
+/** Where a pointer is, in viewport coordinates — what a drag follows. */
+export interface DragPoint {
+  x: number;
+  y: number;
+}

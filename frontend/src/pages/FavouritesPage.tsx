@@ -8,6 +8,7 @@ import type { Message } from '../i18n/dictionary';
 import {
   FAVOURITES_PER_KIND,
   identity,
+  type DragPoint,
   type Favourite,
   type FavouriteKind,
 } from '../features/favourites/favourite';
@@ -120,16 +121,54 @@ export default function FavouritesPage() {
   const EDGE = 72;
   const SPEED = 14;
 
-  const startDrag = (key: string) => {
+  const startDrag = (key: string, from: DragPoint) => {
     draggedRef.current = key;
     setDragged(key);
 
     /*
      * Everything the loop below needs, kept off React's state so a frame never
      * waits for a render.
+     *
+     * `at` starts where the finger came down. It used to start at the corner
+     * of the screen and wait for the first move to correct it, and the corner
+     * is inside the top scroll edge — so a finger that pressed and held still
+     * sent the page scrolling upwards out from under it.
      */
-    const at = { x: 0, y: 0 };
+    const at = { ...from };
     let live = true;
+
+    /*
+     * The card itself, so it can be carried.
+     *
+     * It used to stay in its slot, lifted, while the finger travelled on alone
+     * — and nothing moved until the finger crossed into a neighbour, when the
+     * whole row jumped at once. With two cards side by side that was a short
+     * trip; with the cards stacked down a phone it meant dragging a full card
+     * height with no sign anything was happening.
+     *
+     * Moved with the CSS `translate` property, inline: the glide in
+     * `useFavouriteFlip` owns `transform` and skips a held card, so the two
+     * never write the same property. Where the finger is relative to the
+     * card's *slot* is measured fresh every frame, because the slot moves each
+     * time the row reorders around it.
+     */
+    const card = document.querySelector<HTMLElement>(
+      `[data-favourite="${CSS.escape(key)}"]`,
+    );
+    const grabbed = card?.getBoundingClientRect() ?? null;
+    if (card !== null) {
+      // Its own `translate` transition would make it trail the finger.
+      card.style.transition = 'box-shadow 150ms, border-color 150ms';
+    }
+
+    const carry = () => {
+      if (card === null || grabbed === null) return;
+      card.style.translate = '';
+      const slot = card.getBoundingClientRect();
+      const dx = grabbed.left + (at.x - from.x) - slot.left;
+      const dy = grabbed.top + (at.y - from.y) - slot.top;
+      card.style.translate = `${dx}px ${dy}px`;
+    };
 
     const step = () => {
       if (!live) return;
@@ -157,13 +196,22 @@ export default function FavouritesPage() {
          * arrived — offering it as a drop target would reorder onto a
          * position that is about to stop existing, and the row would swap
          * back and forth for as long as the finger stayed still.
+         *
+         * Every element under the point rather than the topmost one, because
+         * the topmost is now the held card itself, carried along under the
+         * finger; the drop target is whatever lies beneath it.
          */
-        const under = document
-          .elementFromPoint(at.x, at.y)
-          ?.closest<HTMLElement>('[data-favourite]:not([data-flipping])');
-        const target = under?.dataset['favourite'];
-        if (target !== undefined && target !== moving) reorderFavourite(moving, target);
+        const target = document
+          .elementsFromPoint(at.x, at.y)
+          .map((element) =>
+            element.closest<HTMLElement>('[data-favourite]:not([data-flipping])'),
+          )
+          .find((element) => element != null && element.dataset['favourite'] !== moving)
+          ?.dataset['favourite'];
+        if (target !== undefined) reorderFavourite(moving, target);
       }
+
+      carry();
 
       window.requestAnimationFrame(step);
     };
@@ -178,6 +226,19 @@ export default function FavouritesPage() {
       draggedRef.current = null;
       setDragged(null);
       stopDrag.current?.();
+
+      /*
+       * Let go, the card settles into its slot from wherever the finger left
+       * it, rather than vanishing from under the finger and reappearing
+       * there.
+       */
+      if (card !== null) {
+        card.style.transition = 'translate 200ms cubic-bezier(0.32, 0.72, 0, 1)';
+        card.style.translate = '';
+        window.setTimeout(() => {
+          card.style.transition = '';
+        }, 200);
+      }
     };
 
     window.addEventListener('pointermove', move);
@@ -187,6 +248,12 @@ export default function FavouritesPage() {
 
     stopDrag.current = () => {
       live = false;
+      if (card !== null && draggedRef.current !== null) {
+        // Torn down mid-drag — the page unmounting — so nothing is left
+        // pinned somewhere the next visit would find it.
+        card.style.translate = '';
+        card.style.transition = '';
+      }
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', end);
       window.removeEventListener('pointercancel', end);
@@ -455,7 +522,7 @@ function FavouriteRow({
   timezone: string | null;
   dragged: string | null;
   onRemoved: () => void;
-  onDragStart: (key: string) => void;
+  onDragStart: (key: string, point: DragPoint) => void;
 }) {
   const rowRef = useRef<HTMLDivElement>(null);
   const order = useMemo(() => favourites.map(identity), [favourites]);
@@ -493,7 +560,7 @@ function FavouriteRow({
               canGoEarlier={index > 0}
               canGoLater={index < favourites.length - 1}
               someoneElseDragging={dragged !== null && dragged !== key}
-              onDragStart={() => onDragStart(key)}
+              onDragStart={(point) => onDragStart(key, point)}
             />
           );
         })}
@@ -524,7 +591,7 @@ function Card({
   canGoEarlier: boolean;
   canGoLater: boolean;
   someoneElseDragging: boolean;
-  onDragStart: () => void;
+  onDragStart: (point: DragPoint) => void;
 }) {
   const shared = {
     now,

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Placeholder, PlaceholderGroup } from '../../components/Pending';
+import type { DragPoint } from './favourite';
 import { stopPath } from '../../app/routes';
 import { useBackendHealth } from '../../app/useBackendHealth';
 import { getStopBoard } from '../../api/stops';
@@ -19,7 +20,7 @@ interface Props {
   canGoEarlier: boolean;
   canGoLater: boolean;
   someoneElseDragging: boolean;
-  onDragStart: () => void;
+  onDragStart: (point: DragPoint) => void;
 }
 
 /**
