@@ -36,9 +36,10 @@ interface Props {
  * conclude it is simply broken.
  *
  * What the account changed: the press is now a **request**, so it can be in
- * flight and it can fail. Three things follow. It reports `aria-busy` while
- * waiting, because a star that will not fill for a moment otherwise reads as a
- * press that missed. It can be refused by the server for reasons this component
+ * flight and it can fail. Three things follow. It shows the answer it expects
+ * **at once** — filled on a save, empty on a removal — and reports `aria-busy`
+ * until the server agrees, because a star that waited a round trip to fill
+ * read as a press that missed, and was pressed again. It can be refused by the server for reasons this component
  * cannot predict — the kind is full as counted on *another* device, the stop is
  * no longer in the dataset — so a failure is shown in the same bubble the other
  * refusals use rather than swallowed. And when nobody is signed in it opens the
@@ -56,9 +57,20 @@ export function FavouriteButton({ favourite, unavailableReason, size = 'md' }: P
    */
   useLoadFavourites();
 
-  const { saved, savedItem, blocked, needsAccount } = useFavouriteState(favourite);
+  const { saved, blocked, needsAccount } = useFavouriteState(favourite);
 
   const [pending, setPending] = useState(false);
+  /**
+   * What the star is showing while a press is in flight: the state it will
+   * have if the server agrees. Null the rest of the time, when the stored list
+   * is the only authority.
+   *
+   * Held here rather than written into the store. A saved row needs the id
+   * and default nickname the server assigns, and a guessed row without them
+   * would be a favourite that could not be renamed or removed — see
+   * `saveFavourite`. Only the star itself needs to look ahead.
+   */
+  const [expected, setExpected] = useState<boolean | null>(null);
   /** What the server said no to, already localised. Cleared by the next press. */
   const [failure, setFailure] = useState<string | null>(null);
 
@@ -79,7 +91,8 @@ export function FavouriteButton({ favourite, unavailableReason, size = 'md' }: P
           ? t(strings.favourites.limitReached, { count: FAVOURITES_PER_KIND })
           : null));
 
-  const label = saved ? t(strings.favourites.remove) : t(strings.favourites.add);
+  const shownSaved = expected ?? saved;
+  const label = shownSaved ? t(strings.favourites.remove) : t(strings.favourites.add);
   const box = size === 'sm' ? 'h-8 w-8' : 'h-9 w-9';
 
   async function press() {
@@ -100,11 +113,16 @@ export function FavouriteButton({ favourite, unavailableReason, size = 'md' }: P
     if (off) return;
 
     setPending(true);
+    setExpected(!saved);
     try {
       await toggleFavourite(favourite);
     } catch (error: unknown) {
+      // Back to what the list says, which is what is actually true, with the
+      // reason beside it — a star that quietly un-filled would look like a
+      // second press rather than a refusal.
       setFailure(t(messageForApiError(error, strings)));
     } finally {
+      setExpected(null);
       setPending(false);
     }
   }
@@ -117,7 +135,7 @@ export function FavouriteButton({ favourite, unavailableReason, size = 'md' }: P
     <span className="group relative flex flex-none">
       <button
         type="button"
-        aria-pressed={saved}
+        aria-pressed={shownSaved}
         aria-disabled={off || undefined}
         aria-busy={pending || undefined}
         aria-describedby={reason === null ? undefined : hintId}
@@ -125,10 +143,10 @@ export function FavouriteButton({ favourite, unavailableReason, size = 'md' }: P
         className={`rounded-control focus-visible:outline-brand-500 ${box} flex flex-none items-center justify-center focus-visible:outline-2 focus-visible:outline-offset-2 ${
           off
             ? 'text-content-muted cursor-not-allowed opacity-50'
-            : saved
+            : shownSaved
               ? 'text-accent-strong hover:bg-surface-muted cursor-pointer'
               : 'text-content-muted hover:text-accent-strong hover:bg-surface-muted cursor-pointer'
-        } ${pending ? 'opacity-70' : ''}`}
+        } ${pending ? 'cursor-progress' : ''}`}
       >
         <span className="sr-only">{label}</span>
         {/*
@@ -137,15 +155,17 @@ export function FavouriteButton({ favourite, unavailableReason, size = 'md' }: P
           not: the shape carries the state as well as the colour does, which is
           what keeps it readable in greyscale and to a colour-blind reader.
 
-          Its fill follows the *stored* row rather than an optimistic guess, so
-          it fills when the save has actually happened. `aria-busy` and the
-          dimming are what cover the wait.
+          It fills the moment it is pressed and settles when the server
+          answers; a refusal puts it back. The small pop on a fresh fill is
+          the acknowledgement a tap otherwise lacks on a phone, where there is
+          no hover to say the control was reached at all.
         */}
         <svg
           viewBox="0 0 20 20"
           width={size === 'sm' ? 16 : 18}
           height={size === 'sm' ? 16 : 18}
-          fill={savedItem !== null ? 'currentColor' : 'none'}
+          fill={shownSaved ? 'currentColor' : 'none'}
+          className={expected === true ? 'motion-safe:animate-star-pop' : undefined}
           stroke="currentColor"
           strokeWidth="1.6"
           strokeLinejoin="round"
