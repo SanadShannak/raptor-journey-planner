@@ -1,3 +1,4 @@
+import { lineBrowserMemory, rememberLineBrowser } from './lineBrowserMemory';
 import { useEffect, useId, useMemo, useState } from 'react';
 import { ListPlaceholder, Placeholder } from '../../components/Pending';
 import { getLines } from '../../api/routes';
@@ -45,8 +46,11 @@ export function LineBrowser({ availableModes, onOpen }: Props) {
   const searchId = useId();
   const modeLabelId = useId();
 
-  const [query, setQuery] = useState('');
-  const [modes, setModes] = useState<ReadonlySet<GtfsRouteType>>(new Set());
+  const [query, setQuery] = useState(lineBrowserMemory().query);
+  const [modes, setModes] = useState<ReadonlySet<GtfsRouteType>>(lineBrowserMemory().modes);
+  useEffect(() => {
+    rememberLineBrowser({ query, modes });
+  }, [query, modes]);
   const [lines, setLines] = useState<LineSummary[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);

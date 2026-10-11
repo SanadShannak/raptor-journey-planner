@@ -891,6 +891,8 @@ export interface Dictionary {
       listBody: string;
       mapTitle: string;
       mapBody: string;
+      detailTitle: string;
+      detailBody: string;
     };
     stops: {
       mapTitle: string;
@@ -899,6 +901,8 @@ export interface Dictionary {
       nearbyBody: string;
       modesTitle: string;
       modesBody: string;
+      detailTitle: string;
+      detailBody: string;
     };
     card: {
       introTitle: string;

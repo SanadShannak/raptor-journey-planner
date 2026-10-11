@@ -188,7 +188,7 @@ export function StopInspector({
   const servingLines = board?.servingLines ?? timetable?.servingLines ?? [];
 
   return (
-    <div className="flex flex-col gap-5 p-5">
+    <div data-tour="stop-detail" className="flex flex-col gap-5 p-5">
       {onBack !== null && (
         <button
           type="button"

@@ -222,7 +222,10 @@ export default function RoutesPage() {
 
   return (
     <div className="flex flex-col lg:min-h-0 lg:flex-1 lg:flex-row">
-      <div className="border-border flex w-full flex-none flex-col border-e lg:min-h-0 lg:w-[30rem] lg:overflow-y-auto xl:w-[34rem]">
+      <div
+        data-pane
+        className="border-border flex w-full flex-none flex-col border-e lg:min-h-0 lg:w-[30rem] lg:overflow-y-auto xl:w-[34rem]"
+      >
         {lineId === undefined ? (
           <LineBrowser availableModes={networkModes} onOpen={openLine} />
         ) : (

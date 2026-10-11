@@ -1,3 +1,4 @@
+import { forgetLineBrowser } from '../features/routes/lineBrowserMemory';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { fireEvent } from '@testing-library/react';
@@ -111,6 +112,7 @@ function show(entry: string) {
 }
 
 beforeEach(() => {
+  forgetLineBrowser();
   localStorage.clear();
   kinds = [];
   forgetDepth();

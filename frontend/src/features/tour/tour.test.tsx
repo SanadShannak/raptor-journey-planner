@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { LocaleProvider } from '../../i18n';
 import { TourHost } from './TourHost';
 import { endTour, forgetTours, hasSeenTour, startTour } from './tourStore';
@@ -22,9 +23,11 @@ function placeTargets(...targets: string[]) {
 
 const renderHost = () =>
   render(
-    <LocaleProvider>
-      <TourHost />
-    </LocaleProvider>,
+    <MemoryRouter>
+      <LocaleProvider>
+        <TourHost />
+      </LocaleProvider>
+    </MemoryRouter>,
   );
 
 beforeEach(() => {
@@ -56,32 +59,34 @@ describe('which tours have been seen', () => {
 
 describe('the tour', () => {
   /*
-   * The routes tour points at three things. With only two on screen it is a
-   * two-step tour: the count says so, and nothing points at empty space.
+   * The routes tour points at four things. With only the search and the map on
+   * screen the two in between are passed over — counted until they are
+   * reached, then dropped — and nothing is ever shown pointing at empty space.
    */
-  it('skips a step whose element is not on screen, and counts without it', () => {
+  it('passes over steps whose element is not on screen, and stops counting them', async () => {
     placeTargets('routes-search', 'routes-map');
     renderHost();
     act(() => startTour('routes'));
 
-    expect(screen.getByText('Step 1 of 2')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Find a route' })).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
 
+    // The route-opening step waits for its route before passing over it.
+    await screen.findByRole('heading', { name: 'Routes on the map' }, { timeout: 5000 });
     expect(screen.getByText('Step 2 of 2')).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Routes on the map' })).toBeTruthy();
-  });
+  }, 10_000);
 
   it('goes back a step, and finishes with Done on the last one', () => {
-    placeTargets('routes-search', 'routes-list', 'routes-map');
+    placeTargets('routes-search', 'routes-list', 'route-detail', 'routes-map');
     renderHost();
     act(() => startTour('routes'));
 
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
-    expect(screen.getByText('Step 1 of 3')).toBeTruthy();
+    expect(screen.getByText('Step 1 of 4')).toBeTruthy();
 
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
 
@@ -100,15 +105,16 @@ describe('the tour', () => {
     act(() => startTour('plan'));
 
     expect(screen.getByRole('heading', { name: 'Welcome to Journey Planner' })).toBeTruthy();
-    expect(screen.getByText('Step 1 of 1')).toBeTruthy();
+    // Every other step is still counted until it has been reached.
+    expect(screen.getByText(/^Step 1 of/)).toBeTruthy();
   });
 
-  it('ends at once when there is nothing at all to show', () => {
+  it('ends when there is nothing at all to show', async () => {
     placeTargets();
     renderHost();
     act(() => startTour('favourites'));
 
-    expect(screen.queryByRole('dialog')).toBeNull();
+    await vi.waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(hasSeenTour('favourites')).toBe(true);
   });
 

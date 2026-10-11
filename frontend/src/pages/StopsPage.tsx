@@ -283,7 +283,10 @@ export default function StopsPage() {
 
   return (
     <div className="flex flex-col lg:min-h-0 lg:flex-1 lg:flex-row">
-      <div className="border-border flex w-full flex-none flex-col border-e lg:min-h-0 lg:w-[30rem] lg:overflow-y-auto xl:w-[34rem]">
+      <div
+        data-pane
+        className="border-border flex w-full flex-none flex-col border-e lg:min-h-0 lg:w-[30rem] lg:overflow-y-auto xl:w-[34rem]"
+      >
         {stopId === undefined ? (
           <StopBrowser
             stops={shown}
@@ -565,7 +568,11 @@ function StopBrowser({
         moment and fades in over the placeholders rather than replacing them in
         one frame. Later answers, from panning, update it in place.
       */}
-      <ul key={waiting ? 'waiting' : 'answered'} className="motion-safe:animate-content-in flex flex-col">
+      <ul
+        key={waiting ? 'waiting' : 'answered'}
+        data-tour="stops-list"
+        className="motion-safe:animate-content-in flex flex-col"
+      >
         {stops.map((stop) => (
           <li key={stop.id}>
             <button

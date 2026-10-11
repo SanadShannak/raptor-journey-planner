@@ -1,3 +1,4 @@
+import { TOUR_PICK_CLOSE, TOUR_PICK_OPEN } from '../features/tour/events';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatDuration, useLocale } from '../i18n';
 import { useTheme } from '../theme';
@@ -163,6 +164,26 @@ function PickPoint({
   useMapEvent('zoomstart', () => setPick(null));
 
   useEffect(() => () => lookup.current?.abort(), []);
+
+  /*
+   * The guided tour shows this card the way a press would, in the middle of
+   * the map, so the step about pressing the map can point at what pressing it
+   * does. Events rather than a prop: the tour lives in the layout and knows
+   * nothing of this component — see `features/tour/scenes.ts`.
+   */
+  useEffect(() => {
+    const open = () => {
+      const centre = map.getCenter();
+      setPick({ lat: centre.lat, lon: centre.lng });
+    };
+    const close = () => setPick(null);
+    window.addEventListener(TOUR_PICK_OPEN, open);
+    window.addEventListener(TOUR_PICK_CLOSE, close);
+    return () => {
+      window.removeEventListener(TOUR_PICK_OPEN, open);
+      window.removeEventListener(TOUR_PICK_CLOSE, close);
+    };
+  }, [map, setPick]);
 
   if (pick === null) return null;
 

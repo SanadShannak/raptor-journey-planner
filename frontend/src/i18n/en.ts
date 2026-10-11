@@ -523,7 +523,7 @@ export const en: Dictionary = {
         'Your walking speed decides which changes you can make in time, so pick the one that is closest.',
       mapTitle: 'The map',
       mapBody:
-        'Press anywhere on the map and choose “Start here” or “End here” to use that spot. Press a stop to see what leaves from it. After a search, press a line on the drawn journey to follow that vehicle’s trip.',
+        'Press anywhere on the map and this card appears: choose “Start here” or “End here” to use that spot. Press a stop to see what leaves from it. After a search, press a line on the drawn journey to follow that vehicle’s trip.',
       resultsTitle: 'Your journeys',
       resultsBody:
         'Press a journey once to show it on the map, and again to open it stop by stop. Inside, each ride opens that vehicle’s whole trip. “Later” finds the departures after these.',
@@ -560,18 +560,26 @@ export const en: Dictionary = {
         'Press a route to open it. You can switch direction, see every stop it calls at, open its timetable, and watch where its vehicles are right now.',
       mapTitle: 'Routes on the map',
       mapBody:
-        'An open route is drawn here with its vehicles. Press a stop to see its departures, or a vehicle to follow its trip.',
+        'The open route is drawn here, with its vehicles where they are right now. Press a vehicle to follow its trip, or a stop to see its departures.',
+      detailTitle:
+        'Inside a route',
+      detailBody:
+        'This is what opening a route shows: switch direction at the top, see every stop with its next departure, or change to the timetable for any day. Press a stop to see its departures.',
     },
     stops: {
       mapTitle: 'Stops on the map',
       mapBody:
-        'Move and zoom the map to find stops — they appear once you are close enough. Press one to open its board: upcoming departures, or the full timetable for any day. Press a departure to follow that vehicle.',
+        'Move and zoom the map to find stops — they appear once you are close enough, and every one in view is listed beside it.',
       nearbyTitle: 'Stops near you',
       nearbyBody:
         'Jump straight to the stops around where you are, or back to the city centre.',
       modesTitle: 'Only what you take',
       modesBody:
         'Show only the kinds of transport you use, so the map is easier to read.',
+      detailTitle:
+        'A stop’s board',
+      detailBody:
+        'This is what opening a stop shows: upcoming departures with how long until each, or the full timetable for any day. Filter by line, and press a departure to follow that vehicle.',
     },
     card: {
       introTitle: 'Your travel cards',
@@ -579,7 +587,7 @@ export const en: Dictionary = {
         'Keep your travel cards in one place. Press a card to see its balance and recent activity, top it up, pay a fare, or rename it.',
       addTitle: 'Add a card',
       addBody:
-        'Give it a name you will recognise and choose its type. You can add more than one.',
+        'This is the form “Add a card” opens: give the card a name you will recognise and choose its type. The card number is issued for you.',
     },
     favourites: {
       introTitle: 'Everything you saved',

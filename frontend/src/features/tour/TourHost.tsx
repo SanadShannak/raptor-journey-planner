@@ -9,7 +9,9 @@ import {
 import { useLocale } from '../../i18n';
 import { useReducedMotion } from '../../map/useReducedMotion';
 import { endTour, getTourState, goToStep, subscribeToTour } from './tourStore';
-import { TOURS, findTarget, isAvailable, type TourId } from './tours';
+import { useNavigate } from 'react-router';
+import { SCENES, captureScroll, restoreScroll, type SceneId } from './scenes';
+import { TOURS, findTarget, type TourId } from './tours';
 
 /**
  * Draws whichever tour is running. Mounted once, in the layout.
@@ -23,6 +25,8 @@ export function TourHost() {
 
 /** Room left around the lit-up element, so its own border is not clipped. */
 const PAD = 6;
+/** How long a step that has just opened something waits for it to appear. */
+const SETTLE_MS = 2500;
 /** How long one step's highlight takes to fade into the next. */
 const FADE_MS = 220;
 /** Space between the lit-up element and the card. */
@@ -66,6 +70,7 @@ function sameBox(a: Box | null, b: Box | null): boolean {
 function TourDialog({ id, step }: { id: TourId; step: number }) {
   const { strings, t } = useLocale();
   const reduced = useReducedMotion();
+  const navigate = useNavigate();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -75,31 +80,126 @@ function TourDialog({ id, step }: { id: TourId; step: number }) {
   const current = steps[step];
 
   /*
-   * The steps that can be shown now, worked out on every render rather than
-   * once at the start: the page keeps loading while the tour runs, and a step
-   * whose element has arrived since should not be skipped for having been
-   * late.
+   * Steps found to have nothing to point at, which the tour has passed over.
+   *
+   * Found out by visiting them rather than predicted, because some steps'
+   * elements only exist once an earlier step has done something — opened a
+   * route, say — and judging them up front would skip exactly those. Until a
+   * step is reached it is counted, so the total can only ever shrink, and
+   * only by steps that genuinely had nothing to show.
    */
-  const available = steps.flatMap((entry, index) => (isAvailable(entry) ? [index] : []));
-  const position = available.indexOf(step);
-  const previous = available.filter((index) => index < step).at(-1);
-  const next = available.find((index) => index > step);
+  const [skipped, setSkipped] = useState<ReadonlySet<number>>(new Set());
+  /*
+   * And steps that plainly cannot appear: no element on the page now, and
+   * nothing earlier in the tour that could bring one — no scene that opens
+   * something. Those are left out of the count from the start, so it does not
+   * shrink partway through for a step that was never going to show.
+   */
+  const shown = steps.flatMap((entry, index) => {
+    if (skipped.has(index)) return [];
+    const couldAppear =
+      entry.target === null ||
+      entry.scene !== undefined ||
+      steps.slice(0, index).some((earlier) => earlier.scene !== undefined) ||
+      findTarget(entry.target) !== null;
+    // Steps already passed stay counted even once a scene has taken their
+    // element off the page — they were shown.
+    return couldAppear || index <= step ? [index] : [];
+  });
+  const position = shown.indexOf(step);
+  const previous = shown.filter((index) => index < step).at(-1);
+  const next = shown.find((index) => index > step);
+
+  /** Which way the reader last moved, so a skipped step is passed in that direction. */
+  const direction = useRef<1 | -1>(1);
+  const go = (to: number) => {
+    direction.current = to > step ? 1 : -1;
+    goToStep(to);
+  };
+
+  /*
+   * The scene in force, and until when a missing element is worth waiting
+   * for. A scene that opened a page has started something that will draw a
+   * moment later; without the wait, the step pointing at it would be judged
+   * empty before it had arrived.
+   */
+  const scene = useRef<{ id: SceneId; undo: () => void } | null>(null);
+  const settleUntil = useRef(0);
+
+  /*
+   * Opened from somewhere, and put back there. What the page looked like —
+   * its scroll, and what had focus — is noted as the tour opens, and on the
+   * way out any scene still in force is undone before the scroll is put back,
+   * so the reader lands where they pressed "?" from, not wherever the last
+   * step had taken them.
+   */
+  /*
+   * Read during the first render, not in the effect: by the time an effect
+   * runs a second time — which React's development mode does on purpose —
+   * `showModal()` has already moved focus into the dialog, and the dialog is
+   * not where anyone should be returned to.
+   */
+  const [opener] = useState(() =>
+    document.activeElement instanceof HTMLElement ? document.activeElement : null,
+  );
+  const [snapshot] = useState(captureScroll);
+  useEffect(() => {
+    return () => {
+      scene.current?.undo();
+      scene.current = null;
+      // Focus last: going back a page moves focus to its heading on arrival,
+      // so the opener is focused once the page is back, not before.
+      restoreScroll(snapshot, () => opener?.focus({ preventScroll: true }));
+    };
+  }, [opener, snapshot]);
+
+  /* Enters the step's scene, or leaves the last one, as the step changes. */
+  useEffect(() => {
+    const wanted = current?.scene ?? null;
+    if ((scene.current?.id ?? null) === wanted) return;
+    scene.current?.undo();
+    scene.current = null;
+    if (wanted !== null) scene.current = { id: wanted, undo: SCENES[wanted]({ navigate }) };
+    settleUntil.current = performance.now() + SETTLE_MS;
+  }, [current, navigate]);
+
+  /** Whether the current step's element is missing, as of the last frame. */
+  const [missing, setMissing] = useState(false);
+
+  /*
+   * A step with nothing to point at moves on by itself — after waiting out
+   * any scene still settling — in the direction the reader was going, so
+   * stepping back over a missing step does not bounce them forward again.
+   * When there is nowhere left to go, the tour has simply run out.
+   */
+  useEffect(() => {
+    if (current === undefined) {
+      endTour();
+      return;
+    }
+    if (!missing) return;
+
+    const wait = Math.max(0, settleUntil.current - performance.now()) + 50;
+    const timer = window.setTimeout(() => {
+      if (current.target !== null && findTarget(current.target) !== null) return;
+      const nowSkipped = new Set(skipped).add(step);
+      setSkipped(nowSkipped);
+      const ahead = steps.findIndex((_, index) => index > step && !nowSkipped.has(index));
+      const behind = steps
+        .map((_, index) => index)
+        .filter((index) => index < step && !nowSkipped.has(index))
+        .at(-1);
+      const to = direction.current === -1 ? (behind ?? (ahead === -1 ? undefined : ahead)) : ahead === -1 ? undefined : ahead;
+      if (to === undefined) endTour();
+      else goToStep(to);
+    }, wait);
+    return () => window.clearTimeout(timer);
+  }, [missing, current, step, steps, skipped]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
     if (dialog !== null && !dialog.open) dialog.showModal();
   }, []);
-
-  /*
-   * A step that cannot be shown moves on by itself. Forward, to the next one
-   * that can; and when there is none, the tour has simply run out.
-   */
-  const unavailable = current === undefined || !isAvailable(current);
-  useEffect(() => {
-    if (!unavailable) return;
-    if (next === undefined) endTour();
-    else goToStep(next);
-  }, [unavailable, next]);
 
   /* Brings the element into view, and the step's heading into focus. */
   useEffect(() => {
@@ -177,8 +277,11 @@ function TourDialog({ id, step }: { id: TourId; step: number }) {
 
       const target =
         current?.target == null ? null : findTarget(current.target);
-      const nextSpot = target === null ? null : spotFor(target, current?.flush === true);
+      const nextSpot =
+        target === null ? null : spotFor(target, current?.flush === true, current?.fit === 'content');
       setSpot((was) => (sameBox(was, nextSpot) ? was : nextSpot));
+      const isMissing = current?.target != null && target === null;
+      setMissing((was) => (was === isMissing ? was : isMissing));
 
       const cardBox = cardRef.current?.getBoundingClientRect();
       if (cardBox !== undefined && isNarrow) {
@@ -204,8 +307,8 @@ function TourDialog({ id, step }: { id: TourId; step: number }) {
     return () => window.cancelAnimationFrame(frame);
   }, [current]);
 
-  if (current === undefined || unavailable) {
-    // Moving on; see the effect above. Nothing worth a frame in between.
+  if (current === undefined) {
+    // Ending; see the effect above. Nothing worth a frame in between.
     return <dialog ref={dialogRef} aria-hidden="true" className="hidden" />;
   }
 
@@ -242,17 +345,21 @@ function TourDialog({ id, step }: { id: TourId; step: number }) {
             : 'w-[min(22rem,calc(100vw-1.5rem))]'
         }`}
         style={
-          narrow
-            ? undefined
-            : card === null
-              ? { visibility: 'hidden', top: 0, left: 0 }
-              : { top: card.top, left: card.left }
+          // Hidden, not removed, while its element is still on its way: the
+          // card keeps focus and its place, and appears with what it is about.
+          missing
+            ? { visibility: 'hidden', top: 0, left: 0 }
+            : narrow
+              ? undefined
+              : card === null
+                ? { visibility: 'hidden', top: 0, left: 0 }
+                : { top: card.top, left: card.left }
         }
       >
         <p className="text-content-muted text-xs font-medium tabular-nums">
           {t(strings.tour.stepOf, {
             current: position + 1,
-            total: available.length,
+            total: shown.length,
           })}
         </p>
         <h2
@@ -283,7 +390,7 @@ function TourDialog({ id, step }: { id: TourId; step: number }) {
             {previous !== undefined && (
               <button
                 type="button"
-                onClick={() => goToStep(previous)}
+                onClick={() => go(previous)}
                 className="rounded-control border-border-strong text-content hover:bg-surface-muted focus-visible:outline-brand-500 cursor-pointer border px-3 py-1.5 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
               >
                 {t(strings.tour.back)}
@@ -291,7 +398,7 @@ function TourDialog({ id, step }: { id: TourId; step: number }) {
             )}
             <button
               type="button"
-              onClick={() => (next === undefined ? endTour() : goToStep(next))}
+              onClick={() => (next === undefined ? endTour() : go(next))}
               className="rounded-control bg-action text-on-action hover:bg-action-hover hover:text-on-action-hover focus-visible:outline-brand-500 cursor-pointer px-4 py-1.5 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2"
             >
               {t(last ? strings.tour.done : strings.tour.next)}
@@ -364,32 +471,40 @@ function Spotlight({ box, flush, leaving = false }: { box: Box | null; flush: bo
   );
 }
 
-/** Whether an element clips what overflows it, as a scroller or `overflow: hidden` does. */
-function clips(element: Element): boolean {
-  const style = getComputedStyle(element);
-  return style.overflowX !== 'visible' || style.overflowY !== 'visible';
+/** Whether an element is a scroller — a pane with its own scrollbar. */
+function scrolls(element: Element): boolean {
+  const { overflowX, overflowY } = getComputedStyle(element);
+  return /auto|scroll/.test(overflowX) || /auto|scroll/.test(overflowY);
 }
 
 /**
  * The box to light up for an element: its own rectangle, padded unless it is
- * flush, and **cut down to the part of it that can actually be seen.**
+ * flush, and **cut down to the part of it a scroller lets be seen.**
  *
  * The cut is what keeps a long list from lighting up the header above its
- * scroller or the footer below it: the list runs on past its pane, hidden,
- * and a spotlight drawn round all of it would reveal space it does not
- * occupy. The same cut is what fits the map exactly — it fills its pane edge
- * to edge, so any padding at all spilled over onto whatever sits beside it.
+ * pane or the footer below it: the list runs on past its pane, hidden, and a
+ * spotlight drawn round all of it would reveal space it does not occupy.
+ *
+ * Only scrollers cut it, not every `overflow: hidden`. A stop's name is a
+ * button inside a box that hides overflow to truncate long names, and cutting
+ * to that box took away the padding every other highlight has — the name sat
+ * in a hole exactly its own size.
+ *
+ * `content` measures inside the element's padding, for a list whose own
+ * padding is the space between it and its card: lit to the padding edge, the
+ * highlight stood well clear of the first row it was pointing at.
  */
-function spotFor(target: HTMLElement, flush: boolean): Box {
+function spotFor(target: HTMLElement, flush: boolean, content: boolean): Box {
   const rect = target.getBoundingClientRect();
   const pad = flush ? 0 : PAD;
-  let top = rect.top - pad;
-  let left = rect.left - pad;
-  let bottom = rect.bottom + pad;
-  let right = rect.right + pad;
+  const inset = content ? getComputedStyle(target) : null;
+  let top = rect.top + (inset === null ? 0 : parseFloat(inset.paddingTop)) - pad;
+  let left = rect.left + (inset === null ? 0 : parseFloat(inset.paddingLeft)) - pad;
+  let bottom = rect.bottom - (inset === null ? 0 : parseFloat(inset.paddingBottom)) + pad;
+  let right = rect.right - (inset === null ? 0 : parseFloat(inset.paddingRight)) + pad;
 
   for (let parent = target.parentElement; parent !== null; parent = parent.parentElement) {
-    if (parent === document.body || !clips(parent)) continue;
+    if (parent === document.body || !scrolls(parent)) continue;
     const clip = parent.getBoundingClientRect();
     top = Math.max(top, clip.top);
     left = Math.max(left, clip.left);

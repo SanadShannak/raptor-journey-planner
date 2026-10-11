@@ -1,8 +1,13 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { forgetLineBrowser } from './lineBrowserMemory';
+import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { LocaleProvider } from '../../i18n';
 import { LineBrowser } from './LineBrowser';
+
+beforeEach(() => {
+  forgetLineBrowser();
+});
 
 /*
  * Whether a line runs today is worth more on a browse list than how many

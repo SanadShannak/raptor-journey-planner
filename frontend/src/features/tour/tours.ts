@@ -1,4 +1,5 @@
 import type { Dictionary, Message } from '../../i18n';
+import type { SceneId } from './scenes';
 
 /** One tour per page that has one. */
 export type TourId = 'plan' | 'itinerary' | 'routes' | 'stops' | 'card' | 'favourites';
@@ -20,6 +21,18 @@ export interface TourStep {
    * spilled onto the header and the content beside it.
    */
   flush?: boolean | undefined;
+  /**
+   * Something to do to the page while this step is showing — press the map,
+   * open a route — so the step can point at what a press does. Kept across
+   * consecutive steps naming the same scene, and undone when the tour moves
+   * off it or ends; see `scenes.ts`.
+   */
+  scene?: SceneId | undefined;
+  /**
+   * `content` lights the element inside its own padding rather than to its
+   * border — for a list whose padding is the gap between it and its card.
+   */
+  fit?: 'content' | undefined;
   title: (strings: Dictionary) => Message;
   body: (strings: Dictionary) => Message;
 }
@@ -40,7 +53,7 @@ export const TOURS: Record<TourId, readonly TourStep[]> = {
     { target: 'plan-places', title: (s) => s.tour.plan.placesTitle, body: (s) => s.tour.plan.placesBody },
     { target: 'plan-when', title: (s) => s.tour.plan.whenTitle, body: (s) => s.tour.plan.whenBody },
     { target: 'plan-pace', title: (s) => s.tour.plan.paceTitle, body: (s) => s.tour.plan.paceBody },
-    { target: 'plan-map', flush: true, title: (s) => s.tour.plan.mapTitle, body: (s) => s.tour.plan.mapBody },
+    { target: 'plan-map', flush: true, scene: 'map-pick', title: (s) => s.tour.plan.mapTitle, body: (s) => s.tour.plan.mapBody },
     { target: 'plan-results', title: (s) => s.tour.plan.resultsTitle, body: (s) => s.tour.plan.resultsBody },
     { target: 'plan-save', title: (s) => s.tour.plan.saveTitle, body: (s) => s.tour.plan.saveBody },
     { target: 'nav', title: (s) => s.tour.plan.navTitle, body: (s) => s.tour.plan.navBody },
@@ -51,7 +64,7 @@ export const TOURS: Record<TourId, readonly TourStep[]> = {
    * one is.
    */
   itinerary: [
-    { target: 'itinerary-steps', title: (s) => s.tour.itinerary.stepsTitle, body: (s) => s.tour.itinerary.stepsBody },
+    { target: 'itinerary-steps', fit: 'content', title: (s) => s.tour.itinerary.stepsTitle, body: (s) => s.tour.itinerary.stepsBody },
     { target: 'itinerary-stop', title: (s) => s.tour.itinerary.stopTitle, body: (s) => s.tour.itinerary.stopBody },
     { target: 'itinerary-ride', title: (s) => s.tour.itinerary.rideTitle, body: (s) => s.tour.itinerary.rideBody },
     { target: 'plan-map', flush: true, title: (s) => s.tour.itinerary.mapTitle, body: (s) => s.tour.itinerary.mapBody },
@@ -60,16 +73,18 @@ export const TOURS: Record<TourId, readonly TourStep[]> = {
   routes: [
     { target: 'routes-search', title: (s) => s.tour.routes.searchTitle, body: (s) => s.tour.routes.searchBody },
     { target: 'routes-list', title: (s) => s.tour.routes.listTitle, body: (s) => s.tour.routes.listBody },
-    { target: 'routes-map', flush: true, title: (s) => s.tour.routes.mapTitle, body: (s) => s.tour.routes.mapBody },
+    { target: 'route-detail', scene: 'open-first-route', title: (s) => s.tour.routes.detailTitle, body: (s) => s.tour.routes.detailBody },
+    { target: 'routes-map', flush: true, scene: 'open-first-route', title: (s) => s.tour.routes.mapTitle, body: (s) => s.tour.routes.mapBody },
   ],
   stops: [
     { target: 'stops-map', flush: true, title: (s) => s.tour.stops.mapTitle, body: (s) => s.tour.stops.mapBody },
     { target: 'stops-nearby', title: (s) => s.tour.stops.nearbyTitle, body: (s) => s.tour.stops.nearbyBody },
     { target: 'stops-modes', title: (s) => s.tour.stops.modesTitle, body: (s) => s.tour.stops.modesBody },
+    { target: 'stop-detail', scene: 'open-first-stop', title: (s) => s.tour.stops.detailTitle, body: (s) => s.tour.stops.detailBody },
   ],
   card: [
     { target: 'card-intro', title: (s) => s.tour.card.introTitle, body: (s) => s.tour.card.introBody },
-    { target: 'card-add', title: (s) => s.tour.card.addTitle, body: (s) => s.tour.card.addBody },
+    { target: 'card-add', scene: 'open-add-card', title: (s) => s.tour.card.addTitle, body: (s) => s.tour.card.addBody },
   ],
   favourites: [
     { target: 'favourites-intro', title: (s) => s.tour.favourites.introTitle, body: (s) => s.tour.favourites.introBody },

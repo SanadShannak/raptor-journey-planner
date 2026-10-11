@@ -117,12 +117,11 @@ export function AddCardForm({ full, hasCards, onAdded }: Props) {
    * thing to do on this page, not an interruption of it.
    */
   return (
-    <div className="rounded-card border-border bg-surface-raised flex flex-col border">
+    <div data-tour="card-add" className="rounded-card border-border bg-surface-raised flex flex-col border">
       <button
         type="button"
         aria-expanded={open}
         aria-controls={panelId}
-        data-tour="card-add"
         onClick={() => setChosen(!open)}
         className="rounded-card text-content hover:bg-surface-muted focus-visible:outline-brand-500 flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-start text-base font-semibold tracking-tight focus-visible:outline-2 focus-visible:outline-offset-2"
       >

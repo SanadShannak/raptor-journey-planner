@@ -408,7 +408,7 @@ export function RouteInspector({
   }, [line, variant]);
 
   return (
-    <div className="flex flex-col gap-5 p-5">
+    <div data-tour="route-detail" className="flex flex-col gap-5 p-5">
       <button
         type="button"
         onClick={onBack}
