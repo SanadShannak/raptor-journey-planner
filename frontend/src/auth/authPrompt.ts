@@ -14,7 +14,7 @@
  * in the URL.
  */
 
-export type AuthMode = 'logIn' | 'signUp';
+export type AuthMode = 'logIn' | 'signUp' | 'forgot';
 
 let mode: AuthMode | null = null;
 

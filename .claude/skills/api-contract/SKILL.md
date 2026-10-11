@@ -278,6 +278,20 @@ status mapping still holds:
   `400 DUPLICATE_NICKNAME`, `400 EMPTY_NICKNAME`, `404 SAVED_ITEM_NOT_FOUND`,
   `404 STOP_NOT_FOUND`, `404 LINE_NOT_FOUND`, `404 VARIANT_NOT_FOUND`
 
+**Email verification and password reset** (all `POST`, under `/api/auth`):
+
+| Endpoint | Body | Answers |
+| --- | --- | --- |
+| `/verify-email` | `{ token }` | `200 { data: { emailVerified: true } }`; `400 INVALID_TOKEN` for a wrong, used or expired link. No session needed |
+| `/verify-email/resend` | `{ locale? }` | `200`; needs a session; `503 EMAIL_UNAVAILABLE` if it could not send |
+| `/forgot-password` | `{ email, locale? }` | Always `200`, whether or not the address has an account |
+| `/reset-password` | `{ token, password }` | `200 { data: account }` and a session cookie; `400 INVALID_TOKEN`, or `400 VALIDATION_FAILED` for the password |
+
+`locale` (`"en"` or `"ar"`) picks the email's language; `register` takes it too.
+Every account response — register, login, reset, `/me` — carries
+`emailVerified: boolean`. A completed reset ends every older session (their
+next request gets `401 UNAUTHORIZED`).
+
 **Refusals:** `429 RATE_LIMITED` — more than 300 requests a minute from one
 address anywhere, or more than ten login, sign-up or password-check attempts a
 minute (Arcjet); `403 BOT_DETECTED` and `403 REQUEST_BLOCKED` — Arcjet's bot and

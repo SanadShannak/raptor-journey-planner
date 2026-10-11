@@ -88,6 +88,8 @@ export const en: Dictionary = {
     duplicateNickname: 'Another favourite already has that name. Pick a different one.',
     savedLimitReached: 'You have saved as many of these as an account can hold. Remove one to make room.',
     savedItemNotFound: 'That is no longer there. It may have been removed already.',
+    invalidToken: 'This link has expired or was already used.',
+    emailUnavailable: 'We could not send the email just now. Try again in a few minutes.',
   },
 
   nav: {
@@ -501,6 +503,56 @@ export const en: Dictionary = {
     emailInvalid: 'Enter an email address, like name@example.com.',
     passwordRequired: 'Enter a password.',
     passwordTooShort: 'Use at least 8 characters.',
+    forgot: 'Reset your password',
+    forgotLink: 'Forgot your password?',
+    forgotIntro: 'Enter the email you signed up with and we will send you a link to choose a new password.',
+    submitForgot: 'Send reset link',
+    forgotSent: 'If an account exists for {email}, a link to reset its password is on its way. It works for one hour.',
+    backToLogIn: 'Back to log in',
+  },
+  verification: {
+    bannerText:
+      'Confirm your email address. We sent a link to {email}.',
+    bannerResend:
+      'Send a new link',
+    bannerSending:
+      'Sending…',
+    bannerSent:
+      'Sent. Check your inbox.',
+    bannerDismiss:
+      'Dismiss',
+    verifyTitle:
+      'Confirm your email',
+    verifying:
+      'Confirming your email…',
+    verified:
+      'Your email is confirmed.',
+    verifiedHint:
+      'Thank you — there is nothing else to do.',
+    invalidLink:
+      'This link has expired or was already used.',
+    invalidVerifyHintSignedIn:
+      'Send yourself a new one from the banner at the top of the page.',
+    invalidVerifyHintSignedOut:
+      'Log in, then ask for a new link from the banner at the top of the page.',
+    missingToken:
+      'This page needs the link from your email.',
+    goHome:
+      'Go to the planner',
+    resetTitle:
+      'Choose a new password',
+    resetIntro:
+      'Enter a new password for your account. It needs at least 8 characters.',
+    newPassword:
+      'New password',
+    submitReset:
+      'Save new password',
+    resetDone:
+      'Your password is changed and you are signed in.',
+    resetInvalidHint:
+      'Reset links work once, for one hour. Ask for a new one and use the newest email.',
+    requestNewLink:
+      'Send a new reset link',
   },
   tour: {
     open: 'Show the tour',

@@ -1,4 +1,10 @@
-import { getSession, logIn as logInRequest, logOut as logOutRequest, register } from '../api/auth';
+import {
+  getSession,
+  logIn as logInRequest,
+  logOut as logOutRequest,
+  register,
+  resetPassword as resetPasswordRequest,
+} from '../api/auth';
 import type { LogInInput, RegisterInput } from '../api/auth';
 import type { Account } from '../types/account';
 
@@ -133,6 +139,20 @@ export async function signIn(input: LogInInput): Promise<Account> {
 /** Creates an account; the server signs it in with the same response. */
 export async function signUp(input: RegisterInput): Promise<Account> {
   const account = await register(input);
+  requestId += 1;
+  setSession({ status: 'signedIn', account, unreachable: false });
+  return account;
+}
+
+/**
+ * Sets a new password from a reset link, which also signs the person in.
+ *
+ * Whoever was signed in before — in this tab, possibly somebody else — is
+ * replaced: the reset was a decision about this account, and the server has
+ * just ended every older session anyway.
+ */
+export async function resetPasswordAndSignIn(token: string, password: string): Promise<Account> {
+  const account = await resetPasswordRequest(token, password);
   requestId += 1;
   setSession({ status: 'signedIn', account, unreachable: false });
   return account;

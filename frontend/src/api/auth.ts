@@ -16,6 +16,7 @@
  */
 
 import type { Account } from '../types/account';
+import type { Locale } from '../i18n/dictionary';
 import { getJson, postJson } from './client';
 import { ApiError, isApiError } from './errors';
 
@@ -43,7 +44,12 @@ export interface RegisterInput {
   name: string;
   email: string;
   password: string;
+  /** The language the verification email is written in. */
+  locale?: Locale | undefined;
 }
+
+/** A reset or verification link that is wrong, used, or expired. */
+export const INVALID_TOKEN = 'INVALID_TOKEN';
 
 export interface LogInInput {
   email: string;
@@ -72,7 +78,8 @@ function toAccount(body: unknown): Account | null {
   if (typeof id !== 'string' || id === '') return null;
   if (typeof name !== 'string' || typeof email !== 'string') return null;
 
-  return { id, name, email };
+  // Missing on an older server, which never asked anybody to verify.
+  return { id, name, email, emailVerified: data['emailVerified'] !== false };
 }
 
 /** A 400 carrying field complaints is a validation failure, whatever else it is. */
@@ -243,4 +250,91 @@ export async function getSession(options: CallOptions = {}): Promise<Account | n
   }
 
   return toAccount(body);
+}
+
+/**
+ * Asks for a password-reset email.
+ *
+ * Resolves whether or not the address has an account — the server answers
+ * the same either way, on purpose, so this cannot be used to find out who is
+ * registered. Only a failure to reach the server, or a refusal for asking too
+ * often, rejects.
+ */
+export async function requestPasswordReset(
+  email: string,
+  locale: Locale,
+  options: CallOptions = {},
+): Promise<void> {
+  try {
+    await postJson('/api/auth/forgot-password', {
+      body: { email, locale },
+      ...(options.signal ? { signal: options.signal } : {}),
+    });
+  } catch (error: unknown) {
+    if (isApiError(error) && error.status === 400) {
+      throw error.withCode(INVALID_SUBMISSION);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Sets a new password from the token in a reset link. The server signs the
+ * person in with the same response, so this returns the account.
+ *
+ * A 400 is either the password (a field complaint) or the link itself
+ * ({@link INVALID_TOKEN}: wrong, already used, or older than an hour).
+ */
+export async function resetPassword(
+  token: string,
+  password: string,
+  options: CallOptions = {},
+): Promise<Account> {
+  let body: unknown;
+  try {
+    body = await postJson('/api/auth/reset-password', {
+      body: { token, password },
+      ...(options.signal ? { signal: options.signal } : {}),
+    });
+  } catch (error: unknown) {
+    if (isApiError(error) && error.status === 400) {
+      throw error.withCode(codeForSubmission(error, INVALID_TOKEN));
+    }
+    throw error;
+  }
+
+  const account = toAccount(body);
+  if (account === null) {
+    throw new ApiError('malformed', 'Reset response carried no account.');
+  }
+  return account;
+}
+
+/**
+ * Confirms an address from the token in a verification link.
+ *
+ * Needs no session — the link is often opened on a different device from the
+ * one that signed up. Any 400 means the link is no good ({@link INVALID_TOKEN}).
+ */
+export async function verifyEmail(token: string, options: CallOptions = {}): Promise<void> {
+  try {
+    await postJson('/api/auth/verify-email', {
+      body: { token },
+      ...(options.signal ? { signal: options.signal } : {}),
+    });
+  } catch (error: unknown) {
+    if (isApiError(error) && error.status === 400) throw error.withCode(INVALID_TOKEN);
+    throw error;
+  }
+}
+
+/** Sends the signed-in person a fresh verification link. */
+export async function resendVerification(
+  locale: Locale,
+  options: CallOptions = {},
+): Promise<void> {
+  await postJson('/api/auth/verify-email/resend', {
+    body: { locale },
+    ...(options.signal ? { signal: options.signal } : {}),
+  });
 }

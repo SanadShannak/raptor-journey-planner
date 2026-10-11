@@ -19,4 +19,13 @@ export interface Account {
   id: string;
   name: string;
   email: string;
+  /**
+   * Whether the address has been confirmed through the emailed link.
+   *
+   * Unverified accounts can do everything; this only decides whether the
+   * banner asking them to confirm is shown. A server from before verification
+   * existed sends no such field, and that reads as `true` — nobody should be
+   * nagged about a link that was never sent.
+   */
+  emailVerified: boolean;
 }

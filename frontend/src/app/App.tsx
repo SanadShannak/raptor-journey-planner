@@ -3,6 +3,8 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { RootLayout } from './RootLayout';
 import CardPage from '../pages/CardPage';
 import FavouritesPage from '../pages/FavouritesPage';
+import VerifyEmailPage from '../pages/VerifyEmailPage';
+import ResetPasswordPage from '../pages/ResetPasswordPage';
 import NotFoundPage from '../pages/NotFoundPage';
 import { paths } from './routes';
 
@@ -60,6 +62,8 @@ export function App() {
           <Route path={paths.stopDetail} element={<StopsPage />} />
           <Route path={paths.card} element={<CardPage />} />
           <Route path={paths.favourites} element={<FavouritesPage />} />
+          <Route path={paths.verifyEmail} element={<VerifyEmailPage />} />
+          <Route path={paths.resetPassword} element={<ResetPasswordPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>

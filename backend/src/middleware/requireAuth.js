@@ -29,6 +29,15 @@ const requireAuth = async (req, res, next) => {
   req.user = await User.findById(decoded.id);
   if (!req.user) throw new AppError(401, "UNAUTHORIZED", "User no longer exists.");
 
+  /*
+   * A session from before the last password change has been revoked: a
+   * reset is somebody taking their account back, and every device signed in
+   * with the old password has to sign in again. `iat` is in whole seconds.
+   */
+  if (req.user.passwordChangedAt && decoded.iat * 1000 < req.user.passwordChangedAt.getTime()) {
+    throw new AppError(401, "UNAUTHORIZED", "Session ended by a password change.");
+  }
+
   next();
 };
 

@@ -18,6 +18,9 @@ export const paths = {
   stopDetail: '/stops/:stopId',
   card: '/card',
   favourites: '/favourites',
+  /** Where the links in verification and reset emails land. */
+  verifyEmail: '/verify-email',
+  resetPassword: '/reset-password',
 } as const;
 
 /** A stop page, keyed by GTFS stop id — the same id the planner accepts. */

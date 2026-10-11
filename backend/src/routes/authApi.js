@@ -5,6 +5,9 @@ const {
   registerValidationRules,
   loginValidationRules,
   verifyPasswordValidationRules,
+  forgotPasswordValidationRules,
+  resetPasswordValidationRules,
+  verifyEmailValidationRules,
 } = require("../validators/authValidator");
 
 const {
@@ -13,13 +16,18 @@ const {
   logoutUser,
   getUserProfile,
   verifyUserPassword,
+  resendVerification,
+  verifyEmail,
+  forgotPassword,
+  resetPassword,
 } = require("../controllers/authController");
 
 const requireAuth = require("../middleware/requireAuth");
 const arcjetProtect = require("../middleware/arcjetMiddleware");
 
 /*
- * Arcjet guards the three routes where a guess costs something, and only
+ * Arcjet guards the routes where a guess costs something or an email goes
+ * out — sign-up, login, password checks, verification and reset — and only
  * those. `/me` is asked on every page load to see whether anybody is signed
  * in, and logging out risks nothing — putting them behind Arcjet would spend
  * the free plan's monthly allowance on page views.
@@ -45,6 +53,35 @@ router.post(
   verifyPasswordValidationRules,
   validateRequest,
   verifyUserPassword,
+);
+
+/*
+ * Email verification and password reset. Arcjet guards the three that send
+ * email or accept a token — the ones a script would hammer — and its attempt
+ * limit is what stops anybody guessing reset tokens or using this server to
+ * flood someone's inbox.
+ */
+router.post(
+  "/verify-email",
+  arcjetProtect,
+  verifyEmailValidationRules,
+  validateRequest,
+  verifyEmail,
+);
+router.post("/verify-email/resend", requireAuth, arcjetProtect, resendVerification);
+router.post(
+  "/forgot-password",
+  arcjetProtect,
+  forgotPasswordValidationRules,
+  validateRequest,
+  forgotPassword,
+);
+router.post(
+  "/reset-password",
+  arcjetProtect,
+  resetPasswordValidationRules,
+  validateRequest,
+  resetPassword,
 );
 
 module.exports = router;

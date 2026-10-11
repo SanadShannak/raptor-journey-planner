@@ -2,6 +2,7 @@ export { useSession, useStartSessionCheck, type SessionValue } from './useSessio
 export {
   checkSession,
   forgetSession,
+  resetPasswordAndSignIn,
   sessionExpired,
   type SessionStatus,
 } from './sessionStore';

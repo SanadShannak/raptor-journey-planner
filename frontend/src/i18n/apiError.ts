@@ -49,6 +49,8 @@ const MESSAGE_FOR_CODE: Record<string, keyof Dictionary['errors']> = {
   INTERNAL_SERVER_ERROR: 'serverError',
   /* Refusals from the rate limiter and Arcjet, on any endpoint. */
   RATE_LIMITED: 'rateLimited',
+  INVALID_TOKEN: 'invalidToken',
+  EMAIL_UNAVAILABLE: 'emailUnavailable',
   BOT_DETECTED: 'requestBlocked',
   REQUEST_BLOCKED: 'requestBlocked',
 

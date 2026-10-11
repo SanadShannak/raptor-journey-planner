@@ -828,6 +828,14 @@ export interface Dictionary {
     emailInvalid: string;
     passwordRequired: string;
     passwordTooShort: string;
+    /** Title of the sign-in dialog's "forgot password" form. */
+    forgot: string;
+    forgotLink: string;
+    forgotIntro: string;
+    submitForgot: string;
+    /** After asking: deliberately the same whether or not the address has an account. */
+    forgotSent: string;
+    backToLogIn: string;
   };
 
   /**
@@ -843,6 +851,30 @@ export interface Dictionary {
    * Every step is a title and a sentence or two. Each page's tour is its own
    * block so a step can be added to one page without renumbering another.
    */
+  /** Email verification and password reset: the banner and both pages. */
+  verification: {
+    bannerText: string;
+    bannerResend: string;
+    bannerSending: string;
+    bannerSent: string;
+    bannerDismiss: string;
+    verifyTitle: string;
+    verifying: string;
+    verified: string;
+    verifiedHint: string;
+    invalidLink: string;
+    invalidVerifyHintSignedIn: string;
+    invalidVerifyHintSignedOut: string;
+    missingToken: string;
+    goHome: string;
+    resetTitle: string;
+    resetIntro: string;
+    newPassword: string;
+    submitReset: string;
+    resetDone: string;
+    resetInvalidHint: string;
+    requestNewLink: string;
+  };
   tour: {
     /** The header control that replays the current page's tour. */
     open: string;
@@ -1102,5 +1134,9 @@ export interface Dictionary {
     savedLimitReached: string;
     /** The stop, line or saved row named is not there. */
     savedItemNotFound: string;
+    /** A verification or reset link that is wrong, used, or expired. */
+    invalidToken: string;
+    /** The server could not send an email (503). */
+    emailUnavailable: string;
   };
 }

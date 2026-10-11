@@ -1,5 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { EMAIL_IN_USE, INVALID_CREDENTIALS, INVALID_SUBMISSION, getSession, logIn, logOut, register } from './auth';
+import {
+  EMAIL_IN_USE,
+  INVALID_CREDENTIALS,
+  INVALID_SUBMISSION,
+  INVALID_TOKEN,
+  getSession,
+  logIn,
+  logOut,
+  register,
+  requestPasswordReset,
+  resetPassword,
+  verifyEmail,
+} from './auth';
 import { ApiError } from './errors';
 
 function respondWith(body: unknown, status = 200): ReturnType<typeof vi.fn> {
@@ -23,11 +35,18 @@ const ACCOUNT = {
   email: 'verify@example.com',
 };
 
+/*
+ * What those calls read as: they predate email verification, so they carry no
+ * `emailVerified`, and an account the server says nothing about is treated as
+ * verified rather than nagged about a link that was never sent.
+ */
+const READ = { ...ACCOUNT, emailVerified: true };
+
 describe('logIn', () => {
   it('reads the account out of the data envelope', async () => {
     respondWith({ message: 'Login successful', data: ACCOUNT });
     await expect(logIn({ email: ACCOUNT.email, password: 'password123' })).resolves.toEqual(
-      ACCOUNT,
+      READ,
     );
   });
 
@@ -98,7 +117,7 @@ describe('register', () => {
     respondWith({ message: 'User registered successfully', data: ACCOUNT }, 201);
     await expect(
       register({ name: ACCOUNT.name, email: ACCOUNT.email, password: 'password123' }),
-    ).resolves.toEqual(ACCOUNT);
+    ).resolves.toEqual(READ);
   });
 
   /* A bare 400 on this endpoint means the address is taken. */
@@ -160,7 +179,12 @@ describe('getSession', () => {
       },
     });
 
-    await expect(getSession()).resolves.toEqual(ACCOUNT);
+    await expect(getSession()).resolves.toEqual(READ);
+  });
+
+  it('reads an unconfirmed address as unconfirmed', async () => {
+    respondWith({ data: { ...ACCOUNT, emailVerified: false } });
+    await expect(getSession()).resolves.toEqual({ ...ACCOUNT, emailVerified: false });
   });
 
   /*
@@ -197,5 +221,44 @@ describe('logOut', () => {
   it('resolves even when the request fails', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
     await expect(logOut()).resolves.toBeUndefined();
+  });
+});
+
+describe('password reset and email verification', () => {
+  it('asks for a reset with the address and the reader\'s language', async () => {
+    const fetchMock = respondWith({ message: 'If an account exists…' });
+    await requestPasswordReset('someone@example.com', 'ar');
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(new URL(url).pathname).toBe('/api/auth/forgot-password');
+    expect(JSON.parse(String(init.body))).toEqual({ email: 'someone@example.com', locale: 'ar' });
+  });
+
+  it('signs in with the account a successful reset returns', async () => {
+    respondWith({ message: 'Password reset', data: { ...ACCOUNT, emailVerified: true } });
+    await expect(resetPassword('token', 'newpassword1')).resolves.toEqual(READ);
+  });
+
+  /* The two ways a reset is refused need different words: the link, or the password. */
+  it('tells a dead link from a rejected password', async () => {
+    respondWith({ errorCode: 'INVALID_TOKEN', error: 'expired' }, 400);
+    await expect(resetPassword('old', 'newpassword1')).rejects.toMatchObject({ code: INVALID_TOKEN });
+
+    respondWith(
+      {
+        errorCode: 'VALIDATION_FAILED',
+        error: 'Some fields were rejected.',
+        errors: [{ path: 'password', msg: 'Password must be at least 8 characters' }],
+      },
+      400,
+    );
+    await expect(resetPassword('token', 'short')).rejects.toMatchObject({ code: INVALID_SUBMISSION });
+  });
+
+  it('reads any refusal of a verification link as a dead link', async () => {
+    respondWith({ errorCode: 'INVALID_TOKEN', error: 'expired' }, 400);
+    await expect(verifyEmail('old')).rejects.toBeInstanceOf(ApiError);
+    respondWith({ errorCode: 'INVALID_TOKEN', error: 'expired' }, 400);
+    await expect(verifyEmail('old')).rejects.toMatchObject({ code: INVALID_TOKEN });
   });
 });

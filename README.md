@@ -25,6 +25,12 @@ One thing is not served from the compiled feed: **accounts**. Sign-in, saved
 stops, lines and journeys, and travel cards live in MongoDB (a free Atlas
 cluster in production), and the server will not start without a database.
 
+Accounts confirm their email address through a link, and a forgotten
+password is reset the same way. The emails go out through
+[Resend](https://resend.com); see [Email](#email) for setting it up. An
+unconfirmed account can still do everything — a banner simply asks for the
+address to be confirmed.
+
 In production each part runs as a container behind a reverse proxy — see
 [Deployment](#deployment).
 
@@ -1138,6 +1144,35 @@ the heap *plus* everything the runtime holds around it; set the two equal and
 the kernel kills the process while V8 still believes it has room — a silent
 restart under load, with nothing useful in the logs.
 
+### Email
+
+Verification and password-reset emails are sent through Resend's HTTP API
+(`backend/src/services/email.js`). Setting it up for a domain, once:
+
+1. Create a Resend account and **add the domain** (`journeyplanner.city`).
+   Resend lists the DNS records to create — DKIM and SPF, which prove mail
+   from the domain really comes from Resend.
+2. **Add those records at the DNS host** (Dynadot), then press *Verify* in
+   Resend. Until the domain verifies, every send is refused.
+3. Optionally add a DMARC record (`_dmarc`, `v=DMARC1; p=none;`) — mail
+   providers increasingly expect one, and without it some will file the
+   emails as spam.
+4. **Create an API key** and put three lines in `backend/.env` on the server:
+   `RESEND_API_KEY=…`, `EMAIL_FROM=Journey Planner <no-reply@journeyplanner.city>`
+   and `APP_URL=https://journeyplanner.city` (where the links point).
+   Then `docker compose up -d backend` so the container reads them.
+
+Locally none of this is needed. Without `RESEND_API_KEY`, the backend writes
+each email — link included — to its log instead of sending it, so the whole
+flow can be tried by clicking the link from the terminal.
+
+How the links work, briefly: each holds a one-time token of 32 random bytes.
+Only a SHA-256 hash of it is stored (`AuthToken`, with a TTL index that
+deletes it when it expires), a verification link lasts 24 hours and a reset
+link one hour, and either is deleted the moment it is used. Asking for a
+reset answers the same way whether or not the address has an account, and
+completing one ends every other session on that account.
+
 ### Operating it
 
 * **Logs:** `docker compose logs -f backend` (or `frontend`). Each container
@@ -1370,6 +1405,9 @@ Two things worth knowing about the keys:
 | `ARCJET_KEY` | No | — | Arcjet guards login, sign-up and password checks (attacks, bots, ten attempts a minute per address). Without a key the checks fail open: allowed, and a warning logged |
 | `ARCJET_MODE` | No | `LIVE` | `DRY_RUN` logs what Arcjet would refuse without refusing it |
 | `ARCJET_ENV` | No | — | `development` locally, so Arcjet accepts `127.0.0.1`. Never in production |
+| `RESEND_API_KEY` | In production | — | Sends verification and reset emails through Resend. Without it, development logs each email (link included) instead; production answers `503 EMAIL_UNAVAILABLE` |
+| `EMAIL_FROM` | In production | `onboarding@resend.dev` | The sender, on a domain verified in Resend |
+| `APP_URL` | In production | `http://localhost:5173` | Where links in emails point, e.g. `https://journeyplanner.city` |
 | `ACTIVE_NETWORK` | No | `pipelineConfig.js` | Under npm, an override for the pipeline's value. Under Docker it comes from the root `.env` and wins |
 
 **Client** — `frontend/.env` (committed) and `frontend/.env.local` (yours).

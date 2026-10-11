@@ -2,12 +2,14 @@ const serverStartLoadTime = performance.now();
 
 const app = require("./app.js");
 const connectDB = require("./config/db.js");
+const runMigrations = require("./config/migrations.js");
 const serverConfig = require("./serverConfig.js");
 const logger = require("./utils/logger");
 
 const startServer = async () => {
   try {
     await connectDB();
+    await runMigrations();
     app.listen(serverConfig.PORT, () => {
       logger.info(`[Server] Listening on Port ${serverConfig.PORT}`);
       logger.info(

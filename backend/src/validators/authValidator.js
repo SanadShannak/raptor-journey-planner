@@ -47,7 +47,30 @@ const verifyPasswordValidationRules = [
     .notEmpty()
     .withMessage("Password cannot be empty"),
 ];
+/*
+ * The new password on a reset follows the same rule as a password chosen at
+ * sign-up, so a reset cannot be used to set one the form would refuse.
+ */
+const forgotPasswordValidationRules = [
+  body("email").trim().isEmail().withMessage("Please enter a valid email address"),
+];
+
+const resetPasswordValidationRules = [
+  body("token").isString().notEmpty().withMessage("Token is required"),
+  body("password")
+    .trim()
+    .isLength({ min: 8 })
+    .withMessage("Password must be at least 8 characters"),
+];
+
+const verifyEmailValidationRules = [
+  body("token").isString().notEmpty().withMessage("Token is required"),
+];
+
 module.exports = {
+  forgotPasswordValidationRules,
+  resetPasswordValidationRules,
+  verifyEmailValidationRules,
   registerValidationRules,
   loginValidationRules,
   verifyPasswordValidationRules,

@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { PendingLabel } from '../components/Pending';
 import { pendingButtonClass } from '../components/pendingButtonClass';
 import { isApiError } from '../api/errors';
-import { INVALID_SUBMISSION } from '../api/auth';
+import { INVALID_SUBMISSION, requestPasswordReset } from '../api/auth';
 import { useSession } from '../auth';
 import { messageForApiError, useLocale } from '../i18n';
 import type { AuthMode } from '../auth/authPrompt';
@@ -55,12 +55,18 @@ const PASSWORD_MINIMUM = 8;
  * the dictionary.
  */
 export function AuthDialog({ mode, onChangeMode, onClose }: Props) {
-  const { strings, t } = useLocale();
+  const { locale, strings, t } = useLocale();
   const { logIn, register } = useSession();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
   const [failure, setFailure] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  /**
+   * The address a reset link was asked for, once it has been. The form is
+   * then replaced by the same sentence whatever the server found — it never
+   * says whether the address has an account.
+   */
+  const [sentTo, setSentTo] = useState<string | null>(null);
   const titleId = useId();
 
   /*
@@ -74,6 +80,7 @@ export function AuthDialog({ mode, onChangeMode, onClose }: Props) {
   }, []);
 
   const isSignUp = mode === 'signUp';
+  const isForgot = mode === 'forgot';
 
   function validate(data: FormData): Partial<Record<Field, string>> {
     const found: Partial<Record<Field, string>> = {};
@@ -88,6 +95,9 @@ export function AuthDialog({ mode, onChangeMode, onClose }: Props) {
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       found.email = t(strings.auth.emailInvalid);
     }
+
+    // The forgot-password form asks only for the address.
+    if (isForgot) return found;
 
     const password = String(data.get('password') ?? '');
     if (password === '') found.password = t(strings.auth.passwordRequired);
@@ -145,8 +155,13 @@ export function AuthDialog({ mode, onChangeMode, onClose }: Props) {
 
     setPending(true);
     try {
+      if (isForgot) {
+        await requestPasswordReset(email, locale);
+        setSentTo(email);
+        return;
+      }
       if (isSignUp) {
-        await register({ name: String(data.get('name') ?? '').trim(), email, password });
+        await register({ name: String(data.get('name') ?? '').trim(), email, password, locale });
       } else {
         await logIn({ email, password });
       }
@@ -247,12 +262,37 @@ export function AuthDialog({ mode, onChangeMode, onClose }: Props) {
           </button>
         </div>
 
-        {isSignUp && field('name', 'text', 'name')}
-        {field('email', 'email', 'email')}
-        {field(
-          'password',
-          'password',
-          isSignUp ? 'new-password' : 'current-password',
+        {sentTo !== null ? (
+          /*
+            The answer to "forgot password", and the whole of it. A status so a
+            screen reader hears it, since it replaces the form that had focus.
+          */
+          <p role="status" className="text-sm leading-relaxed">
+            {t(strings.auth.forgotSent, { email: sentTo })}
+          </p>
+        ) : (
+          <>
+            {isForgot && (
+              <p className="text-content-muted text-sm">{t(strings.auth.forgotIntro)}</p>
+            )}
+            {isSignUp && field('name', 'text', 'name')}
+            {field('email', 'email', 'email')}
+            {!isForgot &&
+              field('password', 'password', isSignUp ? 'new-password' : 'current-password')}
+            {/*
+              Under the password field, where somebody who cannot remember it
+              is already looking — and only on the log-in form.
+            */}
+            {mode === 'logIn' && (
+              <button
+                type="button"
+                onClick={() => onChangeMode('forgot')}
+                className="rounded-control text-brand-500 focus-visible:outline-brand-500 -mt-2 cursor-pointer self-start text-sm underline focus-visible:outline-2 focus-visible:outline-offset-2"
+              >
+                {t(strings.auth.forgotLink)}
+              </button>
+            )}
+          </>
         )}
 
         {/*
@@ -270,6 +310,7 @@ export function AuthDialog({ mode, onChangeMode, onClose }: Props) {
           )}
         </div>
 
+        {sentTo === null && (
         <button
           type="submit"
           disabled={pending}
@@ -280,19 +321,28 @@ export function AuthDialog({ mode, onChangeMode, onClose }: Props) {
             {t(
               pending
                 ? strings.auth.submitting
-                : isSignUp
-                  ? strings.auth.submitSignUp
-                  : strings.auth.submitLogIn,
+                : isForgot
+                  ? strings.auth.submitForgot
+                  : isSignUp
+                    ? strings.auth.submitSignUp
+                    : strings.auth.submitLogIn,
             )}
           </PendingLabel>
         </button>
+        )}
 
         <button
           type="button"
-          onClick={() => onChangeMode(isSignUp ? 'logIn' : 'signUp')}
+          onClick={() => onChangeMode(mode === 'logIn' ? 'signUp' : 'logIn')}
           className="rounded-control text-brand-500 focus-visible:outline-brand-500 cursor-pointer text-sm underline focus-visible:outline-2 focus-visible:outline-offset-2"
         >
-          {t(isSignUp ? strings.auth.switchToLogIn : strings.auth.switchToSignUp)}
+          {t(
+            isForgot
+              ? strings.auth.backToLogIn
+              : isSignUp
+                ? strings.auth.switchToLogIn
+                : strings.auth.switchToSignUp,
+          )}
         </button>
       </form>
     </dialog>
