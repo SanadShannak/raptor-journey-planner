@@ -533,6 +533,23 @@ export const en: Dictionary = {
       navBody:
         'Browse routes and stops, keep track of your travel card, and find your favourites from here. On a phone they are in the menu.',
     },
+    itinerary: {
+      stepsTitle: 'Your journey, step by step',
+      stepsBody:
+        'Every walk, wait and ride in order, with the time you reach each stop and the time you leave it.',
+      stopTitle: 'Open a stop',
+      stopBody:
+        'Press an underlined stop name to see everything that leaves from it — handy for checking the platform or a later departure.',
+      rideTitle: 'Follow a ride',
+      rideBody:
+        'Press a ride to open that vehicle’s whole trip: every stop it calls at, and where it is right now. The stop count under it lists the stops you pass on the way.',
+      mapTitle: 'The journey on the map',
+      mapBody:
+        'Each ride is drawn in its own colour, with walks dotted between them. Press a coloured line to follow that vehicle, or a stop to see its departures.',
+      backTitle: 'Back to the list',
+      backBody:
+        'Return to all the journeys found, to compare them or choose another.',
+    },
     routes: {
       searchTitle: 'Find a route',
       searchBody:

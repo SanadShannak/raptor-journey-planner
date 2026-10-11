@@ -90,6 +90,7 @@ export function ItineraryDetail({
     <section className="flex flex-col gap-4" aria-label={t(strings.planner.journeyDetails)}>
       <button
         type="button"
+        data-tour="itinerary-back"
         onClick={onBack}
         className="text-content hover:text-brand-500 focus-visible:outline-brand-500 rounded-control -ms-1 inline-flex cursor-pointer items-center gap-1.5 self-start px-1 py-1 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
       >
@@ -228,7 +229,7 @@ export function ItineraryDetail({
           the line into pieces at exactly the points where the journey does not
           stop.
         */}
-        <ol className="flex flex-col px-5 py-4">
+        <ol data-tour="itinerary-steps" className="flex flex-col px-5 py-4">
           {rows.map((row) =>
             row.type === 'node' ? (
               <NodeLine key={row.key} row={row} onInspect={onInspectStop} />
@@ -449,6 +450,7 @@ function NodeLine({
             {inspectable ? (
               <button
                 type="button"
+                data-tour="itinerary-stop"
                 onClick={() => onInspect?.(row.stopId as string)}
                 className="rounded-control hover:text-brand-500 focus-visible:outline-brand-500 cursor-pointer text-start underline decoration-dotted underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
               >
@@ -710,6 +712,7 @@ function TransitBody({
         button cannot offer.
       */}
       <Link
+        data-tour="itinerary-ride"
         to={tripPath(leg.lineId, leg.patternId, leg.tripId, leg.startDate)}
         state={{ back: `${here.pathname}${here.search}` }}
         /*

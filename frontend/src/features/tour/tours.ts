@@ -1,7 +1,7 @@
 import type { Dictionary, Message } from '../../i18n';
 
 /** One tour per page that has one. */
-export type TourId = 'plan' | 'routes' | 'stops' | 'card' | 'favourites';
+export type TourId = 'plan' | 'itinerary' | 'routes' | 'stops' | 'card' | 'favourites';
 
 export interface TourStep {
   /**
@@ -44,6 +44,18 @@ export const TOURS: Record<TourId, readonly TourStep[]> = {
     { target: 'plan-results', title: (s) => s.tour.plan.resultsTitle, body: (s) => s.tour.plan.resultsBody },
     { target: 'plan-save', title: (s) => s.tour.plan.saveTitle, body: (s) => s.tour.plan.saveBody },
     { target: 'nav', title: (s) => s.tour.plan.navTitle, body: (s) => s.tour.plan.navBody },
+  ],
+  /*
+   * Its own tour rather than more steps on the planner's: it explains a view
+   * that exists only once a journey has been opened, so it runs the first time
+   * one is.
+   */
+  itinerary: [
+    { target: 'itinerary-steps', title: (s) => s.tour.itinerary.stepsTitle, body: (s) => s.tour.itinerary.stepsBody },
+    { target: 'itinerary-stop', title: (s) => s.tour.itinerary.stopTitle, body: (s) => s.tour.itinerary.stopBody },
+    { target: 'itinerary-ride', title: (s) => s.tour.itinerary.rideTitle, body: (s) => s.tour.itinerary.rideBody },
+    { target: 'plan-map', flush: true, title: (s) => s.tour.itinerary.mapTitle, body: (s) => s.tour.itinerary.mapBody },
+    { target: 'itinerary-back', title: (s) => s.tour.itinerary.backTitle, body: (s) => s.tour.itinerary.backBody },
   ],
   routes: [
     { target: 'routes-search', title: (s) => s.tour.routes.searchTitle, body: (s) => s.tour.routes.searchBody },

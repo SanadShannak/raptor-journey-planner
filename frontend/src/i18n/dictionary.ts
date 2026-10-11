@@ -870,6 +870,18 @@ export interface Dictionary {
       navTitle: string;
       navBody: string;
     };
+    itinerary: {
+      stepsTitle: string;
+      stepsBody: string;
+      stopTitle: string;
+      stopBody: string;
+      rideTitle: string;
+      rideBody: string;
+      mapTitle: string;
+      mapBody: string;
+      backTitle: string;
+      backBody: string;
+    };
     routes: {
       searchTitle: string;
       searchBody: string;

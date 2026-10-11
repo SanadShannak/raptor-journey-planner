@@ -112,7 +112,6 @@ export default function PlanPage() {
    * sideways, three words wide.
    */
   usePageTitle(t(strings.pages.plan.documentTitle));
-  useTour('plan');
 
   const [validDates, setValidDates] = useState<string[]>([]);
   const [networkToday, setNetworkToday] = useState<string | null>(null);
@@ -278,6 +277,12 @@ export default function PlanPage() {
    * richer because the list it indexes is restored alongside it.
    */
   const [openIndex, setOpenIndexState] = useState<number | null>(seed.openIndex);
+  /*
+   * The planner's tour, or the itinerary's once one is open — its own tour,
+   * started the first time somebody opens a journey, and the one the header
+   * replays while they are reading it.
+   */
+  useTour(openIndex === null ? 'plan' : 'itinerary');
   /**
    * Which card the traveller has actually chosen, as opposed to grazed.
    *
