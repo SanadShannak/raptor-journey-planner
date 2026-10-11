@@ -36,23 +36,29 @@ cd frontend && npm test                        # vitest, single run
 cd frontend && npm run test:watch              # vitest, watch mode
 cd frontend && npx vitest run path/to/x.test.ts   # a single test file
 cd frontend && npm run check:contrast          # WCAG AA check on design tokens, both schemes
+
+cd backend && npm run resetdb                  # ⚠ drops the whole database MONGO_URI names
+
+docker compose -f compose.local.yaml up -d --build   # the containers locally, on :8080
 ```
 
 The frontend has a Vitest suite. **The pipeline and backend have no tests and are not to get any** — `npm test` there is an unimplemented stub. Verify backend behaviour by calling the running server.
 
-The backend port defaults to `3000` and is set in `backend/src/serverConfig.js`, which honours `process.env.PORT`. The frontend's `VITE_API_BASE_URL` must agree with it.
+The backend will not start without `backend/.env` holding `MONGO_URI` and `JWT_SECRET_KEY`: it connects to MongoDB before opening the port and exits if it cannot, and every login fails without the key. `backend/.env.example` documents each variable. The port defaults to `3000` and is set in `backend/src/serverConfig.js`, which honours `process.env.PORT`; the client reaches it through Vite's proxy, so `VITE_DEV_API_PROXY` in `frontend/.env` must agree with it. `VITE_API_BASE_URL` is `/` and stays `/` — see *Configuration and containers*.
 
 ## Architecture
 
 ### Network selection drives every path
 
-`offline-data-ingestion-pipeline/pipelineConfig.js` exports `ACTIVE_NETWORK` (currently `"hsl"`). That single string derives `raw-data/<network>-gtfs-data/` and `processed-data/<network>-processed-data/` throughout both the pipeline and the backend. Switching cities is a one-token change; never hardcode a network folder name.
+`offline-data-ingestion-pipeline/pipelineConfig.js` exports `ACTIVE_NETWORK` (currently `"hsl"`). That single string derives `raw-data/<network>-gtfs-data/` and `processed-data/<network>-processed-data/` throughout both the pipeline and the backend. Never hardcode a network folder name.
+
+The backend asks its environment first: `resolveActiveNetwork()` in `backend/src/serverConfig.js` reads `process.env.ACTIVE_NETWORK` and falls back to `pipelineConfig.js` only when it is unset, and throws when neither is available — a container ships without the pipeline and is told per deployment, while a checkout follows whatever compiled the feed on disk. One token selects the network, but a new city also needs entries that no feed contains (currency, map view, geocoding bounds); the README's *Switching networks* lists every one.
 
 `pipelineConfig.rules` is also the ingestion schema validator — required GTFS files and column headers are rejected at the stream boundary if missing.
 
 ### Offline pipeline → processed JSON → in-memory server
 
-`runPipeline.js` runs eight parsers **in order** as synchronous child processes; later components consume earlier ones' output (spatial grid feeds the footpath generator, stops feed the grid, and so on). Reordering them breaks the build.
+`runPipeline.js` runs nine components **in order** as synchronous child processes; later components consume earlier ones' output (spatial grid feeds the footpath generator, stops feed the grid, and so on). Reordering them breaks the build.
 
 The parsers compact relational GTFS text into zero-indexed contiguous arrays: a stop's *array index* is its internal integer ID, and `*-mapping.json` files translate original GTFS string IDs back to those integers. Times are stored as seconds-from-midnight integers, not strings.
 
@@ -104,6 +110,18 @@ Every failure, whatever its status, carries `{ errorCode, error }`. **The status
 
 The README's "Known Limitations & Unexpected Behaviors" section documents deliberate engine quirks — pedestrian-only itineraries, null `transitDistanceMeters`, straight-line footpaths across water. Do not "fix" these in the frontend; surface them.
 
+## Configuration and containers
+
+**One env file per part, used identically by npm and by Docker.** `backend/.env` is read by the npm scripts (`--env-file-if-exists`) and passed to the backend container (`env_file`). `frontend/.env` (committed, non-secret: `VITE_API_BASE_URL=/`, `VITE_DEV_API_PROXY`) and `frontend/.env.local` (git-ignored: the optional browser keys) are read by Vite in every mode — the dev server, `npm run build`, and the image build, which is why `.dockerignore` lets exactly those two through. The root `.env` is Compose's alone and holds only `ACTIVE_NETWORK`, which Compose uses for the mount path *and* passes to the backend, so the two cannot disagree. Each has a committed `.env.example`.
+
+Three rules that cost real bugs:
+
+- **Vite loads `.env.local` in test mode too.** `vite.config.ts` pins every `VITE_` variable for tests, so a developer's real keys cannot switch the geocoder under test or send requests to a real service. Add any new `VITE_` variable there as well.
+- **No `$` in `backend/.env` values.** Node reads them literally; Compose substitutes `$NAME` inside them, so the container would get a different secret from the one Node sees.
+- **`compose.yaml` is the server's; `compose.local.yaml` is for a laptop** and is read only when named with `-f`. `compose.override.yaml` is git-ignored on purpose: Compose merges it into `compose.yaml` silently, so one reaching the server would change what runs there. Images are built for `linux/amd64` and published to GHCR; the server never builds.
+
+The README's *Deployment* section has the full picture: the request path through the shared edge proxy, the images, memory limits, releasing, and refreshing an expiring feed.
+
 ## Frontend conventions
 
 Deliberately small dependency footprint. Before adding any package, justify it: it must solve a real problem that would otherwise need significant custom code, and be mature enough for production. Prefer native `fetch`, React state, CSS, and small local utilities. Specifically **not** wanted unless the need actually materialises: a global state library, a date library, a form library, a validation library, an HTTP client. Never add two libraries for the same problem.
@@ -150,7 +168,7 @@ The corollary: **a row that is a `<Link>` must not also navigate on click.** Bot
 Geocoding is an adapter behind the `Geocoder` interface in `src/types/place.ts`, resolved once in `src/geocoding/index.ts` — the right one depends on the network, so adding a city means adding an adapter, not changing the form.
 
 - **Photon** is the default and needs no key. It is one of the few free geocoders that permits typeahead; Nominatim forbids it. It knows OpenStreetMap, not our feed, so it can never supply a stop id.
-- **Digitransit** is used when `VITE_DIGITRANSIT_SUBSCRIPTION_KEY` is set, and knows HSL's own stops. Its `addendum.GTFS` carries modes, stop code, and platform, which is what lets six results named "Pasila" be told apart. A key in a browser bundle is public by design and rate-limited per key — but public *in a bundle* and public *in a repository* are different exposures, the second being scraped by bots within minutes of a push. So the dev key lives in `frontend/.env.development.local`, which is git-ignored; without one, place search falls back to Photon and loses stop suggestions rather than breaking.
+- **Digitransit** is used when `VITE_DIGITRANSIT_SUBSCRIPTION_KEY` is set, and knows HSL's own stops. Its `addendum.GTFS` carries modes, stop code, and platform, which is what lets six results named "Pasila" be told apart. A key in a browser bundle is public by design and rate-limited per key — but public *in a bundle* and public *in a repository* are different exposures, the second being scraped by bots within minutes of a push. So the dev key lives in `frontend/.env.local`, which is git-ignored; without one, place search falls back to Photon and loses stop suggestions rather than breaking.
 
 Two rules that cost real bugs: a stop id arrives as `GTFS:HSL:1020444#H0101` and the `#platform` suffix is **not** part of the id, and an unrecognised mode is **dropped rather than defaulted** — telling someone a rail platform is a bus stop sends them to the wrong side of the station.
 

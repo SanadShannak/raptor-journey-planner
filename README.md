@@ -1,5 +1,8 @@
 # RAPTOR Journey Planner Engine
 
+Live at **[journeyplanner.city](https://journeyplanner.city)**, serving Helsinki's
+HSL network.
+
 ## Core System Architecture Overview
 
 Public transit engines process massive datasets containing millions of weekly scheduled trips. Running a routing engine directly against raw schedule files or a standard database produces unacceptably high latency.
@@ -18,6 +21,13 @@ To overcome this, this project is divided into three decoupled, distinct parts, 
 
 The three are genuinely decoupled: the pipeline can be rebuilt without touching the server, and the server runs without the client. Only the direction of dependency is fixed — the client reads the API, the API reads the compiled data, the pipeline writes it.
 
+One thing is not served from the compiled feed: **accounts**. Sign-in, saved
+stops, lines and journeys, and travel cards live in MongoDB (a free Atlas
+cluster in production), and the server will not start without a database.
+
+In production each part runs as a container behind a reverse proxy — see
+[Deployment](#deployment).
+
 ---
 
 ## Quickstart
@@ -32,43 +42,66 @@ serves.
 npm install
 cd frontend && npm install && cd ..
 
-# 1. Compile the feed. Reads raw-data/<network>-gtfs-data, writes
+# 1. The API's settings. Copy the template, then set the two required values
+#    shown below the block.
+cp backend/.env.example backend/.env
+
+# 2. Compile the feed. Reads raw-data/<network>-gtfs-data, writes
 #    processed-data/<network>-processed-data. Minutes, not seconds — and
 #    nothing else will start until it has run at least once.
 cd offline-data-ingestion-pipeline && node runPipeline.js && cd ..
 
-# 2. The API. Loads every compiled file into memory before opening the port,
-#    so it is slow to start and fast to answer. Leave it running.
+# 3. The API. Loads every compiled file into memory and connects to MongoDB
+#    before opening the port, so it is slow to start and fast to answer.
+#    Leave it running.
 cd backend && npm run dev
 
-# 3. The client, in a second terminal.
+# 4. The client, in a second terminal.
 cd frontend && npm run dev
 ```
 
+```bash
+# backend/.env — the two values you must set
+MONGO_URI=mongodb://127.0.0.1:27017/journey_planner_db   # or your Atlas URI
+JWT_SECRET_KEY=<a long random string — e.g. the output of: openssl rand -hex 32>
+```
+
+The client needs nothing: its settings are committed in `frontend/.env`. Your
+optional map and search keys go in `frontend/.env.local` — see
+[Start the web client](#4-start-the-web-client).
+
 Then open the address Vite prints — `http://localhost:5173` by default.
 
-**Step 1 is not optional and is easy to skip.** The backend does not read GTFS;
+**Step 2 is not optional and is easy to skip.** The backend does not read GTFS;
 it reads the JSON the pipeline compiles from it, synchronously, before it opens
-the port. Skip it and the server exits with an `ENOENT` naming the
-`processed-data/<network>-processed-data` file it wanted — which is at least a
-clear message, and means "run the pipeline", not "reinstall something". Run it
-again whenever you change `ACTIVE_NETWORK`: the compiled output is per-network,
-and the server reads whichever network that token names.
+the port. Skip it and the server prints
+`File footpaths.processed.json does not exist` and exits — which means "run the
+pipeline", not "reinstall something". Run it again whenever you change
+`ACTIVE_NETWORK`: the compiled output is per-network, and the server reads
+whichever network that token names.
+
+**Neither is the database.** The server connects to MongoDB before it listens,
+and exits with a `[Database] Error` if it cannot. The `MONGO_URI` above is a
+local `mongod`; a free Atlas cluster works the same way — paste its URI
+instead. `JWT_SECRET_KEY` signs the session cookie, and without it every login
+fails.
 
 Everything below this is reference. For the detail — prerequisites, the API's
 endpoints, opening it on a phone — see
 [Running the Project](#running-the-project); for a different city, see
-[Switching networks](#switching-networks).
+[Switching networks](#switching-networks); for containers and the live server,
+see [Deployment](#deployment).
 
 ---
 
-## The Pipeline Configuration Registry (`pipelineConfig.js`)
+## The Pipeline Configuration Registry (`offline-data-ingestion-pipeline/pipelineConfig.js`)
 
 To prevent hardcoding folder names inside individual parser scripts, we use a central configuration file. This allows us to scale the project easily and switch between different city networks with a single string swap.
 
 ### Structural Manifest Rules
 1. **Network Independence:** To switch the target data from Helsinki (`hsl`) to Amman (`amman`), change the `ACTIVE_NETWORK` property. All parsers automatically adjust their input and output paths based on this single token.
 2. **Pipeline Integrity Controls:** The configuration features a strict `rules` schema validator containing arrays of `requiredFiles` and column headers ensuring incomplete or structurally corrupt datasets are rejected at the stream boundary.
+3. **The Backend Asks Its Environment First:** The server reads `ACTIVE_NETWORK` from its environment and falls back to this file only when the variable is unset (`resolveActiveNetwork()` in `backend/src/serverConfig.js`). A checkout keeps working with nothing set, because the feed on disk is whatever this file compiled; a container, which ships without the pipeline, is told per deployment. Unset *and* unavailable is a hard error rather than a guess — a server that guessed `hsl` would quietly read one city's folders while another city's feed sat beside it.
 
 ---
 
@@ -107,6 +140,8 @@ Aggregates individual scheduled journeys by extracting their physical stop seque
 #### Ingestion Rules
 1. **Sequence Serialization**: Converts raw stop sequences into signature strings. Trips sharing identical sequences are collapsed into the same `service_bucket`.
 2. **Trip Mapping**: Generates the `trip-mapping.json` manifest, bridging raw GTFS string IDs to compressed integer indices.
+3. **Route Output**: Writes the patterns themselves to `routes.processed.json`.
+4. **Destination Signs**: Writes each trip's own headsign to `trip-headsigns.processed.json`, deduplicated into a `values` table with a `by_trip` index. A pattern's trips do not always share one sign — a rail line can run some trips beyond the usual terminus — so a departure board needs the trip's sign, not the pattern's.
 
 ---
 
@@ -117,7 +152,7 @@ Ingests and transforms raw calendar schedules from `stop_times.txt` into a high-
 
 #### Ingestion Rules
 1. **Temporal Serialization**: Converts `HH:MM:SS` text timestamps into highly compressed base-10 integers representing **Seconds From Midnight**.
-2. **Memory Layout**: Groups data into a direct Key-Value Hash Map `{ trip_id: [{ arrival, departure }] }` to ensure $O(1)$ lookup complexity.
+2. **Memory Layout**: An array indexed by the flat trip ID from `trip-mapping.json`; each entry is that trip's ordered `[{ arrival, departure }]` in seconds from midnight, so any trip's times are one array index away — $O(1)$, with no string keys.
 
 ---
 ### Component 5: Stop-to-Route Indexer (`parseStopToRoutes.js`)
@@ -167,6 +202,16 @@ Fuses sparse station coordinate data with high-density polyline drawing instruct
 
 ---
 
+### Component 9: Network Metadata Compiler (`parseNetworkMeta.js`)
+#### Objective
+Compiles the network's description of itself into `network-meta.processed.json`: timezone, language and agency from `agency.txt`; publisher, version and **validity window** (`feedStartDate`, `feedEndDate`) from `feed_info.txt` where the feed has one; the compile time; and an `available` manifest of which optional data the feed actually supplied (stop codes, platforms, fare zones, headsigns, shapes, distances, and so on).
+#### Logic Metrics
+1. **Runs Last on Purpose**: The capability flags are read from the *compiled* output rather than the raw feed, so they describe what consumers will really find. A column present in the CSV but blank in every row counts as absent.
+2. **The Timezone Is Derived, Not Configured**: Every timestamp in the system is wall-clock time in the network's zone, and the feed states that zone in `agency.txt`. The backend's `NETWORK_TIMEZONES` table is only a fallback for a feed that has no `agency.txt`.
+3. **Feeds Expire**: `feedEndDate` is the last day the timetable covers. Past it, the planner has no service days to offer — see [Operating it](#operating-it).
+
+---
+
 ### The Online Routing Server: RAPTOR Engine (`raptorEngine.js`)
 #### Objective
 The core online algorithm that consumes pre-compiled transit arrays to answer travel queries, fully equipped with path reconstruction, spatial grid coordinate lookups, multi-day temporal windows, and strict machine-readable error codes.
@@ -177,33 +222,45 @@ The core online algorithm that consumes pre-compiled transit arrays to answer tr
 4. **Initialization**: Pre-allocates native 2D arrays to hold arrival times across `MAX_ROUNDS`, utilizing `Infinity` to signify unvisited nodes.
 5. **Stage 1 (Route Accumulation)**: Identifies all active routes that pass through reachable stops in $O(1)$ time.
 6. **Stage 2 (Route Scanning)**: Executes an $O(\log N)$ binary search across the multi-day temporal window to retrieve the earliest possible transit trip, scanning stop-by-stop while pruning dominated paths. 
-7. **Stage 3 (Footpath Processing)**: Processes pedestrian transfers between stops using dynamic walking speeds and the spatial grid index (`spatialGrid.js`).
+7. **Stage 3 (Footpath Processing)**: Processes pedestrian transfers between stops from the precompiled footpath matrix (`footpaths.processed.json`), at the requested walking speed.
 8. **Path Reconstruction**: Backtracks through parent pointer matrices to construct an ordered, turn-by-turn itinerary. 
 9. **UI & Geometry Hydration**: Enriches the final mathematical path with UI metadata (GTFS `route_type` integer) and injects highly accurate geographic shape polylines via $O(1)$ array slicing for frontend map rendering.
 
 ---
 
-### The API Controller (`index.js`)
+### The HTTP API (`backend/src/`)
 #### Objective
-Exposes the RAPTOR engine and the compiled feed to client applications over
-HTTP, handling request validation, performance tracking, and payload
-formatting. It has grown from one endpoint to eight — see
-[Endpoints](#endpoints) for the list; one router per endpoint lives in
-`server/routes/`.
+Exposes the RAPTOR engine, the compiled feed, and user accounts to client
+applications over HTTP. `index.js` starts it; `server.js` connects to MongoDB
+and only then listens; `app.js` mounts one router per endpoint from `routes/`.
+The account endpoints go a layer further — `routes/` → `validators/`
+(express-validator rules) → `controllers/` → `models/` (Mongoose) — with
+`middleware/requireAuth.js` guarding everything that needs a session. See
+[Endpoints](#endpoints) for the list.
 #### Operational Logic
-1. **Synchronous Memory Bootstrapping**: Leverages Node's synchronous `require()` behavior to load all massive GTFS JSON data into the V8 memory heap *before* opening the port to accept traffic.
+1. **Synchronous Memory Bootstrapping**: Leverages Node's synchronous `require()` behavior to load all massive GTFS JSON data into the V8 memory heap *before* opening the port to accept traffic. The database connection comes next, and also before the port opens: if either fails the process exits, so a server that cannot route, or cannot answer for an account, never starts half-working.
 2. **Input Validation**: Uses utility validators to strictly enforce date formats (`YYYY-MM-DD`), time formats (`HH:MM:SS`), and optional walking speed constraints.
 3. **Performance Telemetry**: Utilizes `performance.now()` to track and log exact execution times for every route calculated.
-4. **Error Propagation**: Every failure carries `{ errorCode, error }`, and the
-   status says *who* refused rather than whether there is an answer. A
-   malformed request is a `400`; an unknown line is a `404`; a card lookup with
-   no store behind it is a `503`; an unexpected throw is a `500`. An engine
-   outcome is **none of those** — `NO_ROUTE_FOUND` and
-   `DESTINATION_OUT_OF_BOUNDS` come back with a `200`, because the request was
-   fine and "nothing runs between those points then" is an answer rather than a
-   fault. A client that goes straight to reading `legs` reports "unreadable
-   response" for what is really an empty result, so **read `errorCode` on a
-   successful response too**.
+4. **Two Error Shapes**: The two halves of the API grew at different times and
+   answer differently, and a client has to know which it is talking to.
+   * **The feed endpoints** (planner, stops, lines, network, dates) carry
+     `{ errorCode, error }`, and the status says *who* refused rather than
+     whether there is an answer: a malformed request is a `400`, an unknown stop
+     or line a `404`, an unexpected throw a `500`. An engine outcome is **none
+     of those** — `NO_ROUTE_FOUND` and `DESTINATION_OUT_OF_BOUNDS` come back with
+     a `200`, because the request was fine and "nothing runs between those
+     points then" is an answer rather than a fault. A client that goes straight
+     to reading `legs` reports "unreadable response" for what is really an empty
+     result, so **read `errorCode` on a successful response too**.
+   * **The account endpoints** (`/api/auth`, `/api/cards`, `/api/user`) carry
+     `{ message }` — or `{ errors: [...] }`, one per field, when request
+     validation fails with a `400`. A missing or expired session, or a wrong
+     password, is a `401`; something not on this account is a `404`; a limit
+     reached (five cards, five saved stops) is a `422`.
+
+   Neither `error` nor `message` is ever shown to anyone: both are
+   developer-facing English. The client maps each failure to a localised
+   message itself — see `frontend/src/api/errors.ts`.
 5. **Presenter Pattern (`formatItinerary.js`)**: Once the engine completes
    execution, the raw timeline arrays are passed through a formatter that turns
    engine seconds into wall-clock strings in the network's timezone and attaches
@@ -213,13 +270,19 @@ formatting. It has grown from one endpoint to eight — see
    arrive earlier or may leave later than they can — durations round to whole
    minutes with a floor of 1, and distances to the nearest 50 m with a floor of
    50. See [What `/api/planner` returns](#what-apiplanner-returns).
+6. **Sessions**: Logging in sets an HTTP-only cookie (`jwt`) holding a signed
+   token, `SameSite=Strict`, valid for 30 days. It is marked `Secure` whenever
+   `NODE_ENV=production` — which the container sets — so **in production a
+   session only survives over HTTPS**. Login appearing to succeed and then
+   forgetting you is the symptom of serving the production build over plain
+   HTTP, not a bug in the login.
 
 ---
 
 ## Haversine Spatial Calculator (`utils/calculateHaversine.js`)
 
 #### Objective
-Provides a zero-dependency mathematical helper to calculate the exact great-circle distance between two geographic coordinates.
+Provides a zero-dependency mathematical helper to calculate the exact great-circle distance between two geographic coordinates. There are two copies, one per side of the decoupling: `offline-data-ingestion-pipeline/utils/` for the footpath generator, and `backend/raptor-engines/utils/` for the engine's coordinate lookups.
 
 #### Design Optimization
 1. **Memory Allocation Defenses**: Eliminates heap-allocation churn by performing calculations using direct primitives, blocking the Garbage Collector from triggering stutters.
@@ -228,7 +291,7 @@ Provides a zero-dependency mathematical helper to calculate the exact great-circ
 
 ---
 
-## Spatial Grid Indexing Utility (`utils/getNearbyStops.js`)
+## Spatial Grid Indexing Utility (`backend/raptor-engines/utils/getNearbyStops.js`)
 #### Objective
 Bridges geographic coordinate pins (latitude/longitude) to the transit network by performing high-speed spatial searches over the compiled spatial grid hash map.
 #### Design Optimization & Penalties
@@ -238,30 +301,34 @@ Bridges geographic coordinate pins (latitude/longitude) to the transit network b
 
 ---
 
-## Shape Injection Utility (`utils/injectTransitShape.js`)
+## Shape Injection Utility (`backend/raptor-engines/utils/injectTransitShape.js`)
 #### Objective
 An isolation layer that shields the core routing engine from heavy map geometry processing.
 #### Design Optimization
-1. **$O(1)$ Array Slicing**: Retrieves exact transit polylines by referencing pre-computed array indices.
+1. **$O(1)$ Array Slicing**: Retrieves exact transit polylines by referencing pre-computed array indices. A trip's offsets are looked up through `getTripShape()` in `memoryCache.js`, which follows `by_trip` into the shared table of `trip-shape-index.processed.json` — the same indirection the headsigns use.
 2. **Graceful Fallback**: Dynamically falls back to generating a straight 2-point line connecting the boarding and alighting stations if the transit agency omitted shape geometry for a specific trip.
 
 ---
 
 ## Pipeline Orchestration (`runPipeline.js`)
 
-Automates the ingestion chain using `child_process.execSync`, ensuring relational dependencies are strictly preserved by freezing parent execution until each sub-parser yields a successful exit code.
+Automates the ingestion chain using `child_process.execSync`, ensuring relational dependencies are strictly preserved by freezing parent execution until each sub-parser yields a successful exit code. The nine components run in the order above, and the order is load-bearing: later components read what earlier ones wrote, and the metadata compiler runs last because it describes the compiled output.
+
+---
 
 ## Running the Project
 
 ### What you need first
 
-* **Node.js 22 or newer.** The backend starts with `--env-file-if-exists`, which
-  is native to Node and is why there is no `dotenv` dependency.
+* **Node.js 22.9 or newer.** The backend's npm scripts start it with
+  `--env-file-if-exists`, which arrived in 22.9.0 and is why there is no
+  `dotenv` dependency. The container images use 22.23.3.
 * **A GTFS dataset** for the network you want, unzipped into `raw-data/`.
-* **MongoDB** — optional, and only for the travel-card endpoints. Everything
-  else is served from the compiled feed held in memory. Without it the card
-  endpoints answer with a `503` saying the store is unavailable, and the rest
-  of the app is unaffected.
+* **MongoDB** — required. Accounts, saved items and travel cards live there,
+  and the server will not open its port without a connection. A local `mongod`
+  or a free [Atlas](https://www.mongodb.com/atlas) cluster both work.
+* **Docker** — only if you want to run the containers. See
+  [Deployment](#deployment).
 
 Dependencies for the pipeline and the backend live in the **root**
 `node_modules` — `backend/package.json` carries scripts only. The client has
@@ -273,11 +340,12 @@ The project supports multiple GTFS datasets through the centralized configuratio
 
 1. Place the unzipped GTFS dataset inside the `raw-data/` directory.
 2. Name the folder using the convention `<network>-gtfs-data` (for example, `amman-gtfs-data` or `hsl-gtfs-data`).
-3. Open `pipelineConfig.js`.
+3. Open `offline-data-ingestion-pipeline/pipelineConfig.js`.
 4. Set the `ACTIVE_NETWORK` property to the desired network (e.g., `"amman"` or `"hsl"`).
 
-That single token drives every path in the pipeline **and** in the backend.
-The client needs a few entries of its own — see
+That single token drives every path in the pipeline, and the backend follows
+it too unless its own environment says otherwise. The backend and the client
+also need a few facts about a city that no feed contains — see
 [Switching networks](#switching-networks) for the complete list.
 
 ---
@@ -305,36 +373,63 @@ Startup is deliberately slow and requests are not: `memoryCache.js` loads every
 compiled file synchronously at require time, so the whole network is in the V8
 heap before the port opens.
 
-The port defaults to `3000` and is set in `backend/src/serverConfig.js`,
-which honours `PORT`. Whatever you choose, the client's `VITE_API_BASE_URL`
-must agree with it.
-
-Optional, for the travel-card endpoints only:
+The server's settings come from `backend/.env` (git-ignored; copy
+`backend/.env.example`, which explains every variable), read by Node through
+`--env-file-if-exists`. The full list is under
+[Environment variables](#environment-variables); the two you must set are
+`MONGO_URI` and `JWT_SECRET_KEY`. The port defaults to `3000` and is set in
+`backend/src/serverConfig.js`, which honours `PORT`. In development the client
+reaches it through Vite's proxy, so if you move it, point `VITE_DEV_API_PROXY`
+at the new port.
 
 ```bash
-cp backend/.env.example backend/.env   # then edit MONGO_URI
+cd backend && npm run resetdb   # ⚠ drops the whole database MONGO_URI names
 ```
+
+`resetdb` prints the host and database it is about to empty before it does.
+Read that line: it goes through the same `.env` as the server, so with an Atlas
+URI in there it empties Atlas, not a local copy.
 
 #### Endpoints
 
+Feed endpoints are public; they answer from the compiled network in memory.
+`:id` is a GTFS stop id, `:lineId` a slug such as `bus-550` or `tram-1`.
+
 | Endpoint | What it answers |
 | --- | --- |
-| `GET /api/planner` | Plans a journey between two points |
-| `GET /api/stops` | Every stop inside a bounding box |
-| `GET /api/stop/:id` | One stop, and what leaves it next |
-| `GET /api/routes` | The lines in the network, and one line's detail |
-| `GET /api/network` | Which network this is, and its timezone |
-| `GET /api/valid-dates` | The service days the compiled feed covers |
-| `GET /api/card/:number` | A travel card's balance (needs MongoDB) |
 | `GET /api/health` | A liveness probe, used to gate the client's form |
+| `GET /api/network` | Which network this is: timezone, language, currency, agency |
+| `GET /api/valid-dates` | The service days the compiled feed covers |
+| `GET /api/planner` | Plans a journey between two points |
+| `GET /api/stops?minLat=&minLon=&maxLat=&maxLon=` | Every stop inside a bounding box |
+| `GET /api/stop/:id` | One stop, and what leaves it next (`/api/stops/:id` works too) |
+| `GET /api/stop/:id/timetable` | A stop's departures for a whole service day |
+| `GET /api/routes` | The lines in the network, searchable by name and mode |
+| `GET /api/routes/:lineId` | One line and its variants |
+| `GET /api/routes/:lineId/:patternId` | One variant: its stops in order and its geometry |
+| `GET /api/routes/:lineId/:patternId/timetable` | That variant's trips for a service day |
 
-Every failure carries `{ errorCode, error }`. The status says *who* refused,
-not whether there is an answer: a **200 can still carry an `errorCode`** —
-`NO_ROUTE_FOUND` and `DESTINATION_OUT_OF_BOUNDS` among them — because the
-request was fine and the engine has an outcome to report. Code that goes
-straight to reading `legs` will call that "unreadable response" when it means
-"nothing runs then". The `error` string is developer-facing English and is
-never shown to anyone.
+Account endpoints need MongoDB, and everything except register, login and
+logout needs a session cookie:
+
+| Endpoint | What it answers |
+| --- | --- |
+| `POST /api/auth/register` · `/login` · `/logout` | Create an account, sign in, sign out |
+| `GET /api/auth/me` | The signed-in user |
+| `POST /api/auth/verify-password` | Re-confirms the password before a sensitive action |
+| `GET` · `POST /api/cards` | The account's travel cards; add one (at most five) |
+| `GET /api/cards/:number` · `PATCH` · `DELETE /api/cards/:id` | One card; rename it; remove it (refused while it holds a balance) |
+| `POST /api/cards/:id/top-up` · `/fare` | Add money; charge a fare |
+| `/api/user/saved-stops` · `/saved-routes` · `/saved-itineraries` | Saved items: `GET` the list, `POST` one, `PATCH` / `DELETE /…/:itemId` |
+
+The two halves fail differently — `{ errorCode, error }` from the feed
+endpoints, `{ message }` from the account ones. See
+[Two Error Shapes](#the-http-api-backendsrc). A **200 can still carry an
+`errorCode`** — `NO_ROUTE_FOUND` and `DESTINATION_OUT_OF_BOUNDS` among them —
+because the request was fine and the engine has an outcome to report. Code that
+goes straight to reading `legs` will call that "unreadable response" when it
+means "nothing runs then". Neither `error` nor `message` is ever shown to
+anyone.
 
 One asymmetry to know about when calling `/api/planner` by hand: **it takes
 `HH:MM:SS` and answers in `HH:mm`.** A `time` of `09:00` is rejected with
@@ -343,11 +438,15 @@ One asymmetry to know about when calling `/api/planner` by hand: **it takes
 
 ```bash
 curl "http://localhost:3000/api/planner?originLat=60.1689&originLon=24.9317\
-&destLat=60.1985&destLon=24.9333&date=2026-08-28&time=09:00:00"
+&destLat=60.1985&destLon=24.9333&date=2026-10-12&time=09:00:00"
 ```
 
+The `date` has to be one the compiled feed covers — `GET /api/valid-dates`
+lists them, and a date outside the window is refused rather than guessed at.
 Note the destination parameters are `destLat`/`destLon` — not `destination*`.
-Either end may instead be given as a stop: `originStopId` / `destStopId`.
+Either end may instead be given as a stop: `originStopId` / `destStopId`. An
+optional `WALKING_SPEED_MPS` (that exact uppercase name) sets the walking pace
+in metres per second.
 
 ---
 
@@ -364,16 +463,39 @@ cd frontend && npm run check:contrast   # WCAG AA check on the design tokens
 
 The client needs `VITE_API_BASE_URL` and **will refuse to start without it** —
 there is no fallback to localhost, so a production build cannot silently point
-at nothing. `frontend/.env.development` supplies it for local work; copy
-`frontend/.env.example` to `frontend/.env.local` to override.
+at nothing. It doesn't need setting up, though. Two files hold the client's
+configuration, and Vite reads both in every mode — the dev server,
+`npm run build`, and the Docker image build — so all three always agree:
+
+| File | In git | Holds |
+| --- | --- | --- |
+| `frontend/.env` | committed | `VITE_API_BASE_URL=/` and `VITE_DEV_API_PROXY`, the address the dev server forwards `/api` to |
+| `frontend/.env.local` | ignored | Your optional browser keys — copy `frontend/.env.example` |
+
+**Leave `VITE_API_BASE_URL` as `/`.** The session is an HTTP-only cookie, and
+the API's `Access-Control-Allow-Origin: *` cannot be combined with credentials,
+so an absolute, cross-origin address breaks every call under `/api/auth`,
+`/api/user` and `/api/cards` — the cookie is never sent. One origin, with a
+proxy forwarding `/api`, is the shape both development and production use.
+
+Everything named `VITE_*` is compiled into the JavaScript every visitor
+downloads, so neither file may ever hold a real secret. The two keys are
+public by design (see [External dependencies](#external-dependencies-and-keys)).
+
+Tests ignore both files. `vite.config.ts` pins every `VITE_` variable for the
+test run, because Vite loads `.env.local` in test mode too, and a real
+Digitransit key there would switch the geocoder under test and send the suite's
+requests to the real service. A new `VITE_` variable needs adding there as
+well.
 
 ---
 
 ### 5. Opening it on a phone
 
-Both servers have to be reachable from the phone, and only one of them already
-is. The API listens on every interface, so it needs nothing. Vite binds to
-localhost by default and has to be told otherwise:
+Only the dev server has to be reachable from the phone. Vite already forwards
+`/api` to the backend on your machine, so the phone talks to one origin and the
+API is reached through it — no addresses to edit. Vite binds to localhost by
+default and has to be told otherwise:
 
 ```bash
 cd backend  && npm run dev
@@ -388,32 +510,21 @@ interface, so a machine on both Wi-Fi and Ethernet prints two:
 ➜  Network: http://192.168.1.42:5173/  en0
 ```
 
-**Use the address *your* machine prints, and put the same one in
-`VITE_API_BASE_URL`.** The `192.168.1.42` here and below is only an example —
-yours will differ, and on a machine with several interfaces the wrong line
-looks just as plausible as the right one.
-
-That variable is the whole trick: the phone's `localhost` is the *phone*, so a
-client told to call `http://localhost:3000` asks the handset for a journey
-planner and is told nothing is there.
-
-```bash
-# frontend/.env.development.local — git-ignored, for local overrides
-VITE_API_BASE_URL=http://192.168.1.42:3000   # your address, not this one
-```
-
-Then open that same address on the phone, with both devices on the same Wi-Fi.
+Open the `Network` address on the phone, with both devices on the same Wi-Fi.
+The `192.168.1.42` here is only an example — use the line *your* machine prints.
 macOS may ask once whether to allow incoming connections; it has to be allowed.
 
-Three things that waste an afternoon if you do not know them:
+**Don't point `VITE_API_BASE_URL` at your machine's address instead.** That was
+how this used to be done, and it now breaks accounts: the API would be a
+different origin from the page, and the session cookie is never sent
+cross-origin. Logging in works in development over plain HTTP because the
+cookie is only marked `Secure` in production.
 
-* **The address is baked in at load, so changing it needs a Vite restart.** It
-  is read through `src/config/env.ts`, which validates at startup.
+Two things that waste an afternoon if you do not know them:
+
 * **The address changes.** It moves when the router reassigns a lease, and a
-  machine with more than one interface has more than one to choose from. A
-  stale or wrong value is a silent failure: the app loads
-  and the API calls never answer, so the clock and the stop list stay empty
-  while everything else looks fine. If that happens, re-read what Vite printed.
+  machine with more than one interface has more than one to choose from. If the
+  phone stops loading the page, re-read what Vite printed.
 * **"Near me" will not work.** `navigator.geolocation` requires a secure
   context, and while `http://localhost` counts as one, `http://192.168.x.x`
   does not. The button is refused by the browser rather than by the app.
@@ -434,23 +545,30 @@ durations.
 Invoke the `raptorEngine` function with the following parameters:
 
 ```javascript
+const raptorEngine = require("./backend/raptor-engines/raptorEngine.js");
+
 raptorEngine(
-    sourceNode,      // Object: { type: "stop", id: "123" } OR { type: "coordinate", lat: 60.1, lon: 24.9 }
-    targetNode,      // Object: { type: "stop", id: "123" } OR { type: "coordinate", lat: 60.1, lon: 24.9 }
-    queryDate,       // "YYYY-MM-DD"
-    departureTime    // "HH:MM:SS"
+    sourceNode,         // { type: "stop", id: "1020502" } OR { type: "coordinate", lat: 60.1, lon: 24.9 }
+    targetNode,         // same shape as sourceNode
+    queryDate,          // "YYYY-MM-DD"
+    departureTime,      // "HH:MM:SS"
+    WALKING_SPEED_MPS   // optional, metres per second
 );
 ```
+
+Requiring it loads the whole compiled network first — about 800 MB of heap and
+a couple of seconds — through `memoryCache.js`, which resolves
+`ACTIVE_NETWORK` exactly as the server does.
 
 #### Parameters
 
 | Parameter | Description |
 |-----------|-------------|
-| `sourceStop` | Object defining the origin (either a GTFS Stop ID or lat/lon coordinates) |
-| `targetStop` | Object defining the destination (either a GTFS Stop ID or lat/lon coordinates) |
+| `sourceNode` | The origin: a GTFS stop ID, or lat/lon coordinates |
+| `targetNode` | The destination: a GTFS stop ID, or lat/lon coordinates |
 | `queryDate` | Date of travel in `YYYY-MM-DD` format |
 | `departureTime` | Desired departure time in `HH:MM:SS` format |
-| `WALKING_SPEED_MPS` | (Optional) Average human walking pace in meters/sec (Defaults to 1.27778)|
+| `WALKING_SPEED_MPS` | (Optional) Average human walking pace in metres per second. Defaults to `1.27778` |
 
 ---
 
@@ -466,71 +584,89 @@ The engine executes the RAPTOR routing algorithm over the preprocessed transit n
 To keep mathematics and presentation apart, the engine deals only in **raw
 integer seconds from absolute engine midnight** — it has no opinion about how a
 time should be written. What it hands back is therefore not what the API
-returns:
+returns. Captured from the engine, between the same two points as the API example
+below on a later date; each `shape` is cut to its two ends, and the final walking leg is
+omitted:
 
 ```json
 {
-  "targetArrivalTime": 80280,
+  "targetArrivalTime": 33589,
   "legs": [
     {
       "waitDurationSeconds": 0,
-      "startTime": 79800,
+      "startDate": "2026-10-12",
+      "startTime": 32413,
       "fromStop": {
-        "name": "Kamppi",
-        "code": "H0614",
-        "lat": 60.168,
-        "lon": 24.931
-      },
-      "routeShortName": "2",
-      "routeType": 0,
-      "intermediateStops": [
-        {
-          "stopName": "Luonnontieteellinen museo",
-          "stopCode": "H0612",
-          "stopArrivalTimeSeconds": 79830
-        }
-      ],
-      "toStop": {
-        "name": "Sammonkatu",
-        "code": "H0639",
-        "lat": 60.171,
-        "lon": 24.925
-      },
-      "endTime": 79860,
-      "mode": "TRANSIT",
-      "tripId": "1002_20260831_Su_2_2220",
-      "transitDistanceKilometers": 1.209,
-      "walkDurationSeconds": 0,
-      "walkDistanceMeters": null
-    },
-    {
-      "waitDurationSeconds": 300,
-      "startTime": 80160,
-      "fromStop": {
-        "name": "Sammonkatu",
-        "code": "H0639",
-        "lat": 60.171,
-        "lon": 24.925
+        "name": "ORIGIN",
+        "id": null,
+        "code": "ORIGIN_PIN",
+        "platform": null,
+        "lat": 60.1689,
+        "lon": 24.9317
       },
       "routeShortName": null,
       "routeType": null,
       "intermediateStops": null,
       "toStop": {
-        "name": "Destination",
-        "code": "TARGET_PIN",
-        "lat": 60.175,
-        "lon": 24.930
+        "id": "1020502",
+        "name": "Helsinki",
+        "code": "H0064",
+        "platform": null,
+        "lat": 60.17272,
+        "lon": 24.939911
       },
-      "endTime": 80400,
+      "endDate": "2026-10-12",
+      "endTime": 33120,
       "mode": "WALK",
       "tripId": null,
-      "transitDistanceKilometers": null,
-      "walkDurationSeconds": 240,
-      "walkDistanceMeters": 266
+      "transitDurationSeconds": null,
+      "transitDistanceMeters": null,
+      "walkDurationSeconds": 707,
+      "walkDistanceMeters": 750,
+      "shape": [[60.1689, 24.9317], [60.17272, 24.939911]]
+    },
+    {
+      "waitDurationSeconds": 0,
+      "startDate": "2026-10-12",
+      "startTime": 33120,
+      "fromStop": {
+        "id": "1020502",
+        "name": "Helsinki",
+        "code": "H0064",
+        "platform": null,
+        "lat": 60.17272,
+        "lon": 24.939911
+      },
+      "routeShortName": "U",
+      "routeType": 2,
+      "internalRouteId": 834,
+      "internalTripId": 329795,
+      "intermediateStops": [],
+      "toStop": {
+        "id": "1174504",
+        "name": "Pasila",
+        "code": "H0090",
+        "platform": "8",
+        "lat": 60.199483,
+        "lon": 24.932706
+      },
+      "endDate": "2026-10-12",
+      "endTime": 33360,
+      "mode": "TRANSIT",
+      "tripId": "3002U_20261005_Ma_1_0912",
+      "transitDurationSeconds": 240,
+      "transitDistanceMeters": 3026,
+      "walkDurationSeconds": null,
+      "walkDistanceMeters": null,
+      "shape": [[60.17272, 24.939911], [60.199483, 24.932706]]
     }
   ]
 }
 ```
+
+A failed search keeps the same shape, with `targetArrivalTime: null`, empty
+`legs`, and an `errorCode` saying why — `SAME_ORIGIN_TARGET`,
+`NO_ROUTE_FOUND`, and so on. The API passes those codes through.
 
 ### What `/api/planner` returns
 
@@ -674,22 +810,486 @@ response publishes, never from the engine's exact seconds. A leg's duration is
 and this leg's `startTime`, and legs and waits tile the journey — they sum to
 `totalDurationMinutes`. **A client must not recompute a duration.**
 
+## Deployment
+
+The live site runs as two containers on a shared server, behind a reverse
+proxy that belongs to the server rather than to this project.
+
+### How a request reaches the app
+
+```
+browser ──HTTPS──► edge Caddy            shared with the server's other apps;
+                     │                     owns ports 80/443, holds certificates
+                     │ journeyplanner.city → journey-planner-frontend:80
+                     ▼
+                   journey-planner-frontend   Caddy: serves the built site,
+                     │                          forwards /api
+                     │ /api/* → journey-planner-backend:3000
+                     ▼
+                   journey-planner-backend    Express + RAPTOR, feed in memory
+                     │
+                     ▼
+                   MongoDB Atlas
+```
+
+The edge Caddy is **not** in this repository. It already serves other
+applications on the same machine and terminates TLS for all of them, so this
+stack publishes no ports: the frontend joins the edge proxy's Docker network
+(`othman_default`) and is addressed by container name. The backend stays on
+this stack's own private network only, because everything on a shared Docker
+network can reach everything else — attached there, any other app on the box
+could call the API directly, past both proxies.
+
+There are still two Caddy processes, but not two layers of the same thing. The
+edge one decides *which app* a hostname belongs to; this project's own one is
+the app's web server — it serves the files, falls back to `index.html` for
+client-side routes, and forwards `/api`. That logic belongs to the app, not to
+infrastructure other services depend on.
+
+### What's in the repository
+
+| File | What it is |
+| --- | --- |
+| `backend/Dockerfile` | The API image |
+| `frontend/Dockerfile` | The web image: builds the site, then serves it with Caddy |
+| `frontend/Caddyfile` | That Caddy's routing — also bind-mounted at run time, so it must exist on the server as a file |
+| `.dockerignore` | What the build may see. The repo is 5.7 GB; the images need about 3 MB of it |
+| `compose.yaml` | **The server's** stack: pulls published images, joins the edge network, publishes nothing |
+| `compose.local.yaml` | The same stack for a laptop: builds the images, publishes the site on `localhost:8080`, no edge network. Read only when named with `-f` |
+| `.env.example`, `backend/.env.example`, `frontend/.env.example` | Templates for the three env files, each explaining every variable |
+
+Plain `docker compose` reads only `compose.yaml` — and `compose.override.yaml`
+if one exists, which Compose merges in silently. That second file is
+git-ignored on purpose, so one can never reach the server and change what runs
+there.
+
+Both images are built from the **repository root**, because the backend's
+dependencies are declared in the root `package.json`:
+
+```bash
+docker build -f backend/Dockerfile  -t journey-planner-backend  .
+docker build -f frontend/Dockerfile -t journey-planner-frontend .
+```
+
+### The images
+
+**Backend** — `node:22.23.3-slim`, production dependencies only, and the server
+code. Deliberately **not** in it:
+
+* **The compiled feed.** It is bind-mounted, read-only, at
+  `/processed-data/<network>-processed-data`. Code and data change on different
+  schedules, and a 475 MB layer would be re-uploaded for every one-line fix.
+  That path sits at the filesystem root because `memoryCache.js` resolves the
+  folder relative to its own location, `/app`.
+* **Configuration and secrets.** Anyone who can pull an image can read its
+  `ENV`, so `MONGO_URI`, `JWT_SECRET_KEY` and `ACTIVE_NETWORK` arrive when the
+  container starts.
+
+It runs as the image's unprivileged `node` user, and sets
+`NODE_OPTIONS=--max-old-space-size=1024` so the heap ceiling is stated rather
+than guessed from the machine — on a small server Node guesses below what this
+feed needs, and the process is killed instead of collecting harder.
+
+**Frontend** — two stages. The first runs `npm ci` and `vite build`; the
+second is `caddy:2-alpine` with only the built `dist/` copied in. Node, the
+TypeScript compiler and the frontend's `node_modules` stay in the first stage,
+which is discarded.
+
+The build reads `frontend/.env` and `frontend/.env.local` exactly as
+`npm run build` does on your machine — `.dockerignore` keeps every other env
+file out, and lets precisely those two through. Vite freezes their values into
+the JavaScript during the build, so they can't be changed on a running
+container: **the keys an image has are the keys in `frontend/.env.local` on
+the machine that built it.** Build without that file and you get a working
+image on the fallbacks — Photon for search, CARTO's anonymous tier for the
+map.
+
+The image's Caddyfile has three `handle` blocks, first match winning:
+
+* `/api/*` → the backend, **prefix kept** — the backend mounts its routes at
+  `/api/...`, so stripping it would 404 a perfectly good request.
+* `/assets/*` → files only, no fallback. Everything there has a hashed name, so
+  a request is either a real file or a mistake, and a mistake must 404. A
+  fallback would answer a missing bundle with HTML, and the browser would
+  report `Unexpected token '<'` — nowhere near the real fault.
+* everything else → the file if it exists, otherwise `index.html`, so a refresh
+  on `/favourites` reaches the client-side router.
+
+Its address is `{$SITE_ADDRESS::80}`. Unset, it serves plain HTTP on port 80,
+which is what it does in production — TLS is the edge proxy's job, so neither
+compose file passes the variable at all. For a deployment with no proxy in
+front, give the frontend service `environment: { SITE_ADDRESS: <hostname> }`
+and publish ports 80 and 443: the same image then gets its own certificate and
+serves HTTPS. It must hold a real hostname, never an empty value. A blank turns
+the Caddyfile's first line into a bare `{`, which Caddy reads as a
+global-options block, and it fails with `unrecognized global option: root`.
+
+### Published images
+
+The server never builds: a Vite build is the heaviest thing in the project,
+and the server's memory is shared with other applications. Images are built
+elsewhere for **`linux/amd64`** — the server's architecture — and pushed to
+GitHub's registry:
+
+```
+ghcr.io/sanadshannak/journey-planner-backend:<version>
+ghcr.io/sanadshannak/journey-planner-frontend:<version>
+```
+
+`platform: linux/amd64` is written into both compose files, because a
+development Mac is `arm64`. An image built for the wrong architecture fails
+with an exec-format error that does not mention architecture. On an ARM
+machine the build runs under emulation, which is slow, and so is running the
+`amd64` images locally — neither says anything about speed on the server.
+
+### Environment files
+
+Each part reads **one file, the same one whether it runs under npm or
+Docker** — so a value is never written down twice, and the two ways of running
+it cannot disagree:
+
+```
+backend/.env        → npm run dev / npm start   (Node's --env-file-if-exists)
+                    → the backend container      (compose: env_file)
+
+frontend/.env       → npm run dev, npm run build, and the frontend image build
+frontend/.env.local   (Vite reads both in every mode; the running container
+                       needs nothing — the values are already in the JavaScript)
+
+.env  (root)        → Docker Compose only: ACTIVE_NETWORK, used for the data
+                      mount path AND passed to the backend container
+```
+
+`ACTIVE_NETWORK` lives in the root `.env` rather than `backend/.env` because
+Compose needs it to *find the data folder* before any container exists, and a
+container's env file can't be read for that. Keeping it in one place — passed
+to the backend by `environment:`, which overrides anything in `backend/.env` —
+means the folder that's mounted and the network the server thinks it's serving
+can never disagree. Compose refuses to start if it's missing.
+
+Every one has a committed `.env.example` beside it explaining every variable.
+Two rules come from Docker reading `backend/.env` as well as Node:
+
+* **No `$` in any value.** Compose substitutes `$NAME` inside env-file values,
+  so `abc$xyz` reaches the container as `abc` — a different secret from the one
+  Node reads. It still "works", just not as the value you wrote. Generate
+  secrets with `openssl rand -hex 32`, which never produces one.
+* **Inside a container, `127.0.0.1` is the container itself.** A `MONGO_URI`
+  pointing at a local `mongod` works under npm and fails under Docker — use an
+  Atlas URI there. And keep `PORT` at 3000: the Caddyfile forwards `/api` to
+  that port.
+
+### Running the containers locally
+
+With the feed compiled and the three env files at the repository root:
+
+```bash
+docker compose -f compose.local.yaml up -d --build
+docker compose -f compose.local.yaml ps          # backend healthy in ~10 s
+```
+
+Then open `http://localhost:8080`. The backend's healthcheck gates the
+frontend, so a backend that cannot start keeps the site down rather than
+serving a page that cannot answer.
+
+### Releasing a new version
+
+1. Bump the image tag in **both** compose files (`1.1` → `1.2`).
+2. Make sure `frontend/.env.local` holds the keys the live site should have —
+   they are compiled into the image from this machine.
+3. Build and push, logged in to `ghcr.io` with a token that has
+   `write:packages`:
+
+   ```bash
+   docker compose -f compose.local.yaml build
+   docker compose -f compose.local.yaml push
+   ```
+
+4. On the server: `git pull`, then `docker compose pull && docker compose up -d`.
+
+Push the images **before** pulling the new compose file on the server.
+Otherwise it names a tag the registry doesn't have yet, and the pull fails.
+
+Versioned tags rather than `latest` mean you can tell what is running, and
+rolling back is a matter of naming the previous one.
+
+### First deployment on a server
+
+Everything below runs on the server, as a user that can run Docker.
+
+```bash
+# 1. Pull access for the images, if the packages are private
+docker login ghcr.io                     # a token with read:packages
+
+# 2. The code — beside the server's other apps
+cd /opt && git clone https://github.com/SanadShannak/raptor-journey-planner.git journey-planner
+cd journey-planner
+
+# 3. The two env files the server needs (the frontend needs none at run time)
+cp .env.example .env                       # set ACTIVE_NETWORK
+cp backend/.env.example backend/.env       # set MONGO_URI (Atlas) and JWT_SECRET_KEY
+chmod 600 backend/.env
+```
+
+**The compiled feed.** It is not in git, so it travels separately — about
+475 MB, compressing to roughly 43 MB. On the machine that compiled it:
+
+```bash
+tar -czf hsl-data.tar.gz -C processed-data hsl-processed-data
+scp hsl-data.tar.gz <user>@<server>:/tmp/
+```
+
+and on the server, from the repository directory:
+
+```bash
+mkdir -p processed-data
+tar -xzf /tmp/hsl-data.tar.gz -C processed-data && rm /tmp/hsl-data.tar.gz
+ls -l processed-data/hsl-processed-data    # world-readable: the container is not root
+```
+
+The two `-C` flags cancel out: the first stores the paths without the
+`processed-data/` prefix, the second puts it back. Without them the data lands
+in `processed-data/processed-data/…`, the mount finds an empty folder, and the
+backend reports that a file "does not exist".
+
+**Then:**
+
+1. **Allow the server's IP in Atlas** (*Network Access*). Without it the
+   backend exits on startup with a database error — and because it never
+   becomes healthy, the frontend never starts either.
+2. **Start it:** `docker compose pull && docker compose up -d`, then
+   `docker compose ps`.
+3. **Check it from where the edge proxy will see it**, before any DNS exists:
+
+   ```bash
+   docker run --rm --network othman_default curlimages/curl -s \
+     -o /dev/null -w "%{http_code}\n" http://journey-planner-frontend/api/health
+   ```
+
+   `200` means the stack is right and only the public routing is left.
+4. **Point the domain at the server** — `A` records for the bare name and for
+   `www`, as *DNS only* if the provider offers proxying. Wait until
+   `dig +short <domain>` returns the server's address.
+5. **Add the site to the edge proxy's Caddyfile**, at the end, in its house
+   style:
+
+   ```
+   journeyplanner.city {
+       import security
+       reverse_proxy journey-planner-frontend:80
+   }
+
+   www.journeyplanner.city {
+       import security
+       redir https://journeyplanner.city{uri} permanent
+   }
+   ```
+
+   Then validate and **reload** — never restart — the edge Caddy, so the other
+   sites keep serving and a broken config is refused rather than applied:
+
+   ```bash
+   docker exec <edge-caddy> caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+   docker exec <edge-caddy> caddy reload   --config /etc/caddy/Caddyfile --adapter caddyfile
+   ```
+
+The order of the last two matters. Caddy proves it controls a name by
+answering Let's Encrypt on port 80 *at that name*; add the site before DNS
+points at the server and the challenge fails, and Caddy backs off before
+retrying.
+
+To view the server's stack before DNS exists, tunnel to the frontend
+container's address — `docker inspect` gives it — with
+`ssh -L 8080:<container-ip>:80 <user>@<server>`, and open
+`http://localhost:8080`.
+
+### Memory
+
+| | Limit | Measured |
+| --- | --- | --- |
+| Backend container | 1400 MB | ~850–1000 MB resident |
+| — of which the V8 heap | 1024 MB ceiling (`NODE_OPTIONS`) | ~780 MB for the full HSL feed |
+| Frontend container | 128 MB | ~15–70 MB |
+
+**The container limit must sit above the heap ceiling.** Resident memory is
+the heap *plus* everything the runtime holds around it; set the two equal and
+the kernel kills the process while V8 still believes it has room — a silent
+restart under load, with nothing useful in the logs.
+
+### Operating it
+
+* **Logs:** `docker compose logs -f backend` (or `frontend`). Each container
+  keeps at most three 10 MB files, so logs cannot fill the disk.
+* **Refreshing the timetable.** Feeds expire. `feedEndDate` in
+  `network-meta.processed.json` is the last day covered (the last date
+  `/api/valid-dates` returns says the same); after it, the planner has no
+  service days to offer. To refresh: download the new GTFS, run the pipeline
+  wherever it was compiled, ship the folder as above, and
+  `docker compose restart backend`. No image rebuild — the data is mounted.
+* **Resetting accounts:** `npm run resetdb` in `backend/` drops the whole
+  database `MONGO_URI` names. It prints the host first; read it.
+* **No rate limiting yet.** The feed endpoints are public by design, and
+  `/api/planner` runs the engine on every request. Abuse would cost CPU rather
+  than leak anything, but on a shared server it would slow the neighbours too.
+* **`docker compose down` on the edge proxy's stack** removes `othman_default`,
+  and this stack cannot start until it exists again — it is declared
+  `external`, so Compose attaches to it rather than creating a second one with
+  nothing on it.
+
+---
+
 ## Switching networks
 
-`ACTIVE_NETWORK` in `pipelineConfig.js` is the whole story for the pipeline and
-the backend — one token, and every input and output path follows it. The client
-is not automatic in the same way, because the things it needs are facts about a
-city that no feed contains. Adding one means adding entries, not editing logic.
+One token, `ACTIVE_NETWORK`, selects the network, and the pipeline derives
+every input and output path from it. But a city is more than its timetable: the
+backend and the client each need a few facts that no GTFS feed contains, and a
+deployed server needs the compiled data shipped to it. Every one is below, in
+the order you meet them, with what happens if you skip it.
 
-| What | Where | Why it cannot be derived |
+The **network id** (`hsl`, `amman`, …) is the key to all of it. It names the
+raw and compiled folders, `/api/network` reports it, and every per-city table
+below is keyed by it. Use something short and lowercase, and the same spelling
+everywhere.
+
+### 1. Get a feed the pipeline will accept
+
+Unzip the GTFS into `raw-data/<network>-gtfs-data/`. The validator in
+`pipelineConfig.js` rejects a feed at the start of the run if any of these is
+missing, or lacks its required columns:
+
+`stops.txt` · `routes.txt` · `trips*.txt` (several trip files are allowed) ·
+`stop_times.txt` · `calendar.txt` · `calendar_dates.txt`
+
+**Both calendar files are required, and many real feeds ship only one.** If
+yours does, add the missing file containing only its header row. That gives
+the pipeline an empty table to read, with no change to the service days.
+
+Everything else is optional, and the pipeline works out which of it the feed
+actually supplied. Here is what you lose without each:
+
+| Missing | Effect |
+| --- | --- |
+| `agency.txt` | No timezone from the feed. The backend falls back to its own table (step 3), then to **UTC** — which shifts every time on every page |
+| `shapes.txt`, or `shape_id` on trips | Rides are drawn as straight lines between stops |
+| `feed_info.txt` | No validity window in `network-meta`, so nothing records when the timetable expires |
+| `shape_dist_traveled` | `transitDistanceMeters` is `null` on every ride |
+| `trip_headsign` | No per-trip destination signs; departure boards fall back to the route's |
+| stop codes, platforms, fare zones, wheelchair data | Each one simply isn't shown. The client asks `network-meta`'s `available` flags rather than assuming |
+
+**Route types.** The extended three- and four-digit codes are mapped down to
+the basic set — `700`–`799` to bus, `900`–`999` to tram, and so on — and
+**anything unrecognised becomes a bus**, including trolleybus (`11`) and
+monorail (`12`). If a city runs those, check that its lines show the icons you
+expect.
+
+### 2. Compile it
+
+1. Set `ACTIVE_NETWORK` in `offline-data-ingestion-pipeline/pipelineConfig.js`.
+2. `cd offline-data-ingestion-pipeline && node runPipeline.js`. The output
+   lands in `processed-data/<network>-processed-data/`.
+3. Read `network-meta.processed.json`. `timezone` should be the city's own,
+   `feedEndDate` says when the timetable runs out, and `available` lists what
+   the feed supplied.
+4. **Check the memory before deploying a bigger city.** The limits in
+   `compose.yaml` were sized for HSL: about 780 MB of heap against a 1024 MB
+   ceiling. Another feed can be much larger — Sydney's compiled folder is
+   1.2 GB on disk to Helsinki's 475 MB. Measure it rather than guess:
+
+   ```bash
+   cd backend && node -e 'require("./memoryCache.js"); console.log(Math.round(process.memoryUsage().heapUsed / 1048576) + " MB")'
+   ```
+
+   If that exceeds about 900 MB, raise `NODE_OPTIONS` in
+   `backend/Dockerfile` and the container limit in both compose files, and
+   keep the container limit the larger of the two (see [Memory](#memory)).
+
+### 3. The backend
+
+| What | Where | Without it |
 | --- | --- | --- |
-| `ACTIVE_NETWORK` | `pipelineConfig.js` | The one token the pipeline and backend derive every path from |
-| Search bounds | `frontend/src/config/geocoding.ts` | How far out a place search should look; a feed's own extent is far wider than anywhere useful to search |
-| Geocoding adapter | `frontend/src/geocoding/` | Which service knows this city's addresses *and* its stops |
-| Basemap style | `frontend/src/map/tileSource.ts` | A city may want its operator's own cartography |
-| Where the maps open | `frontend/src/map/homeView.ts` | A resting view is a judgement about a city, not a centroid |
+| Which network | `ACTIVE_NETWORK` | **With npm:** nothing to do — the server falls back to `pipelineConfig.js`. If you set it in `backend/.env`, it overrides the file and must be changed too. **In Docker:** the root `.env`, the only place it is read |
+| Currency | `NETWORK_CURRENCIES` in `backend/src/utils/networkCurrency.js` — an ISO 4217 code such as `JOD` | The pipeline doesn't compile a feed's fare currency yet, so this table is the only source. Card balances print with no currency rather than a wrong one |
+| Timezone fallback | `NETWORK_TIMEZONES` in `backend/src/serverConfig.js` — an IANA zone such as `Asia/Amman` | Only matters for a feed with no `agency.txt`. The feed's own zone always wins; with neither, UTC |
 
-A few notes on that last one, because it is the easiest to get wrong. The
+### 4. The client
+
+The client asks `/api/network` which city it is serving when it loads, then
+reads its own tables by that id. Each table has a fallback, so a missing entry
+degrades the page rather than breaking it, but some of those fallbacks are
+poor:
+
+| What | Where | Without an entry |
+| --- | --- | --- |
+| Search bounds | `BOUNDS` in `frontend/src/config/geocoding.ts` | Place search is unbiased — results from anywhere in the world. Maps also lose their fallback centre |
+| Where the maps open | `HOME` in `frontend/src/map/homeView.ts` | The map opens on the centre of the search bounds at a wider zoom. **With no bounds either, it opens over Helsinki** |
+| Basemap | `SOURCES` in `frontend/src/map/tileSource.ts` | CARTO, which covers everywhere. Only add an entry if the city has better cartography of its own |
+
+One thing every city sees for a moment: the very first map paint happens
+before `/api/network` has answered, so it starts at Helsinki and then moves.
+
+#### Place search (the geocoder)
+
+**The geocoder is chosen by whether a Digitransit key is set, not by which
+network is loaded** (`frontend/src/geocoding/index.ts`). Digitransit only knows
+Finland. So:
+
+* **For any city outside Finland, remove `VITE_DIGITRANSIT_SUBSCRIPTION_KEY`**
+  from `frontend/.env.local`, and rebuild the frontend image — keys are
+  compiled in at build time. With the key still set, place search quietly
+  looks in Finland.
+* **Without a city-specific geocoder, the app uses Photon.** It's built on
+  OpenStreetMap, needs no key and covers the world, so addresses and named
+  places are found anywhere. What you lose is stop suggestions: Photon knows
+  places, not the feed's stops, so it can never return a stop id. The bounds
+  in `BOUNDS` are what keep its results in the right country.
+* **If a city has a geocoder of its own** (the way Digitransit knows HSL's
+  stops), add an adapter. Implement the `Geocoder` interface from
+  `frontend/src/types/place.ts` in a new file under `frontend/src/geocoding/`,
+  using `digitransit.ts` as the worked example, and select it in
+  `frontend/src/geocoding/index.ts`. Three rules carry over: return the
+  feed's own stop id, without any namespace or `#platform` suffix; drop a mode
+  you don't recognise rather than defaulting it; and never send the visitor's
+  position as a search bias.
+
+Making the choice follow the network rather than the key is a sensible
+improvement. Until then, the key is the switch.
+
+### 5. Deploy it
+
+1. Ship `processed-data/<network>-processed-data/` to the server as in
+   [First deployment](#first-deployment-on-a-server) — the `tar -C` pair
+   applies unchanged, with the new folder name.
+2. Set `ACTIVE_NETWORK` in the server's root `.env`.
+3. `docker compose up -d`.
+
+**Whether anything needs rebuilding** depends on what changed:
+
+| You changed | Rebuild |
+| --- | --- |
+| Only the data and `ACTIVE_NETWORK`, for a city whose entries already exist | Nothing. The backend image holds no data, and the client reads the city from `/api/network` at runtime |
+| Entries in the backend tables | The backend image |
+| Entries in the client tables, or a new geocoder | The frontend image |
+| `frontend/.env.local` (adding or removing a key) | The frontend image — keys are compiled in |
+| Memory limits | The backend image if `NODE_OPTIONS` changed; otherwise just `docker compose up -d` |
+
+Release rebuilt images as in [Releasing a new version](#releasing-a-new-version).
+Neither the edge proxy nor DNS changes unless the domain does.
+
+### The whole list
+
+- [ ] Feed unzipped to `raw-data/<network>-gtfs-data/`; both calendar files present
+- [ ] `ACTIVE_NETWORK` in `pipelineConfig.js`; pipeline run; `network-meta` checked (timezone, `feedEndDate`)
+- [ ] Heap measured; memory limits raised if needed
+- [ ] Currency in `NETWORK_CURRENCIES`
+- [ ] Timezone in `NETWORK_TIMEZONES` *(only if no `agency.txt`)*
+- [ ] Bounds in `frontend/src/config/geocoding.ts`
+- [ ] Home view in `frontend/src/map/homeView.ts`
+- [ ] Basemap in `frontend/src/map/tileSource.ts` *(optional)*
+- [ ] Digitransit key removed for a non-Finnish city, or a new geocoder added
+- [ ] Images rebuilt and released, if any of the above changed code or keys
+- [ ] Data shipped, root `.env` updated, `docker compose up -d`
+
+A few notes on the home view, because it is the easiest to get wrong. The
 resting view is **not** the middle of the search bounds: those are generous on
 purpose — HSL's reach extends an hour of commuter rail north of Helsinki — and
 framing to them opens on a region where the city is a smudge. The view Helsinki
@@ -708,15 +1308,16 @@ not be converted again.
 
 ## External dependencies and keys
 
-The client's dependency footprint is deliberately small, and no key is required
-to run the project. Two are optional and improve it.
+The client's dependency footprint is deliberately small, and no paid service is
+required. The server needs a MongoDB database — a free Atlas cluster is
+enough — and two browser keys are optional and improve the client.
 
 | Service | Used for | Key | Without it |
 | --- | --- | --- | --- |
 | **Photon** | Place search | none | — the default, and works everywhere |
 | **Digitransit** | Place search that knows HSL's own stops | `VITE_DIGITRANSIT_SUBSCRIPTION_KEY` | Falls back to Photon: you lose stop suggestions, not search |
 | **CARTO** | Vector basemap tiles | `VITE_CARTO_API_KEY` | Tiles still load, on an anonymous tier that has grown unreliable |
-| **MongoDB** | Travel-card balances | `MONGO_URI` | Card endpoints report unavailable; nothing else is affected |
+| **MongoDB** | Accounts, saved stops/lines/journeys, travel cards | `MONGO_URI` | **Required** — the server exits at startup without a connection |
 
 Two things worth knowing about the keys:
 
@@ -730,16 +1331,36 @@ Two things worth knowing about the keys:
 
 ### Environment variables
 
-| Variable | Where | Required |
-| --- | --- | --- |
-| `PORT` | backend | No — defaults to `3000` |
-| `MONGO_URI` | backend (`backend/.env`) | No — card endpoints only |
-| `VITE_API_BASE_URL` | frontend | **Yes** — the app throws at startup without it |
-| `VITE_DIGITRANSIT_SUBSCRIPTION_KEY` | frontend | No |
-| `VITE_CARTO_API_KEY` | frontend | No |
+**Backend** — `backend/.env`, under npm and Docker alike. Template:
+`backend/.env.example`.
 
-Copy `backend/.env.example` and `frontend/.env.example` for the annotated
-versions. Both are committed; the files they are copied to are git-ignored.
+| Variable | Required | Default | Notes |
+| --- | --- | --- | --- |
+| `MONGO_URI` | **Yes** | `mongodb://127.0.0.1:27017/journey_planner_db` | The server exits if it cannot connect. A local `mongod` isn't reachable from inside a container |
+| `JWT_SECRET_KEY` | **Yes** | — | Signs the session cookie. Every login fails without it; changing it signs everyone out |
+| `JWT_EXPIRES_IN` | No | `30d` | How long a session token is valid |
+| `PORT` | No | `3000` | Keep it 3000 under Docker — the Caddyfile forwards there |
+| `ACTIVE_NETWORK` | No | `pipelineConfig.js` | Under npm, an override for the pipeline's value. Under Docker it comes from the root `.env` and wins |
+
+**Client** — `frontend/.env` (committed) and `frontend/.env.local` (yours).
+Template: `frontend/.env.example`. All four are compiled into the JavaScript
+at build time.
+
+| Variable | File | Required | Notes |
+| --- | --- | --- | --- |
+| `VITE_API_BASE_URL` | `frontend/.env` | **Yes** — the app throws at startup without it | Keep it `/`; see [Start the web client](#4-start-the-web-client) |
+| `VITE_DEV_API_PROXY` | `frontend/.env` | Dev server only | Where Vite forwards `/api`. Defaults to `http://localhost:3000` |
+| `VITE_DIGITRANSIT_SUBSCRIPTION_KEY` | `frontend/.env.local` | No | Finland only — remove it for any other network |
+| `VITE_CARTO_API_KEY` | `frontend/.env.local` | No | |
+
+**Docker Compose** — the root `.env`. Template: `.env.example`.
+
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `ACTIVE_NETWORK` | **Yes** | Names the data folder to mount and is passed to the backend. Compose refuses to start without it |
+
+`SITE_ADDRESS` is the one remaining variable, read by the frontend container's
+Caddy. Production doesn't set it; see [The images](#the-images).
 
 ### The map needs WebGL2
 
