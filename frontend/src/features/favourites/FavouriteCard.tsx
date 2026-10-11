@@ -1,5 +1,6 @@
 import type { DragPoint } from './favourite';
 import {
+  useLayoutEffect,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
@@ -248,8 +249,43 @@ export function FavouriteCard({
     }
   }
 
+  /*
+   * Which way each neighbour lies, read while the card is held.
+   *
+   * Side by side, "earlier" is towards the start of the row and "later"
+   * towards its end. But the row wraps, and on a phone every card has a line
+   * of its own — so the card before this one is above it, not beside it, and
+   * an arrow pointing sideways pointed at nothing. The neighbours' layout
+   * positions (`offsetTop`, which ignores the lift and the carry) say which:
+   * a neighbour on another line is above or below; one on the same line is
+   * beside.
+   *
+   * Re-read on every render of the held card, because each reorder moves its
+   * neighbours.
+   */
+  const itemRef = useRef<HTMLLIElement>(null);
+  const [neighbours, setNeighbours] = useState<{ earlier: 'side' | 'above'; later: 'side' | 'below' }>({
+    earlier: 'side',
+    later: 'side',
+  });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- every render on purpose; the setter bails out when nothing changed
+  useLayoutEffect(() => {
+    const item = itemRef.current;
+    if (!dragging || item === null) return;
+    const before = item.previousElementSibling;
+    const after = item.nextElementSibling;
+    const earlier: 'side' | 'above' =
+      before instanceof HTMLElement && before.offsetTop < item.offsetTop - 1 ? 'above' : 'side';
+    const later: 'side' | 'below' =
+      after instanceof HTMLElement && after.offsetTop > item.offsetTop + 1 ? 'below' : 'side';
+    setNeighbours((was) =>
+      was.earlier === earlier && was.later === later ? was : { earlier, later },
+    );
+  });
+
   return (
     <li
+      ref={itemRef}
       data-favourite={key}
       data-dragging={dragging ? '' : undefined}
       /*
@@ -294,26 +330,51 @@ export function FavouriteCard({
       */}
       {dragging && (
         <>
-          {canGoEarlier && (
-            <span
-              aria-hidden="true"
-              className="text-brand-500 drag-pulse pointer-events-none absolute top-1/2 -start-6 -translate-y-1/2"
-            >
-              <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="rtl:-scale-x-100">
-                <path d="M12 4l-6 6 6 6" />
-              </svg>
-            </span>
-          )}
-          {canGoLater && (
-            <span
-              aria-hidden="true"
-              className="text-brand-500 drag-pulse pointer-events-none absolute top-1/2 -end-6 -translate-y-1/2"
-            >
-              <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="rtl:-scale-x-100">
-                <path d="M8 4l6 6-6 6" />
-              </svg>
-            </span>
-          )}
+          {/*
+            Above and below are centred with physical `left-1/2`: a centre is
+            the same from either side, so there is nothing for RTL to flip,
+            and the up and down chevrons do not mirror either.
+          */}
+          {canGoEarlier &&
+            (neighbours.earlier === 'above' ? (
+              <span
+                aria-hidden="true"
+                className="text-brand-500 drag-pulse pointer-events-none absolute -top-6 left-1/2 -translate-x-1/2"
+              >
+                <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 12l6-6 6 6" />
+                </svg>
+              </span>
+            ) : (
+              <span
+                aria-hidden="true"
+                className="text-brand-500 drag-pulse pointer-events-none absolute top-1/2 -start-6 -translate-y-1/2"
+              >
+                <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="rtl:-scale-x-100">
+                  <path d="M12 4l-6 6 6 6" />
+                </svg>
+              </span>
+            ))}
+          {canGoLater &&
+            (neighbours.later === 'below' ? (
+              <span
+                aria-hidden="true"
+                className="text-brand-500 drag-pulse pointer-events-none absolute -bottom-6 left-1/2 -translate-x-1/2"
+              >
+                <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 8l6 6 6-6" />
+                </svg>
+              </span>
+            ) : (
+              <span
+                aria-hidden="true"
+                className="text-brand-500 drag-pulse pointer-events-none absolute top-1/2 -end-6 -translate-y-1/2"
+              >
+                <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="rtl:-scale-x-100">
+                  <path d="M8 4l6 6-6 6" />
+                </svg>
+              </span>
+            ))}
         </>
       )}
 
