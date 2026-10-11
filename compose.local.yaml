@@ -10,13 +10,17 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1400mb
+          memory: 1700mb
     container_name: journey-planner-backend
     restart: always
     env_file:
       - backend/.env
     environment:
       ACTIVE_NETWORK: ${ACTIVE_NETWORK:?Set ACTIVE_NETWORK in the .env file beside this compose file}
+      # The heap the compiled feed needs, overriding the image's 1024: the
+      # October 2026 HSL feed no longer fits in 1024 and the backend died while
+      # loading it. Keep the container limit above this; see README *Memory*.
+      NODE_OPTIONS: --max-old-space-size=1280
     volumes:
       - type: bind
         source: ./processed-data/${ACTIVE_NETWORK:?Set ACTIVE_NETWORK in the .env file beside this compose file}-processed-data

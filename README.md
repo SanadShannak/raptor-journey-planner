@@ -958,7 +958,9 @@ code. Deliberately **not** in it:
 
 It runs as the image's unprivileged `node` user, and sets
 `NODE_OPTIONS=--max-old-space-size=1024` so the heap ceiling is stated rather
-than guessed from the machine — on a small server Node guesses below what this
+than guessed from the machine. **The compose files override it** (currently
+1280) — the right number depends on the feed, and changing it there needs no
+rebuild. It is stated rather than guessed — on a small server Node guesses below what this
 feed needs, and the process is killed instead of collecting harder.
 
 **Frontend** — two stages. The first runs `npm ci` and `vite build`; the
@@ -1194,14 +1196,22 @@ container's address — `docker inspect` gives it — with
 
 | | Limit | Measured |
 | --- | --- | --- |
-| Backend container | 1400 MB | ~850–1000 MB resident |
-| — of which the V8 heap | 1024 MB ceiling (`NODE_OPTIONS`) | ~780 MB for the full HSL feed |
+| Backend container | 1700 MB | ~1400 MB resident |
+| — of which the V8 heap | 1280 MB ceiling (`NODE_OPTIONS` in the compose files) | needs more than 1024 MB for the October 2026 HSL feed |
 | Frontend container | 128 MB | ~15–70 MB |
 
 **The container limit must sit above the heap ceiling.** Resident memory is
 the heap *plus* everything the runtime holds around it; set the two equal and
 the kernel kills the process while V8 still believes it has room — a silent
 restart under load, with nothing useful in the logs.
+
+**A refreshed feed can outgrow the heap.** The October 2026 HSL feed (496 MB
+on disk, 386 MB of it timetables) did: the backend ran out of heap inside
+`JSON.parse` while loading, never became healthy, and the frontend, which
+waits for it, never started. Before shipping new data, start the image
+locally against it and wait for `/api/health` (see *Check the memory* under
+[Switching networks](#switching-networks)); raise `NODE_OPTIONS` and the
+container limit together in both compose files if it does not come up.
 
 ### Email
 
@@ -1328,8 +1338,8 @@ expect.
    `feedEndDate` says when the timetable runs out, and `available` lists what
    the feed supplied.
 4. **Check the memory before deploying a bigger city.** The limits in
-   `compose.yaml` were sized for HSL: about 780 MB of heap against a 1024 MB
-   ceiling. Another feed can be much larger — Sydney's compiled folder is
+   `compose.yaml` are sized for HSL: a 1280 MB heap ceiling in a 1700 MB
+   container. Another feed can be much larger — Sydney's compiled folder is
    1.2 GB on disk to Helsinki's 475 MB. Measure it rather than guess:
 
    ```bash
