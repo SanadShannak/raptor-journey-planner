@@ -237,11 +237,23 @@ export default function CardPage() {
                 </div>
               </section>
 
-              <AddCardForm
-                full={full}
-                hasCards={cards.length > 0}
-                onAdded={(card) => setSelectedId(card.id)}
-              />
+              {/*
+                Above the list on a phone. There the page is one column, and
+                below the list this sat between the cards and the open card's
+                details — so choosing a card meant scrolling past a form to
+                read about it. Beside the details, from `lg`, it goes back under
+                the list it adds to.
+
+                Moved with `order` rather than by rendering it twice: one form,
+                so a half-typed card number survives the window being turned.
+              */}
+              <div className="max-lg:order-first">
+                <AddCardForm
+                  full={full}
+                  hasCards={cards.length > 0}
+                  onAdded={(card) => setSelectedId(card.id)}
+                />
+              </div>
             </div>
 
             {/*
