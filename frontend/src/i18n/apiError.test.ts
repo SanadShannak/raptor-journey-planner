@@ -48,6 +48,12 @@ describe('messageForApiError', () => {
     expect(messageForApiError(httpError('WHATEVER', 500), en)).toBe(en.errors.serverError);
   });
 
+  it('explains a refusal from the rate limiter or the bot rules', () => {
+    expect(messageForApiError(httpError('RATE_LIMITED', 429), en)).toBe(en.errors.rateLimited);
+    expect(messageForApiError(httpError('BOT_DETECTED', 403), en)).toBe(en.errors.requestBlocked);
+    expect(messageForApiError(httpError('REQUEST_BLOCKED', 403), en)).toBe(en.errors.requestBlocked);
+  });
+
   it('never shows the API developer text', () => {
     const error = httpError('BRAND_NEW_CODE');
     expect(messageForApiError(error, en)).not.toContain('developer-facing');

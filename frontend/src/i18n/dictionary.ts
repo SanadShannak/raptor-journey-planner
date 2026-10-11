@@ -1040,6 +1040,10 @@ export interface Dictionary {
     timeout: string;
     malformed: string;
     serverError: string;
+    /** Too many requests from this address in a short time (429). */
+    rateLimited: string;
+    /** The server's security rules refused the request outright (403). */
+    requestBlocked: string;
     missingOrigin: string;
     missingDestination: string;
     badDate: string;

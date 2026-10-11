@@ -58,6 +58,8 @@ export const en: Dictionary = {
     timeout: 'The routing service took too long to answer. Try again.',
     malformed: 'The routing service sent a response this app could not read.',
     serverError: 'The routing service ran into a problem. Try again in a moment.',
+    rateLimited: 'Too many attempts in a short time. Wait a minute, then try again.',
+    requestBlocked: 'This request was blocked as automated. If that is a mistake, try again in a moment.',
     missingOrigin: 'Choose a starting point.',
     missingDestination: 'Choose a destination.',
     badDate: 'That date is not valid. Pick another one.',

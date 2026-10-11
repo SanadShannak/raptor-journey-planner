@@ -278,6 +278,11 @@ status mapping still holds:
   `400 DUPLICATE_NICKNAME`, `400 EMPTY_NICKNAME`, `404 SAVED_ITEM_NOT_FOUND`,
   `404 STOP_NOT_FOUND`, `404 LINE_NOT_FOUND`, `404 VARIANT_NOT_FOUND`
 
+**Refusals:** `429 RATE_LIMITED` — more than 300 requests a minute from one
+address anywhere, or more than ten login, sign-up or password-check attempts a
+minute (Arcjet); `403 BOT_DETECTED` and `403 REQUEST_BLOCKED` — Arcjet's bot and
+attack rules, on those same three routes.
+
 **Anywhere:** `404 NOT_FOUND` (no such endpoint, or an id that is not a valid
 ObjectId), `400 MALFORMED_JSON`, `413 PAYLOAD_TOO_LARGE`, and
 `500 INTERNAL_SERVER_ERROR`, whose `error` never says what went wrong inside.

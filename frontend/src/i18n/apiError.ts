@@ -47,6 +47,10 @@ const MESSAGE_FOR_CODE: Record<string, keyof Dictionary['errors']> = {
   BAD_CARD_NUMBER: 'badCardNumber',
   CARD_STORE_UNAVAILABLE: 'cardStoreUnavailable',
   INTERNAL_SERVER_ERROR: 'serverError',
+  /* Refusals from the rate limiter and Arcjet, on any endpoint. */
+  RATE_LIMITED: 'rateLimited',
+  BOT_DETECTED: 'requestBlocked',
+  REQUEST_BLOCKED: 'requestBlocked',
 
   /* Synthesised by the API modules for the account endpoints. */
   UNAUTHORIZED: 'unauthorized',

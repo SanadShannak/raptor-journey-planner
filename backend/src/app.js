@@ -5,6 +5,7 @@ const pinoHttp = require("pino-http");
 const logger = require("./utils/logger");
 const { notFound, errorHandler } = require("./middleware/errorHandler");
 const helmet = require("helmet");
+const globalRateLimiter = require("./middleware/expressRateLimiter");
 
 const validDatesApi = require("./routes/validDatesApi");
 const plannerApi = require("./routes/plannerApi");
@@ -16,6 +17,22 @@ const cardApi = require("./routes/cardApi");
 const userApi = require("./routes/userApi");
 
 const app = express();
+/*
+ * Which addresses in front of us are our own proxies, so `req.ip` is the
+ * visitor's address rather than Caddy's. Everything the rate limiter and
+ * Arcjet decide is keyed on that, so getting it wrong means every visitor
+ * sharing one allowance.
+ *
+ * By kind of address rather than by count. Production has two Caddys in
+ * front (the shared edge, then our frontend's), the local containers one,
+ * the Vite dev server none — a fixed hop count is right for exactly one of
+ * those. Our proxies are always on loopback or a private (Docker) network
+ * and visitors never are, so Express walks `X-Forwarded-For` from the right
+ * past every private address and stops at the first public one: the address
+ * the edge proxy itself saw. Anything a client writes into the header
+ * further left is ignored, so it cannot be spoofed.
+ */
+app.set("trust proxy", "loopback, linklocal, uniquelocal");
 
 /*
  * One line per request, and first in the chain so it times all of it and
@@ -34,9 +51,6 @@ const app = express();
  * need reading: a 5xx is an error, a 4xx a warning, everything else info.
  * The health check is not logged at all — Docker asks it every 30 seconds.
  */
-
-app.set("trust proxy", 2);
-
 app.use(
   pinoHttp({
     logger,
@@ -57,6 +71,7 @@ app.use(
   }),
 );
 app.use(helmet());
+app.use(globalRateLimiter);
 app.use(cors({ credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

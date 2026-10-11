@@ -1367,6 +1367,9 @@ Two things worth knowing about the keys:
 | `JWT_EXPIRES_IN` | No | `30d` | How long a session token is valid |
 | `PORT` | No | `3000` | Keep it 3000 under Docker — the Caddyfile forwards there |
 | `LOG_LEVEL` | No | `info` | `debug` adds per-calculation timings; `warn` keeps only problems. JSON lines under `NODE_ENV=production`, readable lines otherwise |
+| `ARCJET_KEY` | No | — | Arcjet guards login, sign-up and password checks (attacks, bots, ten attempts a minute per address). Without a key the checks fail open: allowed, and a warning logged |
+| `ARCJET_MODE` | No | `LIVE` | `DRY_RUN` logs what Arcjet would refuse without refusing it |
+| `ARCJET_ENV` | No | — | `development` locally, so Arcjet accepts `127.0.0.1`. Never in production |
 | `ACTIVE_NETWORK` | No | `pipelineConfig.js` | Under npm, an override for the pipeline's value. Under Docker it comes from the root `.env` and wins |
 
 **Client** — `frontend/.env` (committed) and `frontend/.env.local` (yours).

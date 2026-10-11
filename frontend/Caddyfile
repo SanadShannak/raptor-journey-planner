@@ -1,3 +1,18 @@
+# Trust the proxy in front of us — the shared edge Caddy, on a private Docker
+# network — to tell us who the visitor is.
+#
+# Untrusted, Caddy discards an incoming X-Forwarded-For and writes the edge
+# proxy's own address in its place, so the backend saw every visitor as the
+# same address and its rate limits were shared by everybody. Trusted, the
+# visitor's address is kept and ours appended after it, and the backend's
+# `trust proxy` setting walks back past both to find it. Private ranges only:
+# a visitor's own connection never comes from one.
+{
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
 {$SITE_ADDRESS::80} {
 	root * /srv
 	encode gzip zstd
