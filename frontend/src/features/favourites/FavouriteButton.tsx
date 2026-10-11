@@ -185,11 +185,18 @@ export function FavouriteButton({ favourite, unavailableReason, size = 'md' }: P
           A server refusal is announced as well as shown: it is the answer to a
           press, so a screen reader is told rather than left to go looking for a
           tooltip it has no reason to visit.
+          When it shows depends on the pointer. With a mouse, it follows the
+          hover and nothing else — it used to follow focus too, and a click
+          leaves focus on the button, so the bubble stayed open after the
+          cursor had moved on. A keyboard still gets it, through
+          `:focus-visible`, which a click does not set. A touch screen has no
+          hover at all, so there a tap — which focuses the button — is what
+          opens it, and tapping elsewhere closes it.
         */
         <span
           id={hintId}
           role={failure === null ? 'tooltip' : 'alert'}
-          className="bg-chrome text-on-chrome rounded-control pointer-events-none absolute top-full end-0 z-20 mt-1 hidden w-56 px-2.5 py-1.5 text-xs leading-snug shadow-card group-focus-within:block group-hover:block"
+          className="bg-chrome text-on-chrome rounded-control pointer-events-none absolute top-full end-0 z-20 mt-1 hidden w-56 px-2.5 py-1.5 text-xs leading-snug shadow-card group-hover:block group-has-[:focus-visible]:block pointer-coarse:group-focus-within:block"
         >
           {reason}
         </span>
