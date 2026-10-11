@@ -21,7 +21,7 @@ import {
   useLoadFavourites,
   useSavedState,
 } from '../features/favourites/useFavourites';
-import { useFavouriteFlip } from '../features/favourites/useFavouriteFlip';
+import { notePaintedPositions, useFavouriteFlip } from '../features/favourites/useFavouriteFlip';
 import { FavouriteStopRow } from '../features/favourites/FavouriteStopRow';
 import { FavouriteRouteRow } from '../features/favourites/FavouriteRouteRow';
 import { FavouriteJourneyRow } from '../features/favourites/FavouriteJourneyRow';
@@ -163,13 +163,26 @@ export default function FavouritesPage() {
       card.style.transition = 'box-shadow 150ms, border-color 150ms';
     }
 
+    /*
+     * The card stays inside its own row. It can only be dropped among the
+     * cards of its kind anyway, and carried past the row's edge it widened
+     * the page: on a tablet, dragging hard to one side pushed the card out
+     * of the window and gave the whole page a sideways scrollbar.
+     */
+    const row = card?.closest<HTMLElement>('[data-row]') ?? null;
+
     const carry = () => {
       if (card === null || grabbed === null) return;
       card.style.translate = '';
       const slot = card.getBoundingClientRect();
-      const dx = grabbed.left + (at.x - from.x) - slot.left;
-      const dy = grabbed.top + (at.y - from.y) - slot.top;
-      card.style.translate = `${dx}px ${dy}px`;
+      let left = grabbed.left + (at.x - from.x);
+      let top = grabbed.top + (at.y - from.y);
+      if (row !== null) {
+        const bounds = row.getBoundingClientRect();
+        left = Math.min(Math.max(left, bounds.left), bounds.right - slot.width);
+        top = Math.min(Math.max(top, bounds.top), bounds.bottom - slot.height);
+      }
+      card.style.translate = `${left - slot.left}px ${top - slot.top}px`;
     };
 
     const step = () => {
@@ -203,14 +216,25 @@ export default function FavouritesPage() {
          * the topmost is now the held card itself, carried along under the
          * finger; the drop target is whatever lies beneath it.
          */
-        const target = document
+        const under = document
           .elementsFromPoint(at.x, at.y)
           .map((element) =>
             element.closest<HTMLElement>('[data-favourite]:not([data-flipping])'),
           )
-          .find((element) => element != null && element.dataset['favourite'] !== moving)
-          ?.dataset['favourite'];
-        if (target !== undefined) reorderFavourite(moving, target);
+          .find((element) => element != null && element.dataset['favourite'] !== moving);
+        /*
+         * Only once the pointer is well inside the card, not on its rim. Near
+         * an edge a pointer that wobbles — a quick zigzag, a hand that is not
+         * quite steady — crossed in and out of the neighbour, and every
+         * crossing was a reorder and a glide.
+         */
+        if (under != null && wellInside(under.getBoundingClientRect(), at)) {
+          const target = under.dataset['favourite'];
+          if (target !== undefined) {
+            notePaintedPositions();
+            reorderFavourite(moving, target);
+          }
+        }
       }
 
       carry();
@@ -643,5 +667,17 @@ function FavouriteCardsPlaceholder() {
         </span>
       ))}
     </PlaceholderGroup>
+  );
+}
+
+/** Whether a point is inside a box by more than a fifth of its size on every side. */
+function wellInside(box: DOMRect, point: DragPoint): boolean {
+  const insetX = box.width * 0.2;
+  const insetY = box.height * 0.2;
+  return (
+    point.x > box.left + insetX &&
+    point.x < box.right - insetX &&
+    point.y > box.top + insetY &&
+    point.y < box.bottom - insetY
   );
 }

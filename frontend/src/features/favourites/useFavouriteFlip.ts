@@ -17,6 +17,14 @@ import { useLayoutEffect, useRef } from 'react';
 const DURATION_MS = 400;
 
 /**
+ * Each card's pending "glide finished" timer. Only the latest glide's timer
+ * may clear the flag: an earlier one firing mid-way through a later glide
+ * marked a still-moving card as settled, and hit testing then offered it as a
+ * drop target before it had arrived.
+ */
+const flipTimers = new WeakMap<HTMLElement, number>();
+
+/**
  * The curve, and the reason it is not the default.
  *
  * `ease` starts fast and spends its tail decelerating, which at this duration
@@ -104,36 +112,68 @@ export function useFavouriteFlip(
 
     const cards = container.querySelectorAll<HTMLElement>('[data-favourite]');
 
+    const paintedBefore = reordered ? takePaintedPositions() : null;
+
     cards.forEach((el) => {
       const key = el.dataset['favourite'];
       if (key === undefined) return;
 
       /*
-       * Measured with any in-flight transform undone, so `prev` is always a
-       * *settled* position. Reading it mid-glide would record where the card
-       * happened to be painted at that instant, and the next reorder would
-       * invert from there — each animation starting a little further from the
-       * truth than the last.
+       * The lift and carry a held card wears is the separate `translate`
+       * property; taken off, what is left is the card's slot.
        */
-      const inFlight = el.style.transform !== '';
-      if (inFlight) el.style.transform = '';
-      const next = el.getBoundingClientRect();
+      const lift = el.style.translate
+        .split(' ')
+        .map((part) => parseFloat(part) || 0);
+      const liftX = lift[0] ?? 0;
+      const liftY = lift[1] ?? 0;
 
-      const prev = rectsRef.current.get(key);
-      rectsRef.current.set(key, next);
+      if (!reordered) {
+        /*
+         * Kept current between reorders — a card that grew moves the cards
+         * after it — but only while nothing is gliding, whose painted box is
+         * not its slot.
+         */
+        if (el.dataset['flipping'] === undefined) {
+          const box = el.getBoundingClientRect();
+          rectsRef.current.set(key, new DOMRect(box.left - liftX, box.top - liftY, box.width, box.height));
+        }
+        return;
+      }
 
-      // Recorded either way; animated only when the sequence actually changed.
-      if (!reordered) return;
-      if (prev === undefined) return;
       /*
-       * The held card is carried by the finger now — see `startDrag` in
+       * A reorder. The glide starts from where the card was **painted** an
+       * instant before it — recorded by the drag itself, see
+       * `notePaintedPositions` — and only falls back to the last known slot
+       * when nothing was recorded, as for a keyboard move.
+       *
+       * Reading where a gliding card "is" from its slot and its running
+       * transform was the first version, and it was the visible glitch on a
+       * fast drag: a glide that had only just been handed to the browser
+       * still reported no transform, so a second reorder landing then started
+       * the card from the slot it was leaving — a jump of whole slots in a
+       * frame. The painted box is the one thing that is never out of date.
+       */
+      const start = paintedBefore?.get(key) ?? rectsRef.current.get(key);
+
+      // Whatever glide is running stops here, so the slot can be measured.
+      el.style.transition = 'none';
+      el.style.transform = 'none';
+      const box = el.getBoundingClientRect();
+      const next = new DOMRect(box.left - liftX, box.top - liftY, box.width, box.height);
+      rectsRef.current.set(key, next);
+      el.style.transform = '';
+
+      if (start === undefined) return;
+      /*
+       * The held card is carried by the finger — see `startDrag` in
        * `FavouritesPage` — so it has nowhere to glide to: it is already
        * where the reader is putting it.
        */
       if (el.dataset['dragging'] !== undefined) return;
 
-      const dx = prev.left - next.left;
-      const dy = prev.top - next.top;
+      const dx = start.left - next.left;
+      const dy = start.top - next.top;
       if (dx === 0 && dy === 0) return;
 
       el.style.transition = 'none';
@@ -156,9 +196,40 @@ export function useFavouriteFlip(
        * drop target at all. A later flip simply re-stamps the attribute, so
        * an early clear costs nothing.
        */
-      window.setTimeout(() => {
-        delete el.dataset['flipping'];
-      }, DURATION_MS);
+      window.clearTimeout(flipTimers.get(el));
+      flipTimers.set(
+        el,
+        window.setTimeout(() => {
+          delete el.dataset['flipping'];
+        }, DURATION_MS),
+      );
     });
   });
+}
+
+/**
+ * Where every card was painted just before a reorder, noted by whoever is
+ * about to ask for one, and used once by the glide that follows.
+ */
+let painted: Map<string, DOMRect> | null = null;
+
+/**
+ * Notes where each favourite card is painted on screen, right now.
+ *
+ * Called immediately before a reorder is requested, so the glide that follows
+ * starts every card from exactly where it was seen — wherever an earlier glide
+ * had got it to — rather than from a slot it may already have been leaving.
+ */
+export function notePaintedPositions(): void {
+  painted = new Map();
+  for (const el of document.querySelectorAll<HTMLElement>('[data-favourite]')) {
+    const key = el.dataset['favourite'];
+    if (key !== undefined) painted.set(key, el.getBoundingClientRect());
+  }
+}
+
+function takePaintedPositions(): Map<string, DOMRect> | null {
+  const taken = painted;
+  painted = null;
+  return taken;
 }

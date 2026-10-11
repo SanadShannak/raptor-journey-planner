@@ -11,6 +11,7 @@ import { messageForApiError, useLocale } from '../../i18n';
 import type { Dictionary, Message } from '../../i18n/dictionary';
 import { favouriteLabel, identity, type Favourite } from './favourite';
 import { moveFavourite, removeFavourite, renameFavourite } from './favouritesStore';
+import { notePaintedPositions } from './useFavouriteFlip';
 
 /**
  * What the rename field suggests, which depends on what is being renamed.
@@ -391,6 +392,7 @@ export function FavouriteCard({
           const later = direction === 'rtl' ? 'ArrowLeft' : 'ArrowRight';
           if (event.key !== earlier && event.key !== later) return;
           event.preventDefault();
+          notePaintedPositions();
           moveFavourite(key, event.key === earlier ? -1 : 1);
         }}
         aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"
