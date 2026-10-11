@@ -16,18 +16,14 @@ export type ApiErrorKind =
 /**
  * Error envelope the backend returns alongside a non-2xx status.
  *
- * **Two envelopes exist, and only one of them carries a code.** The
- * feed-backed endpoints — the planner, stops, routes, the network manifest —
- * answer with `{ errorCode, error }`. The database-backed ones added with
- * accounts (`/api/auth`, `/api/user`, `/api/cards`) answer with `{ message }`,
- * or with express-validator's `{ errors: [...] }` when a field is rejected.
- *
- * So `errorCode` here is **null for anything account-shaped**, and that is the
- * whole reason {@link fieldErrors} and the per-endpoint mapping in `auth.ts`,
- * `cards.ts` and `savedItems.ts` exist: those modules know which call they
- * made and therefore what a bare 400 or 422 from it means, and they synthesise
- * the stable code the rest of the app reads. Nothing downstream has to know
- * which half of the API it was talking to.
+ * **Every endpoint now answers `{ errorCode, error }`**, the account ones
+ * (`/api/auth`, `/api/user`, `/api/cards`) included, and a rejected form adds
+ * express-validator's `errors` beside it. Those used to answer `{ message }`
+ * with no code at all, which is why the per-endpoint mapping in `auth.ts`,
+ * `cards.ts` and `savedItems.ts` exists: they know which call they made and
+ * derive a stable code from the status. They still do — the server's statuses
+ * did not change — and the older code-less shapes are still read below, so a
+ * client talking to a server from before the change keeps working.
  */
 export interface ApiErrorBody {
   /** Stable machine-readable code, or null when the endpoint sends none. */
@@ -172,12 +168,17 @@ function parseFieldErrors(value: unknown): FieldErrors {
 export function parseApiErrorBody(value: unknown): ApiErrorBody | null {
   if (!isRecord(value)) return null;
 
-  // The feed-backed envelope, which is the only one with a stable code.
+  /*
+   * The envelope every endpoint now answers with. A rejected form also carries
+   * express-validator's `errors` beside its code, which is what says *which*
+   * field was refused, so those are read here too rather than only in the old
+   * code-less shape below.
+   */
   if (typeof value['errorCode'] === 'string' && typeof value['error'] === 'string') {
     return {
       errorCode: value['errorCode'],
       error: value['error'],
-      fieldErrors: NO_FIELD_ERRORS,
+      fieldErrors: parseFieldErrors(value['errors']),
     };
   }
 

@@ -15,6 +15,7 @@ const convertDateToDateId = require("./utils/convertDateToDateId");
 const getNearbyStops = require("./utils/getNearbyStops");
 const calculateHaversine = require("./utils/calculateHaversine");
 const injectTransitShape = require("./utils/injectTransitShape");
+const logger = require("../src/utils/logger");
 const MAX_ROUNDS = 6;
 const DETOUR_FACTOR = 1.2; // Simulates real sidewalk routing instead of straight line walking
 
@@ -124,7 +125,7 @@ function raptorEngine(
   // departureTime must be in string format: HH:MM:SS
   // queryDate must be in string format: YYYY-MM-DD
 
-  console.log("RAPTOR ENGINE RUNNING.");
+  logger.debug("RAPTOR engine running");
 
   // Edge Case: Source & Target are the same
   if (sourceNode.type === targetNode.type) {
@@ -154,7 +155,7 @@ function raptorEngine(
 
   // Initialization of the algorithm (Lines 1-5 in the research paper)
 
-  // console.log("Initializing the algorithm... ");
+  // logger.info("Initializing the algorithm... ");
   // Initialize array to hold arrival times for each round up to MAX_ROUNDS
   const arrivalTimes = [];
   // Initialize set to track stops updated in the current round
@@ -366,7 +367,7 @@ function raptorEngine(
   }
   for (let currentRound = 1; currentRound <= MAX_ROUNDS; currentRound++) {
     // Stage 1: Route Accumulation (Lines 6-14 in the research paper)
-    // console.log("Stage 1: Route Accumulation... ");
+    // logger.info("Stage 1: Route Accumulation... ");
 
     // Empty map to store routes serving all marked stops to be explored by later stages
     const routesServingMarkedStops = new Map();
@@ -395,7 +396,7 @@ function raptorEngine(
     markedStops.clear();
 
     // Stage 2: Route Scanning (Lines 15-23 in the research paper)
-    // console.log("Stage 2: Route Scanning... ");
+    // logger.info("Stage 2: Route Scanning... ");
 
     // Traverse each route
     routesServingMarkedStops.forEach((currentStop, route) => {
@@ -786,8 +787,8 @@ function raptorEngine(
         fromStop: {
           name: "ORIGIN",
           id: null,
-            code: "ORIGIN_PIN",
-            platform: null,
+          code: "ORIGIN_PIN",
+          platform: null,
           lat: sourceNode.lat,
           lon: sourceNode.lon,
         },
@@ -861,8 +862,8 @@ function raptorEngine(
         toStop: {
           name: "TARGET",
           id: null,
-            code: "TARGET_PIN",
-            platform: null,
+          code: "TARGET_PIN",
+          platform: null,
           lat: targetNode.lat,
           lon: targetNode.lon,
         },

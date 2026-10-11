@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const AppError = require("../utils/AppError");
 
 const {
   getCache,
@@ -236,88 +237,78 @@ function describePatternStop(internalStopId, index, route) {
  * GET /api/routes?q=&mode=
  */
 router.get("/", (req, res) => {
-  try {
-    const startedAt = performance.now();
-    const query = fold(req.query.q ?? "").trim();
-    const mode =
-      req.query.mode === undefined
-        ? null
-        : Number.parseInt(req.query.mode, 10);
+  const startedAt = performance.now();
+  const query = fold(req.query.q ?? "").trim();
+  const mode =
+    req.query.mode === undefined ? null : Number.parseInt(req.query.mode, 10);
 
-    /*
-     * Today's own services, read once per request rather than per line — the
-     * index a single route's own page builds at boot exists because the
-     * calendar cannot change while the process runs, but "today" moves every
-     * request makes this the cheap version of the same idea: one Set, tested
-     * against every line's own service ids below.
-     */
-    const todayServices = new Set(
-      cache.activeServices[toDateId(nowInNetwork().date)] ?? [],
-    );
+  /*
+   * Today's own services, read once per request rather than per line — the
+   * index a single route's own page builds at boot exists because the
+   * calendar cannot change while the process runs, but "today" moves every
+   * request makes this the cheap version of the same idea: one Set, tested
+   * against every line's own service ids below.
+   */
+  const todayServices = new Set(
+    cache.activeServices[toDateId(nowInNetwork().date)] ?? [],
+  );
 
-    const lines = [...linesById.values()]
-      .filter((line) => {
-        if (mode !== null && !Number.isNaN(mode) && line.routeType !== mode) {
-          return false;
-        }
-        if (query.length === 0) return true;
-        return (
-          fold(line.routeShortName).includes(query) ||
-          fold(line.routeLongName).includes(query)
-        );
-      })
-      .map((line) => {
-        const directions = [
-          ...new Set(
-            line.patterns
-              .map(({ route }) => route.direction_id)
-              .filter((direction) => direction !== undefined),
-          ),
-        ].sort();
+  const lines = [...linesById.values()]
+    .filter((line) => {
+      if (mode !== null && !Number.isNaN(mode) && line.routeType !== mode) {
+        return false;
+      }
+      if (query.length === 0) return true;
+      return (
+        fold(line.routeShortName).includes(query) ||
+        fold(line.routeLongName).includes(query)
+      );
+    })
+    .map((line) => {
+      const directions = [
+        ...new Set(
+          line.patterns
+            .map(({ route }) => route.direction_id)
+            .filter((direction) => direction !== undefined),
+        ),
+      ].sort();
 
-        /*
-         * True the moment any one pattern does — a line is one designation
-         * over several patterns, and a rider asking "does this run today"
-         * means the line, not whichever one pattern happened to be checked
-         * first.
-         */
-        const activeToday = line.patterns.some(({ route }) =>
-          Object.keys(route.service_buckets ?? {}).some((serviceId) =>
-            todayServices.has(Number.parseInt(serviceId, 10)),
-          ),
-        );
-
-        return {
-          lineId: line.lineId,
-          routeShortName: line.routeShortName,
-          routeType: line.routeType,
-          routeLongName: line.routeLongName,
-          variantCount: line.patterns.length,
-          /*
-           * Which directions exist for this line. Two entries means a client
-           * can offer a direction flip; fewer means it should fall back to
-           * labelling variants by their end points.
-           */
-          directions,
-          activeToday,
-        };
-      })
-      .sort((a, b) =>
-        a.routeShortName.localeCompare(b.routeShortName, undefined, {
-          numeric: true,
-          sensitivity: "base",
-        }),
+      /*
+       * True the moment any one pattern does — a line is one designation
+       * over several patterns, and a rider asking "does this run today"
+       * means the line, not whichever one pattern happened to be checked
+       * first.
+       */
+      const activeToday = line.patterns.some(({ route }) =>
+        Object.keys(route.service_buckets ?? {}).some((serviceId) =>
+          todayServices.has(Number.parseInt(serviceId, 10)),
+        ),
       );
 
-    logCalculationTime(`Line Index (${lines.length} lines)`, startedAt);
-    res.json({ lines, totalLines: lines.length, capabilities });
-  } catch (error) {
-    console.error("[Routes Endpoint Error]:", error);
-    res.status(500).json({
-      errorCode: "INTERNAL_SERVER_ERROR",
-      error: "Failed to resolve routes.",
-    });
-  }
+      return {
+        lineId: line.lineId,
+        routeShortName: line.routeShortName,
+        routeType: line.routeType,
+        routeLongName: line.routeLongName,
+        variantCount: line.patterns.length,
+        /*
+         * Which directions exist for this line. Two entries means a client
+         * can offer a direction flip; fewer means it should fall back to
+         * labelling variants by their end points.
+         */
+        directions,
+        activeToday,
+      };
+    })
+    .sort((a, b) =>
+      a.routeShortName.localeCompare(b.routeShortName, undefined, {
+        numeric: true,
+        sensitivity: "base",
+      }),
+    );
+
+  logCalculationTime(`Line Index (${lines.length} lines)`, startedAt);
+  res.json({ lines, totalLines: lines.length, capabilities });
 });
 
 /*
@@ -325,40 +316,30 @@ router.get("/", (req, res) => {
  * GET /api/routes/:lineId
  */
 router.get("/:lineId", (req, res) => {
-  try {
-    const startedAt = performance.now();
-    const line = linesById.get(req.params.lineId);
-    if (!line) {
-      return res
-        .status(404)
-        .json({ errorCode: "LINE_NOT_FOUND", error: "Line not found." });
-    }
-
-    // Busiest first, so the everyday service leads and short workings follow.
-    const variants = line.patterns
-      .map(describeVariant)
-      .sort((a, b) => (b.tripCount ?? 0) - (a.tripCount ?? 0));
-
-    logCalculationTime(`Line ${req.params.lineId}`, startedAt);
-    res.json({
-      ...describeLine(line),
-      directions: [
-        ...new Set(
-          variants
-            .map((variant) => variant.directionId)
-            .filter((direction) => direction !== null),
-        ),
-      ].sort(),
-      variants,
-      capabilities,
-    });
-  } catch (error) {
-    console.error("[Line Endpoint Error]:", error);
-    res.status(500).json({
-      errorCode: "INTERNAL_SERVER_ERROR",
-      error: "Failed to resolve line.",
-    });
+  const startedAt = performance.now();
+  const line = linesById.get(req.params.lineId);
+  if (!line) {
+    throw new AppError(404, "LINE_NOT_FOUND", "Line not found.");
   }
+
+  // Busiest first, so the everyday service leads and short workings follow.
+  const variants = line.patterns
+    .map(describeVariant)
+    .sort((a, b) => (b.tripCount ?? 0) - (a.tripCount ?? 0));
+
+  logCalculationTime(`Line ${req.params.lineId}`, startedAt);
+  res.json({
+    ...describeLine(line),
+    directions: [
+      ...new Set(
+        variants
+          .map((variant) => variant.directionId)
+          .filter((direction) => direction !== null),
+      ),
+    ].sort(),
+    variants,
+    capabilities,
+  });
 });
 
 /**
@@ -372,9 +353,7 @@ router.get("/:lineId", (req, res) => {
 function resolvePattern(req, res) {
   const line = linesById.get(req.params.lineId);
   if (!line) {
-    res
-      .status(404)
-      .json({ errorCode: "LINE_NOT_FOUND", error: "Line not found." });
+    throw new AppError(404, "LINE_NOT_FOUND", "Line not found.");
     return null;
   }
 
@@ -383,10 +362,7 @@ function resolvePattern(req, res) {
     (candidate) => candidate.patternId === patternId,
   );
   if (!pattern) {
-    res.status(404).json({
-      errorCode: "PATTERN_NOT_FOUND",
-      error: "Variant not found on this line.",
-    });
+    throw new AppError(404, "PATTERN_NOT_FOUND", "Variant not found on this line.");
     return null;
   }
 
@@ -472,7 +448,10 @@ function describeTrip(route, flatTripId, baseIsoDate, offset) {
       continue;
     }
 
-    const departure = resolveDateAndTime(baseIsoDate, stopTime.departure - offset);
+    const departure = resolveDateAndTime(
+      baseIsoDate,
+      stopTime.departure - offset,
+    );
     const arrival = resolveDateAndTime(baseIsoDate, stopTime.arrival - offset);
 
     calls.push({
@@ -521,96 +500,85 @@ function describeTrip(route, flatTripId, baseIsoDate, offset) {
  * swallow a three-segment path.
  */
 router.get("/:lineId/:patternId/timetable", (req, res) => {
-  try {
-    const startedAt = performance.now();
-    const resolved = resolvePattern(req, res);
-    if (resolved === null) return;
+  const startedAt = performance.now();
+  const resolved = resolvePattern(req, res);
+  if (resolved === null) return;
 
-    const { line, pattern } = resolved;
-    const { date } = req.query;
+  const { line, pattern } = resolved;
+  const { date } = req.query;
 
-    if (!date || !isValidDate(date)) {
-      return res.status(400).json({
-        errorCode: "BAD_DATE",
-        error: "Missing or invalid date (YYYY-MM-DD).",
-      });
-    }
+  if (!date || !isValidDate(date)) {
+    throw new AppError(400, "BAD_DATE", "Missing or invalid date (YYYY-MM-DD).");
+  }
 
-    const { route } = pattern;
-    const today = servicesOn(date);
-    const yesterday = servicesOn(shiftIsoDate(date, -1));
+  const { route } = pattern;
+  const today = servicesOn(date);
+  const yesterday = servicesOn(shiftIsoDate(date, -1));
 
-    const found = [];
-    for (const [serviceKey, bucket] of Object.entries(
-      route.service_buckets ?? {},
-    )) {
-      const serviceId = Number.parseInt(serviceKey, 10);
+  const found = [];
+  for (const [serviceKey, bucket] of Object.entries(
+    route.service_buckets ?? {},
+  )) {
+    const serviceId = Number.parseInt(serviceKey, 10);
 
-      /*
-       * A service can qualify under both offsets and must then be walked twice.
-       * A service running on consecutive days supplies this date's ordinary
-       * trips (offset 0) and yesterday's small-hours spillover (offset a day);
-       * treating them as exclusive drops every after-midnight trip of every
-       * everyday service, which is most of them.
-       */
-      const offsets = [];
-      if (today.has(serviceId)) offsets.push(0);
-      if (yesterday.has(serviceId)) offsets.push(SECONDS_PER_DAY);
-      if (offsets.length === 0) continue;
+    /*
+     * A service can qualify under both offsets and must then be walked twice.
+     * A service running on consecutive days supplies this date's ordinary
+     * trips (offset 0) and yesterday's small-hours spillover (offset a day);
+     * treating them as exclusive drops every after-midnight trip of every
+     * everyday service, which is most of them.
+     */
+    const offsets = [];
+    if (today.has(serviceId)) offsets.push(0);
+    if (yesterday.has(serviceId)) offsets.push(SECONDS_PER_DAY);
+    if (offsets.length === 0) continue;
 
-      // Defensive: the current parser always emits an object with `trip_ids`,
-      // but the engine and the stops router both tolerate a bare array.
-      const tripIds = Array.isArray(bucket) ? bucket : bucket?.trip_ids;
-      if (!Array.isArray(tripIds)) continue;
+    // Defensive: the current parser always emits an object with `trip_ids`,
+    // but the engine and the stops router both tolerate a bare array.
+    const tripIds = Array.isArray(bucket) ? bucket : bucket?.trip_ids;
+    if (!Array.isArray(tripIds)) continue;
 
-      for (const offset of offsets) {
-        for (const flatTripId of tripIds) {
-          const described = describeTrip(route, flatTripId, date, offset);
-          if (described !== null) found.push(described);
-        }
+    for (const offset of offsets) {
+      for (const flatTripId of tripIds) {
+        const described = describeTrip(route, flatTripId, date, offset);
+        if (described !== null) found.push(described);
       }
     }
-
-    // Buckets are each sorted by origin departure, but several of them are
-    // being merged here, so the whole list has to be put in order again.
-    found.sort((a, b) => a.originSeconds - b.originSeconds);
-
-    logCalculationTime(
-      `Variant Timetable ${req.params.lineId}/${req.params.patternId} (${found.length} trips)`,
-      startedAt,
-    );
-    res.json({
-      ...describeLine(line),
-      ...describeVariant(pattern),
-      date,
-      /*
-       * Carried so the response stands on its own, and because `calls` is
-       * indexed by a stop's true position in the pattern while this list can
-       * have holes. `sequence` is the key that joins the two.
-       */
-      stops: route.stop_ids
-        .map((internalStopId, index) =>
-          describePatternStop(internalStopId, index, route),
-        )
-        .filter((stop) => stop !== null),
-      stopCount: route.stop_ids.length,
-      trips: found.map((entry) => entry.trip),
-      totalTrips: found.length,
-      /*
-       * The date falls outside the feed's calendar altogether, which is a limit
-       * of the data rather than a fact about this line — and worth different
-       * words from "nothing runs that day".
-       */
-      outsideTimetableRange: cache.activeServices[toDateId(date)] === undefined,
-      capabilities,
-    });
-  } catch (error) {
-    console.error("[Line Timetable Endpoint Error]:", error);
-    res.status(500).json({
-      errorCode: "INTERNAL_SERVER_ERROR",
-      error: "Failed to resolve line timetable.",
-    });
   }
+
+  // Buckets are each sorted by origin departure, but several of them are
+  // being merged here, so the whole list has to be put in order again.
+  found.sort((a, b) => a.originSeconds - b.originSeconds);
+
+  logCalculationTime(
+    `Variant Timetable ${req.params.lineId}/${req.params.patternId} (${found.length} trips)`,
+    startedAt,
+  );
+  res.json({
+    ...describeLine(line),
+    ...describeVariant(pattern),
+    date,
+    /*
+     * Carried so the response stands on its own, and because `calls` is
+     * indexed by a stop's true position in the pattern while this list can
+     * have holes. `sequence` is the key that joins the two.
+     */
+    stops: route.stop_ids
+      .map((internalStopId, index) =>
+        describePatternStop(internalStopId, index, route),
+      )
+      .filter((stop) => stop !== null),
+    stopCount: route.stop_ids.length,
+    trips: found.map((entry) => entry.trip),
+    totalTrips: found.length,
+    /*
+     * The date falls outside the feed's calendar altogether, which is a limit
+     * of the data rather than a fact about this line — and worth different
+     * words from "nothing runs that day".
+     */
+    outsideTimetableRange: cache.activeServices[toDateId(date)] === undefined,
+    capabilities,
+  });
 });
 
 /*
@@ -618,47 +586,39 @@ router.get("/:lineId/:patternId/timetable", (req, res) => {
  * GET /api/routes/:lineId/:patternId
  */
 router.get("/:lineId/:patternId", (req, res) => {
-  try {
-    const startedAt = performance.now();
-    const resolved = resolvePattern(req, res);
-    if (resolved === null) return;
+  const startedAt = performance.now();
+  const resolved = resolvePattern(req, res);
+  if (resolved === null) return;
 
-    const { line, pattern } = resolved;
-    const { route } = pattern;
+  const { line, pattern } = resolved;
+  const { route } = pattern;
 
-    /*
-     * A representative geometry, not an exact one: trips on a pattern can use
-     * different shapes, so the pipeline stores the most-used. Null for a feed
-     * without shapes.txt, in which case a client draws stop-to-stop instead.
-     */
-    const shape =
-      route.shape_id !== undefined
-        ? (cache.shapes?.[route.shape_id] ?? null)
-        : null;
+  /*
+   * A representative geometry, not an exact one: trips on a pattern can use
+   * different shapes, so the pipeline stores the most-used. Null for a feed
+   * without shapes.txt, in which case a client draws stop-to-stop instead.
+   */
+  const shape =
+    route.shape_id !== undefined
+      ? (cache.shapes?.[route.shape_id] ?? null)
+      : null;
 
-    logCalculationTime(
-      `Variant ${req.params.lineId}/${req.params.patternId}`,
-      startedAt,
-    );
-    res.json({
-      ...describeLine(line),
-      ...describeVariant(pattern),
-      stops: route.stop_ids
-        .map((internalStopId, index) =>
-          describePatternStop(internalStopId, index, route),
-        )
-        .filter((stop) => stop !== null),
-      stopCount: route.stop_ids.length,
-      shape,
-      capabilities,
-    });
-  } catch (error) {
-    console.error("[Pattern Endpoint Error]:", error);
-    res.status(500).json({
-      errorCode: "INTERNAL_SERVER_ERROR",
-      error: "Failed to resolve line variant.",
-    });
-  }
+  logCalculationTime(
+    `Variant ${req.params.lineId}/${req.params.patternId}`,
+    startedAt,
+  );
+  res.json({
+    ...describeLine(line),
+    ...describeVariant(pattern),
+    stops: route.stop_ids
+      .map((internalStopId, index) =>
+        describePatternStop(internalStopId, index, route),
+      )
+      .filter((stop) => stop !== null),
+    stopCount: route.stop_ids.length,
+    shape,
+    capabilities,
+  });
 });
 
 module.exports = router;

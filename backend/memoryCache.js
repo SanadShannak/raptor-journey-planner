@@ -1,5 +1,7 @@
 const fs = require("fs");
 const path = require("path");
+const logger = require("./src/utils/logger");
+
 /*
  * Read through serverConfig rather than from the pipeline directly, so the
  * server has one answer to "which network is this" -- see resolveActiveNetwork
@@ -125,12 +127,12 @@ const cachedData = {
   tripHeadsigns: null,
 };
 
-console.log("Reading file contents into local RAM cache...");
+logger.info("Reading file contents into local RAM cache...");
 
 processedDataFiles.forEach((fileDetails) => {
   // File check to make sure each expected processed data file exists
   if (!fs.existsSync(fileDetails.filePath)) {
-    console.error(`File ${path.basename(fileDetails.filePath)} does not exist`);
+    logger.error(`File ${path.basename(fileDetails.filePath)} does not exist`);
     process.exit(1);
   } else {
     // Read the file's contents, and parse it straight into the cachedData object
@@ -140,7 +142,7 @@ processedDataFiles.forEach((fileDetails) => {
     const count = Array.isArray(parsedContent)
       ? parsedContent.length
       : Object.keys(parsedContent).length;
-    console.log(`${fileDetails.name}: Read ${count} entries`);
+    logger.info(`${fileDetails.name}: Read ${count} entries`);
   }
 });
 
@@ -148,24 +150,28 @@ processedDataFiles.forEach((fileDetails) => {
 optionalProcessedDataFiles.forEach((fileDetails) => {
   const fileName = path.basename(fileDetails.filePath);
   if (!fs.existsSync(fileDetails.filePath)) {
-    console.log(`${fileDetails.name}: ${fileName} not present for this network`);
+    logger.info(
+      `${fileDetails.name}: ${fileName} not present for this network`,
+    );
     return;
   }
   try {
     cachedData[fileDetails.name] = JSON.parse(
       fs.readFileSync(fileDetails.filePath),
     );
-    console.log(`${fileDetails.name}: Read ${fileName}`);
+    logger.info(`${fileDetails.name}: Read ${fileName}`);
   } catch (error) {
     // Unreadable is treated as absent: an optional extra must never be able to
     // stop the server from serving the data that does load.
-    console.warn(`${fileDetails.name}: ${fileName} unreadable — ${error.message}`);
+    logger.warn(
+      `${fileDetails.name}: ${fileName} unreadable — ${error.message}`,
+    );
   }
 });
 
 // Reverse trip mapping
 if (!fs.existsSync(tripMappingFilePath)) {
-  console.error(`File trip-mapping.json does not exist`);
+  logger.error(`File trip-mapping.json does not exist`);
   process.exit(1);
 }
 const tripMapping = JSON.parse(fs.readFileSync(tripMappingFilePath));
@@ -175,8 +181,8 @@ for (const [realId, flatId] of Object.entries(tripMapping)) {
 }
 cachedData["reverseTripMapping"] = reverseTripMapping;
 
-console.log(`trip-mapping: Read ${reverseTripMapping.length} entries`);
-console.log("Successfully read processed data into proper data structures.");
+logger.info(`trip-mapping: Read ${reverseTripMapping.length} entries`);
+logger.info("Successfully read processed data into proper data structures.");
 
 /*
  * What this network's compiled data actually supports. Everything here is
@@ -218,7 +224,7 @@ const modes = [
   ),
 ].sort((a, b) => a - b);
 
-console.log(`modes: ${modes.length} vehicle types in this network`);
+logger.info(`modes: ${modes.length} vehicle types in this network`);
 
 /**
  * Which shape a trip rides and where each of its stops sits along it, or null

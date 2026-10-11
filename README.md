@@ -1366,6 +1366,7 @@ Two things worth knowing about the keys:
 | `JWT_SECRET_KEY` | **Yes** | — | Signs the session cookie. Every login fails without it; changing it signs everyone out |
 | `JWT_EXPIRES_IN` | No | `30d` | How long a session token is valid |
 | `PORT` | No | `3000` | Keep it 3000 under Docker — the Caddyfile forwards there |
+| `LOG_LEVEL` | No | `info` | `debug` adds per-calculation timings; `warn` keeps only problems. JSON lines under `NODE_ENV=production`, readable lines otherwise |
 | `ACTIVE_NETWORK` | No | `pipelineConfig.js` | Under npm, an override for the pipeline's value. Under Docker it comes from the root `.env` and wins |
 
 **Client** — `frontend/.env` (committed) and `frontend/.env.local` (yours).

@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const AppError = require("../utils/AppError");
 const serverConfig = require("../serverConfig");
 
 const logCalculationTime = require("../utils/logCalculationTime");
@@ -183,8 +184,14 @@ function forEachDeparture(internalStopId, isoDate, visit) {
 
 /** Turns an internal visit into the public departure shape. */
 function describeDeparture(visit, baseIsoDate) {
-  const { route, routeId, flatTripId, stopIndex, departureSeconds, arrivalSeconds } =
-    visit;
+  const {
+    route,
+    routeId,
+    flatTripId,
+    stopIndex,
+    departureSeconds,
+    arrivalSeconds,
+  } = visit;
 
   const departure = resolveDateAndTime(baseIsoDate, departureSeconds);
   const arrival = resolveDateAndTime(baseIsoDate, arrivalSeconds);
@@ -276,9 +283,7 @@ function describeServingLines(internalStopId) {
 function resolveStop(gtfsId, res) {
   const internalStopId = cache.stopMapping[gtfsId];
   if (internalStopId === undefined) {
-    res
-      .status(404)
-      .json({ errorCode: "STOP_NOT_FOUND", error: "Stop ID not found." });
+    throw new AppError(404, "STOP_NOT_FOUND", "Stop ID not found.");
     return null;
   }
   return internalStopId;
@@ -340,201 +345,177 @@ function modesAt(internalStopId) {
  * malformed box is a 400 from the router, never a guess.
  */
 router.get("/", (req, res) => {
-  try {
-    const startedAt = performance.now();
-    const bounds = ["minLat", "minLon", "maxLat", "maxLon"].map((key) =>
-      Number.parseFloat(req.query[key]),
-    );
+  const startedAt = performance.now();
+  const bounds = ["minLat", "minLon", "maxLat", "maxLon"].map((key) =>
+    Number.parseFloat(req.query[key]),
+  );
 
-    if (bounds.some((value) => !Number.isFinite(value))) {
-      return res.status(400).json({
-        errorCode: "BAD_BOUNDS",
-        error:
-          "minLat, minLon, maxLat and maxLon are all required, as numbers.",
-      });
-    }
-
-    const [minLat, minLon, maxLat, maxLon] = bounds;
-
-    if (minLat > maxLat || minLon > maxLon) {
-      return res.status(400).json({
-        errorCode: "BAD_BOUNDS",
-        error: "The minimum corner must not be greater than the maximum one.",
-      });
-    }
-
-    /*
-     * A box this large is a request for the whole network wearing a bounding
-     * box, and answering it would mean walking most of the grid to build a
-     * list the cap would then throw away.
-     */
-    if (maxLat - minLat > MAX_SPAN_DEGREES || maxLon - minLon > MAX_SPAN_DEGREES) {
-      return res.status(400).json({
-        errorCode: "BOUNDS_TOO_LARGE",
-        error: `A bounding box may span at most ${MAX_SPAN_DEGREES} degrees on a side.`,
-      });
-    }
-
-    const grid = cache.spatialGrid ?? {};
-    const candidates = [];
-
-    const minLatCell = Math.floor(minLat / GRID_SIZE_DEGREES);
-    const maxLatCell = Math.floor(maxLat / GRID_SIZE_DEGREES);
-    const minLonCell = Math.floor(minLon / GRID_SIZE_DEGREES);
-    const maxLonCell = Math.floor(maxLon / GRID_SIZE_DEGREES);
-
-    for (let latCell = minLatCell; latCell <= maxLatCell; latCell++) {
-      for (let lonCell = minLonCell; lonCell <= maxLonCell; lonCell++) {
-        const cell = grid[`${latCell}_${lonCell}`];
-        if (!cell) continue;
-
-        for (const entry of cell) {
-          // A cell is a square of the grid, not of the box: its edge cells
-          // reach past the corners, so each stop is checked again.
-          if (
-            entry.lat < minLat ||
-            entry.lat > maxLat ||
-            entry.lon < minLon ||
-            entry.lon > maxLon
-          ) {
-            continue;
-          }
-
-          const modes = modesAt(entry.id);
-
-          /*
-           * Nothing calls here, so there is nothing to travel from.
-           *
-           * Almost all of these are GTFS *stations* — `location_type=1`, the
-           * parent record for a set of platforms. No trip stops at one (none
-           * appear in stop_times at all), no footpath leads to one, and the
-           * engine can neither board nor alight there. On a map they are a
-           * marker with no mode, and opening one gives a board that is empty
-           * forever.
-           *
-           * A handful are ordinary stops that outlived their routes, which is
-           * a real thing in a feed and just as unusable.
-           *
-           * They are excluded from *this* endpoint only. `/api/stop/:id` still
-           * describes any id it knows, so an existing link keeps working.
-           */
-          if (modes.length === 0) continue;
-
-          candidates.push({ id: entry.id, modes });
-        }
-      }
-    }
-
-    /*
-     * Over the cap, take an even stride rather than the first N.
-     *
-     * The walk above runs latitude band by latitude band, so cutting off at
-     * the cap returned a *southern slice* of whatever was asked for — a wide
-     * box came back with its northern half simply missing, and a map drawn
-     * from it showed empty ground where there were stops. A stride keeps the
-     * answer spread across the whole box, which is what "some of them" should
-     * mean.
-     *
-     * `describeStop` runs only for what survives, so a big box costs the walk
-     * and not the formatting.
-     */
-    const truncated = candidates.length > MAX_STOPS;
-    const kept = [];
-
-    if (!truncated) {
-      kept.push(...candidates);
-    } else {
-      const stride = candidates.length / MAX_STOPS;
-      for (let index = 0; index < MAX_STOPS; index++) {
-        kept.push(candidates[Math.floor(index * stride)]);
-      }
-    }
-
-    const stops = kept.map((entry) => ({
-      ...describeStop(entry.id, String(entry.id)),
-      modes: entry.modes,
-    }));
-
-    logCalculationTime(
-      `Stops In Bounds (${stops.length} stops${truncated ? ", truncated" : ""})`,
-      startedAt,
-    );
-    return res.json({ stops, total: stops.length, truncated, capabilities });
-  } catch (error) {
-    console.error("[Stops In Bounds Error]:", error);
-    return res.status(500).json({
-      errorCode: "INTERNAL_SERVER_ERROR",
-      error: "Failed to resolve stops in the requested area.",
-    });
+  if (bounds.some((value) => !Number.isFinite(value))) {
+    throw new AppError(400, "BAD_BOUNDS", "minLat, minLon, maxLat and maxLon are all required, as numbers.");
   }
+
+  const [minLat, minLon, maxLat, maxLon] = bounds;
+
+  if (minLat > maxLat || minLon > maxLon) {
+    throw new AppError(400, "BAD_BOUNDS", "The minimum corner must not be greater than the maximum one.");
+  }
+
+  /*
+   * A box this large is a request for the whole network wearing a bounding
+   * box, and answering it would mean walking most of the grid to build a
+   * list the cap would then throw away.
+   */
+  if (
+    maxLat - minLat > MAX_SPAN_DEGREES ||
+    maxLon - minLon > MAX_SPAN_DEGREES
+  ) {
+    throw new AppError(400, "BOUNDS_TOO_LARGE", `A bounding box may span at most ${MAX_SPAN_DEGREES} degrees on a side.`);
+  }
+
+  const grid = cache.spatialGrid ?? {};
+  const candidates = [];
+
+  const minLatCell = Math.floor(minLat / GRID_SIZE_DEGREES);
+  const maxLatCell = Math.floor(maxLat / GRID_SIZE_DEGREES);
+  const minLonCell = Math.floor(minLon / GRID_SIZE_DEGREES);
+  const maxLonCell = Math.floor(maxLon / GRID_SIZE_DEGREES);
+
+  for (let latCell = minLatCell; latCell <= maxLatCell; latCell++) {
+    for (let lonCell = minLonCell; lonCell <= maxLonCell; lonCell++) {
+      const cell = grid[`${latCell}_${lonCell}`];
+      if (!cell) continue;
+
+      for (const entry of cell) {
+        // A cell is a square of the grid, not of the box: its edge cells
+        // reach past the corners, so each stop is checked again.
+        if (
+          entry.lat < minLat ||
+          entry.lat > maxLat ||
+          entry.lon < minLon ||
+          entry.lon > maxLon
+        ) {
+          continue;
+        }
+
+        const modes = modesAt(entry.id);
+
+        /*
+         * Nothing calls here, so there is nothing to travel from.
+         *
+         * Almost all of these are GTFS *stations* — `location_type=1`, the
+         * parent record for a set of platforms. No trip stops at one (none
+         * appear in stop_times at all), no footpath leads to one, and the
+         * engine can neither board nor alight there. On a map they are a
+         * marker with no mode, and opening one gives a board that is empty
+         * forever.
+         *
+         * A handful are ordinary stops that outlived their routes, which is
+         * a real thing in a feed and just as unusable.
+         *
+         * They are excluded from *this* endpoint only. `/api/stop/:id` still
+         * describes any id it knows, so an existing link keeps working.
+         */
+        if (modes.length === 0) continue;
+
+        candidates.push({ id: entry.id, modes });
+      }
+    }
+  }
+
+  /*
+   * Over the cap, take an even stride rather than the first N.
+   *
+   * The walk above runs latitude band by latitude band, so cutting off at
+   * the cap returned a *southern slice* of whatever was asked for — a wide
+   * box came back with its northern half simply missing, and a map drawn
+   * from it showed empty ground where there were stops. A stride keeps the
+   * answer spread across the whole box, which is what "some of them" should
+   * mean.
+   *
+   * `describeStop` runs only for what survives, so a big box costs the walk
+   * and not the formatting.
+   */
+  const truncated = candidates.length > MAX_STOPS;
+  const kept = [];
+
+  if (!truncated) {
+    kept.push(...candidates);
+  } else {
+    const stride = candidates.length / MAX_STOPS;
+    for (let index = 0; index < MAX_STOPS; index++) {
+      kept.push(candidates[Math.floor(index * stride)]);
+    }
+  }
+
+  const stops = kept.map((entry) => ({
+    ...describeStop(entry.id, String(entry.id)),
+    modes: entry.modes,
+  }));
+
+  logCalculationTime(
+    `Stops In Bounds (${stops.length} stops${truncated ? ", truncated" : ""})`,
+    startedAt,
+  );
+  return res.json({ stops, total: stops.length, truncated, capabilities });
 });
 
 router.get("/:id/timetable", (req, res) => {
-  try {
-    const startedAt = performance.now();
-    const { id } = req.params;
-    const { date } = req.query;
+  const startedAt = performance.now();
+  const { id } = req.params;
+  const { date } = req.query;
 
-    const internalStopId = resolveStop(id, res);
-    if (internalStopId === null) return;
+  const internalStopId = resolveStop(id, res);
+  if (internalStopId === null) return;
 
-    if (!date || !isValidDate(date)) {
-      return res.status(400).json({
-        errorCode: "BAD_DATE",
-        error: "Missing or invalid date (YYYY-MM-DD).",
-      });
-    }
-
-    const departures = [];
-    forEachDeparture(internalStopId, date, (visit) => {
-      // Only what actually falls on the requested date; a trip running past
-      // midnight belongs to the following day's board, where it will appear
-      // through that day's yesterday-offset pass.
-      if (visit.departureSeconds < 0 || visit.departureSeconds >= SECONDS_PER_DAY) {
-        return;
-      }
-      departures.push(visit);
-    });
-
-    departures.sort((a, b) => a.departureSeconds - b.departureSeconds);
-
-    // Grouped as an array, not an object: object keys reorder "07" after "23"
-    // because integer-like keys are hoisted, which silently scrambles a board.
-    const byHour = new Map();
-    for (const visit of departures) {
-      const hour = String(Math.floor(visit.departureSeconds / 3600)).padStart(
-        2,
-        "0",
-      );
-      if (!byHour.has(hour)) byHour.set(hour, []);
-      byHour.get(hour).push(describeDeparture(visit, date));
-    }
-
-    logCalculationTime(`Stop Timetable (${id}, ${date})`, startedAt);
-    res.json({
-      stop: describeStop(internalStopId, id),
-      date,
-      servingLines: describeServingLines(internalStopId),
-      schedule: [...byHour.entries()]
-        .sort(([a], [b]) => Number(a) - Number(b))
-        .map(([hour, hourDepartures]) => ({
-          hour,
-          departures: hourDepartures,
-        })),
-      totalDepartures: departures.length,
-      // Empty is a legitimate answer — a date outside the feed's calendar has
-      // no services rather than being an error.
-      outsideTimetableRange:
-        cache.activeServices[toDateId(date)] === undefined,
-      capabilities,
-    });
-  } catch (error) {
-    console.error("[Timetable Endpoint Error]:", error);
-    res.status(500).json({
-      errorCode: "INTERNAL_SERVER_ERROR",
-      error: "Failed to resolve timetable.",
-    });
+  if (!date || !isValidDate(date)) {
+    throw new AppError(400, "BAD_DATE", "Missing or invalid date (YYYY-MM-DD).");
   }
+
+  const departures = [];
+  forEachDeparture(internalStopId, date, (visit) => {
+    // Only what actually falls on the requested date; a trip running past
+    // midnight belongs to the following day's board, where it will appear
+    // through that day's yesterday-offset pass.
+    if (
+      visit.departureSeconds < 0 ||
+      visit.departureSeconds >= SECONDS_PER_DAY
+    ) {
+      return;
+    }
+    departures.push(visit);
+  });
+
+  departures.sort((a, b) => a.departureSeconds - b.departureSeconds);
+
+  // Grouped as an array, not an object: object keys reorder "07" after "23"
+  // because integer-like keys are hoisted, which silently scrambles a board.
+  const byHour = new Map();
+  for (const visit of departures) {
+    const hour = String(Math.floor(visit.departureSeconds / 3600)).padStart(
+      2,
+      "0",
+    );
+    if (!byHour.has(hour)) byHour.set(hour, []);
+    byHour.get(hour).push(describeDeparture(visit, date));
+  }
+
+  logCalculationTime(`Stop Timetable (${id}, ${date})`, startedAt);
+  res.json({
+    stop: describeStop(internalStopId, id),
+    date,
+    servingLines: describeServingLines(internalStopId),
+    schedule: [...byHour.entries()]
+      .sort(([a], [b]) => Number(a) - Number(b))
+      .map(([hour, hourDepartures]) => ({
+        hour,
+        departures: hourDepartures,
+      })),
+    totalDepartures: departures.length,
+    // Empty is a legitimate answer — a date outside the feed's calendar has
+    // no services rather than being an error.
+    outsideTimetableRange: cache.activeServices[toDateId(date)] === undefined,
+    capabilities,
+  });
 });
 
 /*
@@ -542,56 +523,54 @@ router.get("/:id/timetable", (req, res) => {
  * GET /api/stop/:id?limit=n
  */
 router.get("/:id", (req, res) => {
-  try {
-    const startedAt = performance.now();
-    const { id } = req.params;
-    const limit = Math.max(
-      1,
-      Math.min(
-        200,
-        Number.parseInt(req.query.limit, 10) ||
-          serverConfig.DEFAULT_DEPARTURES_LIMIT,
-      ),
-    );
+  const startedAt = performance.now();
+  const { id } = req.params;
+  const limit = Math.max(
+    1,
+    Math.min(
+      200,
+      Number.parseInt(req.query.limit, 10) ||
+        serverConfig.DEFAULT_DEPARTURES_LIMIT,
+    ),
+  );
 
-    const internalStopId = resolveStop(id, res);
-    if (internalStopId === null) return;
+  const internalStopId = resolveStop(id, res);
+  if (internalStopId === null) return;
 
-    // "Now" is the network's clock, never the host's.
-    const now = nowInNetwork();
+  // "Now" is the network's clock, never the host's.
+  const now = nowInNetwork();
 
-    const upcoming = [];
-    forEachDeparture(internalStopId, now.date, (visit) => {
-      /*
-       * Anything already gone is not upcoming. This also disposes of
-       * yesterday's spillover once it has passed: those resolve to small
-       * positive seconds early in the morning and to negatives later, both of
-       * which fall out here without a separate cutoff.
-       */
-      if (visit.departureSeconds < now.seconds) return;
-      upcoming.push(visit);
-    });
+  const upcoming = [];
+  forEachDeparture(internalStopId, now.date, (visit) => {
+    /*
+     * Anything already gone is not upcoming. This also disposes of
+     * yesterday's spillover once it has passed: those resolve to small
+     * positive seconds early in the morning and to negatives later, both of
+     * which fall out here without a separate cutoff.
+     */
+    if (visit.departureSeconds < now.seconds) return;
+    upcoming.push(visit);
+  });
 
-    upcoming.sort((a, b) => a.departureSeconds - b.departureSeconds);
+  upcoming.sort((a, b) => a.departureSeconds - b.departureSeconds);
 
-    logCalculationTime(`Stop Board (${id}, ${upcoming.length} departures)`, startedAt);
-    res.json({
-      stop: describeStop(internalStopId, id),
-      // The moment the board was resolved, so a stale tab is detectable.
-      asOf: { date: now.date, time: resolveDateAndTime(now.date, now.seconds).time },
-      servingLines: describeServingLines(internalStopId),
-      departures: upcoming
-        .slice(0, limit)
-        .map((visit) => describeDeparture(visit, now.date)),
-      capabilities,
-    });
-  } catch (error) {
-    console.error("[Departures Endpoint Error]:", error);
-    res.status(500).json({
-      errorCode: "INTERNAL_SERVER_ERROR",
-      error: "Failed to resolve upcoming departures.",
-    });
-  }
+  logCalculationTime(
+    `Stop Board (${id}, ${upcoming.length} departures)`,
+    startedAt,
+  );
+  res.json({
+    stop: describeStop(internalStopId, id),
+    // The moment the board was resolved, so a stale tab is detectable.
+    asOf: {
+      date: now.date,
+      time: resolveDateAndTime(now.date, now.seconds).time,
+    },
+    servingLines: describeServingLines(internalStopId),
+    departures: upcoming
+      .slice(0, limit)
+      .map((visit) => describeDeparture(visit, now.date)),
+    capabilities,
+  });
 });
 
 module.exports = router;

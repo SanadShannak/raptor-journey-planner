@@ -1,3 +1,5 @@
+const logger = require("./logger");
+
 /**
  * How long a request's own work took, in the engine's own words.
  *
@@ -13,6 +15,10 @@
  * Express or in the socket is not what any of these handlers can do anything
  * about, and folding it in would make the numbers less useful, not more.
  *
+ * At `debug`, not `info`: every request already gets a line from `pino-http`
+ * with its whole duration, so this is the closer look for when that number is
+ * high — `LOG_LEVEL=debug` turns it on.
+ *
  * Called only on a path that produced an answer. A rejected request did no
  * calculation, and timing the validation that refused it says nothing.
  *
@@ -20,8 +26,8 @@
  * @param {number} startedAt A `performance.now()` reading from before the work.
  */
 function logCalculationTime(label, startedAt) {
-  const elapsed = (performance.now() - startedAt).toFixed(2);
-  console.log(`[API]: ${label} Calculated in ${elapsed}ms`);
+  const ms = Number((performance.now() - startedAt).toFixed(2));
+  logger.debug({ calculation: label, ms }, "calculated");
 }
 
 module.exports = logCalculationTime;

@@ -260,6 +260,28 @@ Non-2xx responses carry `{ errorCode, error }`. `error` is developer-facing Engl
 and `PATTERN_NOT_FOUND` (404). These are ordinary HTTP failures — the 200-with-an-
 `errorCode` behaviour below belongs to the planner alone.
 
+**Accounts** (`/api/auth`, `/api/user`, `/api/cards`) answer with the same
+`{ errorCode, error }` since the global error handler
+(`backend/src/middleware/errorHandler.js`); before it they sent `{ message }`
+with no code. **The statuses did not change**, so the client's per-endpoint
+status mapping still holds:
+
+- `401 UNAUTHORIZED` — no session, or one that no longer verifies (`requireAuth`)
+- `400 VALIDATION_FAILED` — a field was rejected; express-validator's
+  `errors: [{ path, msg, … }]` rides beside the code and says which
+- `400 EMAIL_IN_USE`, `401 INVALID_CREDENTIALS` (wrong email *or* password —
+  deliberately one answer), `401 INCORRECT_PASSWORD` (verify-password, signed in)
+- Cards: `422 CARD_LIMIT_REACHED`, `400 DUPLICATE_CARD_NICKNAME`,
+  `404 CARD_NOT_FOUND` (also for somebody else's card), `400 CARD_HAS_BALANCE`,
+  `400 INSUFFICIENT_BALANCE`
+- Saved items: `400 ALREADY_SAVED`, `422 SAVED_LIMIT_REACHED`,
+  `400 DUPLICATE_NICKNAME`, `400 EMPTY_NICKNAME`, `404 SAVED_ITEM_NOT_FOUND`,
+  `404 STOP_NOT_FOUND`, `404 LINE_NOT_FOUND`, `404 VARIANT_NOT_FOUND`
+
+**Anywhere:** `404 NOT_FOUND` (no such endpoint, or an id that is not a valid
+ObjectId), `400 MALFORMED_JSON`, `413 PAYLOAD_TOO_LARGE`, and
+`500 INTERNAL_SERVER_ERROR`, whose `error` never says what went wrong inside.
+
 **500** — `INTERNAL_SERVER_ERROR`
 
 404 bodies may carry extra fields alongside the error envelope (e.g. `targetArrivalTime: null`, `legs: []`). Ignore them; read `errorCode`.
