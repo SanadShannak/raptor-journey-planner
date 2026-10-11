@@ -9,7 +9,7 @@ import { paths } from './routes';
 /**
  * Primary navigation.
  *
- * One `<nav>` for both layouts: a horizontal bar from `md` up, and a
+ * One `<nav>` for both layouts: a horizontal bar from `xl` up, and a
  * disclosure panel below it. A disclosure, not a dialog — the panel sits in
  * normal document flow and pushes content down rather than overlaying it,
  * which is what lets it avoid owing a focus trap, `aria-modal`, an inert
@@ -61,13 +61,13 @@ export function PrimaryNav() {
 
   /* `NavLink` sets aria-current="page" itself; do not hand-roll it. */
   const linkClass =
-    'rounded-control text-on-chrome focus-visible:outline-on-chrome block px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 aria-[current=page]:bg-on-chrome aria-[current=page]:text-chrome';
+    'whitespace-nowrap rounded-control text-on-chrome focus-visible:outline-on-chrome block px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 aria-[current=page]:bg-on-chrome aria-[current=page]:text-chrome';
 
   return (
     /*
      * `order-last` puts the toggle at the trailing edge of the bar on a phone
      * — past the clock, past everything else — rather than beside the brand
-     * where it used to sit. `md:order-none` gives it back at the width where
+     * where it used to sit. `xl:order-none` gives it back at the width where
      * the bar switches to a grid and this element stops being a flex item
      * that ordering would otherwise still apply to.
      */
@@ -82,10 +82,10 @@ export function PrimaryNav() {
        * read as unequal. Four more pixels make the two look alike, which is
        * the thing actually being matched.
        *
-       * Dropped at `md`, where this becomes the centred cell of a grid and a
+       * Dropped at `xl`, where this becomes the centred cell of a grid and a
        * trailing margin would push it off centre.
        */
-      className="order-last me-1 md:order-none md:me-0"
+      className="order-last me-1 xl:order-none xl:me-0"
     >
       <button
         ref={toggleRef}
@@ -93,7 +93,7 @@ export function PrimaryNav() {
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((wasOpen) => !wasOpen)}
-        className="rounded-control border-chrome-border text-on-chrome focus-visible:outline-on-chrome inline-flex h-9 cursor-pointer items-center gap-2 border px-3 text-sm leading-none focus-visible:outline-2 focus-visible:outline-offset-2 md:hidden"
+        className="whitespace-nowrap rounded-control border-chrome-border text-on-chrome focus-visible:outline-on-chrome inline-flex h-9 cursor-pointer items-center gap-2 border px-3 text-sm leading-none focus-visible:outline-2 focus-visible:outline-offset-2 xl:hidden"
       >
         {/* Both icons occupy the same box so the header does not reflow. */}
         <svg
@@ -115,7 +115,7 @@ export function PrimaryNav() {
         {open ? t(strings.nav.closeMenu) : t(strings.nav.openMenu)}
       </button>
 
-      <ul className="hidden gap-1 md:flex">
+      <ul className="hidden gap-1 xl:flex">
         {links.map((link) => (
           <li key={link.to}>
             <NavLink to={link.to} className={linkClass}>
@@ -128,7 +128,7 @@ export function PrimaryNav() {
       <div
         id={panelId}
         hidden={!open}
-        className="bg-chrome border-chrome-border absolute inset-x-0 top-full z-10 flex flex-col gap-1 border-t p-3 md:hidden"
+        className="bg-chrome border-chrome-border absolute inset-x-0 top-full z-10 flex flex-col gap-1 border-t p-3 xl:hidden"
       >
         <ul className="flex flex-col gap-1">
           {links.map((link) => (
@@ -143,7 +143,7 @@ export function PrimaryNav() {
         <span aria-hidden="true" className="bg-chrome-border my-1 h-px w-full" />
 
         {/*
-          Theme and language live in the bar from `md` up; below it this panel
+          Theme and language live in the bar from `xl` up; below it this panel
           is their only address, since the bar itself has no room left once the
           clock, the toggle, and the account controls are all fighting for the
           same row.

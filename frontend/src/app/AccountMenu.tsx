@@ -78,7 +78,7 @@ export function AccountMenu() {
   }
 
   return (
-    <div ref={wrapperRef} className="hidden md:block">
+    <div ref={wrapperRef} className="hidden xl:block">
       <button
         ref={toggleRef}
         type="button"

@@ -54,7 +54,7 @@ export function LanguageToggle() {
     <button
       type="button"
       onClick={() => setLocale(other)}
-      className="rounded-control border-chrome-border text-on-chrome focus-visible:outline-on-chrome inline-flex h-9 cursor-pointer items-center gap-1.5 border px-2.5 text-sm leading-none focus-visible:outline-2 focus-visible:outline-offset-2"
+      className="whitespace-nowrap rounded-control border-chrome-border text-on-chrome focus-visible:outline-on-chrome inline-flex h-9 cursor-pointer items-center gap-1.5 border px-2.5 text-sm leading-none focus-visible:outline-2 focus-visible:outline-offset-2"
     >
       <GlobeIcon />
       <span lang={other}>{face}</span>

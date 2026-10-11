@@ -83,19 +83,19 @@ export function AppHeader() {
         actually being matched. From `sm` up there is room enough that the two
         agree again.
 
-        Three columns from `md` up, the outer two sharing the leftover space
+        Three columns from `xl` up, the outer two sharing the leftover space
         equally: that centres the navigation in the window itself rather than
         merely between its neighbours, which would drift as the brand and the
         account controls change width across languages.
 
-        Below `md` it falls back to a row, because the middle cell collapses to
+        Below `xl` it falls back to a row, because the middle cell collapses to
         a single toggle button and centring one button is not a layout.
       */}
-      <div className="flex items-center gap-3 px-5 py-3 sm:px-6 md:grid md:grid-cols-[1fr_auto_1fr] lg:px-8">
+      <div className="flex items-center gap-3 px-5 py-3 sm:px-6 xl:grid xl:grid-cols-[1fr_auto_1fr] lg:px-8">
         {/*
           Brand and clock as one cell, not two.
 
-          The bar is a three-column grid from `md` up so the navigation is
+          The bar is a three-column grid from `xl` up so the navigation is
           centred in the window; a fourth child would be a fourth column the
           template has no track for, and would wrap onto a second row.
         */}
@@ -172,27 +172,27 @@ export function AppHeader() {
         {/* `ms-auto` handles the row layout and `justify-self-end` the grid
             one. Both are logical, so the group sits at the trailing edge —
             the left one in Arabic — without a second set of rules. */}
-        <div className="ms-auto flex items-center gap-2 md:justify-self-end">
+        <div className="ms-auto flex items-center gap-2 xl:justify-self-end">
           {/*
-            Settings live here from `md` up; below it they move into the
+            Settings live here from `xl` up; below it they move into the
             navigation panel, which is the only place with room for them on a
             phone. Hiding rather than removing them from the tree keeps the
             component the same either way — only their address changes.
           */}
-          <div className="hidden items-center gap-2 md:flex">
+          <div className="hidden items-center gap-2 xl:flex">
             <TourButton />
             <ThemeToggle />
             <LanguageToggle />
           </div>
 
           {/* A hairline between settings and account, so the bar reads as two
-              groups rather than four unrelated controls. Below `md` the auth
+              groups rather than four unrelated controls. Below `xl` the auth
               controls live in the navigation panel instead — the bar
               — the bar has no room, and hiding them outright would strand
               anyone on a phone with no way to reach an account. */}
           <span
             aria-hidden="true"
-            className="bg-chrome-border mx-1 hidden h-5 w-px md:block"
+            className="bg-chrome-border mx-1 hidden h-5 w-px xl:block"
           />
 
           {/*
@@ -206,7 +206,7 @@ export function AppHeader() {
             jumping as the answer arrives.
           */}
           {checking ? (
-            <span aria-hidden="true" className="hidden h-9 md:block" />
+            <span aria-hidden="true" className="whitespace-nowrap hidden h-9 xl:block" />
           ) : signedIn ? (
             <AccountMenu />
           ) : (
@@ -214,14 +214,14 @@ export function AppHeader() {
               <button
                 type="button"
                 onClick={() => requestAuth('logIn')}
-                className="rounded-control text-on-chrome focus-visible:outline-on-chrome hidden h-9 cursor-pointer items-center px-3 text-sm font-medium leading-none focus-visible:outline-2 focus-visible:outline-offset-2 md:inline-flex"
+                className="whitespace-nowrap rounded-control text-on-chrome focus-visible:outline-on-chrome hidden h-9 cursor-pointer items-center px-3 text-sm font-medium leading-none focus-visible:outline-2 focus-visible:outline-offset-2 xl:inline-flex"
               >
                 {t(strings.auth.logIn)}
               </button>
               <button
                 type="button"
                 onClick={() => requestAuth('signUp')}
-                className="rounded-control bg-on-chrome text-chrome focus-visible:outline-on-chrome hidden h-9 cursor-pointer items-center px-3 text-sm font-semibold leading-none focus-visible:outline-2 focus-visible:outline-offset-2 md:inline-flex"
+                className="whitespace-nowrap rounded-control bg-on-chrome text-chrome focus-visible:outline-on-chrome hidden h-9 cursor-pointer items-center px-3 text-sm font-semibold leading-none focus-visible:outline-2 focus-visible:outline-offset-2 xl:inline-flex"
               >
                 {t(strings.auth.signUp)}
               </button>

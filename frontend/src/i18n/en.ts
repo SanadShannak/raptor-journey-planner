@@ -531,7 +531,7 @@ export const en: Dictionary = {
         'The star saves this search to your favourites. Stops and routes have one too. Saving needs an account.',
       navTitle: 'Everything else',
       navBody:
-        'Browse routes and stops, keep track of your travel card, and find your favourites from here. On a phone they are in the menu.',
+        'Browse routes and stops, keep track of your travel card, and find your favourites from here. On a phone or tablet they are in the menu.',
     },
     itinerary: {
       stepsTitle: 'Your journey, step by step',
