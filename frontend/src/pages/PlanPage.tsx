@@ -75,6 +75,12 @@ const MINIMUM_SEARCH_MS = 750;
 
 const hold = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * Where the sidebar and the map stop stacking and sit side by side — Tailwind's
+ * `lg`, the same breakpoint every `lg:` class in the layout below switches on.
+ */
+const SIDE_BY_SIDE = '(min-width: 64rem)';
+
 /** The two ends as the traveller chose them, for the strip map's end nodes. */
 function endOf(place: Place | null): JourneyEnd {
   return { name: place?.label ?? null, context: place?.context ?? null };
@@ -296,6 +302,7 @@ export default function PlanPage() {
    */
 
   const requestId = useRef(0);
+  const mapRef = useRef<HTMLElement>(null);
   /** Bumped to re-run the startup effect when the service comes back. */
   const [attempt, setAttempt] = useState(0);
 
@@ -373,8 +380,15 @@ export default function PlanPage() {
     return () => controller.abort();
   }, [attempt]);
 
-  async function search(from: JourneyFormValues, mode: 'replace' | 'later') {
-    if (from.origin === null || from.destination === null) return;
+  /**
+   * Resolves to whether a `'replace'` search came back with journeys to show,
+   * which is what {@link runSearch} needs to know before moving the page.
+   */
+  async function search(
+    from: JourneyFormValues,
+    mode: 'replace' | 'later',
+  ): Promise<boolean> {
+    if (from.origin === null || from.destination === null) return false;
 
     /*
      * The address records the question, so leaving the page and coming back
@@ -434,7 +448,7 @@ export default function PlanPage() {
       }
       const result = await pending;
 
-      if (id !== requestId.current) return;
+      if (id !== requestId.current) return false;
 
       if (mode === 'replace') {
         setJourneys(result);
@@ -471,8 +485,9 @@ export default function PlanPage() {
       // A search that got through is proof the service is up, whatever an
       // earlier probe concluded.
       markServiceUp();
+      return mode === 'replace' && result.length > 0;
     } catch (error) {
-      if (id !== requestId.current) return;
+      if (id !== requestId.current) return false;
       setState('failed');
       setErrorMessage(t(messageForApiError(error, strings)));
       /*
@@ -486,6 +501,7 @@ export default function PlanPage() {
         setJourneys([]);
         setOpenIndex(null);
       }
+      return false;
     } finally {
       if (id === requestId.current) setExtending(false);
     }
@@ -596,7 +612,39 @@ export default function PlanPage() {
      * press had missed. Clearing lets the searching state be seen.
      */
     clearResults();
-    void search(values, 'replace');
+    void search(values, 'replace').then((found) => {
+      if (found) revealMap();
+    });
+  }
+
+  /**
+   * Brings the map back into view once a search has something to draw.
+   *
+   * Only on the stacked layout. There the map sits above the form, and the
+   * button that runs a search is far enough below it that pressing it leaves
+   * the map scrolled off the top: the route was drawn, the first result was
+   * chosen, and nothing on screen changed but a spinner coming and going.
+   * Side by side, from `lg`, the map never leaves the screen and moving the
+   * page would only be a jolt.
+   *
+   * Only when the map is actually out of view, too — a search run with the
+   * map already on screen has nothing to reveal. Focus stays where it is:
+   * the live region in the sidebar is what tells a screen reader the search
+   * finished, and pulling focus to a map would strand a keyboard user above
+   * the results they asked for.
+   *
+   * Instant rather than smooth for anyone who has asked for less movement.
+   * The stylesheet's reduced-motion rule cannot reach this — a scroll started
+   * from script takes its behaviour from the call, not from CSS.
+   */
+  function revealMap() {
+    const map = mapRef.current;
+    if (map === null || typeof window.matchMedia !== 'function') return;
+    if (window.matchMedia(SIDE_BY_SIDE).matches) return;
+    if (map.getBoundingClientRect().top >= 0) return;
+
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    map.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
   }
 
   /** Shifts the query a minute past the last departure already shown. */
@@ -854,6 +902,7 @@ export default function PlanPage() {
         enhancement over that list rather than a second place to have to look.
       */}
       <section
+        ref={mapRef}
         aria-label={t(strings.planner.mapLabel)}
         className="bg-surface-muted relative isolate order-first h-half-viewport shrink-0 lg:order-none lg:h-auto lg:flex-1"
         /*
