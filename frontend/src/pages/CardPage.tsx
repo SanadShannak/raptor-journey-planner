@@ -1,3 +1,4 @@
+import { useTour } from '../features/tour';
 import { useEffect, useId, useRef, useState } from 'react';
 import { usePageTitle } from '../app/usePageTitle';
 import { getNetwork } from '../api/network';
@@ -34,6 +35,7 @@ import { useLoadCards, useWallet } from '../features/card/useCards';
 export default function CardPage() {
   const { locale, strings, t } = useLocale();
   usePageTitle(t(strings.pages.card.title));
+  useTour('card');
   /*
    * Names the list of cards for a screen reader, by pointing it at the heading
    * already above it rather than repeating the words in an `aria-label`. Two
@@ -96,7 +98,7 @@ export default function CardPage() {
       somewhere to spread out.
     */
     <div className="flex w-full flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
-      <div className="flex flex-col gap-2">
+      <div data-tour="card-intro" className="flex flex-col gap-2">
         <h1
           ref={headingRef}
           tabIndex={-1}

@@ -98,7 +98,7 @@ export function LineBrowser({ availableModes, onOpen }: Props) {
         <p className="text-content-muted text-sm">{t(strings.routes.browseHint)}</p>
       </div>
 
-      <div className="flex flex-col gap-1.5">
+      <div data-tour="routes-search" className="flex flex-col gap-1.5">
         <label
           htmlFor={searchId}
           className="text-content-muted text-xs font-medium tracking-wide uppercase"
@@ -197,7 +197,7 @@ export function LineBrowser({ availableModes, onOpen }: Props) {
         </p>
       )}
 
-      <ul className="flex flex-col">
+      <ul data-tour="routes-list" className="flex flex-col">
         {shown.map((line) => (
           <li key={line.lineId}>
             <button

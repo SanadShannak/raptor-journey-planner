@@ -1,3 +1,4 @@
+import { useTour } from '../features/tour';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePageTitle } from '../app/usePageTitle';
 import { getNetwork } from '../api/network';
@@ -44,6 +45,7 @@ import { useNetworkNow } from '../features/stops/useNetworkNow';
 export default function FavouritesPage() {
   const { strings, t } = useLocale();
   usePageTitle(t(strings.pages.favourites.documentTitle));
+  useTour('favourites');
 
   /*
    * The list is fetched by the page that shows it rather than by the layout:
@@ -251,7 +253,7 @@ export default function FavouritesPage() {
         at the same size and in the same stack here as they do on the card
         page, and the page scrolls when it has to.
       */}
-      <div className="flex flex-col gap-2">
+      <div data-tour="favourites-intro" className="flex flex-col gap-2">
         <h1
           ref={headingRef}
           tabIndex={-1}
@@ -328,7 +330,11 @@ export default function FavouritesPage() {
                 card's footer is cut off inside it. Refusing to shrink makes the
                 page's real height real again.
               */
-              <section key={kind} className="flex shrink-0 flex-col gap-2">
+              <section
+                key={kind}
+                data-tour={kind === 'stop' ? 'favourites-rows' : undefined}
+                className="flex shrink-0 flex-col gap-2"
+              >
                 <div className="flex items-baseline justify-between gap-3">
                   <h2 className="text-lg font-semibold tracking-tight">{t(heading)}</h2>
                   <p className="text-content-muted text-xs tabular-nums">

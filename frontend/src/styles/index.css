@@ -174,6 +174,13 @@
    * hold of it is the space that opens underneath.
    */
   --shadow-lifted: 0 2px 6px oklch(0 0 0 / 0.12), 0 16px 32px oklch(0 0 0 / 0.22);
+  /*
+   * The tour's spotlight. Not a shadow in the elevation sense: a spread far
+   * larger than any screen, so the box casting it is the one clear patch and
+   * everything around it is dimmed. The same strength as the dialogs'
+   * backdrop, in both schemes — dimming is not a colour that inverts.
+   */
+  --shadow-spotlight: 0 0 0 200vmax oklch(0 0 0 / 0.5);
 }
 
 /*

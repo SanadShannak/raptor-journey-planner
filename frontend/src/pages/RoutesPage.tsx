@@ -1,3 +1,4 @@
+import { useTour } from '../features/tour';
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { useGoBack } from '../app/useBackStack';
@@ -33,6 +34,7 @@ import { RouteMap } from '../map/RouteMap';
  */
 export default function RoutesPage() {
   const { strings, t } = useLocale();
+  useTour('routes');
   const { lineId } = useParams<{ lineId: string }>();
   const [search] = useSearchParams();
   const navigate = useNavigate();
@@ -251,6 +253,7 @@ export default function RoutesPage() {
       </div>
 
       <section
+        data-tour="routes-map"
         aria-label={t(strings.planner.mapLabel)}
         className="bg-surface-muted relative isolate order-first h-half-viewport shrink-0 lg:order-none lg:h-auto lg:flex-1"
         /*

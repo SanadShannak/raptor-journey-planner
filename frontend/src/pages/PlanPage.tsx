@@ -1,3 +1,4 @@
+import { useTour } from '../features/tour';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { stopPath, tripPath } from '../app/routes';
@@ -104,6 +105,7 @@ export default function PlanPage() {
    * sideways, three words wide.
    */
   usePageTitle(t(strings.pages.plan.documentTitle));
+  useTour('plan');
 
   const [validDates, setValidDates] = useState<string[]>([]);
   const [networkToday, setNetworkToday] = useState<string | null>(null);
@@ -726,7 +728,7 @@ export default function PlanPage() {
               screen below it, but a reader should not have to learn a second
               place to look for the same control.
             */}
-            <div className="flex items-start gap-2">
+            <div data-tour="plan-save" className="flex items-start gap-2">
               <h1 className="min-w-0 flex-1 text-2xl font-semibold tracking-tight text-balance">
                 {t(strings.pages.plan.title)}
               </h1>
@@ -854,6 +856,7 @@ export default function PlanPage() {
         enhancement over that list rather than a second place to have to look.
       */}
       <section
+        data-tour="plan-map"
         aria-label={t(strings.planner.mapLabel)}
         className="bg-surface-muted relative isolate order-first h-half-viewport shrink-0 lg:order-none lg:h-auto lg:flex-1"
         /*

@@ -827,6 +827,68 @@ export interface Dictionary {
    * being signed in — whose session it is, how to end it, and what each gated
    * surface is missing without one.
    */
+  /**
+   * The guided tour: a few steps per page pointing at what is on it.
+   *
+   * Every step is a title and a sentence or two. Each page's tour is its own
+   * block so a step can be added to one page without renumbering another.
+   */
+  tour: {
+    /** The header control that replays the current page's tour. */
+    open: string;
+    /** Names the tour's dialog for a screen reader. */
+    dialogLabel: string;
+    /** "Step 2 of 5". */
+    stepOf: string;
+    next: string;
+    back: string;
+    done: string;
+    skip: string;
+    plan: {
+      welcomeTitle: string;
+      welcomeBody: string;
+      placesTitle: string;
+      placesBody: string;
+      whenTitle: string;
+      whenBody: string;
+      paceTitle: string;
+      paceBody: string;
+      mapTitle: string;
+      mapBody: string;
+      saveTitle: string;
+      saveBody: string;
+      navTitle: string;
+      navBody: string;
+    };
+    routes: {
+      searchTitle: string;
+      searchBody: string;
+      listTitle: string;
+      listBody: string;
+      mapTitle: string;
+      mapBody: string;
+    };
+    stops: {
+      mapTitle: string;
+      mapBody: string;
+      nearbyTitle: string;
+      nearbyBody: string;
+      modesTitle: string;
+      modesBody: string;
+    };
+    card: {
+      introTitle: string;
+      introBody: string;
+      addTitle: string;
+      addBody: string;
+    };
+    favourites: {
+      introTitle: string;
+      introBody: string;
+      rowsTitle: string;
+      rowsBody: string;
+    };
+  };
   account: {
     /* The menu in the bar. */
     menuLabel: string;

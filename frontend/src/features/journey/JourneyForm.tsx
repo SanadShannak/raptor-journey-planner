@@ -99,7 +99,7 @@ export function JourneyForm({
         gutter rather than stacking under whatever the origin field puts at its
         end.
       */}
-      <div className="flex items-stretch gap-2">
+      <div data-tour="plan-places" className="flex items-stretch gap-2">
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <PlaceInput
             label={t(strings.planner.origin)}
@@ -167,7 +167,7 @@ export function JourneyForm({
         </button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div data-tour="plan-when" className="grid gap-3 sm:grid-cols-2">
         <DateSelect
           label={t(strings.planner.date)}
           value={values.date}
@@ -222,7 +222,7 @@ export function JourneyForm({
         </button>
       )}
 
-      <fieldset disabled={off} className="flex flex-col mt-0.5 pt-0.5 pb-0.5 disabled:opacity-60">
+      <fieldset data-tour="plan-pace" disabled={off} className="flex flex-col mt-0.5 pt-0.5 pb-0.5 disabled:opacity-60">
         {/*
           A legend is taken out of the fieldset's flow and placed on its border
           box, so a `gap` never applies to it — its own margin is the only thing

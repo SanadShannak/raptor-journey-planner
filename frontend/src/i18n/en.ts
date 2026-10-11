@@ -499,6 +499,76 @@ export const en: Dictionary = {
     passwordRequired: 'Enter a password.',
     passwordTooShort: 'Use at least 8 characters.',
   },
+  tour: {
+    open: 'Show the tour',
+    dialogLabel: 'Tour',
+    stepOf: 'Step {current} of {total}',
+    next: 'Next',
+    back: 'Back',
+    done: 'Done',
+    skip: 'Skip tour',
+    plan: {
+      welcomeTitle: 'Welcome to Journey Planner',
+      welcomeBody:
+        'A quick look around this page. It takes under a minute, and you can see it again any time from the ? button.',
+      placesTitle: 'Where from, and where to',
+      placesBody:
+        'Type an address, a place or a stop name and pick a suggestion. The target button fills in where you are now.',
+      whenTitle: 'When you leave',
+      whenBody:
+        'Choose the day and the time you want to set off. “Leave now” fills in both.',
+      paceTitle: 'How fast you walk',
+      paceBody:
+        'Your walking speed decides which changes you can make in time, so pick the one that is closest.',
+      mapTitle: 'The map',
+      mapBody:
+        'Press anywhere on the map to start or end there. Once you search, the journey you pick is drawn here, with every walk and ride.',
+      saveTitle: 'Keep it for later',
+      saveBody:
+        'The star saves this search to your favourites. Stops and routes have one too. Saving needs an account.',
+      navTitle: 'Everything else',
+      navBody:
+        'Browse routes and stops, keep track of your travel card, and find your favourites from here. On a phone they are in the menu.',
+    },
+    routes: {
+      searchTitle: 'Find a route',
+      searchBody:
+        'Search by number or destination, and narrow the list down by type of transport.',
+      listTitle: 'Every route in the network',
+      listBody:
+        'Open one to see where it goes, its stops, its timetable and where its vehicles are now.',
+      mapTitle: 'Routes on the map',
+      mapBody:
+        'An open route is drawn here. Press a stop on it to see its departures.',
+    },
+    stops: {
+      mapTitle: 'Stops on the map',
+      mapBody:
+        'Move and zoom the map to find stops; they appear once you are close enough. Press one to see what leaves from it.',
+      nearbyTitle: 'Stops near you',
+      nearbyBody:
+        'Jump straight to the stops around where you are, or back to the city centre.',
+      modesTitle: 'Only what you take',
+      modesBody:
+        'Show only the kinds of transport you use, so the map is easier to read.',
+    },
+    card: {
+      introTitle: 'Your travel cards',
+      introBody:
+        'Keep your cards in one place: check a balance, top up, and see what has been spent.',
+      addTitle: 'Add a card',
+      addBody:
+        'Give it a name you will recognise and choose its type. You can add more than one.',
+    },
+    favourites: {
+      introTitle: 'Everything you saved',
+      introBody:
+        'Stops, routes and journeys you starred appear here, with what leaves next.',
+      rowsTitle: 'Make it yours',
+      rowsBody:
+        'Drag a card by its dots to put what you use most first. Press a card to open it.',
+    },
+  },
   account: {
     menuLabel: 'Your account',
     signedInAs: 'Signed in as',
