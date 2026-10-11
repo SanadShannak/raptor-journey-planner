@@ -74,7 +74,7 @@ export function useFavouriteFlip(
   containerRef: React.RefObject<HTMLElement | null>,
   order: readonly string[],
 ): void {
-  const rectsRef = useRef(new Map<string, DOMRect>());
+  const rectsRef = useRef(new Map<string, { left: number; top: number }>());
 
   /**
    * The sequence itself, not the array holding it.
@@ -119,51 +119,35 @@ export function useFavouriteFlip(
       if (key === undefined) return;
 
       /*
-       * The lift and carry a held card wears is the separate `translate`
-       * property; taken off, what is left is the card's slot.
+       * The card's slot, from layout offsets rather than from its box on
+       * screen. Offsets ignore transforms — a glide in progress, the lift and
+       * carry of a held card — so measuring one never has to touch them.
+       *
+       * The first version did touch them: it cleared each card's transform to
+       * see where its slot was, on every reorder, for every card. A card still
+       * sliding from the last swap was stopped and restarted from scratch even
+       * when this swap had not moved it at all — a hitch in its slide each
+       * time anything else in the row changed places.
        */
-      const lift = el.style.translate
-        .split(' ')
-        .map((part) => parseFloat(part) || 0);
-      const liftX = lift[0] ?? 0;
-      const liftY = lift[1] ?? 0;
+      const next = slotOf(el);
+      const before = rectsRef.current.get(key);
+      rectsRef.current.set(key, next);
 
-      if (!reordered) {
-        /*
-         * Kept current between reorders — a card that grew moves the cards
-         * after it — but only while nothing is gliding, whose painted box is
-         * not its slot.
-         */
-        if (el.dataset['flipping'] === undefined) {
-          const box = el.getBoundingClientRect();
-          rectsRef.current.set(key, new DOMRect(box.left - liftX, box.top - liftY, box.width, box.height));
-        }
+      if (!reordered) return;
+
+      // Not moved by this reorder: whatever it is doing, it carries on.
+      if (before !== undefined && Math.abs(before.left - next.left) < 0.5 && Math.abs(before.top - next.top) < 0.5) {
         return;
       }
 
       /*
-       * A reorder. The glide starts from where the card was **painted** an
-       * instant before it — recorded by the drag itself, see
-       * `notePaintedPositions` — and only falls back to the last known slot
-       * when nothing was recorded, as for a keyboard move.
-       *
-       * Reading where a gliding card "is" from its slot and its running
-       * transform was the first version, and it was the visible glitch on a
-       * fast drag: a glide that had only just been handed to the browser
-       * still reported no transform, so a second reorder landing then started
-       * the card from the slot it was leaving — a jump of whole slots in a
-       * frame. The painted box is the one thing that is never out of date.
+       * Moved. The glide starts from where the card was **painted** an
+       * instant before the reorder — recorded by the drag, see
+       * `notePaintedPositions` — so a card turned round mid-slide sets off
+       * from where it actually is. Without that record, as for a keyboard
+       * move, it starts from its old slot.
        */
-      const start = paintedBefore?.get(key) ?? rectsRef.current.get(key);
-
-      // Whatever glide is running stops here, so the slot can be measured.
-      el.style.transition = 'none';
-      el.style.transform = 'none';
-      const box = el.getBoundingClientRect();
-      const next = new DOMRect(box.left - liftX, box.top - liftY, box.width, box.height);
-      rectsRef.current.set(key, next);
-      el.style.transform = '';
-
+      const start = paintedBefore?.get(key) ?? before;
       if (start === undefined) return;
       /*
        * The held card is carried by the finger — see `startDrag` in
@@ -232,4 +216,17 @@ function takePaintedPositions(): Map<string, DOMRect> | null {
   const taken = painted;
   painted = null;
   return taken;
+}
+
+/**
+ * Where an element's layout box is on screen, ignoring any transform or
+ * `translate` it wears: its offset within its offset parent, placed by that
+ * parent's own box. The parent is never transformed, so its box is exact.
+ */
+function slotOf(el: HTMLElement): { left: number; top: number } {
+  const parent = el.offsetParent;
+  const base = parent instanceof HTMLElement ? parent.getBoundingClientRect() : { left: 0, top: 0 };
+  const edgeLeft = parent instanceof HTMLElement ? parent.clientLeft : 0;
+  const edgeTop = parent instanceof HTMLElement ? parent.clientTop : 0;
+  return { left: base.left + edgeLeft + el.offsetLeft, top: base.top + edgeTop + el.offsetTop };
 }

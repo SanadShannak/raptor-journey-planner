@@ -39,6 +39,10 @@ function Row({ order }: { order: string[] }) {
           ref={(el) => {
             if (el === null) return;
             el.getBoundingClientRect = () => place(layout[key] ?? 0);
+            // The glide reads slots from layout offsets, which jsdom leaves
+            // at zero; these stand in for the layout.
+            Object.defineProperty(el, 'offsetTop', { configurable: true, get: () => layout[key] ?? 0 });
+            Object.defineProperty(el, 'offsetLeft', { configurable: true, get: () => 0 });
           }}
         />
       ))}

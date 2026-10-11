@@ -1,5 +1,6 @@
 import { useTour } from '../features/tour';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { Placeholder, PlaceholderGroup } from '../components/Pending';
 import { usePageTitle } from '../app/usePageTitle';
 import { getNetwork } from '../api/network';
@@ -239,7 +240,16 @@ export default function FavouritesPage() {
           const target = under.dataset['favourite'];
           if (target !== undefined) {
             notePaintedPositions();
-            reorderFavourite(moving, target);
+            /*
+             * Applied now, not at React's next convenience. The held card is
+             * positioned against its slot a few lines below, in this same
+             * frame — and when the list was only reordered afterwards, the
+             * card was drawn for one frame against the slot it had just
+             * left, a whole card's height from the finger, and then snapped
+             * back. That flash, beside the neighbour's glide, was the swap
+             * looking glitchy.
+             */
+            flushSync(() => reorderFavourite(moving, target));
           }
         }
       }
