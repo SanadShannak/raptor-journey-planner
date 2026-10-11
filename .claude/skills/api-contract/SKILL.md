@@ -297,6 +297,17 @@ that was never confirmed replaces the pending account; a confirmed one is
 `400 EMAIL_IN_USE`. **Logging in before confirming** is `403
 EMAIL_NOT_VERIFIED` — only after the password matched, so it reveals nothing
 to a stranger — and `requireAuth` refuses an unconfirmed account too.
+
+**Email is rationed.** `register`, `verify-email/resend` and `forgot-password`
+share a per-IP limit of 5 an hour (`429 RATE_LIMITED`). Each address gets at
+most one email a minute and five a day — `register` answers `429
+TOO_MANY_EMAILS` past that, while the other two still answer `200` and simply
+do not send. When the site's daily or monthly allowance is spent, sending
+answers `503 EMAIL_UNAVAILABLE`.
+
+**Renaming a saved item** to a different case of its own name ("home" →
+"Home") is saved; the duplicate check (case-insensitive) compares only the
+*other* items of that kind.
 Every account response — register, login, reset, `/me` — carries
 `emailVerified: boolean`. A completed reset ends every older session (their
 next request gets `401 UNAUTHORIZED`), and so does a password change — except on the device that made it, which gets a fresh cookie.

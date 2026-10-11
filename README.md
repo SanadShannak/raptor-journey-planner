@@ -507,9 +507,9 @@ again as a newcomer would.
 page, before the server answers. The client checks the server's own rules
 first so a name never appears only to snap back: no blank names, at most 40
 characters, and no name another favourite of the same kind (or another card)
-already has, ignoring case. Two quirks of the server are mirrored rather than
-fought: a change of case alone ("home" → "Home") is "unchanged" for saved
-items and is not sent, and card names compare without case but with accents.
+already has, ignoring case — a change of case to a name's own spelling
+("home" → "Home") is a rename like any other. Card names compare without case
+but with accents, as the database's collation does.
 Anything the server still refuses puts the old name back.
 
 Tests ignore both files. `vite.config.ts` pins every `VITE_` variable for the
@@ -1188,6 +1188,21 @@ account. Asking for a reset, or for a new confirmation link, answers the same
 way whether or not the address has an account, and completing a reset ends
 every other session on that account.
 
+**Sending is rationed**, because Resend's free plan stops at 100 emails a day
+and 3,000 a calendar month, and running out would stop sign-ups and resets for
+everyone. Three limits are checked before anything is sent:
+
+| Limit | Default | Kept in | Answer when hit |
+| --- | --- | --- | --- |
+| Per visitor (IP), across sign-up, "send a new link" and "forgot password" | 5 requests an hour | Memory | `429 RATE_LIMITED` |
+| Per address | 1 a minute, 5 a day | MongoDB (`emailsends`, address hashed) | `429 TOO_MANY_EMAILS` on sign-up; silently not sent for resend and forgot-password |
+| Whole site | 90 a day, 2,900 a month (UTC) | MongoDB | `503 EMAIL_UNAVAILABLE`, and an error in the log |
+
+The site-wide numbers are `EMAIL_DAILY_LIMIT` and `EMAIL_MONTHLY_LIMIT`; raise
+them if the Resend plan changes. The database counts survive a restart, and
+each row deletes itself after 32 days. Locally, logged-instead emails count
+too, so the limits can be tried out without sending anything.
+
 ### Operating it
 
 * **Logs:** `docker compose logs -f backend` (or `frontend`). Each container
@@ -1422,6 +1437,8 @@ Two things worth knowing about the keys:
 | `ARCJET_ENV` | No | — | `development` locally, so Arcjet accepts `127.0.0.1`. Never in production |
 | `RESEND_API_KEY` | In production | — | Sends verification and reset emails through Resend. Without it, development logs each email (link included) instead; production answers `503 EMAIL_UNAVAILABLE` |
 | `EMAIL_FROM` | In production | `onboarding@resend.dev` | The sender, on a domain verified in Resend |
+| `EMAIL_DAILY_LIMIT` | No | `90` | Emails the whole site may send in 24 hours; see [Email](#email) |
+| `EMAIL_MONTHLY_LIMIT` | No | `2900` | Emails the whole site may send in a calendar month (UTC) |
 | `APP_URL` | In production | `http://localhost:5173` | Where links in emails point, e.g. `https://journeyplanner.city` |
 | `ACTIVE_NETWORK` | No | `pipelineConfig.js` | Under npm, an override for the pipeline's value. Under Docker it comes from the root `.env` and wins |
 

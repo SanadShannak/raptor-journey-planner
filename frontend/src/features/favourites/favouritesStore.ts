@@ -332,13 +332,10 @@ export async function toggleFavourite(draft: FavouriteDraft): Promise<boolean> {
 }
 
 /**
- * Whether two nicknames are the same name **as the server judges it**: it
- * lower-cases both before comparing, for duplicates and for "unchanged" alike.
- *
- * Which means a change of case alone is not a change. The server answers it
- * "Same nickname provided. Unchanged." and keeps the old spelling, so a
- * caller treats it as nothing to send — showing the new spelling first would
- * only be a name that snaps back.
+ * Whether two nicknames clash **as the server judges a duplicate**: it
+ * lower-cases both, so "Home" and "home" cannot belong to two favourites of
+ * one kind. Renaming one favourite from "home" to "Home" is fine — it is only
+ * compared against the *others*.
  */
 export function sameNickname(a: string, b: string): boolean {
   return a.trim().toLowerCase() === b.trim().toLowerCase();

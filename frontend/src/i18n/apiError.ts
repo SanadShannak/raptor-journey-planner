@@ -52,6 +52,7 @@ const MESSAGE_FOR_CODE: Record<string, keyof Dictionary['errors']> = {
   INVALID_TOKEN: 'invalidToken',
   EMAIL_NOT_VERIFIED: 'emailNotVerified',
   EMAIL_UNAVAILABLE: 'emailUnavailable',
+  TOO_MANY_EMAILS: 'tooManyEmails',
   BOT_DETECTED: 'requestBlocked',
   REQUEST_BLOCKED: 'requestBlocked',
 

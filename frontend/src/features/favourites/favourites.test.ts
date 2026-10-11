@@ -334,10 +334,19 @@ describe('renaming', () => {
     expect(getFavourites()[0]?.nickname).toBe('Stop A');
   });
 
-  /* The server answers a case-only change "unchanged" and keeps the old spelling. */
-  it('counts a change of case alone as the same name', () => {
+  it('treats names that differ only in case as clashing', () => {
     expect(sameNickname('Home', ' home ')).toBe(true);
     expect(sameNickname('Home', 'Hime')).toBe(false);
+  });
+
+  /* Only the *other* favourites are compared, so a change of case is a rename. */
+  it('renames a favourite to a different case of its own name', async () => {
+    serveLists({ savedStops: [{ ...savedStop('A'), nickname: 'home' }] });
+    await loadFavourites();
+
+    const pending = renameFavourite('stop', 'id-A', 'Home');
+    expect(getFavourites()[0]?.nickname).toBe('Home');
+    await pending.catch(() => {});
   });
 });
 

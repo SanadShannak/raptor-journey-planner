@@ -11,7 +11,7 @@ import { messageForApiError, useLocale } from '../../i18n';
 import type { Dictionary, Message } from '../../i18n/dictionary';
 import { favouriteLabel, identity, type Favourite } from './favourite';
 import { NICKNAME_LIMIT } from '../../api/savedItems';
-import { moveFavourite, removeFavourite, renameFavourite, sameNickname } from './favouritesStore';
+import { moveFavourite, removeFavourite, renameFavourite } from './favouritesStore';
 import { notePaintedPositions } from './useFavouriteFlip';
 
 /**
@@ -209,8 +209,7 @@ export function FavouriteCard({
     const next = draft.trim();
     const current = favourite.nickname ?? '';
 
-    // Case alone is no change to the server, which keeps the old spelling.
-    if (next === '' || sameNickname(next, current)) {
+    if (next === '' || next === current) {
       setDraft(current);
       close();
       return;

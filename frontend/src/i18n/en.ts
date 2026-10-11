@@ -90,6 +90,8 @@ export const en: Dictionary = {
     savedItemNotFound: 'That is no longer there. It may have been removed already.',
     invalidToken: 'This link has expired or was already used.',
     emailUnavailable: 'We could not send the email just now. Try again in a few minutes.',
+    tooManyEmails:
+      'We have sent several emails to this address already. Check your inbox and spam folder, or try again later.',
     emailNotVerified:
       'Confirm your email address first: open the link we sent you when you signed up.',
   },

@@ -27,6 +27,7 @@ const {
 
 const requireAuth = require("../middleware/requireAuth");
 const arcjetProtect = require("../middleware/arcjetMiddleware");
+const emailRateLimiter = require("../middleware/emailRateLimiter");
 
 /*
  * Arcjet guards the routes where a guess costs something or an email goes
@@ -39,6 +40,7 @@ router.get("/me", requireAuth, getUserProfile);
 
 router.post(
   "/register",
+  emailRateLimiter,
   arcjetProtect,
   registerValidationRules,
   validateRequest,
@@ -73,6 +75,7 @@ router.post(
 );
 router.post(
   "/verify-email/resend",
+  emailRateLimiter,
   arcjetProtect,
   resendVerificationValidationRules,
   validateRequest,
@@ -80,6 +83,7 @@ router.post(
 );
 router.post(
   "/forgot-password",
+  emailRateLimiter,
   arcjetProtect,
   forgotPasswordValidationRules,
   validateRequest,

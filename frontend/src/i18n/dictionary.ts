@@ -1157,6 +1157,8 @@ export interface Dictionary {
     invalidToken: string;
     /** The server could not send an email (503). */
     emailUnavailable: string;
+    /** Too many emails to one address lately (429); the person can wait. */
+    tooManyEmails: string;
     /** Logging in to an account whose address is not confirmed yet (403). */
     emailNotVerified: string;
   };

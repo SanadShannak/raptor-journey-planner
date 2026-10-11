@@ -72,7 +72,8 @@ const changeUserSavedStopNickname = async (req, res) => {
   if (!stop)
     throw new AppError(404, "SAVED_ITEM_NOT_FOUND", "Saved stop not found.");
 
-  if (formattedNickname.toLowerCase() === stop.nickname?.toLowerCase()) {
+  // Exact, so a change of case alone ("home" → "Home") is saved.
+  if (formattedNickname === stop.nickname) {
     return res
       .status(200)
       .json({ message: "Same nickname provided. Unchanged.", data: user });
@@ -194,7 +195,8 @@ const changeUserSavedRouteNickname = async (req, res) => {
   if (!route)
     throw new AppError(404, "SAVED_ITEM_NOT_FOUND", "Saved route not found.");
 
-  if (formattedNickname.toLowerCase() === route.nickname?.toLowerCase()) {
+  // Exact, so a change of case alone ("home" → "Home") is saved.
+  if (formattedNickname === route.nickname) {
     return res
       .status(200)
       .json({ message: "Same nickname provided. Unchanged.", data: user });
@@ -332,7 +334,8 @@ const changeUserSavedItineraryNickname = async (req, res) => {
   if (!itinerary)
     throw new AppError(404, "SAVED_ITEM_NOT_FOUND", "Saved itinerary not found.");
 
-  if (formattedNickname.toLowerCase() === itinerary.nickname?.toLowerCase()) {
+  // Exact, so a change of case alone ("home" → "Home") is saved.
+  if (formattedNickname === itinerary.nickname) {
     return res
       .status(200)
       .json({ message: "Same nickname provided. Unchanged.", data: user });
