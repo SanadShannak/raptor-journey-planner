@@ -1,4 +1,5 @@
 import { paths } from '../../app/routes';
+import type { DragPoint } from './favourite';
 import { formatDate, isoDateInZone, useLocale } from '../../i18n';
 import { WALKING_PACES } from '../../config/journey';
 import type { NetworkMoment } from '../stops/minutesUntil';
@@ -24,7 +25,7 @@ interface Props {
   canGoEarlier: boolean;
   canGoLater: boolean;
   someoneElseDragging: boolean;
-  onDragStart: () => void;
+  onDragStart: (point: DragPoint) => void;
 }
 
 const PACE_LABEL = {

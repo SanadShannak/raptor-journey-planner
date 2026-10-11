@@ -46,12 +46,10 @@ const EASING = 'cubic-bezier(0.32, 0.72, 0, 1)';
  * `FavouritesPage` already reads off each card, so nothing new has to be
  * threaded through the row for this to find them.
  *
- * **The card being dragged glides too**, which is the whole point — it is the
- * one the gesture is about, and watching it teleport between slots while its
- * neighbours slid politely around it was worse than nothing moving at all.
- * That works because the lift it wears while held is Tailwind's `translate`
- * property rather than `transform`: the two are separate CSS properties and
- * compose rather than overwrite, so a card can be lifted and gliding at once.
+ * **The card being dragged does not glide.** It is carried under the finger
+ * instead — see `startDrag` in `FavouritesPage` — so it is always already
+ * where it is being put, and only its neighbours have anywhere to go. It
+ * carries `data-dragging` so this can tell it apart.
  *
  * While a card is mid-flight it carries `data-flipping`, and the drag loop
  * refuses to reorder onto one that does. Hit testing reads *painted*
@@ -127,6 +125,12 @@ export function useFavouriteFlip(
       // Recorded either way; animated only when the sequence actually changed.
       if (!reordered) return;
       if (prev === undefined) return;
+      /*
+       * The held card is carried by the finger now — see `startDrag` in
+       * `FavouritesPage` — so it has nowhere to glide to: it is already
+       * where the reader is putting it.
+       */
+      if (el.dataset['dragging'] !== undefined) return;
 
       const dx = prev.left - next.left;
       const dy = prev.top - next.top;

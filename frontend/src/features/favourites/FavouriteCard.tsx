@@ -1,3 +1,4 @@
+import type { DragPoint } from './favourite';
 import {
   useRef,
   useState,
@@ -55,7 +56,7 @@ interface Props {
   /** Dimmed while some *other* card is being carried, so the held one leads. */
   someoneElseDragging: boolean;
   /** Hands the gesture to the row, which follows it from there. */
-  onDragStart: () => void;
+  onDragStart: (point: DragPoint) => void;
 }
 
 /**
@@ -168,7 +169,9 @@ export function FavouriteCard({
      * starting.
      */
     event.preventDefault();
-    onDragStart();
+    // Where the finger came down, so the drag starts from there rather than
+    // from the corner of the screen until the first move arrives.
+    onDragStart({ x: event.clientX, y: event.clientY });
   }
 
   const title = favouriteLabel(favourite, fallbackLabel);
@@ -248,6 +251,7 @@ export function FavouriteCard({
   return (
     <li
       data-favourite={key}
+      data-dragging={dragging ? '' : undefined}
       /*
         Picked up, not switched off.
         

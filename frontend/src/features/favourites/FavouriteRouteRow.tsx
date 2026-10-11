@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { DragPoint } from './favourite';
 import { lineVariantPath } from '../../app/routes';
 import { useBackendHealth } from '../../app/useBackendHealth';
 import { getVariantTimetable } from '../../api/routes';
@@ -21,7 +22,7 @@ interface Props {
   canGoEarlier: boolean;
   canGoLater: boolean;
   someoneElseDragging: boolean;
-  onDragStart: () => void;
+  onDragStart: (point: DragPoint) => void;
 }
 
 /** Three at a time, matching the stop card and for the same reason. */
