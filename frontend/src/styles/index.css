@@ -498,7 +498,28 @@
   }
 }
 
+/*
+ * The tour moving between steps: what is new fades in, what is going fades
+ * out, and nothing travels between the two. The fade-out runs even for
+ * reduced motion — it is a change of opacity, not of place — but nothing asks
+ * for it there, because a reader who wants less movement gets no outgoing
+ * layer at all.
+ */
+@keyframes tour-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes tour-out {
+  to {
+    opacity: 0;
+  }
+}
+
 @theme {
+  --animate-tour-in: tour-in 220ms ease-out both;
+  --animate-tour-out: tour-out 220ms ease-in both;
   --animate-star-pop: star-pop 220ms ease-out;
   --animate-settle-in: settle-in 160ms ease-out both;
   --animate-fade-in: fade-in 140ms ease-out both;

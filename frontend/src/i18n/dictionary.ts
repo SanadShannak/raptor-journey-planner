@@ -863,6 +863,8 @@ export interface Dictionary {
       paceBody: string;
       mapTitle: string;
       mapBody: string;
+      resultsTitle: string;
+      resultsBody: string;
       saveTitle: string;
       saveBody: string;
       navTitle: string;

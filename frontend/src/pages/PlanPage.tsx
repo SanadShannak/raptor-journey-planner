@@ -848,6 +848,8 @@ export default function PlanPage() {
 
               {journeys.length > 0 && (
                 <>
+                  {/* Wrapped only so the tour has the list to point at. */}
+                  <div data-tour="plan-results" className="flex flex-col gap-3">
                   {journeys.map((journey, index) => (
                     <ItineraryOverview
                       key={`${journey.startDate}-${journey.startTime}-${index}`}
@@ -861,6 +863,7 @@ export default function PlanPage() {
                       }
                     />
                   ))}
+                  </div>
 
                   {/*
                     Only "later". Searching backwards asked the engine for a

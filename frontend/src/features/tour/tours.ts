@@ -14,6 +14,12 @@ export interface TourStep {
    * string on the element is the whole of their part in it.
    */
   target: string | null;
+  /**
+   * Light the element up to its exact edges, square-cornered, with no room
+   * around it. For the map, which fills its pane edge to edge — padding there
+   * spilled onto the header and the content beside it.
+   */
+  flush?: boolean | undefined;
   title: (strings: Dictionary) => Message;
   body: (strings: Dictionary) => Message;
 }
@@ -34,17 +40,18 @@ export const TOURS: Record<TourId, readonly TourStep[]> = {
     { target: 'plan-places', title: (s) => s.tour.plan.placesTitle, body: (s) => s.tour.plan.placesBody },
     { target: 'plan-when', title: (s) => s.tour.plan.whenTitle, body: (s) => s.tour.plan.whenBody },
     { target: 'plan-pace', title: (s) => s.tour.plan.paceTitle, body: (s) => s.tour.plan.paceBody },
-    { target: 'plan-map', title: (s) => s.tour.plan.mapTitle, body: (s) => s.tour.plan.mapBody },
+    { target: 'plan-map', flush: true, title: (s) => s.tour.plan.mapTitle, body: (s) => s.tour.plan.mapBody },
+    { target: 'plan-results', title: (s) => s.tour.plan.resultsTitle, body: (s) => s.tour.plan.resultsBody },
     { target: 'plan-save', title: (s) => s.tour.plan.saveTitle, body: (s) => s.tour.plan.saveBody },
     { target: 'nav', title: (s) => s.tour.plan.navTitle, body: (s) => s.tour.plan.navBody },
   ],
   routes: [
     { target: 'routes-search', title: (s) => s.tour.routes.searchTitle, body: (s) => s.tour.routes.searchBody },
     { target: 'routes-list', title: (s) => s.tour.routes.listTitle, body: (s) => s.tour.routes.listBody },
-    { target: 'routes-map', title: (s) => s.tour.routes.mapTitle, body: (s) => s.tour.routes.mapBody },
+    { target: 'routes-map', flush: true, title: (s) => s.tour.routes.mapTitle, body: (s) => s.tour.routes.mapBody },
   ],
   stops: [
-    { target: 'stops-map', title: (s) => s.tour.stops.mapTitle, body: (s) => s.tour.stops.mapBody },
+    { target: 'stops-map', flush: true, title: (s) => s.tour.stops.mapTitle, body: (s) => s.tour.stops.mapBody },
     { target: 'stops-nearby', title: (s) => s.tour.stops.nearbyTitle, body: (s) => s.tour.stops.nearbyBody },
     { target: 'stops-modes', title: (s) => s.tour.stops.modesTitle, body: (s) => s.tour.stops.modesBody },
   ],

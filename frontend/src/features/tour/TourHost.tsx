@@ -23,6 +23,8 @@ export function TourHost() {
 
 /** Room left around the lit-up element, so its own border is not clipped. */
 const PAD = 6;
+/** How long one step's highlight takes to fade into the next. */
+const FADE_MS = 220;
 /** Space between the lit-up element and the card. */
 const GAP = 12;
 /** Below this width the card sits along the bottom of the screen instead. */
@@ -105,20 +107,17 @@ function TourDialog({ id, step }: { id: TourId; step: number }) {
     const target = current.target === null ? null : findTarget(current.target);
     if (target !== null) {
       const narrow = window.matchMedia(NARROW).matches;
-      target.scrollIntoView({
-        behavior: reduced ? 'auto' : 'smooth',
-        // On a phone the card covers the bottom of the screen, so the element
-        // goes to the top rather than to the middle where the card would be.
-        block: narrow ? 'start' : 'center',
-        inline: 'nearest',
+      reveal(target, {
+        smooth: !reduced,
+        // On a phone the card covers the bottom of the screen; keep clear of it.
+        reserveBottom: narrow ? (cardRef.current?.offsetHeight ?? 0) + GAP : 0,
       });
     }
     /*
      * Each step's heading takes focus, so a screen reader reads the step out
      * and a keyboard is already beside the buttons. `preventScroll`, because
      * the card is fixed and the scroll above is the one that matters.
-     */
-    /*
+     *
      * A frame later, because `showModal()` runs its own focusing on the way
      * open and would otherwise have the last word on the first step.
      */
@@ -129,7 +128,38 @@ function TourDialog({ id, step }: { id: TourId; step: number }) {
   }, [current, reduced]);
 
   const [spot, setSpot] = useState<Box | null>(null);
+  /**
+   * The previous step's spotlight, kept for as long as it takes to fade out.
+   *
+   * Steps change by fading, not sliding: the new hole fades in where it
+   * belongs while the old one fades out where it was. A box gliding across
+   * the screen between them read as the highlight travelling somewhere,
+   * which is not what is happening — the tour is simply looking at
+   * something else now.
+   */
+  const [leaving, setLeaving] = useState<{ key: number; box: Box | null; flush: boolean } | null>(
+    null,
+  );
   const [card, setCard] = useState<{ top: number; left: number } | null>(null);
+  /*
+   * A step change, caught during render so the outgoing highlight is in
+   * place on the very frame the new one appears. The new step's card is
+   * placed from scratch rather than starting where the last one was.
+   */
+  const [lastStep, setLastStep] = useState(step);
+  if (lastStep !== step) {
+    setLastStep(step);
+    if (!reduced) {
+      setLeaving({ key: lastStep, box: spot, flush: steps[lastStep]?.flush === true });
+    }
+    setSpot(null);
+    setCard(null);
+  }
+  useEffect(() => {
+    if (leaving === null) return;
+    const timer = window.setTimeout(() => setLeaving(null), FADE_MS);
+    return () => window.clearTimeout(timer);
+  }, [leaving]);
   const [narrow, setNarrow] = useState(false);
   /**
    * On a phone the card sits along the bottom — unless that is where the
@@ -147,16 +177,7 @@ function TourDialog({ id, step }: { id: TourId; step: number }) {
 
       const target =
         current?.target == null ? null : findTarget(current.target);
-      const rect = target?.getBoundingClientRect() ?? null;
-      const nextSpot: Box | null =
-        rect === null
-          ? null
-          : {
-              top: Math.round(rect.top - PAD),
-              left: Math.round(rect.left - PAD),
-              width: Math.round(rect.width + PAD * 2),
-              height: Math.round(rect.height + PAD * 2),
-            };
+      const nextSpot = target === null ? null : spotFor(target, current?.flush === true);
       setSpot((was) => (sameBox(was, nextSpot) ? was : nextSpot));
 
       const cardBox = cardRef.current?.getBoundingClientRect();
@@ -203,27 +224,22 @@ function TourDialog({ id, step }: { id: TourId; step: number }) {
       className="fixed inset-0 m-0 h-full max-h-none w-full max-w-none overflow-visible bg-transparent p-0 backdrop:bg-transparent"
     >
       {/*
-        The hole in the dimming. With nothing to point at — the welcome step —
-        it collapses to a point in the middle of the screen, which leaves the
-        whole page dimmed and lets the next step's spotlight open out from
-        there.
+        The hole in the dimming, and the previous step's fading out under it.
+        With nothing to point at — the welcome step — it collapses to a point
+        in the middle of the screen, which leaves the whole page dimmed.
       */}
-      <div
-        aria-hidden="true"
-        className="rounded-card shadow-spotlight pointer-events-none fixed motion-safe:transition-[top,left,width,height] motion-safe:duration-300 motion-safe:ease-out"
-        style={
-          spot === null
-            ? { top: '50%', left: '50%', width: 0, height: 0 }
-            : { top: spot.top, left: spot.left, width: spot.width, height: spot.height }
-        }
-      />
+      {leaving !== null && (
+        <Spotlight key={`out-${leaving.key}`} box={leaving.box} flush={leaving.flush} leaving />
+      )}
+      <Spotlight key={`in-${step}`} box={spot} flush={current.flush === true} />
 
       <div
+        key={step}
         ref={cardRef}
-        className={`bg-surface-raised text-content rounded-card border-border shadow-lifted fixed flex flex-col gap-2 border p-4 motion-safe:animate-dialog-in ${
+        className={`bg-surface-raised text-content rounded-card border-border shadow-lifted fixed flex flex-col gap-2 border p-4 motion-safe:animate-tour-in ${
           narrow
             ? `inset-x-3 ${atTop ? 'top-3' : 'bottom-3'}`
-            : 'w-[min(22rem,calc(100vw-1.5rem))] motion-safe:transition-[top,left] motion-safe:duration-300 motion-safe:ease-out'
+            : 'w-[min(22rem,calc(100vw-1.5rem))]'
         }`}
         style={
           narrow
@@ -322,4 +338,124 @@ function placeCard(spot: Box | null, width: number, height: number): { top: numb
   if (below + height <= viewportHeight - margin) return { top: Math.round(below), left };
   if (above >= margin) return { top: Math.round(above), left };
   return { top: Math.round(viewportHeight - height - margin), left };
+}
+
+/**
+ * One hole in the dimming.
+ *
+ * Fades rather than travels: each step's spotlight is its own element, keyed
+ * to the step, so a new one fades in where it belongs while the last fades
+ * out where it was. `flush` drops the rounding, for an element that is itself
+ * square-cornered and edge-to-edge — the map.
+ */
+function Spotlight({ box, flush, leaving = false }: { box: Box | null; flush: boolean; leaving?: boolean }) {
+  return (
+    <div
+      aria-hidden="true"
+      className={`shadow-spotlight pointer-events-none fixed ${flush ? '' : 'rounded-card'} ${
+        leaving ? 'animate-tour-out' : 'motion-safe:animate-tour-in'
+      }`}
+      style={
+        box === null
+          ? { top: '50%', left: '50%', width: 0, height: 0 }
+          : { top: box.top, left: box.left, width: box.width, height: box.height }
+      }
+    />
+  );
+}
+
+/** Whether an element clips what overflows it, as a scroller or `overflow: hidden` does. */
+function clips(element: Element): boolean {
+  const style = getComputedStyle(element);
+  return style.overflowX !== 'visible' || style.overflowY !== 'visible';
+}
+
+/**
+ * The box to light up for an element: its own rectangle, padded unless it is
+ * flush, and **cut down to the part of it that can actually be seen.**
+ *
+ * The cut is what keeps a long list from lighting up the header above its
+ * scroller or the footer below it: the list runs on past its pane, hidden,
+ * and a spotlight drawn round all of it would reveal space it does not
+ * occupy. The same cut is what fits the map exactly — it fills its pane edge
+ * to edge, so any padding at all spilled over onto whatever sits beside it.
+ */
+function spotFor(target: HTMLElement, flush: boolean): Box {
+  const rect = target.getBoundingClientRect();
+  const pad = flush ? 0 : PAD;
+  let top = rect.top - pad;
+  let left = rect.left - pad;
+  let bottom = rect.bottom + pad;
+  let right = rect.right + pad;
+
+  for (let parent = target.parentElement; parent !== null; parent = parent.parentElement) {
+    if (parent === document.body || !clips(parent)) continue;
+    const clip = parent.getBoundingClientRect();
+    top = Math.max(top, clip.top);
+    left = Math.max(left, clip.left);
+    bottom = Math.min(bottom, clip.bottom);
+    right = Math.min(right, clip.right);
+  }
+  top = Math.max(top, 0);
+  left = Math.max(left, 0);
+  bottom = Math.min(bottom, window.innerHeight);
+  right = Math.min(right, window.innerWidth);
+
+  return {
+    top: Math.round(top),
+    left: Math.round(left),
+    width: Math.max(0, Math.round(right - left)),
+    height: Math.max(0, Math.round(bottom - top)),
+  };
+}
+
+/** The nearest ancestor that actually scrolls, or null for the page itself. */
+function scroller(target: HTMLElement): HTMLElement | null {
+  for (let parent = target.parentElement; parent !== null; parent = parent.parentElement) {
+    if (parent === document.body || parent === document.documentElement) return null;
+    const { overflowY } = getComputedStyle(parent);
+    if ((overflowY === 'auto' || overflowY === 'scroll') && parent.scrollHeight > parent.clientHeight) {
+      return parent;
+    }
+  }
+  return null;
+}
+
+/**
+ * Scrolls just enough to show an element, and no more.
+ *
+ * `scrollIntoView` was the first version, and it did two things wrong. It
+ * centred whatever it was given, so a list of every route in the network was
+ * scrolled to its middle — hundreds of rows down. And it scrolls every
+ * ancestor it can, including ones marked `overflow: hidden`, which the
+ * desktop layout uses to pin the page to the window; scrolling one of those
+ * shifted the whole layout and left a scrollbar behind it.
+ *
+ * So this scrolls only the nearest real scroller — a pane with
+ * `overflow: auto`, or the page — and only by the distance needed. Already in
+ * view: nothing moves. Partly out: it moves until the element's edge clears
+ * the margin. Taller than the space it has: its top is brought in, and the
+ * rest is left for the reader to scroll to.
+ */
+function reveal(target: HTMLElement, { smooth, reserveBottom }: { smooth: boolean; reserveBottom: number }) {
+  const margin = 16;
+  const pane = scroller(target);
+  const area = pane?.getBoundingClientRect() ?? { top: 0, bottom: window.innerHeight };
+  const visibleTop = Math.max(area.top, 0) + margin;
+  const visibleBottom = Math.min(area.bottom, window.innerHeight) - margin - reserveBottom;
+  const rect = target.getBoundingClientRect();
+
+  let delta = 0;
+  if (rect.height > visibleBottom - visibleTop) {
+    if (rect.top < visibleTop || rect.top > visibleBottom - 80) delta = rect.top - visibleTop;
+  } else if (rect.top < visibleTop) {
+    delta = rect.top - visibleTop;
+  } else if (rect.bottom > visibleBottom) {
+    delta = rect.bottom - visibleBottom;
+  }
+  if (Math.abs(delta) < 1) return;
+
+  const options: ScrollToOptions = { top: delta, behavior: smooth ? 'smooth' : 'auto' };
+  if (pane === null) window.scrollBy(options);
+  else pane.scrollBy(options);
 }
