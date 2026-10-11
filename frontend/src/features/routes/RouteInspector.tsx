@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Placeholder, PlaceholderGroup } from '../../components/Pending';
 import { getLine, getLineVariant, getVariantTimetable } from '../../api/routes';
 import { useBackendHealth } from '../../app/useBackendHealth';
 import { DateSelect } from '../../components/DateSelect';
@@ -469,7 +470,14 @@ export function RouteInspector({
       )}
 
       {variant === null && loading && service !== 'down' && (
-        <p className="text-content-muted text-sm">{t(strings.routes.loadingLine)}</p>
+        <PlaceholderGroup label={strings.routes.loadingLine} className="flex flex-col gap-3">
+          <Placeholder className="h-7 w-2/3" />
+          <Placeholder className="h-4 w-1/2" />
+          <Placeholder className="mt-2 h-9 w-full" />
+          {[0, 1, 2, 3, 4, 5].map((row) => (
+            <Placeholder key={row} className="h-5 w-full" />
+          ))}
+        </PlaceholderGroup>
       )}
 
       {variant !== null && (

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Placeholder, PlaceholderGroup } from '../../components/Pending';
 import { lineVariantPath } from '../../app/routes';
 import { useBackendHealth } from '../../app/useBackendHealth';
 import { getVariantTimetable } from '../../api/routes';
@@ -219,9 +220,14 @@ export function FavouriteRouteRow({
             {t(strings.favourites.departuresUnavailable)}
           </p>
         ) : loading || networkToday === null ? (
-          <p className="text-content-muted text-sm">
-            {t(strings.favourites.loadingDepartures)}
-          </p>
+<PlaceholderGroup className="flex flex-col gap-2 py-1">
+            {/* Words for a screen reader, but not a live region: five cards
+                loading at once would be five announcements of one fact. */}
+            <span className="sr-only">{t(strings.favourites.loadingDepartures)}</span>
+            <Placeholder className="h-4 w-full" />
+            <Placeholder className="h-4 w-5/6" />
+            <Placeholder className="h-4 w-4/6" />
+          </PlaceholderGroup>
         ) : upcoming.length === 0 ? (
           <p className="text-content-muted text-sm">{t(strings.favourites.noDepartures)}</p>
         ) : (

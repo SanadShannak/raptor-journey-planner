@@ -1,4 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { PendingLabel } from '../components/Pending';
+import { pendingButtonClass } from '../components/pendingButtonClass';
 import { useSession } from '../auth';
 import { useLocale } from '../i18n';
 
@@ -141,9 +143,11 @@ export function AccountMenu() {
           onClick={() => void signOutNow()}
           disabled={pending}
           aria-busy={pending || undefined}
-          className="rounded-control border-border-strong text-content hover:bg-surface-muted focus-visible:outline-brand-500 mt-1 cursor-pointer border px-3 py-1.5 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+          className={`rounded-control border-border-strong text-content hover:bg-surface-muted focus-visible:outline-brand-500 mt-1 cursor-pointer border px-3 py-1.5 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 ${pendingButtonClass(pending)}`}
         >
-          {t(pending ? strings.account.loggingOut : strings.account.logOut)}
+          <PendingLabel pending={pending}>
+            {t(pending ? strings.account.loggingOut : strings.account.logOut)}
+          </PendingLabel>
         </button>
       </div>
     </div>

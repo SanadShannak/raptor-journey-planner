@@ -1,4 +1,6 @@
 import { useId, useRef, useState } from 'react';
+import { PendingLabel } from '../../components/Pending';
+import { pendingButtonClass } from '../../components/pendingButtonClass';
 import {
   formatClockTime,
   formatDate,
@@ -63,6 +65,8 @@ export function CardDetail({ card, currency, onDiscarded }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(card.nickname);
   const [busy, setBusy] = useState(false);
+  /** Which of the `busy` writes is the refresh, so only its button turns. */
+  const [refreshing, setRefreshing] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   /**
@@ -314,12 +318,16 @@ export function CardDetail({ card, currency, onDiscarded }: Props) {
 
         <button
           type="button"
-          onClick={() => void run(() => refresh(card.number))}
+          onClick={() => {
+            if (busy) return;
+            setRefreshing(true);
+            void run(() => refresh(card.number)).finally(() => setRefreshing(false));
+          }}
           disabled={busy}
           aria-busy={busy || undefined}
-          className="rounded-control border-border-strong text-content hover:bg-surface-muted focus-visible:outline-brand-500 cursor-pointer border px-3 py-1.5 text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+          className={`rounded-control border-border-strong text-content hover:bg-surface-muted focus-visible:outline-brand-500 cursor-pointer border px-3 py-1.5 text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-2 ${pendingButtonClass(refreshing)}`}
         >
-          {t(strings.card.refreshBalance)}
+          <PendingLabel pending={refreshing}>{t(strings.card.refreshBalance)}</PendingLabel>
         </button>
       </div>
 

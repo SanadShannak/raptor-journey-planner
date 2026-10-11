@@ -497,6 +497,12 @@
   --animate-fade-in: fade-in 140ms ease-out both;
   --animate-dialog-in: dialog-in 180ms ease-out both;
   --animate-backdrop-in: backdrop-in 240ms ease-out both;
+  /*
+   * Loading placeholders: the same fade as a name over a stop, held back a
+   * quarter of a second first so an answer that arrives inside that never
+   * shows them at all. See `PlaceholderGroup`.
+   */
+  --animate-placeholder-in: fade-in 200ms ease-out 250ms both;
 }
 
 /*

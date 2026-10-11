@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useState } from 'react';
+import { Placeholder, PlaceholderGroup } from '../../components/Pending';
 import { getLines } from '../../api/routes';
 import { useBackendHealth } from '../../app/useBackendHealth';
 import { messageForApiError, modeLabel, useLocale } from '../../i18n';
@@ -195,6 +196,21 @@ export function LineBrowser({ availableModes, onOpen }: Props) {
               lines at all is a different sentence, and not one HSL can produce. */}
           {t(strings.routes.noMatchingLines)}
         </p>
+      )}
+
+      {/*
+        Rows standing in for the list on its first load. Silent: the count
+        line above already says "Loading routes…" to a screen reader.
+      */}
+      {lines === null && loading && service !== 'down' && (
+        <PlaceholderGroup className="flex flex-col">
+          {[0, 1, 2, 3, 4, 5, 6, 7].map((row) => (
+            <span key={row} className="border-border flex items-center gap-3 border-b py-2.5">
+              <Placeholder className="h-6 w-12" />
+              <Placeholder className="h-4 flex-1" />
+            </span>
+          ))}
+        </PlaceholderGroup>
       )}
 
       <ul className="flex flex-col">
