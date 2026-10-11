@@ -31,9 +31,10 @@ password is reset the same way. The emails go out through
 account cannot log in until its address is confirmed**: signing up sends the
 link and nothing else, and signing up again with an address that was never
 confirmed replaces the pending account, so nobody can hold an address they do
-not own. Accounts that existed before verification are treated as confirmed. The **Account** page (`/account`, from the account menu)
-shows whether the address is confirmed, changes the password, and emails a
-reset link for someone signed in who has forgotten theirs.
+not own. Accounts that existed before verification are treated as
+confirmed. The **Account** page (`/account`, from the account menu) shows the
+account's name and address, changes the password, and emails a reset link for
+someone signed in who has forgotten theirs.
 
 In production each part runs as a container behind a reverse proxy — see
 [Deployment](#deployment).
@@ -251,26 +252,28 @@ The account endpoints go a layer further — `routes/` → `validators/`
 1. **Synchronous Memory Bootstrapping**: Leverages Node's synchronous `require()` behavior to load all massive GTFS JSON data into the V8 memory heap *before* opening the port to accept traffic. The database connection comes next, and also before the port opens: if either fails the process exits, so a server that cannot route, or cannot answer for an account, never starts half-working.
 2. **Input Validation**: Uses utility validators to strictly enforce date formats (`YYYY-MM-DD`), time formats (`HH:MM:SS`), and optional walking speed constraints.
 3. **Performance Telemetry**: Utilizes `performance.now()` to track and log exact execution times for every route calculated.
-4. **Two Error Shapes**: The two halves of the API grew at different times and
-   answer differently, and a client has to know which it is talking to.
-   * **The feed endpoints** (planner, stops, lines, network, dates) carry
-     `{ errorCode, error }`, and the status says *who* refused rather than
-     whether there is an answer: a malformed request is a `400`, an unknown stop
-     or line a `404`, an unexpected throw a `500`. An engine outcome is **none
-     of those** — `NO_ROUTE_FOUND` and `DESTINATION_OUT_OF_BOUNDS` come back with
-     a `200`, because the request was fine and "nothing runs between those
-     points then" is an answer rather than a fault. A client that goes straight
-     to reading `legs` reports "unreadable response" for what is really an empty
-     result, so **read `errorCode` on a successful response too**.
-   * **The account endpoints** (`/api/auth`, `/api/cards`, `/api/user`) carry
-     `{ message }` — or `{ errors: [...] }`, one per field, when request
-     validation fails with a `400`. A missing or expired session, or a wrong
-     password, is a `401`; something not on this account is a `404`; a limit
-     reached (five cards, five saved stops) is a `422`.
+4. **One Error Shape**: every failure, whatever its status and whichever
+   endpoint, is `{ errorCode, error }`. Handlers throw an `AppError` (status,
+   code, message) and Express 5 hands it — or any rejected promise — to the
+   single error handler in `middleware/errorHandler.js`, which writes the
+   response; an unknown `/api` path is `404 NOT_FOUND`, a body that is not
+   JSON `400 MALFORMED_JSON`, and anything unexpected is logged and answered
+   `500 INTERNAL_SERVER_ERROR` with no detail. A request rejected by
+   validation is `400 VALIDATION_FAILED` and also carries `errors: [...]`,
+   one per field. The status says *who* refused rather than whether there is
+   an answer: a malformed request is a `400`, a missing or expired session a
+   `401`, something not on this account (or not in the feed) a `404`, a limit
+   reached (five cards, five saved stops) a `422`, too many requests a `429`.
+   An engine outcome is **none of those** — `NO_ROUTE_FOUND` and
+   `DESTINATION_OUT_OF_BOUNDS` come back with a `200`, because the request
+   was fine and "nothing runs between those points then" is an answer rather
+   than a fault. A client that goes straight to reading `legs` reports
+   "unreadable response" for what is really an empty result, so **read
+   `errorCode` on a successful response too**.
 
-   Neither `error` nor `message` is ever shown to anyone: both are
-   developer-facing English. The client maps each failure to a localised
-   message itself — see `frontend/src/api/errors.ts`.
+   `error` is never shown to anyone: it is developer-facing English. The
+   client maps each `errorCode` to a localised message itself — see
+   `frontend/src/i18n/apiError.ts`.
 5. **Presenter Pattern (`formatItinerary.js`)**: Once the engine completes
    execution, the raw timeline arrays are passed through a formatter that turns
    engine seconds into wall-clock strings in the network's timezone and attaches
@@ -285,8 +288,44 @@ The account endpoints go a layer further — `routes/` → `validators/`
    `NODE_ENV=production` — which the container sets — so **in production a
    session only survives over HTTPS**. Login appearing to succeed and then
    forgetting you is the symptom of serving the production build over plain
-   HTTP, not a bug in the login.
-
+   HTTP, not a bug in the login. **A new account cannot log in until its email
+   address is confirmed**, and changing or resetting a password ends every
+   other session on the account — see [Email](#email).
+7. **Logging (`utils/logger.js`)**: [Pino](https://getpino.io), with
+   `pino-http` logging one line per request. Readable coloured lines in
+   development; JSON lines under `NODE_ENV=production`, for `docker compose
+   logs`. Cookies, the `Authorization` header, request bodies and every
+   password are redacted, and **a request is logged without its query
+   string** — a planner query is two coordinates, and coordinates are personal
+   data. `5xx` logs as an error, `4xx` as a warning, and the health check is
+   not logged at all. `LOG_LEVEL` sets how much (`debug` adds each
+   calculation's timing).
+8. **Hardening**, in the order a request meets it:
+   * **Who the visitor is.** Two Caddy servers stand in front of the backend
+     (the shared edge proxy, then this stack's own), so the address the
+     backend sees is never the visitor's. `frontend/Caddyfile` trusts
+     forwarded addresses from private ranges (`trusted_proxies static
+     private_ranges`), and `app.js` sets Express's `trust proxy` to
+     `loopback, linklocal, uniquelocal`, so `req.ip` is the real visitor —
+     without both, every rate limit below would be one allowance shared by
+     everybody.
+   * **[Helmet](https://helmetjs.github.io)** sets security headers on every
+     API response.
+   * **A general rate limit** of 300 requests a minute per visitor across the
+     whole API (`middleware/expressRateLimiter.js`, in memory, health check
+     exempt): generous, because a favourites page refreshes every saved stop
+     each minute, but enough to stop one script from monopolising a shared
+     server. Over it is `429 RATE_LIMITED`.
+   * **[Arcjet](https://arcjet.com)** on the account routes where a guess
+     costs something or an email goes out — sign-up, login, password checks,
+     verification, reset and change of password: attack patterns, bots, and
+     ten attempts a minute per visitor. Not on `/me` or logout, which every
+     page load and sign-out would otherwise spend the free plan's monthly
+     allowance on. Without `ARCJET_KEY` it fails open — allowed, with a
+     warning logged.
+   * **Email is rationed** on top of that: five email-sending requests an
+     hour per visitor, and per-address and site-wide caps counted in MongoDB —
+     see [Email](#email).
 ---
 
 ## Haversine Spatial Calculator (`utils/calculateHaversine.js`)
@@ -419,22 +458,24 @@ Feed endpoints are public; they answer from the compiled network in memory.
 | `GET /api/routes/:lineId/:patternId` | One variant: its stops in order and its geometry |
 | `GET /api/routes/:lineId/:patternId/timetable` | That variant's trips for a service day |
 
-Account endpoints need MongoDB, and everything except register, login and
-logout needs a session cookie:
+Account endpoints need MongoDB. Those marked † need a session cookie:
 
 | Endpoint | What it answers |
 | --- | --- |
-| `POST /api/auth/register` · `/login` · `/logout` | Create an account, sign in, sign out |
-| `GET /api/auth/me` | The signed-in user |
-| `POST /api/auth/verify-password` | Re-confirms the password before a sensitive action |
-| `GET` · `POST /api/cards` | The account's travel cards; add one (at most five) |
-| `GET /api/cards/:number` · `PATCH` · `DELETE /api/cards/:id` | One card; rename it; remove it (refused while it holds a balance) |
-| `POST /api/cards/:id/top-up` · `/fare` | Add money; charge a fare |
-| `/api/user/saved-stops` · `/saved-routes` · `/saved-itineraries` | Saved items: `GET` the list, `POST` one, `PATCH` / `DELETE /…/:itemId` |
+| `POST /api/auth/register` | Create an account and email its confirmation link. Does **not** sign in |
+| `POST /api/auth/login` · `/logout` | Sign in (refused with `403 EMAIL_NOT_VERIFIED` until the address is confirmed), sign out |
+| `POST /api/auth/verify-email` · `/verify-email/resend` | Confirm an address from its link; send a new link |
+| `POST /api/auth/forgot-password` · `/reset-password` | Email a reset link; set a new password from it |
+| `POST /api/auth/change-password` † | Change the password, given the current one |
+| `GET /api/auth/me` † | The signed-in user |
+| `POST /api/auth/verify-password` † | Re-confirms the password before a sensitive action |
+| `GET` · `POST /api/cards` † | The account's travel cards; add one (at most five) |
+| `GET /api/cards/:number` · `PATCH` · `DELETE /api/cards/:id` † | One card; rename it; remove it (refused while it holds a balance) |
+| `POST /api/cards/:id/top-up` · `/fare` † | Add money; charge a fare |
+| `/api/user/saved-stops` · `/saved-routes` · `/saved-itineraries` † | Saved items: `GET` the list, `POST` one, `PATCH` / `DELETE /…/:itemId` |
 
-The two halves fail differently — `{ errorCode, error }` from the feed
-endpoints, `{ message }` from the account ones. See
-[Two Error Shapes](#the-http-api-backendsrc). A **200 can still carry an
+Every failure is `{ errorCode, error }` — see
+[One Error Shape](#the-http-api-backendsrc). A **200 can still carry an
 `errorCode`** — `NO_ROUTE_FOUND` and `DESTINATION_OUT_OF_BOUNDS` among them —
 because the request was fine and the engine has an outcome to report. Code that
 goes straight to reading `legs` will call that "unreadable response" when it
@@ -945,6 +986,11 @@ The image's Caddyfile has three `handle` blocks, first match winning:
 * everything else → the file if it exists, otherwise `index.html`, so a refresh
   on `/favourites` reaches the client-side router.
 
+Before any of that, a global block trusts forwarded addresses from private
+ranges, so the visitor's address survives the edge proxy and reaches the
+backend's rate limits — see *Hardening* under
+[The HTTP API](#the-http-api-backendsrc).
+
 Every response, the page's and the API's, also carries a set of security
 headers from the same file: a Content-Security-Policy, `nosniff`, a referrer
 policy, a permissions policy that allows location to this page only, and HSTS.
@@ -1215,9 +1261,13 @@ too, so the limits can be tried out without sending anything.
   `docker compose restart backend`. No image rebuild — the data is mounted.
 * **Resetting accounts:** `npm run resetdb` in `backend/` drops the whole
   database `MONGO_URI` names. It prints the host first; read it.
-* **No rate limiting yet.** The feed endpoints are public by design, and
-  `/api/planner` runs the engine on every request. Abuse would cost CPU rather
-  than leak anything, but on a shared server it would slow the neighbours too.
+* **Rate limits are per visitor, and only as good as `trust proxy`.** If the
+  edge proxy's network ever moves outside the private ranges, every visitor
+  arrives with the proxy's address and shares one allowance — logins start
+  failing with `429` for everyone at once. See *Hardening* under
+  [The HTTP API](#the-http-api-backendsrc). The general limit is kept in
+  memory, so a backend restart resets it; the email caps are in MongoDB and do
+  not reset.
 * **`docker compose down` on the edge proxy's stack** removes `othman_default`,
   and this stack cannot start until it exists again — it is declared
   `external`, so Compose attaches to it rather than creating a second one with
@@ -1432,7 +1482,7 @@ Two things worth knowing about the keys:
 | `JWT_EXPIRES_IN` | No | `30d` | How long a session token is valid |
 | `PORT` | No | `3000` | Keep it 3000 under Docker — the Caddyfile forwards there |
 | `LOG_LEVEL` | No | `info` | `debug` adds per-calculation timings; `warn` keeps only problems. JSON lines under `NODE_ENV=production`, readable lines otherwise |
-| `ARCJET_KEY` | No | — | Arcjet guards login, sign-up and password checks (attacks, bots, ten attempts a minute per address). Without a key the checks fail open: allowed, and a warning logged |
+| `ARCJET_KEY` | No | — | Arcjet guards login, sign-up, password checks, verification and reset (attacks, bots, ten attempts a minute per visitor). Without a key the checks fail open: allowed, and a warning logged |
 | `ARCJET_MODE` | No | `LIVE` | `DRY_RUN` logs what Arcjet would refuse without refusing it |
 | `ARCJET_ENV` | No | — | `development` locally, so Arcjet accepts `127.0.0.1`. Never in production |
 | `RESEND_API_KEY` | In production | — | Sends verification and reset emails through Resend. Without it, development logs each email (link included) instead; production answers `503 EMAIL_UNAVAILABLE` |
