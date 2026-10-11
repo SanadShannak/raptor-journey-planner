@@ -1,3 +1,4 @@
+import { TourButton } from '../features/tour';
 import { useEffect, useId, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router';
 import { requestAuth, useSession } from '../auth';
@@ -71,6 +72,7 @@ export function PrimaryNav() {
      * that ordering would otherwise still apply to.
      */
     <nav
+      data-tour="nav"
       aria-label={t(strings.nav.primaryLabel)}
       /*
        * `me-1` is optical, not arithmetic. The bar's gutter already puts this
@@ -149,6 +151,7 @@ export function PrimaryNav() {
         <div className="flex items-center gap-2">
           <ThemeToggle />
           <LanguageToggle />
+          <TourButton onStart={() => setOpen(false)} />
         </div>
 
         <span aria-hidden="true" className="bg-chrome-border my-1 h-px w-full" />

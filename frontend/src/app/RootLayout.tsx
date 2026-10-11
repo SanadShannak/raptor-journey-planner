@@ -1,3 +1,4 @@
+import { TourHost } from '../features/tour';
 import { Suspense, useRef } from 'react';
 import { Outlet, matchPath, useLocation } from 'react-router';
 import { useStartSessionCheck } from '../auth';
@@ -121,6 +122,7 @@ export function RootLayout() {
       </a>
 
       <AppHeader />
+      <TourHost />
 
       {/*
         `tabIndex={-1}` is load-bearing twice over: without it the skip link

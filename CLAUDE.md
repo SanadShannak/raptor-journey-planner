@@ -163,6 +163,10 @@ The engine's synthetic endpoints are `code: "ORIGIN_PIN"` / `"TARGET_PIN"` with 
 
 The corollary: **a row that is a `<Link>` must not also navigate on click.** Both agreed on the destination, so pressing a stop pushed the same address twice and the first press of back appeared to do nothing.
 
+### The tour
+
+`src/features/tour/` holds a short guided tour per page, started the first time a browser opens that page and replayable from the header's **?** button. A page opts in with `useTour('<id>')`; each step points at an element by its `data-tour` attribute, listed in `tours.ts`, so the components being explained carry one attribute and know nothing else about it. **A step whose element is not on screen is skipped**, not shown pointing at nothing — the add-card form exists only when signed in, and the nav links are in a closed menu on a phone — so moving or renaming a `data-tour` element silently drops its step rather than breaking the tour. Keep the attribute with the element when restructuring a page. It is a native modal `<dialog>` for the same reasons the other dialogs are; "seen" lives in `localStorage` (`tours-seen`), because it is a fact about the visitor rather than about one visit.
+
 ### Place search
 
 Geocoding is an adapter behind the `Geocoder` interface in `src/types/place.ts`, resolved once in `src/geocoding/index.ts` — the right one depends on the network, so adding a city means adding an adapter, not changing the form.

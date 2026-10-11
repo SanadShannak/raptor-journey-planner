@@ -1,3 +1,4 @@
+import { useTour } from '../features/tour';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router';
 import { useLocale } from '../i18n';
@@ -39,6 +40,7 @@ import { toggleSelection } from '../features/stops/toggleSelection';
  * so it is the keyboard's way in, and it is the reason they can stay out.
  */
 export default function StopsPage() {
+  useTour('stops');
   const { locale, strings, t } = useLocale();
   const { stopId } = useParams<{ stopId: string }>();
   const navigate = useNavigate();
@@ -295,6 +297,7 @@ export default function StopsPage() {
       </div>
 
       <section
+        data-tour="stops-map"
         aria-label={t(strings.planner.mapLabel)}
         className="bg-surface-muted relative isolate order-first h-half-viewport shrink-0 lg:order-none lg:h-auto lg:flex-1"
         /*
@@ -403,7 +406,7 @@ function StopBrowser({
         is only a resting place until you pan away from it, and the way back
         has to exist regardless.
       */}
-      <div className="flex flex-wrap gap-2">
+      <div data-tour="stops-nearby" className="flex flex-wrap gap-2">
         <NearbyStopsButton onLocated={onLocated} onMessage={onLocationMessage} />
 
         <button
@@ -444,7 +447,7 @@ function StopBrowser({
         offered.
       */}
       {availableModes.length > 1 && (
-        <fieldset>
+        <fieldset data-tour="stops-modes">
           <legend className="text-content-muted mb-2 text-xs font-semibold tracking-wide uppercase">
             {t(strings.stops.filterByMode)}
           </legend>

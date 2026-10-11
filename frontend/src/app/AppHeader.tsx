@@ -1,3 +1,4 @@
+import { TourButton } from '../features/tour';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { getNetwork } from '../api/network';
@@ -179,6 +180,7 @@ export function AppHeader() {
             component the same either way — only their address changes.
           */}
           <div className="hidden items-center gap-2 md:flex">
+            <TourButton />
             <ThemeToggle />
             <LanguageToggle />
           </div>
