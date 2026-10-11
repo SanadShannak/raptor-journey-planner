@@ -893,3 +893,23 @@
     }
   }
 }
+
+/*
+ * The favourites page never scrolls sideways, whatever a drag is doing; see
+ * `FavouritesPage`.
+ *
+ * `clip` is the right tool — it cuts the overflow without making the page a
+ * scroll container of its own — but Safari only has it from 16, and the
+ * baseline is 15.4. `hidden` is the fallback and is harmless here: the page's
+ * height is its content's, so the scroll container it creates never has
+ * anything to scroll vertically.
+ */
+.favourites-page {
+  overflow-x: hidden;
+}
+
+@supports (overflow: clip) {
+  .favourites-page {
+    overflow-x: clip;
+  }
+}

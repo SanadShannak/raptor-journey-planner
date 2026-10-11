@@ -223,12 +223,19 @@ export default function FavouritesPage() {
           )
           .find((element) => element != null && element.dataset['favourite'] !== moving);
         /*
-         * Only once the pointer is well inside the card, not on its rim. Near
-         * an edge a pointer that wobbles — a quick zigzag, a hand that is not
-         * quite steady — crossed in and out of the neighbour, and every
-         * crossing was a reorder and a glide.
+         * Only once the pointer has crossed the card's **middle**, going the
+         * way the held card would have to travel to reach it.
+         *
+         * Reordering the moment the pointer touched a neighbour made the row
+         * flicker on a slow drag: cards are different heights, so the swap
+         * could leave the pointer inside the card that had just moved away,
+         * and it swapped straight back. Past the middle, going back means
+         * crossing back. An earlier attempt asked for the pointer to be "well
+         * inside" the card instead, and that broke dragging on a phone: the
+         * grip is at the card's edge, so a finger dragging straight down the
+         * grip column was never well inside anything.
          */
-        if (under != null && wellInside(under.getBoundingClientRect(), at)) {
+        if (under != null && card !== null && pastMiddle(card, under, at)) {
           const target = under.dataset['favourite'];
           if (target !== undefined) {
             notePaintedPositions();
@@ -337,7 +344,14 @@ export default function FavouritesPage() {
   const afterRemove = () => headingRef.current?.focus();
 
   return (
-    <div className="flex w-full flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
+    /*
+      `favourites-page` clips sideways overflow (see index.css). A held card,
+      the arrows beside it and its neighbours' glides all move in the page's
+      own space, and on a tablet a fast drag could leave something poking
+      past the window's edge — which the browser answered by making the whole
+      page scroll sideways.
+    */
+    <div className="favourites-page flex w-full flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
       {/*
         A page heading like every other page's, rather than the compressed one
         this page grew while it was trying to fit a screen exactly. Fitting is
@@ -670,14 +684,25 @@ function FavouriteCardsPlaceholder() {
   );
 }
 
-/** Whether a point is inside a box by more than a fifth of its size on every side. */
-function wellInside(box: DOMRect, point: DragPoint): boolean {
-  const insetX = box.width * 0.2;
-  const insetY = box.height * 0.2;
-  return (
-    point.x > box.left + insetX &&
-    point.x < box.right - insetX &&
-    point.y > box.top + insetY &&
-    point.y < box.bottom - insetY
-  );
+/**
+ * Whether the pointer has crossed the middle of `target`, measured along
+ * the line from the held card's slot to it — down for a card below, sideways
+ * for one beside, both for one at the start of the next line. Direction comes
+ * from where the cards are rather than from the page's writing direction, so
+ * it needs nothing special for Arabic.
+ */
+function pastMiddle(held: HTMLElement, target: HTMLElement, point: DragPoint): boolean {
+  const heldBox = held.getBoundingClientRect();
+  // The held card's slot: where it is painted, less the carry it wears.
+  const [carryX = 0, carryY = 0] = held.style.translate
+    .split(' ')
+    .map((part) => parseFloat(part) || 0);
+  const from = {
+    x: heldBox.left - carryX + heldBox.width / 2,
+    y: heldBox.top - carryY + heldBox.height / 2,
+  };
+  const box = target.getBoundingClientRect();
+  const middle = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+  const along = { x: middle.x - from.x, y: middle.y - from.y };
+  return (point.x - middle.x) * along.x + (point.y - middle.y) * along.y > 0;
 }
