@@ -4,7 +4,6 @@ import { Outlet, matchPath, useLocation } from 'react-router';
 import { useStartSessionCheck } from '../auth';
 import { useLocale } from '../i18n';
 import { AppHeader } from './AppHeader';
-import { VerifyEmailBanner } from './VerifyEmailBanner';
 import { paths } from './routes';
 import { useTrackNavigationDepth } from './useBackStack';
 import { useStartHealthCheck } from './useBackendHealth';
@@ -123,7 +122,6 @@ export function RootLayout() {
       </a>
 
       <AppHeader />
-      <VerifyEmailBanner />
       <TourHost />
 
       {/*

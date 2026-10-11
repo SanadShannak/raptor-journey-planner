@@ -63,6 +63,10 @@ const resetPasswordValidationRules = [
     .withMessage("Password must be at least 8 characters"),
 ];
 
+const resendVerificationValidationRules = [
+  body("email").trim().isEmail().withMessage("Please enter a valid email address"),
+];
+
 const verifyEmailValidationRules = [
   body("token").isString().notEmpty().withMessage("Token is required"),
 ];
@@ -80,6 +84,7 @@ module.exports = {
   forgotPasswordValidationRules,
   resetPasswordValidationRules,
   verifyEmailValidationRules,
+  resendVerificationValidationRules,
   registerValidationRules,
   loginValidationRules,
   verifyPasswordValidationRules,

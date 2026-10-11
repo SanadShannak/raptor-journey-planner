@@ -48,6 +48,13 @@ export interface RegisterInput {
   locale?: Locale | undefined;
 }
 
+/**
+ * The password matched, but the address has not been confirmed yet. Arrives
+ * as the server's own code on a 403; the account cannot log in until the
+ * emailed link is opened.
+ */
+export const EMAIL_NOT_VERIFIED = 'EMAIL_NOT_VERIFIED';
+
 /** The current password given to change-password did not match. */
 export const INCORRECT_PASSWORD = 'INCORRECT_PASSWORD';
 
@@ -93,13 +100,15 @@ function codeForSubmission(error: ApiError, fallback: string): string {
 /**
  * Creates an account and signs it in.
  *
- * The server sets the session cookie on the 201, so there is no separate login
- * step — registering *is* signing in.
+ * **Registering does not sign in.** The account is pending until the link
+ * emailed to the address is opened, and only then can it log in — so this
+ * returns the address the link went to, for the form to say so, and no
+ * account.
  */
 export async function register(
   input: RegisterInput,
   options: CallOptions = {},
-): Promise<Account> {
+): Promise<{ email: string }> {
   let body: unknown;
   try {
     body = await postJson('/api/auth/register', {
@@ -113,11 +122,12 @@ export async function register(
     throw error;
   }
 
-  const account = toAccount(body);
-  if (account === null) {
-    throw new ApiError('malformed', 'Register response carried no account.');
+  const data = isRecord(body) && isRecord(body['data']) ? body['data'] : null;
+  const email = data?.['email'];
+  if (typeof email !== 'string') {
+    throw new ApiError('malformed', 'Register response carried no address.');
   }
-  return account;
+  return { email };
 }
 
 /**
@@ -331,13 +341,19 @@ export async function verifyEmail(token: string, options: CallOptions = {}): Pro
   }
 }
 
-/** Sends the signed-in person a fresh verification link. */
+/**
+ * Sends a fresh confirmation link to an address with a pending account.
+ *
+ * Needs no session — nobody has one before confirming — and resolves the
+ * same whatever the address, like asking for a password reset.
+ */
 export async function resendVerification(
+  email: string,
   locale: Locale,
   options: CallOptions = {},
 ): Promise<void> {
   await postJson('/api/auth/verify-email/resend', {
-    body: { locale },
+    body: { email, locale },
     ...(options.signal ? { signal: options.signal } : {}),
   });
 }

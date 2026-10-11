@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { verifyEmail } from '../api/auth';
-import { checkSession, useSession } from '../auth';
+import { requestAuth, useSession } from '../auth';
 import { Spinner } from '../components/Pending';
 import { PageContainer } from '../components/PageContainer';
 import { messageForApiError, useLocale } from '../i18n';
@@ -29,13 +29,13 @@ type State =
  * Where the link in a verification email lands.
  *
  * Confirms the address on arrival — opening the link *is* the confirmation,
- * so there is nothing to press — and works signed out, because the link is
- * as likely to be opened on the phone the email arrived on as on the computer
- * that signed up.
+ * so there is nothing to press — and then offers to log in. It does not sign
+ * anybody in itself: the server never turns a confirmation link into a
+ * session, so that a link somebody else sees is never a way into the account.
  */
 export default function VerifyEmailPage() {
   const { strings, t } = useLocale();
-  const { account, signedIn } = useSession();
+  const { signedIn } = useSession();
   usePageTitle(t(strings.verification.verifyTitle));
 
   const [params, setParams] = useSearchParams();
@@ -59,12 +59,6 @@ export default function VerifyEmailPage() {
     let live = true;
     attempt.then(
       () => {
-        /*
-         * Asked again rather than assumed: the link may belong to a different
-         * account from the one signed in on this device, and only the server
-         * knows whose banner should go.
-         */
-        void checkSession();
         if (live) setState({ kind: 'verified' });
       },
       (error: unknown) => {
@@ -100,25 +94,19 @@ export default function VerifyEmailPage() {
         )}
 
         {/*
-          A spent link opened by somebody already confirmed — the second click
-          on the same email. The link failed, but there is nothing wrong.
+          A spent link opened by somebody already signed in — the second click
+          on the same email. Signed in means confirmed, so nothing is wrong.
         */}
-        {state.kind === 'failed' && account?.emailVerified === true && (
+        {state.kind === 'failed' && signedIn && (
           <p className="motion-safe:animate-content-in font-medium">
             {t(strings.verification.verified)}
           </p>
         )}
 
-        {state.kind === 'failed' && account?.emailVerified !== true && (
+        {state.kind === 'failed' && !signedIn && (
           <div className="motion-safe:animate-content-in flex flex-col gap-1">
             <p className="text-danger font-medium">{t(messageForApiError(state.error, strings))}</p>
-            <p className="text-content-muted">
-              {t(
-                signedIn
-                  ? strings.verification.invalidVerifyHintSignedIn
-                  : strings.verification.invalidVerifyHintSignedOut,
-              )}
-            </p>
+            <p className="text-content-muted">{t(strings.verification.invalidVerifyHint)}</p>
           </div>
         )}
 
@@ -127,7 +115,18 @@ export default function VerifyEmailPage() {
         )}
       </div>
 
-      {state.kind !== 'verifying' && (
+      {/* The next step: logging in — which is also where a new link is offered. */}
+      {state.kind !== 'verifying' && !signedIn && (
+        <button
+          type="button"
+          onClick={() => requestAuth('logIn')}
+          className="rounded-control bg-brand-fill text-on-brand focus-visible:outline-brand-500 cursor-pointer self-start px-4 py-2 font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
+        >
+          {t(strings.verification.logIn)}
+        </button>
+      )}
+
+      {state.kind !== 'verifying' && signedIn && (
         <p>
           <Link
             to={paths.home}

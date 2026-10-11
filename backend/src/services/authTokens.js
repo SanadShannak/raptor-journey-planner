@@ -4,14 +4,15 @@ const AuthToken = require("../models/AuthToken");
 /**
  * How long each kind of link works for.
  *
- * A reset link is a key to the account, so it lives an hour: long enough to
- * find the email, short enough that one sitting in an old inbox is useless. A
+ * A reset link is a key to the account, so it lives ten minutes: long enough
+ * to open the email that was just asked for, and short enough that a link
+ * glimpsed on somebody's screen, or left in an inbox, is dead almost at once. A
  * verification link only proves an address is real, and people open those
  * later, so it lives a day.
  */
 const LIFETIME_MS = {
   "verify-email": 24 * 60 * 60 * 1000,
-  "reset-password": 60 * 60 * 1000,
+  "reset-password": 10 * 60 * 1000,
 };
 
 const hash = (token) => crypto.createHash("sha256").update(token).digest("hex");

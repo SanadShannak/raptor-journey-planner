@@ -282,13 +282,21 @@ status mapping still holds:
 
 | Endpoint | Body | Answers |
 | --- | --- | --- |
-| `/verify-email` | `{ token }` | `200 { data: { emailVerified: true } }`; `400 INVALID_TOKEN` for a wrong, used or expired link. No session needed |
-| `/verify-email/resend` | `{ locale? }` | `200`; needs a session; `503 EMAIL_UNAVAILABLE` if it could not send |
+| `/verify-email` | `{ token }` | `200 { data: { emailVerified: true } }`; `400 INVALID_TOKEN` for a wrong, used or expired link. No session needed, and **none is given** — the person logs in afterwards |
+| `/verify-email/resend` | `{ email, locale? }` | Always `200`, whatever the address — no session needed (an unconfirmed account cannot have one) |
 | `/forgot-password` | `{ email, locale? }` | Always `200`, whether or not the address has an account |
 | `/reset-password` | `{ token, password }` | `200 { data: account }` and a session cookie; `400 INVALID_TOKEN`, or `400 VALIDATION_FAILED` for the password |
 | `/change-password` | `{ currentPassword, newPassword }` | `200 { data: account }` with a fresh cookie; needs a session. A wrong current password is **`400 INCORRECT_PASSWORD`** (never 401, which would read as the session ending), with `errors` naming `currentPassword` |
 
 `locale` (`"en"` or `"ar"`) picks the email's language; `register` takes it too.
+
+**Registering does not sign in.** `register` answers `201 { data: { email,
+verificationRequired: true } }` with no cookie, after emailing the link
+(`503 EMAIL_UNAVAILABLE` if it could not). Registering again with an address
+that was never confirmed replaces the pending account; a confirmed one is
+`400 EMAIL_IN_USE`. **Logging in before confirming** is `403
+EMAIL_NOT_VERIFIED` — only after the password matched, so it reveals nothing
+to a stranger — and `requireAuth` refuses an unconfirmed account too.
 Every account response — register, login, reset, `/me` — carries
 `emailVerified: boolean`. A completed reset ends every older session (their
 next request gets `401 UNAUTHORIZED`), and so does a password change — except on the device that made it, which gets a fresh cookie.

@@ -9,6 +9,7 @@ const {
   resetPasswordValidationRules,
   changePasswordValidationRules,
   verifyEmailValidationRules,
+  resendVerificationValidationRules,
 } = require("../validators/authValidator");
 
 const {
@@ -70,7 +71,13 @@ router.post(
   validateRequest,
   verifyEmail,
 );
-router.post("/verify-email/resend", requireAuth, arcjetProtect, resendVerification);
+router.post(
+  "/verify-email/resend",
+  arcjetProtect,
+  resendVerificationValidationRules,
+  validateRequest,
+  resendVerification,
+);
 router.post(
   "/forgot-password",
   arcjetProtect,

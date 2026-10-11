@@ -136,12 +136,13 @@ export async function signIn(input: LogInInput): Promise<Account> {
   return account;
 }
 
-/** Creates an account; the server signs it in with the same response. */
-export async function signUp(input: RegisterInput): Promise<Account> {
-  const account = await register(input);
-  requestId += 1;
-  setSession({ status: 'signedIn', account, unreachable: false });
-  return account;
+/**
+ * Creates an account. It does **not** sign in: the account is pending until
+ * its address is confirmed, so the session is untouched and the caller is
+ * told only where the confirmation link went.
+ */
+export async function signUp(input: RegisterInput): Promise<{ email: string }> {
+  return register(input);
 }
 
 /**

@@ -104,7 +104,13 @@ export default function CardPage() {
         <h1
           ref={headingRef}
           tabIndex={-1}
-          className="focus-visible:outline-brand-500 rounded-control text-3xl font-semibold tracking-tight"
+          /*
+            Focused only by code — after something on the page is removed, so
+            a screen reader is told where it now is — never by tabbing, so it
+            draws no outline. One here spanned the whole width of the page,
+            boxing the heading in as though it were a control.
+          */
+          className="text-3xl font-semibold tracking-tight outline-none"
         >
           {t(strings.card.walletTitle)}
         </h1>

@@ -2,7 +2,13 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { PendingLabel } from '../components/Pending';
 import { pendingButtonClass } from '../components/pendingButtonClass';
 import { isApiError } from '../api/errors';
-import { INVALID_SUBMISSION, requestPasswordReset } from '../api/auth';
+import {
+  EMAIL_NOT_VERIFIED,
+  INVALID_SUBMISSION,
+  requestPasswordReset,
+  resendVerification,
+} from '../api/auth';
+import { Spinner } from '../components/Pending';
 import { useSession } from '../auth';
 import { messageForApiError, useLocale } from '../i18n';
 import type { AuthMode } from '../auth/authPrompt';
@@ -67,6 +73,13 @@ export function AuthDialog({ mode, onChangeMode, onClose }: Props) {
    * says whether the address has an account.
    */
   const [sentTo, setSentTo] = useState<string | null>(null);
+  /**
+   * An address waiting to be confirmed: the one just signed up with, or the
+   * one a log-in was refused for because it has not been confirmed yet.
+   * Either way the dialog offers to send its link again.
+   */
+  const [awaiting, setAwaiting] = useState<{ email: string; justSignedUp: boolean } | null>(null);
+  const [resend, setResend] = useState<'idle' | 'sending' | 'sent' | string>('idle');
   const titleId = useId();
 
   /*
@@ -161,10 +174,20 @@ export function AuthDialog({ mode, onChangeMode, onClose }: Props) {
         return;
       }
       if (isSignUp) {
-        await register({ name: String(data.get('name') ?? '').trim(), email, password, locale });
-      } else {
-        await logIn({ email, password });
+        /*
+         * Signing up does not sign in: the account waits for its emailed
+         * link. The form gives way to saying so, and the dialog stays open.
+         */
+        const pending = await register({
+          name: String(data.get('name') ?? '').trim(),
+          email,
+          password,
+          locale,
+        });
+        setAwaiting({ email: pending.email, justSignedUp: true });
+        return;
       }
+      await logIn({ email, password });
       /*
        * Closed on success and nothing else happens. The session store has
        * already recorded the account, every surface that cares is subscribed
@@ -184,10 +207,51 @@ export function AuthDialog({ mode, onChangeMode, onClose }: Props) {
           : false;
 
       if (!placed) setFailure(t(messageForApiError(error, strings)));
+      // The password was right; only the confirmation is missing.
+      if (isApiError(error) && error.code === EMAIL_NOT_VERIFIED) {
+        setAwaiting({ email, justSignedUp: false });
+        setResend('idle');
+      }
     } finally {
       setPending(false);
     }
   }
+
+  async function sendLinkAgain() {
+    if (awaiting === null) return;
+    setResend('sending');
+    try {
+      await resendVerification(awaiting.email, locale);
+      setResend('sent');
+    } catch (error: unknown) {
+      setResend(t(messageForApiError(error, strings)));
+    }
+  }
+
+  /** "Send a new link", and what happened to the last press. */
+  const resendControl = (
+    <div className="flex flex-wrap items-center gap-3 text-sm">
+      {resend !== 'sent' && (
+        <button
+          type="button"
+          onClick={() => void sendLinkAgain()}
+          disabled={resend === 'sending'}
+          aria-busy={resend === 'sending' || undefined}
+          className="rounded-control border-border-strong text-content hover:bg-surface-muted focus-visible:outline-brand-500 inline-flex cursor-pointer items-center gap-2 border px-3 py-1.5 font-medium focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-progress"
+        >
+          {resend === 'sending' && <Spinner />}
+          {t(resend === 'sending' ? strings.verification.resending : strings.verification.resend)}
+        </button>
+      )}
+      <p role="status" className="text-content-muted empty:hidden">
+        {resend === 'sent'
+          ? t(strings.verification.resent)
+          : resend === 'idle' || resend === 'sending'
+            ? ''
+            : resend}
+      </p>
+    </div>
+  );
 
   const field = (name: Field, type: string, autoComplete: string) => {
     const errorId = `${name}-error`;
@@ -262,7 +326,14 @@ export function AuthDialog({ mode, onChangeMode, onClose }: Props) {
           </button>
         </div>
 
-        {sentTo !== null ? (
+        {awaiting?.justSignedUp === true ? (
+          <div className="flex flex-col gap-3">
+            <p role="status" className="text-sm leading-relaxed">
+              {t(strings.auth.checkEmail, { email: awaiting.email })}
+            </p>
+            {resendControl}
+          </div>
+        ) : sentTo !== null ? (
           /*
             The answer to "forgot password", and the whole of it. A status so a
             screen reader hears it, since it replaces the form that had focus.
@@ -308,9 +379,12 @@ export function AuthDialog({ mode, onChangeMode, onClose }: Props) {
               {failure}
             </p>
           )}
+          {failure !== null && awaiting?.justSignedUp === false && (
+            <div className="mt-3">{resendControl}</div>
+          )}
         </div>
 
-        {sentTo === null && (
+        {sentTo === null && awaiting?.justSignedUp !== true && (
         <button
           type="submit"
           disabled={pending}

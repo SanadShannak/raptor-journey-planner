@@ -29,6 +29,11 @@ const requireAuth = async (req, res, next) => {
   req.user = await User.findById(decoded.id);
   if (!req.user) throw new AppError(401, "UNAUTHORIZED", "User no longer exists.");
 
+  // No session is ever issued to an unconfirmed account; this is the backstop.
+  if (!req.user.emailVerified) {
+    throw new AppError(401, "UNAUTHORIZED", "Email address not confirmed.");
+  }
+
   /*
    * A session from before the last password change has been revoked: a
    * reset is somebody taking their account back, and every device signed in

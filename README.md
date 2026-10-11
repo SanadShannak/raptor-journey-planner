@@ -27,9 +27,11 @@ cluster in production), and the server will not start without a database.
 
 Accounts confirm their email address through a link, and a forgotten
 password is reset the same way. The emails go out through
-[Resend](https://resend.com); see [Email](#email) for setting it up. An
-unconfirmed account can still do everything — a banner simply asks for the
-address to be confirmed. The **Account** page (`/account`, from the account menu)
+[Resend](https://resend.com); see [Email](#email) for setting it up. **A new
+account cannot log in until its address is confirmed**: signing up sends the
+link and nothing else, and signing up again with an address that was never
+confirmed replaces the pending account, so nobody can hold an address they do
+not own. Accounts that existed before verification are treated as confirmed. The **Account** page (`/account`, from the account menu)
 shows whether the address is confirmed, changes the password, and emails a
 reset link for someone signed in who has forgotten theirs.
 
@@ -1171,9 +1173,11 @@ flow can be tried by clicking the link from the terminal.
 How the links work, briefly: each holds a one-time token of 32 random bytes.
 Only a SHA-256 hash of it is stored (`AuthToken`, with a TTL index that
 deletes it when it expires), a verification link lasts 24 hours and a reset
-link one hour, and either is deleted the moment it is used. Asking for a
-reset answers the same way whether or not the address has an account, and
-completing one ends every other session on that account.
+link 10 minutes, and either is deleted the moment it is used. A confirmation
+link only confirms — the person then logs in — so it is never a way into the
+account. Asking for a reset, or for a new confirmation link, answers the same
+way whether or not the address has an account, and completing a reset ends
+every other session on that account.
 
 ### Operating it
 

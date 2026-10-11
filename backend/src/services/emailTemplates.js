@@ -26,7 +26,7 @@ const COPY = {
     reset: {
       subject: "Reset your Journey Planner password",
       greeting: (name) => `Hi ${name},`,
-      body: "Somebody asked to reset the password for your account. If it was you, choose a new password below. The link works for one hour.",
+      body: "Somebody asked to reset the password for your account. If it was you, choose a new password below. The link works for 10 minutes.",
       button: "Choose a new password",
     },
     fallback: "If the button does not work, open this link:",
@@ -44,7 +44,7 @@ const COPY = {
     reset: {
       subject: "إعادة تعيين كلمة المرور في مخطط الرحلات",
       greeting: (name) => `مرحبًا ${name}،`,
-      body: "طلب أحدهم إعادة تعيين كلمة المرور لحسابك. إن كنت أنت، فاختر كلمة مرور جديدة أدناه. يعمل الرابط لمدة ساعة واحدة.",
+      body: "طلب أحدهم إعادة تعيين كلمة المرور لحسابك. إن كنت أنت، فاختر كلمة مرور جديدة أدناه. يعمل الرابط لمدة 10 دقائق.",
       button: "اختيار كلمة مرور جديدة",
     },
     fallback: "إن لم يعمل الزر، فافتح هذا الرابط:",

@@ -836,6 +836,8 @@ export interface Dictionary {
     /** After asking: deliberately the same whether or not the address has an account. */
     forgotSent: string;
     backToLogIn: string;
+    /** After signing up: the account waits for the emailed link. */
+    checkEmail: string;
   };
 
   /**
@@ -860,8 +862,6 @@ export interface Dictionary {
     details: string;
     name: string;
     email: string;
-    verified: string;
-    notVerified: string;
     changePassword: string;
     currentPassword: string;
     newPassword: string;
@@ -874,18 +874,10 @@ export interface Dictionary {
   };
   /** Email verification and password reset: the banner and both pages. */
   verification: {
-    bannerText: string;
-    bannerResend: string;
-    bannerSending: string;
-    bannerSent: string;
-    bannerDismiss: string;
     verifyTitle: string;
     verifying: string;
     verified: string;
-    verifiedHint: string;
     invalidLink: string;
-    invalidVerifyHintSignedIn: string;
-    invalidVerifyHintSignedOut: string;
     missingToken: string;
     goHome: string;
     resetTitle: string;
@@ -895,6 +887,12 @@ export interface Dictionary {
     resetDone: string;
     resetInvalidHint: string;
     requestNewLink: string;
+    resend: string;
+    resending: string;
+    resent: string;
+    verifiedHint: string;
+    invalidVerifyHint: string;
+    logIn: string;
   };
   tour: {
     /** The header control that replays the current page's tour. */
@@ -1159,5 +1157,7 @@ export interface Dictionary {
     invalidToken: string;
     /** The server could not send an email (503). */
     emailUnavailable: string;
+    /** Logging in to an account whose address is not confirmed yet (403). */
+    emailNotVerified: string;
   };
 }

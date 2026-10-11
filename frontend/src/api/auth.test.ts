@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   EMAIL_IN_USE,
+  EMAIL_NOT_VERIFIED,
   INVALID_CREDENTIALS,
   INVALID_SUBMISSION,
   INCORRECT_PASSWORD,
@@ -115,11 +116,18 @@ describe('logIn', () => {
 });
 
 describe('register', () => {
-  it('reads the account out of the 201', async () => {
-    respondWith({ message: 'User registered successfully', data: ACCOUNT }, 201);
+  /* Signing up does not sign in: the account waits for its emailed link. */
+  it('returns where the confirmation link went, and no account', async () => {
+    respondWith(
+      {
+        message: 'Check your email to confirm the address before logging in.',
+        data: { email: ACCOUNT.email, verificationRequired: true },
+      },
+      201,
+    );
     await expect(
       register({ name: ACCOUNT.name, email: ACCOUNT.email, password: 'password123' }),
-    ).resolves.toEqual(READ);
+    ).resolves.toEqual({ email: ACCOUNT.email });
   });
 
   /* A bare 400 on this endpoint means the address is taken. */
@@ -162,6 +170,23 @@ describe('register', () => {
       'name',
       'password',
     ]);
+  });
+});
+
+describe('logging in before confirming', () => {
+  /*
+   * A 403, and kept as the server's own code rather than folded into "those
+   * do not match" — the password was right, and the reader needs to be told
+   * to open the link, not to try again.
+   */
+  it('keeps "confirm your email first" apart from wrong credentials', async () => {
+    respondWith(
+      { errorCode: 'EMAIL_NOT_VERIFIED', error: 'Confirm your email address before logging in.' },
+      403,
+    );
+    await expect(logIn({ email: ACCOUNT.email, password: 'password123' })).rejects.toMatchObject({
+      code: EMAIL_NOT_VERIFIED,
+    });
   });
 });
 

@@ -1,10 +1,5 @@
 import { useId, useState, type FormEvent } from 'react';
-import {
-  INCORRECT_PASSWORD,
-  changePassword,
-  requestPasswordReset,
-  resendVerification,
-} from '../api/auth';
+import { INCORRECT_PASSWORD, changePassword, requestPasswordReset } from '../api/auth';
 import { isApiError } from '../api/errors';
 import { AccountGate, useSession } from '../auth';
 import { PendingLabel, Spinner } from '../components/Pending';
@@ -17,8 +12,7 @@ import { usePageTitle } from '../app/usePageTitle';
 const PASSWORD_MINIMUM = 8;
 
 /**
- * The signed-in account: who it is, whether its address is confirmed, and
- * its password.
+ * The signed-in account: who it is, and its password.
  *
  * Everything an account can change about itself lives here rather than in
  * the sign-in dialog, which is for getting in. Two ways to a new password sit
@@ -32,13 +26,16 @@ export default function AccountPage() {
 
   return (
     <PageContainer>
-      <h1 className="text-3xl font-semibold tracking-tight">{t(strings.accountPage.title)}</h1>
-      <AccountGate reason={strings.accountPage.needsAccount}>
-        <div className="flex max-w-xl flex-col gap-6">
-          <Details />
-          <ChangePassword />
-        </div>
-      </AccountGate>
+      {/* One centred column: a short form reads better in the middle than hugging an edge. */}
+      <div className="mx-auto flex w-full max-w-xl flex-col gap-6">
+        <h1 className="text-3xl font-semibold tracking-tight">{t(strings.accountPage.title)}</h1>
+        <AccountGate reason={strings.accountPage.needsAccount}>
+          <div className="flex flex-col gap-6">
+            <Details />
+            <ChangePassword />
+          </div>
+        </AccountGate>
+      </div>
     </PageContainer>
   );
 }
@@ -46,22 +43,14 @@ export default function AccountPage() {
 const SECTION =
   'rounded-card border-border bg-surface-raised flex flex-col gap-4 border p-5 motion-safe:animate-content-in';
 
+/**
+ * Who is signed in. No "confirmed" badge: an account cannot sign in until its
+ * address is confirmed, so every account that reaches this page is.
+ */
 function Details() {
-  const { locale, strings, t } = useLocale();
+  const { strings, t } = useLocale();
   const { account } = useSession();
-  const [resend, setResend] = useState<'idle' | 'sending' | 'sent' | string>('idle');
-
   if (account === null) return null;
-
-  async function sendAgain() {
-    setResend('sending');
-    try {
-      await resendVerification(locale);
-      setResend('sent');
-    } catch (error: unknown) {
-      setResend(t(messageForApiError(error, strings)));
-    }
-  }
 
   return (
     <section aria-labelledby="account-details" className={SECTION}>
@@ -72,43 +61,11 @@ function Details() {
         <dt className="text-content-muted">{t(strings.accountPage.name)}</dt>
         <dd className="[unicode-bidi:plaintext] ltr:text-left rtl:text-right">{account.name}</dd>
         <dt className="text-content-muted">{t(strings.accountPage.email)}</dt>
-        <dd className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          {/* An address reads the same way round in every language. */}
-          <span dir="ltr">{account.email}</span>
-          {/* Said in words as well as colour, so it reads in greyscale. */}
-          <span
-            className={`rounded-control border px-1.5 py-0.5 text-xs font-medium ${
-              account.emailVerified ? 'border-success text-success' : 'border-border-strong text-content-muted'
-            }`}
-          >
-            {t(account.emailVerified ? strings.accountPage.verified : strings.accountPage.notVerified)}
-          </span>
+        {/* An address reads the same way round in every language. */}
+        <dd dir="ltr" className="ltr:text-left rtl:text-right">
+          {account.email}
         </dd>
       </dl>
-
-      {!account.emailVerified && (
-        <div className="flex flex-wrap items-center gap-3 text-sm">
-          {resend !== 'sent' && (
-            <button
-              type="button"
-              onClick={() => void sendAgain()}
-              disabled={resend === 'sending'}
-              aria-busy={resend === 'sending' || undefined}
-              className="rounded-control border-border-strong text-content hover:bg-surface-muted focus-visible:outline-brand-500 inline-flex cursor-pointer items-center gap-2 border px-3 py-1.5 font-medium focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-progress"
-            >
-              {resend === 'sending' && <Spinner />}
-              {t(resend === 'sending' ? strings.verification.bannerSending : strings.verification.bannerResend)}
-            </button>
-          )}
-          <p role="status" className="text-content-muted empty:hidden">
-            {resend === 'sent'
-              ? t(strings.verification.bannerSent)
-              : resend === 'idle' || resend === 'sending'
-                ? ''
-                : resend}
-          </p>
-        </div>
-      )}
     </section>
   );
 }

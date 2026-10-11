@@ -34,31 +34,44 @@ async function sendVerification(user, locale) {
  * `AppError`.
  */
 
+/**
+ * Creates an account that does not work until its address is confirmed.
+ *
+ * No session is set: the account is pending until somebody opens the link
+ * sent to the address, which proves the address is theirs. Only then can it
+ * log in.
+ *
+ * Signing up again with an address that was **never confirmed** replaces the
+ * pending account — new name, new password, new link — rather than answering
+ * "already in use". An unconfirmed account proves nothing about who owns the
+ * address, so it must not be able to lock the real owner out of it: a typo,
+ * or somebody signing up with an address that is not theirs, would otherwise
+ * hold it for good. Whoever can read the inbox is who ends up with it.
+ *
+ * A failure to send is reported (503): without the email there is no way
+ * forward, and signing up again simply tries once more.
+ */
 const registerUser = async (req, res) => {
   const { email, name, password } = req.body;
 
-  if (await User.exists({ email })) {
+  let user = await User.findOne({ email });
+  if (user !== null && user.emailVerified) {
     throw new AppError(400, "EMAIL_IN_USE", "A user with this email already exists.");
   }
 
-  const newUser = await User.create({ email, name, password });
-
-  setAuthCookie(res, newUser._id);
-
-  /*
-   * The account exists whether or not the email goes out, so a failure to
-   * send is logged and the sign-up still succeeds — the banner offers to
-   * send the link again.
-   */
-  try {
-    await sendVerification(newUser, localeOf(req));
-  } catch (err) {
-    req.log.warn({ err }, "Verification email failed after sign-up");
+  if (user === null) {
+    user = await User.create({ email, name, password });
+  } else {
+    user.name = name;
+    user.password = password;
+    await user.save();
   }
 
+  await sendVerification(user, localeOf(req));
+
   return res.status(201).json({
-    message: "User registered successfully",
-    data: describeAccount(newUser),
+    message: "Check your email to confirm the address before logging in.",
+    data: { email: user.email, verificationRequired: true },
   });
 };
 
@@ -75,6 +88,14 @@ const loginUser = async (req, res) => {
 
   if (targetUser === null || !(await targetUser.matchPassword(password))) {
     throw new AppError(401, "INVALID_CREDENTIALS", "Email or password is incorrect.");
+  }
+
+  /*
+   * Told apart only *after* the password matched: whoever gets this far owns
+   * the account, so saying it is unconfirmed reveals nothing to a stranger.
+   */
+  if (!targetUser.emailVerified) {
+    throw new AppError(403, "EMAIL_NOT_VERIFIED", "Confirm your email address before logging in.");
   }
 
   setAuthCookie(res, targetUser._id);
@@ -111,14 +132,29 @@ const verifyUserPassword = async (req, res) => {
   return res.status(200).json({ message: "Password verified" });
 };
 
-/** Sends the signed-in person a fresh verification link. */
+/**
+ * Sends a fresh confirmation link to an address that has a pending account.
+ *
+ * Needs no session — nobody can have one before confirming. And, like
+ * forgot-password, it answers the same whatever the address is and replies
+ * before doing anything, so it cannot be used to find out which addresses
+ * have accounts or whether they are confirmed.
+ */
 const resendVerification = async (req, res) => {
-  if (req.user.emailVerified) {
-    return res.status(200).json({ message: "Already verified", data: { emailVerified: true } });
+  const email = String(req.body.email).trim().toLowerCase();
+  const locale = localeOf(req);
+
+  res.status(200).json({
+    message: "If that address has an account waiting to be confirmed, a new link has been sent.",
+  });
+
+  try {
+    const user = await User.findOne({ email });
+    if (user === null || user.emailVerified) return;
+    await sendVerification(user, locale);
+  } catch (err) {
+    req.log.error({ err }, "Verification email failed");
   }
-  // A failure here is reported: the person is waiting for this email.
-  await sendVerification(req.user, localeOf(req));
-  return res.status(200).json({ message: "Verification email sent" });
 };
 
 /**
@@ -126,6 +162,11 @@ const resendVerification = async (req, res) => {
  *
  * Needs no session: the link is often opened on another device — the phone
  * the email arrived on — and the token alone proves who it was sent to.
+ *
+ * Deliberately does **not** sign anybody in. The person logs in afterwards
+ * with their password, so a verification link that somebody else sees is
+ * worth nothing more than confirming an address — never a way into the
+ * account.
  */
 const verifyEmail = async (req, res) => {
   const userId = await consumeToken(req.body.token, "verify-email");

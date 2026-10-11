@@ -22,10 +22,10 @@ export interface Account {
   /**
    * Whether the address has been confirmed through the emailed link.
    *
-   * Unverified accounts can do everything; this only decides whether the
-   * banner asking them to confirm is shown. A server from before verification
-   * existed sends no such field, and that reads as `true` — nobody should be
-   * nagged about a link that was never sent.
+   * Always `true` on an account that is signed in: the server refuses to log
+   * in, or to honour a session for, an unconfirmed one. Kept because the API
+   * sends it; a server from before verification sends none, which reads as
+   * `true`.
    */
   emailVerified: boolean;
 }

@@ -90,6 +90,8 @@ export const en: Dictionary = {
     savedItemNotFound: 'That is no longer there. It may have been removed already.',
     invalidToken: 'This link has expired or was already used.',
     emailUnavailable: 'We could not send the email just now. Try again in a few minutes.',
+    emailNotVerified:
+      'Confirm your email address first: open the link we sent you when you signed up.',
   },
 
   nav: {
@@ -507,8 +509,10 @@ export const en: Dictionary = {
     forgotLink: 'Forgot your password?',
     forgotIntro: 'Enter the email you signed up with and we will send you a link to choose a new password.',
     submitForgot: 'Send reset link',
-    forgotSent: 'If an account exists for {email}, a link to reset its password is on its way. It works for one hour.',
+    forgotSent: 'If an account exists for {email}, a link to reset its password is on its way. It works for 10 minutes.',
     backToLogIn: 'Back to log in',
+    checkEmail:
+      'Almost there. We sent a link to {email} — open it to confirm your address, then log in. The link works for 24 hours.',
   },
   accountPage: {
     needsAccount:
@@ -523,10 +527,6 @@ export const en: Dictionary = {
       'Name',
     email:
       'Email',
-    verified:
-      'Confirmed',
-    notVerified:
-      'Not confirmed yet',
     changePassword:
       'Change password',
     currentPassword:
@@ -544,33 +544,17 @@ export const en: Dictionary = {
     sendResetLink:
       'Email me a reset link',
     resetSent:
-      'A link to reset your password is on its way to {email}. It works for one hour.',
+      'A link to reset your password is on its way to {email}. It works for 10 minutes.',
   },
   verification: {
-    bannerText:
-      'Confirm your email address. We sent a link to {email}.',
-    bannerResend:
-      'Send a new link',
-    bannerSending:
-      'Sending…',
-    bannerSent:
-      'Sent. Check your inbox.',
-    bannerDismiss:
-      'Dismiss',
     verifyTitle:
       'Confirm your email',
     verifying:
       'Confirming your email…',
     verified:
       'Your email is confirmed.',
-    verifiedHint:
-      'Thank you — there is nothing else to do.',
     invalidLink:
       'This link has expired or was already used.',
-    invalidVerifyHintSignedIn:
-      'Send yourself a new one from the banner at the top of the page.',
-    invalidVerifyHintSignedOut:
-      'Log in, then ask for a new link from the banner at the top of the page.',
     missingToken:
       'This page needs the link from your email.',
     goHome:
@@ -586,9 +570,21 @@ export const en: Dictionary = {
     resetDone:
       'Your password is changed and you are signed in.',
     resetInvalidHint:
-      'Reset links work once, for one hour. Ask for a new one and use the newest email.',
+      'Reset links work once, for 10 minutes. Ask for a new one and use the newest email.',
     requestNewLink:
       'Send a new reset link',
+    resend:
+      'Send a new link',
+    resending:
+      'Sending…',
+    resent:
+      'Sent. Check your inbox.',
+    verifiedHint:
+      'Your account is ready. Log in to start using it.',
+    invalidVerifyHint:
+      'Confirmation links work for 24 hours. Try to log in, and we will offer to send a new one.',
+    logIn:
+      'Log in',
   },
   tour: {
     open: 'Show the tour',
