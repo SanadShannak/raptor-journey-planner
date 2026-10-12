@@ -1,7 +1,7 @@
 services:
 
   backend:
-    image: ghcr.io/sanadshannak/journey-planner-backend:1.2
+    image: ghcr.io/sanadshannak/journey-planner-backend:1.3
     platform: linux/amd64
     deploy:
       resources:
@@ -38,7 +38,7 @@ services:
       start_period: 60s
 
   frontend:
-    image: ghcr.io/sanadshannak/journey-planner-frontend:1.2
+    image: ghcr.io/sanadshannak/journey-planner-frontend:1.3
     platform: linux/amd64
     deploy:
       resources:
