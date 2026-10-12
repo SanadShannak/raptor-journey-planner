@@ -62,13 +62,15 @@ cp backend/.env.example backend/.env
 #    nothing else will start until it has run at least once.
 cd offline-data-ingestion-pipeline && node runPipeline.js && cd ..
 
-# 3. The API. Loads every compiled file into memory and connects to MongoDB
-#    before opening the port, so it is slow to start and fast to answer.
-#    Leave it running.
-cd backend && npm run dev
+# 3. The API and the client together, from the repository root. The API
+#    loads every compiled file into memory and connects to MongoDB before
+#    opening the port, so it is slow to start and fast to answer. Each line is
+#    prefixed with which of the two printed it; Ctrl+C stops both.
+npm run dev
 
-# 4. The client, in a second terminal.
-cd frontend && npm run dev
+#    Or each on its own, in two terminals:
+#    cd backend && npm run dev
+#    cd frontend && npm run dev
 ```
 
 ```bash

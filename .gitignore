@@ -157,3 +157,7 @@ processed-data/*-processed-data/
 # which is only ever read when named with -f.
 compose.override.yaml
 backend/src/config/resetDb.js
+
+# A private tool kept outside this repository: its own git history, never
+# pushed here, never built into these images.
+/admin/

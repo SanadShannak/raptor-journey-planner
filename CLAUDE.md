@@ -23,6 +23,8 @@ Dependencies for the pipeline and backend live in the **root** `node_modules` (r
 ```sh
 npm install                                    # root — pipeline + backend deps
 
+npm run dev                                    # root: backend and frontend together, one terminal
+
 cd backend && npm run dev                      # server on :3000 (node --watch)
 cd backend && npm start                        # server without watch
 
