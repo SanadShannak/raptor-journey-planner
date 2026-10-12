@@ -1,27 +1,23 @@
 import { Link } from 'react-router';
 import { useLocale } from '../i18n';
-import { PageContainer } from '../components/PageContainer';
+import { PRIMARY_ACTION, StatusPanel } from '../components/StatusPanel';
 import { usePageTitle } from '../app/usePageTitle';
 import { paths } from '../app/routes';
 
+/**
+ * Any address that matches no route. The same centred card as the other
+ * standalone status pages, with one way on.
+ */
 export default function NotFoundPage() {
   const { strings, t } = useLocale();
   usePageTitle(t(strings.pages.notFound.title));
 
   return (
-    <PageContainer>
-      <h1 className="text-3xl font-semibold tracking-tight">
-        {t(strings.pages.notFound.title)}
-      </h1>
+    <StatusPanel tone="lost" title={t(strings.pages.notFound.title)}>
       <p className="text-content-muted max-w-prose">{t(strings.pages.notFound.body)}</p>
-      <p>
-        <Link
-          to={paths.home}
-          className="text-brand-500 focus-visible:outline-brand-500 rounded-control underline focus-visible:outline-2 focus-visible:outline-offset-2"
-        >
-          {t(strings.pages.notFound.backHome)}
-        </Link>
-      </p>
-    </PageContainer>
+      <Link to={paths.home} className={PRIMARY_ACTION}>
+        {t(strings.pages.notFound.backHome)}
+      </Link>
+    </StatusPanel>
   );
 }

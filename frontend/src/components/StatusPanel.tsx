@@ -3,14 +3,15 @@ import { PageContainer } from './PageContainer';
 import { Spinner } from './Pending';
 
 /**
- * What a page reached from an email link is saying: still working, it worked,
- * it did not, or something to do.
+ * What a standalone status page is saying: still working, it worked, it did
+ * not, something to do, or that there is nothing here.
  */
-export type LinkTone = 'pending' | 'success' | 'danger' | 'info';
+export type StatusTone = 'pending' | 'success' | 'danger' | 'info' | 'lost';
 
 /**
- * The frame for the pages an email link opens — confirming an address,
- * choosing a new password.
+ * The frame for standalone status pages: the ones an email link opens —
+ * confirming an address, choosing a new password — and the page for an
+ * address that matches nothing.
  *
  * One centred card with a status mark at the top, the same shape as the
  * sign-in prompt in `AccountGate`, so that somebody arriving cold from their
@@ -18,16 +19,16 @@ export type LinkTone = 'pending' | 'success' | 'danger' | 'info';
  * mark is decorative (`aria-hidden`): the heading under it says the same
  * thing in words.
  *
- * Two pages share it, which is why it exists — they used to be a plain heading
- * over a line of text and a link, and drifted apart the moment one was
+ * Several pages share it, which is why it exists — they used to be a plain
+ * heading over a line of text and a link, and drifted apart the moment one was
  * touched on its own.
  */
-export function LinkPanel({
+export function StatusPanel({
   tone,
   title,
   children,
 }: {
-  tone: LinkTone;
+  tone: StatusTone;
   title: string;
   children: ReactNode;
 }) {
@@ -75,7 +76,7 @@ export function Notice({ tone, children }: { tone: 'danger' | 'info'; children: 
 export const PRIMARY_ACTION =
   'rounded-control bg-action text-on-action hover:bg-action-hover hover:text-on-action-hover focus-visible:outline-brand-500 inline-flex cursor-pointer items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2';
 
-function ToneMark({ tone }: { tone: LinkTone }) {
+function ToneMark({ tone }: { tone: StatusTone }) {
   const colours =
     tone === 'success'
       ? 'bg-surface-muted text-success'
@@ -94,6 +95,8 @@ function ToneMark({ tone }: { tone: LinkTone }) {
         <CheckGlyph />
       ) : tone === 'danger' ? (
         <AlertGlyph size={28} />
+      ) : tone === 'lost' ? (
+        <SignpostGlyph />
       ) : (
         <KeyGlyph />
       )}
@@ -133,6 +136,17 @@ function InfoGlyph({ size }: { size: number }) {
       <circle cx="12" cy="12" r="9" />
       <path d="M12 11v5.5" />
       <path d="M12 7.5h.01" />
+    </svg>
+  );
+}
+
+function SignpostGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" width="28" height="28" {...STROKE}>
+      <path d="M12 3v18" />
+      <path d="M12 5h6.5l2 2.25-2 2.25H12" />
+      <path d="M12 11.5H5.5l-2 2.25 2 2.25H12" />
+      <path d="M9 21h6" />
     </svg>
   );
 }

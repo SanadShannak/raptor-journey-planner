@@ -547,9 +547,9 @@ log-in prompt — and the **?** button does not offer them until then. Which tou
 under `tours-seen`; delete that key in the browser's dev tools to see them
 again as a newcomer would.
 
-**The pages email links open** — confirming an address, choosing a new
-password — share one centred card (`components/LinkPanel.tsx`) with a status
-mark, a heading that says what happened, and a boxed message rather than red
+**Standalone status pages** — the ones email links open (confirming an
+address, choosing a new password) and the "page not found" page — share one
+centred card (`components/StatusPanel.tsx`) with a status mark, a heading that says what happened, and a boxed message rather than red
 text. A reset link is **checked as soon as its page opens**
 (`POST /api/auth/reset-password/check`, which does not use the link up), so an
 expired or used link says so before anybody types a password.

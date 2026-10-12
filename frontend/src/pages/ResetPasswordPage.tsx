@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router';
 import { INVALID_SUBMISSION, INVALID_TOKEN, checkResetLink } from '../api/auth';
 import { isApiError } from '../api/errors';
 import { requestAuth, resetPasswordAndSignIn } from '../auth';
-import { LinkPanel, Notice, PRIMARY_ACTION } from '../components/LinkPanel';
+import { StatusPanel, Notice, PRIMARY_ACTION } from '../components/StatusPanel';
 import { PendingLabel } from '../components/Pending';
 import { pendingButtonClass } from '../components/pendingButtonClass';
 import { messageForApiError, useLocale } from '../i18n';
@@ -119,30 +119,30 @@ export default function ResetPasswordPage() {
 
   if (state.kind === 'checking') {
     return (
-      <LinkPanel tone="pending" title={t(strings.verification.resetTitle)}>
+      <StatusPanel tone="pending" title={t(strings.verification.resetTitle)}>
         <p role="status" className="text-content-muted">
           {t(strings.verification.checkingLink)}
         </p>
-      </LinkPanel>
+      </StatusPanel>
     );
   }
 
   if (state.kind === 'done') {
     return (
-      <LinkPanel tone="success" title={t(strings.verification.resetDoneTitle)}>
+      <StatusPanel tone="success" title={t(strings.verification.resetDoneTitle)}>
         <p role="status" className="text-content-muted motion-safe:animate-content-in">
           {t(strings.verification.resetDone)}
         </p>
         <Link to={paths.home} className={PRIMARY_ACTION}>
           {t(strings.verification.goHome)}
         </Link>
-      </LinkPanel>
+      </StatusPanel>
     );
   }
 
   if (state.kind === 'invalid' || state.kind === 'missing') {
     return (
-      <LinkPanel
+      <StatusPanel
         tone="danger"
         title={t(
           state.kind === 'missing'
@@ -163,12 +163,12 @@ export default function ResetPasswordPage() {
           </Notice>
         </div>
         {askAgain}
-      </LinkPanel>
+      </StatusPanel>
     );
   }
 
   return (
-    <LinkPanel tone="info" title={t(strings.verification.resetTitle)}>
+    <StatusPanel tone="info" title={t(strings.verification.resetTitle)}>
       <form
         onSubmit={(event) => void onSubmit(event)}
         noValidate
@@ -221,6 +221,6 @@ export default function ResetPasswordPage() {
           </PendingLabel>
         </button>
       </form>
-    </LinkPanel>
+    </StatusPanel>
   );
 }

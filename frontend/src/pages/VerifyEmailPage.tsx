@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { verifyEmail } from '../api/auth';
 import { requestAuth, useSession } from '../auth';
-import { LinkPanel, Notice, PRIMARY_ACTION } from '../components/LinkPanel';
+import { StatusPanel, Notice, PRIMARY_ACTION } from '../components/StatusPanel';
 import { messageForApiError, useLocale } from '../i18n';
 import { usePageTitle } from '../app/usePageTitle';
 import { paths } from '../app/routes';
@@ -79,7 +79,7 @@ export default function VerifyEmailPage() {
   const confirmed = state.kind === 'verified' || (state.kind === 'failed' && signedIn);
 
   return (
-    <LinkPanel
+    <StatusPanel
       tone={
         state.kind === 'verifying'
           ? 'pending'
@@ -146,6 +146,6 @@ export default function VerifyEmailPage() {
           {t(strings.verification.goHome)}
         </Link>
       )}
-    </LinkPanel>
+    </StatusPanel>
   );
 }
