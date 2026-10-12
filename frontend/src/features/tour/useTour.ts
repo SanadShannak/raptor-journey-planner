@@ -30,16 +30,18 @@ const ATTEMPTS = 6;
  * of them would explain a page nobody can use yet — and, being marked seen,
  * would never come back for the page that appears after signing in. So the
  * first-visit start holds until somebody is signed in, and then runs as if
- * they had just arrived. The header's replay button is unaffected.
+ * they had just arrived. The page is not registered either, so the header's
+ * replay button is not offered there until then: there is nothing to tour.
  */
 export function useTour(id: TourId): void {
   const { signedIn } = useSession();
   const waiting = NEEDS_ACCOUNT.has(id) && !signedIn;
 
   useEffect(() => {
+    if (waiting) return;
     setTourPage(id);
     return () => setTourPage(null);
-  }, [id]);
+  }, [id, waiting]);
 
   useEffect(() => {
     if (waiting || hasSeenTour(id)) return;

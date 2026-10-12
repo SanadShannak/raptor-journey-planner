@@ -18,6 +18,7 @@ const DEFAULT_PROXY_TARGET = 'http://localhost:3000';
 
 export default defineConfig(({ mode }) => ({
   plugins: [react(), tailwindcss()],
+  
   /*
    * The backend, served from this origin.
    *
@@ -44,6 +45,7 @@ export default defineConfig(({ mode }) => ({
    * different origin needs the server to reflect that origin instead of `*`.
    */
   server: {
+    port: 8080,
     proxy: {
       '/api': {
         target: loadEnv(mode, process.cwd(), '').VITE_DEV_API_PROXY || DEFAULT_PROXY_TARGET,

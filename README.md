@@ -543,8 +543,7 @@ card, the first route or stop, the add-card form) and are undone afterwards,
 so the tour always ends on the page, scroll position and control it was
 started from. The travel card and favourites pages need an account, so their
 tours **wait until somebody is signed in** — signed out, those pages are a
-log-in prompt — and a replay watched while signed out does not count as
-having seen them. Which tours a browser has seen is kept in its `localStorage`
+log-in prompt — and the **?** button does not offer them until then. Which tours a browser has seen is kept in its `localStorage`
 under `tours-seen`; delete that key in the browser's dev tools to see them
 again as a newcomer would.
 
