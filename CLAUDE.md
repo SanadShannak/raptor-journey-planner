@@ -24,6 +24,7 @@ Dependencies for the pipeline and backend live in the **root** `node_modules` (r
 npm install                                    # root — pipeline + backend deps
 
 npm run dev                                    # root: backend and frontend together, one terminal
+npm run admin                                  # root: the private admin panel, if admin/ is present
 
 cd backend && npm run dev                      # server on :3000 (node --watch)
 cd backend && npm start                        # server without watch
@@ -111,6 +112,12 @@ Every failure, whatever its status, carries `{ errorCode, error }`. **The status
 **The full contract — every parameter, field, nullability rule, error code, and rounding behaviour — lives in the `api-contract` skill.** Load it before touching `frontend/src/api` or `frontend/src/types`, or when interpreting any response field.
 
 The README's "Known Limitations & Unexpected Behaviors" section documents deliberate engine quirks — pedestrian-only itineraries, null `transitDistanceMeters`, straight-line footpaths across water. Do not "fix" these in the frontend; surface them.
+
+## The admin panel and the access log
+
+`admin/` is a **separate, private project**: git-ignored here, with its own git history, never built into these images or pushed to a registry. Do not commit it, copy its code into `frontend/` or `backend/`, or reference its internals from them — the site must not know it exists. It reads the site's MongoDB database and the access log, and nothing else.
+
+The access log is written by Caddy (`frontend/Caddyfile`, `log` block) to `./logs/` and is the only analytics source; there is no tracking script and none is wanted. Its `format filter` strips query strings from the address and the `Referer`, masks visitor addresses to their network, and drops cookies and forwarded-address headers — **change it only to remove more**. A planner query is two coordinates and a reset page's address carries its token, so a filter that let either through would write personal data and secrets to disk.
 
 ## Configuration and containers
 

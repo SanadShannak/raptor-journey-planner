@@ -15,3 +15,5 @@
 **/tempCodeRunnerFile.js
 **/Dockerfile
 backend/src/config/resetDb.js
+admin
+logs

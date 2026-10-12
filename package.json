@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "node scripts/dev.mjs",
+    "admin": "npm --prefix admin run dev",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {

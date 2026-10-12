@@ -1009,6 +1009,18 @@ ranges, so the visitor's address survives the edge proxy and reaches the
 backend's rate limits — see *Hardening* under
 [The HTTP API](#the-http-api-backendsrc).
 
+**It keeps an access log, and nothing personal goes into it.** One JSON line
+per request to `/logs/access.log` in the container — `./logs/` beside the
+compose file, which both compose files mount — rolled by Caddy itself at
+20 MB, ten files kept. Before a line is written Caddy strips the query string
+from the address *and* from the `Referer` (a planner query is two coordinates;
+a reset page's address carries its token), cuts the visitor's address to its
+network (`/24` for IPv4, `/48` for IPv6), and drops cookies and
+forwarded-address headers. What is left — the path, status, timing, browser,
+language and the site that sent the visitor — is what a private admin panel,
+kept outside this repository, reads to show how the site is used. Change the
+`format filter` block only to remove more, never less.
+
 Every response, the page's and the API's, also carries a set of security
 headers from the same file: a Content-Security-Policy, `nosniff`, a referrer
 policy, a permissions policy that allows location to this page only, and HSTS.

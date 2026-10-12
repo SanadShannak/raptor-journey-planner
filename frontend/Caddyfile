@@ -17,6 +17,39 @@
 	root * /srv
 	encode gzip zstd
 
+	# An access log, for knowing how the site is used — and written so that
+	# it holds nothing personal. Every line is stripped before it is written:
+	#   - no query string, from the address or the Referer: a planner query is
+	#     two coordinates, and a reset page's address carries its token
+	#   - visitor addresses cut to their network (/24, /48), never a person
+	#   - no cookies or forwarded-address headers
+	# Caddy rolls the file itself. `mode 0644` because Caddy runs as root and
+	# whatever reads the log should not have to. In the container the folder
+	# is /logs; the compose files mount ./logs there.
+	log {
+		output file /logs/access.log {
+			roll_size 20MiB
+			roll_keep 10
+			mode 0644
+		}
+		format filter {
+			request>uri regexp "\?.*$" ""
+			request>headers>Referer regexp "\?.*$" ""
+			request>remote_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>client_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>headers>X-Forwarded-For delete
+			request>headers>X-Real-Ip delete
+			request>headers>Cookie delete
+			resp_headers delete
+		}
+	}
+
 	# Security headers for every response, the page and /api alike.
 	#
 	# The Content-Security-Policy names every origin the app is known to

@@ -60,6 +60,8 @@ services:
     restart: always
     volumes:
       - ./frontend/Caddyfile:/etc/caddy/Caddyfile:ro
+      # The access log (see the Caddyfile): nothing personal is written to it.
+      - ./logs:/logs
       - caddy_data:/data
       - caddy_config:/config
     networks:
