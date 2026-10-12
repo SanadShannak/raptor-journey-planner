@@ -36,9 +36,18 @@ interface WalletState {
   cards: readonly TravelCard[];
   /** Why the last load failed, for a surface that has to say so. */
   error: ApiError | null;
+  /**
+   * Whether `cards` is an answer from the server, rather than nothing yet.
+   *
+   * Stays true through a refetch. The page asks again every time it is
+   * opened, and without this an account with no cards could not tell "none,
+   * as of the last answer" from "not asked yet" — so it drew placeholders on
+   * every visit. Same rule as the favourites store.
+   */
+  answered: boolean;
 }
 
-const EMPTY: WalletState = { status: 'idle', cards: [], error: null };
+const EMPTY: WalletState = { status: 'idle', cards: [], error: null, answered: false };
 
 let state: WalletState = EMPTY;
 
@@ -101,12 +110,12 @@ function rethrow(error: unknown): never {
  */
 export async function loadCards(): Promise<void> {
   const id = ++requestId;
-  commit({ status: 'loading', cards: state.cards, error: null });
+  commit({ ...state, status: 'loading', error: null });
 
   try {
     const cards = await listCards();
     if (id !== requestId) return;
-    commit({ status: 'ready', cards, error: null });
+    commit({ status: 'ready', cards, error: null, answered: true });
   } catch (error: unknown) {
     if (id !== requestId) return;
 
@@ -116,7 +125,7 @@ export async function loadCards(): Promise<void> {
       return;
     }
 
-    commit({ status: 'failed', cards: [], error: isApiError(error) ? error : null });
+    commit({ status: 'failed', cards: [], error: isApiError(error) ? error : null, answered: false });
   }
 }
 
@@ -148,6 +157,7 @@ function replace(card: TravelCard): void {
   requestId += 1;
   commit({
     status: 'ready',
+    answered: true,
     cards: state.cards.map((existing) => (existing.id === card.id ? card : existing)),
     error: null,
   });
@@ -167,7 +177,7 @@ export async function createCard(input: AddCardInput): Promise<TravelCard> {
   try {
     const card = await addCard(input);
     requestId += 1;
-    commit({ status: 'ready', cards: [card, ...state.cards], error: null });
+    commit({ status: 'ready', answered: true, cards: [card, ...state.cards], error: null });
     return card;
   } catch (error: unknown) {
     rethrow(error);
@@ -180,6 +190,7 @@ export async function discardCard(id: string): Promise<void> {
     requestId += 1;
     commit({
       status: 'ready',
+    answered: true,
       cards: state.cards.filter((card) => card.id !== id),
       error: null,
     });

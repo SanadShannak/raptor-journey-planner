@@ -9,8 +9,10 @@ const addCard = async (req, res) => {
   const user = req.user;
   const { nickname } = req.body;
   const userCards = await Card.find({ user: user._id });
-  if (userCards.length === 5)
-    throw new AppError(422, "CARD_LIMIT_REACHED", "Limit of maximum 5 cards per user reached.");
+  // ">=" rather than "===": accounts from when the limit was five keep their
+  // cards, but cannot add more until they are under three.
+  if (userCards.length >= 3)
+    throw new AppError(422, "CARD_LIMIT_REACHED", "Limit of maximum 3 cards per user reached.");
 
   const formattedNickname = nickname.trim();
   const duplicateCard = await Card.findOne({

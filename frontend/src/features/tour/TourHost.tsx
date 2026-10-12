@@ -10,7 +10,7 @@ import { useLocale } from '../../i18n';
 import { useReducedMotion } from '../../map/useReducedMotion';
 import { endTour, getTourState, goToStep, subscribeToTour } from './tourStore';
 import { useNavigate } from 'react-router';
-import { SCENES, captureScroll, restoreScroll, type SceneId } from './scenes';
+import { SCENES, captureScroll, restoreScroll, sceneCanRun, type SceneId } from './scenes';
 import { TOURS, findTarget, type TourId } from './tours';
 
 /**
@@ -102,8 +102,10 @@ function TourDialog({ id, step }: { id: TourId; step: number }) {
     if (skipped.has(index)) return [];
     const couldAppear =
       entry.target === null ||
-      entry.scene !== undefined ||
-      steps.slice(0, index).some((earlier) => earlier.scene !== undefined) ||
+      (entry.scene !== undefined && sceneCanRun(entry.scene)) ||
+      steps
+        .slice(0, index)
+        .some((earlier) => earlier.scene !== undefined && sceneCanRun(earlier.scene)) ||
       findTarget(entry.target) !== null;
     // Steps already shown stay counted even once a scene has taken their
     // element off the page.

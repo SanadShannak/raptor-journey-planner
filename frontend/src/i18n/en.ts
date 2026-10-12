@@ -587,6 +587,18 @@ export const en: Dictionary = {
       'Confirmation links work for 24 hours. Try to log in, and we will offer to send a new one.',
     logIn:
       'Log in',
+    verifiedTitle:
+      'Email confirmed',
+    verifiedSignedInHint:
+      'You\'re signed in and ready to go.',
+    linkExpiredTitle:
+      'This link no longer works',
+    resetDoneTitle:
+      'Password changed',
+    checkingLink:
+      'Checking your link…',
+    missingTitle:
+      'This link is incomplete',
   },
   tour: {
     open: 'Show the tour',

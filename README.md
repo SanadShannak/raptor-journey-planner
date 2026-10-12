@@ -263,7 +263,7 @@ The account endpoints go a layer further — `routes/` → `validators/`
    one per field. The status says *who* refused rather than whether there is
    an answer: a malformed request is a `400`, a missing or expired session a
    `401`, something not on this account (or not in the feed) a `404`, a limit
-   reached (five cards, five saved stops) a `422`, too many requests a `429`.
+   reached (three cards, five saved stops) a `422`, too many requests a `429`.
    An engine outcome is **none of those** — `NO_ROUTE_FOUND` and
    `DESTINATION_OUT_OF_BOUNDS` come back with a `200`, because the request
    was fine and "nothing runs between those points then" is an answer rather
@@ -466,10 +466,11 @@ Account endpoints need MongoDB. Those marked † need a session cookie:
 | `POST /api/auth/login` · `/logout` | Sign in (refused with `403 EMAIL_NOT_VERIFIED` until the address is confirmed), sign out |
 | `POST /api/auth/verify-email` · `/verify-email/resend` | Confirm an address from its link; send a new link |
 | `POST /api/auth/forgot-password` · `/reset-password` | Email a reset link; set a new password from it |
+| `POST /api/auth/reset-password/check` | Whether a reset link still works, without using it up |
 | `POST /api/auth/change-password` † | Change the password, given the current one |
 | `GET /api/auth/me` † | The signed-in user |
 | `POST /api/auth/verify-password` † | Re-confirms the password before a sensitive action |
-| `GET` · `POST /api/cards` † | The account's travel cards; add one (at most five) |
+| `GET` · `POST /api/cards` † | The account's travel cards; add one (at most three) |
 | `GET /api/cards/:number` · `PATCH` · `DELETE /api/cards/:id` † | One card; rename it; remove it (refused while it holds a balance) |
 | `POST /api/cards/:id/top-up` · `/fare` † | Add money; charge a fare |
 | `/api/user/saved-stops` · `/saved-routes` · `/saved-itineraries` † | Saved items: `GET` the list, `POST` one, `PATCH` / `DELETE /…/:itemId` |
@@ -540,9 +541,23 @@ tablets — the header folds its links, settings and the **?** button into the
 menu. Some steps act out what they describe (opening the map's "start here"
 card, the first route or stop, the add-card form) and are undone afterwards,
 so the tour always ends on the page, scroll position and control it was
-started from. Which tours a browser has seen is kept in its `localStorage`
+started from. The travel card and favourites pages need an account, so their
+tours **wait until somebody is signed in** — signed out, those pages are a
+log-in prompt — and a replay watched while signed out does not count as
+having seen them. Which tours a browser has seen is kept in its `localStorage`
 under `tours-seen`; delete that key in the browser's dev tools to see them
 again as a newcomer would.
+
+**The pages email links open** — confirming an address, choosing a new
+password — share one centred card (`components/LinkPanel.tsx`) with a status
+mark, a heading that says what happened, and a boxed message rather than red
+text. A reset link is **checked as soon as its page opens**
+(`POST /api/auth/reset-password/check`, which does not use the link up), so an
+expired or used link says so before anybody types a password.
+
+**The travel card and favourites pages draw placeholders only on their first
+load.** Coming back to either shows the answer already held — "No cards yet"
+included — while it is fetched again.
 
 **Renaming a favourite or a travel card shows the new name at once**, on every
 page, before the server answers. The client checks the server's own rules

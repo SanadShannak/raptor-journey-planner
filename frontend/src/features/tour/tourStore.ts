@@ -1,4 +1,5 @@
-import type { TourId } from './tours';
+import { getSessionSnapshot } from '../../auth/sessionStore';
+import { NEEDS_ACCOUNT, type TourId } from './tours';
 
 /**
  * Which tour is running, which step it is on, and which tours this browser
@@ -91,10 +92,15 @@ export function goToStep(step: number): void {
  *
  * Both count as seen. Somebody who pressed "Skip" has answered the question
  * the tour was asking, and offering it again on their next visit would be
- * asking twice.
+ * asking twice. The exception is a tour of a page that needs an account, ended
+ * while signed out: that was a tour of the log-in prompt, not of the page, so
+ * the real one still runs after signing in. See {@link NEEDS_ACCOUNT}.
  */
 export function endTour(): void {
-  if (state.active !== null) markSeen(state.active);
+  const signedOut = getSessionSnapshot().status !== 'signedIn';
+  if (state.active !== null && !(NEEDS_ACCOUNT.has(state.active) && signedOut)) {
+    markSeen(state.active);
+  }
   commit({ ...state, active: null, step: 0 });
 }
 

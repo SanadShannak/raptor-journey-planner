@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
+import { useSession } from '../../auth/useSession';
 import { hasSeenTour, getTourState, setTourPage, startTour } from './tourStore';
-import { TOURS, findTarget, type TourId } from './tours';
+import { NEEDS_ACCOUNT, TOURS, findTarget, type TourId } from './tours';
 
 /** How long a page is given to settle before its tour starts. */
 const SETTLE_MS = 800;
@@ -23,15 +24,25 @@ const ATTEMPTS = 6;
  * It also stands aside when another dialog is already open. Somebody who
  * arrived through a link that opened the sign-in dialog is in the middle of
  * something, and a tour on top of it would be in the way.
+ *
+ * **A page that needs an account waits for one** ({@link NEEDS_ACCOUNT}). Signed
+ * out, the travel card and favourites pages are a prompt to log in, and a tour
+ * of them would explain a page nobody can use yet — and, being marked seen,
+ * would never come back for the page that appears after signing in. So the
+ * first-visit start holds until somebody is signed in, and then runs as if
+ * they had just arrived. The header's replay button is unaffected.
  */
 export function useTour(id: TourId): void {
+  const { signedIn } = useSession();
+  const waiting = NEEDS_ACCOUNT.has(id) && !signedIn;
+
   useEffect(() => {
     setTourPage(id);
     return () => setTourPage(null);
   }, [id]);
 
   useEffect(() => {
-    if (hasSeenTour(id)) return;
+    if (waiting || hasSeenTour(id)) return;
 
     let attempts = 0;
     let timer = 0;
@@ -54,5 +65,5 @@ export function useTour(id: TourId): void {
 
     timer = window.setTimeout(tryStart, SETTLE_MS);
     return () => window.clearTimeout(timer);
-  }, [id]);
+  }, [id, waiting]);
 }

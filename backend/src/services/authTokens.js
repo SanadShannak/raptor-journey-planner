@@ -63,9 +63,26 @@ async function consumeToken(token, purpose) {
   return found === null ? null : found.user;
 }
 
+/**
+ * Whether a token would still work, **without spending it**.
+ *
+ * For the reset page, so a link that has expired or was already used says so
+ * the moment it is opened rather than after a new password has been typed.
+ * Answers only yes or no; whose token it is stays with the server.
+ */
+async function isTokenUsable(token, purpose) {
+  if (typeof token !== "string" || token.length === 0) return false;
+  const found = await AuthToken.exists({
+    tokenHash: hash(token),
+    purpose,
+    expiresAt: { $gt: new Date() },
+  });
+  return found !== null;
+}
+
 /** Deletes every token of a purpose for a user — after a password change, say. */
 async function revokeTokens(userId, purpose) {
   await AuthToken.deleteMany({ user: userId, purpose });
 }
 
-module.exports = { issueToken, consumeToken, revokeTokens, LIFETIME_MS };
+module.exports = { issueToken, consumeToken, isTokenUsable, revokeTokens, LIFETIME_MS };

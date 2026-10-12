@@ -43,13 +43,13 @@ export const CARD_HAS_BALANCE = 'CARD_HAS_BALANCE';
 /**
  * How many cards one account may hold.
  *
- * The server is the authority — `addCard` refuses the sixth with a 422 — and
+ * The server is the authority — `addCard` refuses the fourth with a 422 — and
  * this is here so the interface can say so before somebody fills in a form
  * that cannot be submitted. It is **not** enforced client-side: a count read
  * from a list is always a little behind the truth, and the 422 is what
  * actually decides.
  */
-export const CARD_LIMIT = 5;
+export const CARD_LIMIT = 3;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;

@@ -115,7 +115,7 @@ describe('the tour', () => {
     act(() => startTour('favourites'));
 
     await vi.waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    expect(hasSeenTour('favourites')).toBe(true);
+    // Whether it now counts as seen depends on being signed in; see below.
   });
 
   it('ends on Escape and counts as seen', () => {
@@ -127,5 +127,24 @@ describe('the tour', () => {
 
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(hasSeenTour('stops')).toBe(true);
+  });
+});
+
+describe('tours of pages that need an account', () => {
+  /*
+   * Signed out, the travel card page is a log-in prompt. Watching its tour
+   * then must not use up the real one, which should still run after signing
+   * in.
+   */
+  it('do not count as seen when watched signed out', () => {
+    startTour('card');
+    endTour();
+    expect(hasSeenTour('card')).toBe(false);
+  });
+
+  it('other tours still count as seen when skipped', () => {
+    startTour('routes');
+    endTour();
+    expect(hasSeenTour('routes')).toBe(true);
   });
 });

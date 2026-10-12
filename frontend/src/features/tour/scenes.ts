@@ -26,6 +26,27 @@ type Undo = () => void;
 
 const nothing: Undo = () => {};
 
+/**
+ * What each scene presses, so the tour can tell whether it could run at all.
+ *
+ * A step with a scene used to be counted as one that might appear, on the
+ * grounds that the scene could bring its element on screen. That is only true
+ * when there is something to press: signed out, the travel card page has no
+ * add-card form, so its tour said "1 of 2" and then quietly skipped the second
+ * step.
+ */
+const PRESSES: Record<SceneId, string> = {
+  'map-pick': '[data-tour="plan-map"]',
+  'open-first-route': '[data-tour="routes-list"] li button',
+  'open-first-stop': '[data-tour="stops-list"] li button',
+  'open-add-card': '[data-tour="card-add"] button[aria-expanded]',
+};
+
+/** Whether this scene has anything on the page to press. */
+export function sceneCanRun(scene: SceneId): boolean {
+  return document.querySelector(PRESSES[scene]) !== null;
+}
+
 export const SCENES: Record<SceneId, (context: SceneContext) => Undo> = {
   'map-pick': () => {
     window.dispatchEvent(new Event(TOUR_PICK_OPEN));

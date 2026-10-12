@@ -4,6 +4,17 @@ import type { SceneId } from './scenes';
 /** One tour per page that has one. */
 export type TourId = 'plan' | 'itinerary' | 'routes' | 'stops' | 'card' | 'favourites';
 
+/**
+ * Tours of pages that are a prompt to log in until somebody does.
+ *
+ * Two rules follow from it, kept together here so they cannot drift apart:
+ * the first-visit start waits until somebody is signed in (`useTour`), and a
+ * replay watched while signed out does not count as having seen the tour
+ * (`endTour`) — otherwise looking at the one-step signed-out version would
+ * use up the real one for good.
+ */
+export const NEEDS_ACCOUNT: ReadonlySet<TourId> = new Set<TourId>(['card', 'favourites']);
+
 export interface TourStep {
   /**
    * The `data-tour` value of the element this step points at, or null for a

@@ -84,3 +84,28 @@ describe('renaming a card', () => {
     expect(names()).toEqual(['Work']);
   });
 });
+
+describe('loading the wallet', () => {
+  /*
+   * An account with no cards must read as "no cards" while the page asks
+   * again on a later visit, not as placeholders every time.
+   */
+  it('keeps the previous answer, an empty one included, while asking again', async () => {
+    serve([]);
+    await loadCards();
+    expect(getWallet().answered).toBe(true);
+
+    const again = loadCards();
+    expect(getWallet().status).toBe('loading');
+    expect(getWallet().answered).toBe(true);
+    await again;
+  });
+
+  it('has no answer before the first load, nor after signing out', async () => {
+    expect(getWallet().answered).toBe(false);
+    serve([]);
+    await loadCards();
+    forgetCards();
+    expect(getWallet().answered).toBe(false);
+  });
+});

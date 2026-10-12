@@ -88,6 +88,13 @@ const PAIRS = [
   // The "active today" dot on the routes list — decorative, but still a
   // filled UI boundary against the page it sits on.
   ['success', 'surface', AA_UI],
+  // The status marks and notice icons on the pages email links open
+  // (`components/LinkPanel.tsx`): a mark in its circle, an icon in its box.
+  ['success', 'surface-muted', AA_UI],
+  ['danger', 'surface-muted', AA_UI],
+  ['brand-700', 'brand-50', AA_UI],
+  ['danger', 'surface', AA_UI],
+  ['brand-500', 'surface', AA_UI],
 ];
 
 function oklchToLinearRgb(lightness, chroma, hue) {

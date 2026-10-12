@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { verifyEmail } from '../api/auth';
 import { requestAuth, useSession } from '../auth';
-import { Spinner } from '../components/Pending';
-import { PageContainer } from '../components/PageContainer';
+import { LinkPanel, Notice, PRIMARY_ACTION } from '../components/LinkPanel';
 import { messageForApiError, useLocale } from '../i18n';
 import { usePageTitle } from '../app/usePageTitle';
 import { paths } from '../app/routes';
@@ -72,70 +71,81 @@ export default function VerifyEmailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
+  /*
+    A spent link opened by somebody already signed in — usually the second
+    click on the same email. Signed in means confirmed, so it is the same
+    success as a link that has just worked.
+  */
+  const confirmed = state.kind === 'verified' || (state.kind === 'failed' && signedIn);
+
   return (
-    <PageContainer>
-      <h1 className="text-3xl font-semibold tracking-tight">
-        {t(strings.verification.verifyTitle)}
-      </h1>
-
-      <div role="status" className="flex max-w-prose flex-col gap-2">
+    <LinkPanel
+      tone={
+        state.kind === 'verifying'
+          ? 'pending'
+          : confirmed
+            ? 'success'
+            : 'danger'
+      }
+      title={t(
+        state.kind === 'verifying'
+          ? strings.verification.verifyTitle
+          : confirmed
+            ? strings.verification.verifiedTitle
+            : state.kind === 'missing'
+              ? strings.verification.missingTitle
+              : strings.verification.linkExpiredTitle,
+      )}
+    >
+      <div role="status" className="flex w-full flex-col items-center gap-3">
         {state.kind === 'verifying' && (
-          <p className="text-content-muted flex items-center gap-2">
-            <Spinner />
-            {t(strings.verification.verifying)}
-          </p>
-        )}
-
-        {state.kind === 'verified' && (
-          <div className="motion-safe:animate-content-in flex flex-col gap-1">
-            <p className="font-medium">{t(strings.verification.verified)}</p>
-            <p className="text-content-muted">{t(strings.verification.verifiedHint)}</p>
-          </div>
+          <p className="text-content-muted">{t(strings.verification.verifying)}</p>
         )}
 
         {/*
-          A spent link opened by somebody already signed in — the second click
-          on the same email. Signed in means confirmed, so nothing is wrong.
+          Confirmed, and what comes next depends on whether this browser is
+          signed in. Somebody who confirmed and then logged in — on this page,
+          from the button below — is told they are all set, not to log in.
         */}
-        {state.kind === 'failed' && signedIn && (
-          <p className="motion-safe:animate-content-in font-medium">
-            {t(strings.verification.verified)}
+        {confirmed && (
+          <p className="text-content-muted motion-safe:animate-content-in">
+            {t(
+              signedIn
+                ? strings.verification.verifiedSignedInHint
+                : strings.verification.verifiedHint,
+            )}
           </p>
         )}
 
         {state.kind === 'failed' && !signedIn && (
-          <div className="motion-safe:animate-content-in flex flex-col gap-1">
-            <p className="text-danger font-medium">{t(messageForApiError(state.error, strings))}</p>
+          <Notice tone="danger">
+            <p className="font-medium">{t(messageForApiError(state.error, strings))}</p>
             <p className="text-content-muted">{t(strings.verification.invalidVerifyHint)}</p>
-          </div>
+          </Notice>
         )}
 
         {state.kind === 'missing' && (
-          <p className="text-content-muted">{t(strings.verification.missingToken)}</p>
+          <Notice tone="danger">
+            <p>{t(strings.verification.missingToken)}</p>
+          </Notice>
         )}
       </div>
 
-      {/* The next step: logging in — which is also where a new link is offered. */}
+      {/*
+        The next step. Signed out, that is logging in — which is also where a
+        new link is offered if this one failed. Signed in, it is the planner.
+      */}
       {state.kind !== 'verifying' && !signedIn && (
-        <button
-          type="button"
-          onClick={() => requestAuth('logIn')}
-          className="rounded-control bg-brand-fill text-on-brand focus-visible:outline-brand-500 cursor-pointer self-start px-4 py-2 font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
-        >
+        <button type="button" onClick={() => requestAuth('logIn')} className={PRIMARY_ACTION}>
           {t(strings.verification.logIn)}
         </button>
       )}
 
       {state.kind !== 'verifying' && signedIn && (
-        <p>
-          <Link
-            to={paths.home}
-            className="text-brand-500 focus-visible:outline-brand-500 rounded-control underline focus-visible:outline-2 focus-visible:outline-offset-2"
-          >
-            {t(strings.verification.goHome)}
-          </Link>
-        </p>
+        <Link to={paths.home} className={PRIMARY_ACTION}>
+          {t(strings.verification.goHome)}
+        </Link>
       )}
-    </PageContainer>
+    </LinkPanel>
   );
 }

@@ -893,6 +893,13 @@ export interface Dictionary {
     verifiedHint: string;
     invalidVerifyHint: string;
     logIn: string;
+    /* Headings and states of the pages email links open. */
+    verifiedTitle: string;
+    verifiedSignedInHint: string;
+    linkExpiredTitle: string;
+    resetDoneTitle: string;
+    checkingLink: string;
+    missingTitle: string;
   };
   tour: {
     /** The header control that replays the current page's tour. */

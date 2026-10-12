@@ -677,6 +677,18 @@ export const ar: Dictionary = {
       'تعمل روابط التأكيد لمدة 24 ساعة. حاول تسجيل الدخول وسنعرض عليك إرسال رابط جديد.',
     logIn:
       'تسجيل الدخول',
+    verifiedTitle:
+      'تم تأكيد البريد الإلكتروني',
+    verifiedSignedInHint:
+      'أنت مسجّل الدخول وجاهز للبدء.',
+    linkExpiredTitle:
+      'هذا الرابط لم يعد صالحًا',
+    resetDoneTitle:
+      'تم تغيير كلمة المرور',
+    checkingLink:
+      'جارٍ التحقق من الرابط…',
+    missingTitle:
+      'هذا الرابط غير مكتمل',
   },
   tour: {
     open: 'عرض الجولة',

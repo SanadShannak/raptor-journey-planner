@@ -47,7 +47,9 @@ describe('the email verification page', () => {
     const fetchMock = stubApi({ status: 200, body: { message: 'Email verified' } });
     renderAt('/verify-email?token=first-token');
 
-    expect(await screen.findByText('Your email is confirmed.')).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Email confirmed' })).toBeTruthy();
+    // Signed out, the next step is logging in — not "go to the planner".
+    expect(screen.getByRole('button', { name: 'Log in' })).toBeTruthy();
     expect(verifyCalls(fetchMock)).toBe(1);
   });
 

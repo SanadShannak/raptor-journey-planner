@@ -23,6 +23,7 @@ const {
   forgotPassword,
   resetPassword,
   changePassword,
+  checkResetToken,
 } = require("../controllers/authController");
 
 const requireAuth = require("../middleware/requireAuth");
@@ -88,6 +89,15 @@ router.post(
   forgotPasswordValidationRules,
   validateRequest,
   forgotPassword,
+);
+// Only looks: the token is not spent. Arcjet still limits how often, so it
+// is no better than the reset itself for guessing tokens.
+router.post(
+  "/reset-password/check",
+  arcjetProtect,
+  verifyEmailValidationRules,
+  validateRequest,
+  checkResetToken,
 );
 router.post(
   "/reset-password",

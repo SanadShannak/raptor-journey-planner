@@ -1,7 +1,7 @@
 const User = require("../models/User");
 const AppError = require("../utils/AppError");
 const { setAuthCookie, clearAuthCookie } = require("../services/cookies");
-const { issueToken, consumeToken, revokeTokens } = require("../services/authTokens");
+const { issueToken, consumeToken, isTokenUsable, revokeTokens } = require("../services/authTokens");
 const { sendEmail } = require("../services/email");
 const { verificationEmail, passwordResetEmail } = require("../services/emailTemplates");
 
@@ -207,6 +207,20 @@ const forgotPassword = async (req, res) => {
 };
 
 /**
+ * Says whether a reset link still works, without using it up.
+ *
+ * Asked when the reset page opens, so an expired or already-used link is
+ * reported straight away instead of after somebody has chosen a password.
+ * `400 INVALID_TOKEN` exactly as the reset itself would answer.
+ */
+const checkResetToken = async (req, res) => {
+  if (!(await isTokenUsable(req.body.token, "reset-password"))) {
+    throw new AppError(400, "INVALID_TOKEN", "This link is invalid or has expired.");
+  }
+  return res.status(200).json({ message: "Link is valid", data: { valid: true } });
+};
+
+/**
  * Sets a new password from the token in a reset link, and signs the person in.
  *
  * Three things follow a reset, and each is deliberate:
@@ -276,6 +290,7 @@ const changePassword = async (req, res) => {
 
 module.exports = {
   changePassword,
+  checkResetToken,
   resendVerification,
   verifyEmail,
   forgotPassword,

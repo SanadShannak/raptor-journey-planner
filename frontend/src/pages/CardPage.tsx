@@ -47,7 +47,7 @@ export default function CardPage() {
   const listHeadingId = useId();
 
   useLoadCards();
-  const { status, cards, error } = useWallet();
+  const { status, cards, error, answered } = useWallet();
 
   const [currency, setCurrency] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -176,15 +176,18 @@ export default function CardPage() {
                 */}
                 <div
                   aria-busy={
-                    status === 'loading' && cards.length === 0 ? true : undefined
+                    status === 'loading' && !answered ? true : undefined
                   }
                 >
                   {cards.length === 0 ? (
                     /*
                       "No cards yet" is a claim about the account, and not one
-                      this page can make until the answer has arrived.
+                      this page can make until an answer has arrived. Once one
+                      has, it stands while the page asks again — so coming back
+                      to a wallet with nothing in it says so at once rather
+                      than drawing placeholders on every visit.
                     */
-                    status === 'ready' ? (
+                    answered ? (
                       <p className="rounded-card border-border bg-surface-muted text-content-muted motion-safe:animate-content-in border px-3 py-2.5 text-sm">
                         {t(strings.card.noCards)}
                       </p>

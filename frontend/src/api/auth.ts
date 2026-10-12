@@ -292,11 +292,30 @@ export async function requestPasswordReset(
 }
 
 /**
+ * Whether a reset link still works, asked when its page opens — so an expired
+ * or already-used link says so straight away rather than after a password has
+ * been typed. Does not use the link up.
+ *
+ * Resolves when it works; rejects with {@link INVALID_TOKEN} when it does not.
+ */
+export async function checkResetLink(token: string, options: CallOptions = {}): Promise<void> {
+  try {
+    await postJson('/api/auth/reset-password/check', {
+      body: { token },
+      ...(options.signal ? { signal: options.signal } : {}),
+    });
+  } catch (error: unknown) {
+    if (isApiError(error) && error.status === 400) throw error.withCode(INVALID_TOKEN);
+    throw error;
+  }
+}
+
+/**
  * Sets a new password from the token in a reset link. The server signs the
  * person in with the same response, so this returns the account.
  *
  * A 400 is either the password (a field complaint) or the link itself
- * ({@link INVALID_TOKEN}: wrong, already used, or older than an hour).
+ * ({@link INVALID_TOKEN}: wrong, already used, or past its ten minutes).
  */
 export async function resetPassword(
   token: string,

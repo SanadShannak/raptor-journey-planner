@@ -271,7 +271,7 @@ status mapping still holds:
   `errors: [{ path, msg, … }]` rides beside the code and says which
 - `400 EMAIL_IN_USE`, `401 INVALID_CREDENTIALS` (wrong email *or* password —
   deliberately one answer), `401 INCORRECT_PASSWORD` (verify-password, signed in)
-- Cards: `422 CARD_LIMIT_REACHED`, `400 DUPLICATE_CARD_NICKNAME`,
+- Cards: `422 CARD_LIMIT_REACHED` (a fourth card; the limit is three), `400 DUPLICATE_CARD_NICKNAME`,
   `404 CARD_NOT_FOUND` (also for somebody else's card), `400 CARD_HAS_BALANCE`,
   `400 INSUFFICIENT_BALANCE`
 - Saved items: `400 ALREADY_SAVED`, `422 SAVED_LIMIT_REACHED`,
@@ -285,6 +285,7 @@ status mapping still holds:
 | `/verify-email` | `{ token }` | `200 { data: { emailVerified: true } }`; `400 INVALID_TOKEN` for a wrong, used or expired link. No session needed, and **none is given** — the person logs in afterwards |
 | `/verify-email/resend` | `{ email, locale? }` | Always `200`, whatever the address — no session needed (an unconfirmed account cannot have one) |
 | `/forgot-password` | `{ email, locale? }` | Always `200`, whether or not the address has an account |
+| `/reset-password/check` | `{ token }` | `200 { data: { valid: true } }`, or `400 INVALID_TOKEN` for a wrong, used or expired link. Does **not** spend the token; asked when the reset page opens |
 | `/reset-password` | `{ token, password }` | `200 { data: account }` and a session cookie; `400 INVALID_TOKEN`, or `400 VALIDATION_FAILED` for the password |
 | `/change-password` | `{ currentPassword, newPassword }` | `200 { data: account }` with a fresh cookie; needs a session. A wrong current password is **`400 INCORRECT_PASSWORD`** (never 401, which would read as the session ending), with `errors` naming `currentPassword` |
 
