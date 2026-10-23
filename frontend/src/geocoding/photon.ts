@@ -14,8 +14,10 @@ import type {
  * back a search box however well it answers a single query.
  *
  * It covers every network this app might load — verified against both Helsinki
- * and Amman, and it returns Arabic names for Amman, which the Arabic interface
- * needs rather than a transliteration.
+ * and Amman. Asked in no particular language it answers in each place's own,
+ * which in Jordan is Arabic: exactly what the Arabic interface wants, and the
+ * only way to get it, because Photon refuses `lang=ar` outright (see
+ * {@link PHOTON_LANGUAGES}).
  *
  * What it does not know is which of its results are stops in *our* feed. It
  * returns OpenStreetMap's idea of a bus stop or station, with no GTFS id, so
@@ -25,6 +27,29 @@ import type {
 
 const ENDPOINT = 'https://photon.komoot.io/api/';
 const REVERSE_ENDPOINT = 'https://photon.komoot.io/reverse';
+
+/**
+ * The only values komoot's Photon accepts for `lang`.
+ *
+ * Anything else — `ar` included — is answered with a 400, which used to take
+ * place search down for the whole Arabic interface. Any other language is
+ * therefore left out of the request, and Photon falls back to local names.
+ */
+const PHOTON_LANGUAGES = new Set(['en', 'de', 'fr']);
+
+/**
+ * How many more results to ask for than will be shown, when some are going to
+ * be dropped for being in the wrong country. Near a border most of an Arabic
+ * query's matches can be next door; asking for exactly six would often leave
+ * one or two.
+ */
+const OVERFETCH = 4;
+
+/** A Photon instance kept to some countries, or unfiltered. */
+export interface PhotonOptions {
+  /** ISO 3166-1 alpha-2 codes; null or absent keeps every result. */
+  countries?: readonly string[] | null | undefined;
+}
 
 /**
  * OpenStreetMap values that mean "public transport stop".
@@ -107,16 +132,43 @@ function toPlace(feature: PhotonFeature, index: number): Place | null {
   };
 }
 
-export function createPhotonGeocoder(): Geocoder {
+function setLanguage(url: URL, language: string | undefined) {
+  if (language && PHOTON_LANGUAGES.has(language)) {
+    url.searchParams.set('lang', language);
+  }
+}
+
+export function createPhotonGeocoder(
+  photonOptions: PhotonOptions = {},
+): Geocoder {
+  const countries = photonOptions.countries
+    ? new Set(photonOptions.countries.map((code) => code.toUpperCase()))
+    : null;
+
+  /*
+   * Photon has no country filter of its own, so this is done on the answer.
+   * A result with no country code is dropped too: it cannot be shown to be
+   * inside the network, and a journey to it would be a guess.
+   */
+  const inCountry = (feature: PhotonFeature): boolean => {
+    if (countries === null) return true;
+    const code = text(feature.properties?.['countrycode']);
+    return code !== null && countries.has(code.toUpperCase());
+  };
+
   return {
     id: 'photon',
     attribution: '© OpenStreetMap contributors · Photon',
 
     async search(query, options: PlaceSearchOptions = {}) {
+      const limit = options.limit ?? 6;
       const url = new URL(ENDPOINT);
       url.searchParams.set('q', query);
-      url.searchParams.set('limit', String(options.limit ?? 6));
-      if (options.language) url.searchParams.set('lang', options.language);
+      url.searchParams.set(
+        'limit',
+        String(countries === null ? limit : limit * OVERFETCH),
+      );
+      setLanguage(url, options.language);
       if (options.bounds) {
         // Photon takes the box corner-first as lon,lat pairs.
         const { minLon, maxLat, maxLon, minLat } = options.bounds;
@@ -135,9 +187,11 @@ export function createPhotonGeocoder(): Geocoder {
       const features = (body as { features?: unknown })?.features;
       if (!Array.isArray(features)) return [];
 
-      return features
-        .map((feature, index) => toPlace(feature as PhotonFeature, index))
-        .filter((place): place is Place => place !== null);
+      return (features as PhotonFeature[])
+        .filter(inCountry)
+        .map((feature, index) => toPlace(feature, index))
+        .filter((place): place is Place => place !== null)
+        .slice(0, limit);
     },
 
     async reverse(latitude, longitude, options: PlaceSearchOptions = {}) {
@@ -145,7 +199,7 @@ export function createPhotonGeocoder(): Geocoder {
       url.searchParams.set('lat', String(latitude));
       url.searchParams.set('lon', String(longitude));
       url.searchParams.set('limit', '1');
-      if (options.language) url.searchParams.set('lang', options.language);
+      setLanguage(url, options.language);
 
       const response = await fetch(url, {
         signal: options.signal ?? null,
@@ -159,8 +213,10 @@ export function createPhotonGeocoder(): Geocoder {
       const features = (body as { features?: unknown })?.features;
       if (!Array.isArray(features)) return null;
 
-      const nearest = features[0];
-      if (nearest === undefined) return null;
+      // A spot over the border is not somewhere this network goes, so it is
+      // left unnamed rather than named as a place in another country.
+      const nearest = features[0] as PhotonFeature | undefined;
+      if (nearest === undefined || !inCountry(nearest)) return null;
 
       /*
        * The place the service names, at the coordinates that were *pressed*.
@@ -168,7 +224,7 @@ export function createPhotonGeocoder(): Geocoder {
        * park, sometimes — and moving the pin there would answer a question
        * nobody asked.
        */
-      const named = toPlace(nearest as PhotonFeature, 0);
+      const named = toPlace(nearest, 0);
       return named === null ? null : { ...named, lat: latitude, lon: longitude };
     },
   };

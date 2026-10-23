@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useLocale } from '../../i18n';
-import { geocoder } from '../../geocoding';
+import { geocoderFor } from '../../geocoding';
 import type { Place } from '../../types/place';
 import type { GeoBounds } from '../../config/geocoding';
 import { ModeIcon } from './modeIcons';
@@ -15,6 +15,8 @@ interface Props {
   onChange: (place: Place | null) => void;
   /** Restricts suggestions to the network's area. */
   bounds?: GeoBounds | null | undefined;
+  /** The network being searched, which picks the geocoder; null until known. */
+  network: string | null;
   /** Rendered flush against the field's end — "use my location" on the origin. */
   action?: React.ReactNode;
   /** Rendered under the field, where an {@link action} reports a problem. */
@@ -50,11 +52,13 @@ export function PlaceInput({
   value,
   onChange,
   bounds,
+  network,
   action,
   note,
   disabled,
 }: Props) {
   const { locale, strings, t } = useLocale();
+  const geocoder = geocoderFor(network);
 
   const [query, setQuery] = useState(value?.label ?? '');
   const [suggestions, setSuggestions] = useState<Place[]>([]);
@@ -125,7 +129,7 @@ export function PlaceInput({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [trimmed, locale, dormant, bounds]);
+  }, [trimmed, locale, dormant, bounds, geocoder]);
 
   useEffect(() => {
     if (!open) return;

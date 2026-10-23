@@ -9,8 +9,10 @@ import {
 import {
   AttributionControl,
   config as glConfig,
+  getRTLTextPluginStatus,
   Map as GlMap,
   NavigationControl,
+  setRTLTextPlugin,
 } from 'maplibre-gl';
 /*
  * The renderer's worker, asked for as a URL so the bundler emits it.
@@ -32,6 +34,17 @@ import {
  * with its dependencies and hands back the URL of the result.
  */
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
+/*
+ * Arabic shaping and right-to-left ordering for the basemap's labels.
+ *
+ * MapLibre lays text out glyph by glyph and does neither itself, so without
+ * this every Arabic street name is drawn as isolated letters in reverse order —
+ * unreadable on Amman's map and on any map in the Arabic interface. Served
+ * from this origin like the worker, never from a CDN, which would hand every
+ * visitor's address to a third party. It embeds WebAssembly, which is why the
+ * Content-Security-Policy in `Caddyfile` allows 'wasm-unsafe-eval'.
+ */
+import rtlTextPluginUrl from '@mapbox/mapbox-gl-rtl-text/dist/mapbox-gl-rtl-text.js?url';
 import { useLocale } from '../i18n';
 import { useTheme } from '../theme';
 import {
@@ -105,6 +118,16 @@ interface Props {
  */
 
 glConfig.WORKER_URL = workerUrl;
+
+/*
+ * Lazy: fetched the first time a label actually holds right-to-left text, so
+ * a Helsinki map never downloads it. Registering twice throws — which a hot
+ * reload re-running this module would do — hence the status check. A failure
+ * to load leaves labels as they were rather than taking the map down.
+ */
+if (getRTLTextPluginStatus() === 'unavailable') {
+  setRTLTextPlugin(rtlTextPluginUrl, true).catch(() => {});
+}
 
 /*
  * The frame at mount, before `/api/network` has said which city this is.

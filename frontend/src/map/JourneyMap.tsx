@@ -5,7 +5,7 @@ import { useTheme } from '../theme';
 import type { GeoBounds } from '../config/geocoding';
 import type { Journey, TransitLeg } from '../types/journey';
 import type { Place } from '../types/place';
-import { geocoder } from '../geocoding';
+import { geocoderFor } from '../geocoding';
 import { familyFor, visualForFamily } from '../features/journey/modeVisuals';
 import {
   WALK_ICON_MARKUP,
@@ -135,11 +135,13 @@ interface Pick {
  * backstop on top of it.
  */
 function PickPoint({
+  network,
   pick,
   setPick,
   onPick,
   onRename,
 }: {
+  network: string | null;
   pick: Pick | null;
   setPick: (pick: Pick | null) => void;
   onPick: Props['onPick'];
@@ -208,7 +210,7 @@ function PickPoint({
     onPick(place, end);
     setPick(null);
 
-    const reverse = geocoder.reverse;
+    const reverse = geocoderFor(network).reverse;
     if (reverse === undefined) return;
 
     lookup.current?.abort();
@@ -653,7 +655,13 @@ export function JourneyMap({
         />
       )}
 
-      <PickPoint pick={pick} setPick={setPick} onPick={onPick} onRename={onRename} />
+      <PickPoint
+        network={network}
+        pick={pick}
+        setPick={setPick}
+        onPick={onPick}
+        onRename={onRename}
+      />
       <FitTo box={box} home={home} animate={!reduceMotion} />
 
       {/* The badge naming each leg, halfway along it by length. */}

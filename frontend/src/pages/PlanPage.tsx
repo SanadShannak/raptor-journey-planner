@@ -842,6 +842,7 @@ export default function PlanPage() {
               validDates={validDates}
               today={networkToday}
               bounds={bounds}
+              network={network}
               disabled={offline}
             />
             </div>

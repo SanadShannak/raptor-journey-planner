@@ -29,6 +29,8 @@ interface Props {
   today: string | null;
   /** Keeps place search inside the network's area. */
   bounds: GeoBounds | null;
+  /** The network being planned on, which picks the geocoder; null until known. */
+  network: string | null;
   /** Turned off while the routing service is unreachable. */
   disabled?: boolean | undefined;
 }
@@ -59,6 +61,7 @@ export function JourneyForm({
   validDates,
   today,
   bounds,
+  network,
   disabled,
 }: Props) {
   const locale = useLocale();
@@ -105,6 +108,7 @@ export function JourneyForm({
             label={t(strings.planner.origin)}
             role="origin"
             bounds={bounds}
+            network={network}
             value={values.origin}
             disabled={off}
             onChange={(place) => set('origin', place)}
@@ -127,6 +131,7 @@ export function JourneyForm({
             label={t(strings.planner.destination)}
             role="destination"
             bounds={bounds}
+            network={network}
             value={values.destination}
             disabled={off}
             onChange={(place) => set('destination', place)}

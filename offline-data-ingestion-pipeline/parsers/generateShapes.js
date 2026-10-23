@@ -277,6 +277,23 @@ function loadTripToShapeIdMap() {
 }
 
 /**
+ * Records where a stop falls in the merged shape.
+ *
+ * One visit is stored as a bare offset, which is every stop on a network whose
+ * patterns never return to a stop (all of HSL). A second visit turns it into
+ * an array in visiting order, which injectTransitShape indexes by visit.
+ */
+function recordStopOffset(stopIndexMap, stopId, offset) {
+  if (!Object.hasOwn(stopIndexMap, stopId)) {
+    stopIndexMap[stopId] = offset;
+  } else if (Array.isArray(stopIndexMap[stopId])) {
+    stopIndexMap[stopId].push(offset);
+  } else {
+    stopIndexMap[stopId] = [stopIndexMap[stopId], offset];
+  }
+}
+
+/**
  * Phase 4: The Merging Engine.
  */
 function compileFinalTripShapesMap() {
@@ -297,8 +314,17 @@ function compileFinalTripShapesMap() {
         shapeUniqueStops[shapeId] = new Map();
       }
 
+      /*
+       * Keyed by visit, not by stop: a loop that starts and ends at one
+       * terminal calls there twice, at two different points on the shape, and
+       * keying on the stop alone kept only the second.
+       */
+      tripStopsArray.sort((a, b) => a.seq - b.seq);
+      const visits = new Map();
       for (const stop of tripStopsArray) {
-        shapeUniqueStops[shapeId].set(stop.id, stop);
+        const visit = visits.get(stop.id) ?? 0;
+        visits.set(stop.id, visit + 1);
+        shapeUniqueStops[shapeId].set(`${stop.id}#${visit}`, stop);
       }
     }
 
@@ -336,8 +362,11 @@ function compileFinalTripShapesMap() {
             sortedStops[stopsPointer].lat,
             sortedStops[stopsPointer].lon,
           ]);
-          currentStopIndexMap[sortedStops[stopsPointer].id] =
-            shapeListIndexPointer;
+          recordStopOffset(
+            currentStopIndexMap,
+            sortedStops[stopsPointer].id,
+            shapeListIndexPointer,
+          );
           shapeListIndexPointer++;
           stopsPointer++;
         } else if (ptDist < stopDist) {
@@ -352,8 +381,11 @@ function compileFinalTripShapesMap() {
             sortedStops[stopsPointer].lat,
             sortedStops[stopsPointer].lon,
           ]);
-          currentStopIndexMap[sortedStops[stopsPointer].id] =
-            shapeListIndexPointer;
+          recordStopOffset(
+            currentStopIndexMap,
+            sortedStops[stopsPointer].id,
+            shapeListIndexPointer,
+          );
           shapeListIndexPointer++;
           stopsPointer++;
           pointsPointer++;
@@ -365,8 +397,11 @@ function compileFinalTripShapesMap() {
           sortedStops[stopsPointer].lat,
           sortedStops[stopsPointer].lon,
         ]);
-        currentStopIndexMap[sortedStops[stopsPointer].id] =
-          shapeListIndexPointer;
+        recordStopOffset(
+          currentStopIndexMap,
+          sortedStops[stopsPointer].id,
+          shapeListIndexPointer,
+        );
         shapeListIndexPointer++;
         stopsPointer++;
       }

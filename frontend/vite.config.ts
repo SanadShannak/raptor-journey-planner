@@ -70,6 +70,28 @@ export default defineConfig(({ mode }) => ({
    * statements MapLibre's worker entry is written with.
    */
   worker: { format: 'es' },
+  /*
+   * The RTL text plugin's built file, by its path on disk.
+   *
+   * The package's `exports` names only its ES source, which MapLibre cannot
+   * use: the worker loads the plugin as a classic script it fetches by URL.
+   * The built file is the one MapLibre documents, but the exports map hides
+   * it from the resolver, so it is pointed at directly — still the installed
+   * version, never a copy that could drift from package.json.
+   */
+  resolve: {
+    alias: [
+      {
+        find: /^@mapbox\/mapbox-gl-rtl-text\/dist\/mapbox-gl-rtl-text\.js/,
+        replacement: fileURLToPath(
+          new URL(
+            './node_modules/@mapbox/mapbox-gl-rtl-text/dist/mapbox-gl-rtl-text.js',
+            import.meta.url,
+          ),
+        ),
+      },
+    ],
+  },
   build: {
     /*
      * Baseline browser support, kept deliberately explicit rather than left to
