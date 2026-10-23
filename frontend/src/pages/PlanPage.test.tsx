@@ -73,12 +73,16 @@ const JOURNEY = {
   ],
 };
 
-/** One suggestion, whatever is typed — the geocoder is not what is under test. */
+/**
+ * One suggestion, whatever is typed — the geocoder is not what is under test.
+ * In Finland, as every real answer carries a country and place search keeps
+ * only the network's own.
+ */
 const SUGGESTION = {
   features: [
     {
       geometry: { coordinates: [24.9, 60.17] },
-      properties: { name: 'Somewhere', city: 'Helsinki' },
+      properties: { name: 'Somewhere', city: 'Helsinki', countrycode: 'FI' },
     },
   ],
 };

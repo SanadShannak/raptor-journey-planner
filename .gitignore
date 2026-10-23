@@ -161,3 +161,6 @@ backend/src/config/resetDb.js
 # A private tool kept outside this repository: its own git history, never
 # pushed here, never built into these images.
 /admin/
+
+# Raw Kentkart API responses the Amman feed is built from (scripts/amman-gtfs).
+raw-data/*-api-snapshots/

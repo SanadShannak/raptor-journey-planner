@@ -346,3 +346,19 @@ export class AttributionControl {}
 
 /** Where the real module keeps `WORKER_URL`; written to, never read here. */
 export const config: { WORKER_URL: string | null } = { WORKER_URL: null };
+
+/** Arabic label shaping; recorded so a test could check it was asked for. */
+export const rtlTextPlugin: { url: string | null; lazy: boolean | null } = {
+  url: null,
+  lazy: null,
+};
+
+export function getRTLTextPluginStatus(): string {
+  return rtlTextPlugin.url === null ? 'unavailable' : 'deferred';
+}
+
+export function setRTLTextPlugin(url: string, lazy: boolean): Promise<void> {
+  rtlTextPlugin.url = url;
+  rtlTextPlugin.lazy = lazy;
+  return Promise.resolve();
+}

@@ -29,7 +29,13 @@ function Field({ initial }: { initial: Place | null }) {
   const [place, setPlace] = useState<Place | null>(initial);
   return (
     <LocaleProvider>
-      <PlaceInput label="Origin" role="origin" value={place} onChange={setPlace} />
+      <PlaceInput
+        label="Origin"
+        role="origin"
+        network="hsl"
+        value={place}
+        onChange={setPlace}
+      />
       <span data-testid="chosen">{place?.label ?? '—'}</span>
       <button type="button" onClick={() => setPlace(kallio)}>
         set from outside

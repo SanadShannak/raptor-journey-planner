@@ -1328,7 +1328,10 @@ everywhere.
 
 ### 1. Get a feed the pipeline will accept
 
-Unzip the GTFS into `raw-data/<network>-gtfs-data/`. The validator in
+Unzip the GTFS into `raw-data/<network>-gtfs-data/`. (Amman has no published
+feed; `scripts/amman-gtfs/` builds one from the Amman Bus API straight into
+that folder — see its README, including why that feed must be refreshed every
+four weeks.) The validator in
 `pipelineConfig.js` rejects a feed at the start of the run if any of these is
 missing, or lacks its required columns:
 
@@ -1346,6 +1349,7 @@ actually supplied. Here is what you lose without each:
 | --- | --- |
 | `agency.txt` | No timezone from the feed. The backend falls back to its own table (step 3), then to **UTC** — which shifts every time on every page |
 | `shapes.txt`, or `shape_id` on trips | Rides are drawn as straight lines between stops |
+| `shape_dist_traveled` in both `shapes.txt` and `stop_times.txt` | Also straight lines: the shape builder needs it to place stops on the shape, and skips every shape without it. The Routes tab still draws whole shapes, which makes this one easy to miss |
 | `feed_info.txt` | No validity window in `network-meta`, so nothing records when the timetable expires |
 | `shape_dist_traveled` | `transitDistanceMeters` is `null` on every ride |
 | `trip_headsign` | No per-trip destination signs; departure boards fall back to the route's |
@@ -1404,19 +1408,20 @@ before `/api/network` has answered, so it starts at Helsinki and then moves.
 
 #### Place search (the geocoder)
 
-**The geocoder is chosen by whether a Digitransit key is set, not by which
-network is loaded** (`frontend/src/geocoding/index.ts`). Digitransit only knows
-Finland. So:
+**The geocoder is chosen by network** (`geocoderFor()` in
+`frontend/src/geocoding/index.ts`). Digitransit only knows Finland, so it is
+used on `hsl` alone, and only when `VITE_DIGITRANSIT_SUBSCRIPTION_KEY` is set;
+a key left in the build is harmless anywhere else. So:
 
-* **For any city outside Finland, remove `VITE_DIGITRANSIT_SUBSCRIPTION_KEY`**
-  from `frontend/.env.local`, and rebuild the frontend image — keys are
-  compiled in at build time. With the key still set, place search quietly
-  looks in Finland.
+* **Add the city's countries** to `COUNTRIES` in
+  `frontend/src/config/geocoding.ts` (ISO codes, `amman: ['JO']`). Photon has
+  no country filter of its own and any bounding box spills over a border, so
+  results outside these are dropped from its answer.
 * **Without a city-specific geocoder, the app uses Photon.** It's built on
   OpenStreetMap, needs no key and covers the world, so addresses and named
   places are found anywhere. What you lose is stop suggestions: Photon knows
-  places, not the feed's stops, so it can never return a stop id. The bounds
-  in `BOUNDS` are what keep its results in the right country.
+  places, not the feed's stops, so it can never return a stop id. `BOUNDS`
+  narrows its search and `COUNTRIES` decides what is kept.
 * **If a city has a geocoder of its own** (the way Digitransit knows HSL's
   stops), add an adapter. Implement the `Geocoder` interface from
   `frontend/src/types/place.ts` in a new file under `frontend/src/geocoding/`,
@@ -1426,8 +1431,11 @@ Finland. So:
   you don't recognise rather than defaulting it; and never send the visitor's
   position as a search bias.
 
-Making the choice follow the network rather than the key is a sensible
-improvement. Until then, the key is the switch.
+**Map labels in Arabic, Hebrew or any right-to-left script** need MapLibre's
+RTL text plugin, which `MapCanvas.tsx` registers lazily — only a map that
+actually shows such a label downloads it. It runs WebAssembly, which is why the
+Content-Security-Policy carries `'wasm-unsafe-eval'`. Without it, Arabic is
+drawn as isolated letters in reverse order.
 
 ### 5. Deploy it
 
@@ -1457,10 +1465,10 @@ Neither the edge proxy nor DNS changes unless the domain does.
 - [ ] Heap measured; memory limits raised if needed
 - [ ] Currency in `NETWORK_CURRENCIES`
 - [ ] Timezone in `NETWORK_TIMEZONES` *(only if no `agency.txt`)*
-- [ ] Bounds in `frontend/src/config/geocoding.ts`
+- [ ] Bounds and countries in `frontend/src/config/geocoding.ts`
 - [ ] Home view in `frontend/src/map/homeView.ts`
 - [ ] Basemap in `frontend/src/map/tileSource.ts` *(optional)*
-- [ ] Digitransit key removed for a non-Finnish city, or a new geocoder added
+- [ ] A new geocoder added, if the city has one (Photon is used otherwise)
 - [ ] Images rebuilt and released, if any of the above changed code or keys
 - [ ] Data shipped, root `.env` updated, `docker compose up -d`
 

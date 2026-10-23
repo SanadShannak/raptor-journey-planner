@@ -365,8 +365,17 @@ function compileAndWriteRoutes() {
         const routeShortName = routeNamesMap[agencyRouteId];
         const stopOrderMap = {};
 
+        /*
+         * The first visit, for a pattern that calls at a stop twice (a loop
+         * that starts and ends at one terminal). The engine starts scanning a
+         * route from here, so the last visit would make the loop impossible to
+         * board at its own terminal. Where each leg actually boarded and
+         * alighted is recorded by position during the scan, not looked up here.
+         */
         stopSequence.forEach((stopId, stopOrder) => {
-          stopOrderMap[stopId] = stopOrder;
+          if (!Object.hasOwn(stopOrderMap, stopId)) {
+            stopOrderMap[stopId] = stopOrder;
+          }
         });
         const routeObject = {
           route_id: uniqueRouteCounter,

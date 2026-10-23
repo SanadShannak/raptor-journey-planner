@@ -53,7 +53,7 @@ The backend will not start without `backend/.env` holding `MONGO_URI` and `JWT_S
 
 ### Network selection drives every path
 
-`offline-data-ingestion-pipeline/pipelineConfig.js` exports `ACTIVE_NETWORK` (currently `"hsl"`). That single string derives `raw-data/<network>-gtfs-data/` and `processed-data/<network>-processed-data/` throughout both the pipeline and the backend. Never hardcode a network folder name.
+`offline-data-ingestion-pipeline/pipelineConfig.js` exports `ACTIVE_NETWORK` (currently `"amman"`; HSL's compiled data stays alongside and switches back with the one string). That single string derives `raw-data/<network>-gtfs-data/` and `processed-data/<network>-processed-data/` throughout both the pipeline and the backend. Never hardcode a network folder name.
 
 The backend asks its environment first: `resolveActiveNetwork()` in `backend/src/serverConfig.js` reads `process.env.ACTIVE_NETWORK` and falls back to `pipelineConfig.js` only when it is unset, and throws when neither is available — a container ships without the pipeline and is told per deployment, while a checkout follows whatever compiled the feed on disk. One token selects the network, but a new city also needs entries that no feed contains (currency, map view, geocoding bounds); the README's *Switching networks* lists every one.
 
@@ -179,10 +179,10 @@ The corollary: **a row that is a `<Link>` must not also navigate on click.** Bot
 
 ### Place search
 
-Geocoding is an adapter behind the `Geocoder` interface in `src/types/place.ts`, resolved once in `src/geocoding/index.ts` — the right one depends on the network, so adding a city means adding an adapter, not changing the form.
+Geocoding is an adapter behind the `Geocoder` interface in `src/types/place.ts`, resolved per network by `geocoderFor()` in `src/geocoding/index.ts` — the right one depends on the network, so adding a city means adding an adapter, not changing the form.
 
-- **Photon** is the default and needs no key. It is one of the few free geocoders that permits typeahead; Nominatim forbids it. It knows OpenStreetMap, not our feed, so it can never supply a stop id.
-- **Digitransit** is used when `VITE_DIGITRANSIT_SUBSCRIPTION_KEY` is set, and knows HSL's own stops. Its `addendum.GTFS` carries modes, stop code, and platform, which is what lets six results named "Pasila" be told apart. A key in a browser bundle is public by design and rate-limited per key — but public *in a bundle* and public *in a repository* are different exposures, the second being scraped by bots within minutes of a push. So the dev key lives in `frontend/.env.local`, which is git-ignored; without one, place search falls back to Photon and loses stop suggestions rather than breaking.
+- **Photon** is the default and needs no key. It is one of the few free geocoders that permits typeahead; Nominatim forbids it. It knows OpenStreetMap, not our feed, so it can never supply a stop id. It is kept to the network's countries (`COUNTRIES` in `src/config/geocoding.ts`) by filtering its answer on `countrycode` — a bounding box alone cannot, since any box around Jordan takes in Jerusalem — and it is sent `lang` only for `en`/`de`/`fr`, because it answers `lang=ar` with a 400; without `lang` it returns local names, which in Jordan are Arabic.
+- **Digitransit** is used on the `hsl` network when `VITE_DIGITRANSIT_SUBSCRIPTION_KEY` is set — chosen by network in `geocoderFor()`, so a key left in a build for another city no longer sends its searches to Finland — and knows HSL's own stops. Its `addendum.GTFS` carries modes, stop code, and platform, which is what lets six results named "Pasila" be told apart. A key in a browser bundle is public by design and rate-limited per key — but public *in a bundle* and public *in a repository* are different exposures, the second being scraped by bots within minutes of a push. So the dev key lives in `frontend/.env.local`, which is git-ignored; without one, place search falls back to Photon and loses stop suggestions rather than breaking.
 
 Two rules that cost real bugs: a stop id arrives as `GTFS:HSL:1020444#H0101` and the `#platform` suffix is **not** part of the id, and an unrecognised mode is **dropped rather than defaulted** — telling someone a rail platform is a bus stop sends them to the wrong side of the station.
 

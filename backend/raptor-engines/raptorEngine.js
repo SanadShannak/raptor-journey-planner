@@ -238,6 +238,15 @@ function raptorEngine(
   const parentWalkDistance = [];
   // 2D matrix tracking the day offset used for the leg
   const parentTripOffset = [];
+  /*
+   * 2D matrices tracking where in the route a transit leg was boarded and left,
+   * as positions in `stop_ids`. Reconstruction reads these rather than looking
+   * the stops up in `stop_order_map`, because a pattern can visit a stop twice
+   * (a loop that starts and ends at one terminal), and a lookup by stop can
+   * only ever answer one of the two positions.
+   */
+  const parentBoardIndex = [];
+  const parentAlightIndex = [];
 
   // Convert query departure time string into total seconds elapsed since midnight
   const departureSeconds = calculateTimeOfDayInSeconds(departureTime);
@@ -249,6 +258,8 @@ function raptorEngine(
     parentRoute[roundNumber] = new Array(stops.length).fill(null);
     parentWalkDistance[roundNumber] = new Array(stops.length).fill(null);
     parentTripOffset[roundNumber] = new Array(stops.length).fill(0);
+    parentBoardIndex[roundNumber] = new Array(stops.length).fill(null);
+    parentAlightIndex[roundNumber] = new Array(stops.length).fill(null);
   }
   // If origin/target not a saved stop, get nearby stops
   if (sourceNode.type == "coordinate") {
@@ -407,6 +418,8 @@ function raptorEngine(
 
       // Holds the stop ID where the current trip was boarded
       let boardingStop = null;
+      // ...and its position in the route, which the stop alone does not fix
+      let boardingStopIndex = null;
       // Get the stop list of the route
       const routeStopList = routes[route]["stop_ids"];
       // Get the index of the stop in the route (its order in that route)
@@ -440,6 +453,8 @@ function raptorEngine(
             parentRoute[currentRound][nextStop] = route;
             parentWalkDistance[currentRound][nextStop] = null; // Transit leg has no walk distance
             parentTripOffset[currentRound][nextStop] = currentTripOffset;
+            parentBoardIndex[currentRound][nextStop] = boardingStopIndex;
+            parentAlightIndex[currentRound][nextStop] = nextStopIndex;
             // Mark the stop if it its arrival times were updated
             markedStops.add(nextStop);
             // Is this newly updated stop one of our destinations
@@ -477,6 +492,7 @@ function raptorEngine(
               currentTrip = earliestFoundTrip.trip;
               currentTripOffset = earliestFoundTrip.offset;
               boardingStop = nextStop;
+              boardingStopIndex = nextStopIndex;
             }
           }
         }
@@ -621,14 +637,10 @@ function raptorEngine(
 
       // Find the order index of the boarding stop within the route for timetable lookup & intermediate stop list construction
       const previousStopOrderInRoute =
-        tripUsed === -1
-          ? null
-          : routes[routeUsed]["stop_order_map"][previousStop];
+        tripUsed === -1 ? null : parentBoardIndex[backwardRound][stopPointer];
       // Find the order index of the disembarking stop within the route for & intermediate stop list construction
       const disembarkingStopOrderInRoute =
-        tripUsed === -1
-          ? null
-          : routes[routeUsed]["stop_order_map"][stopPointer];
+        tripUsed === -1 ? null : parentAlightIndex[backwardRound][stopPointer];
 
       const intermediateStops = [];
       // Extract intermediate stops with Arrival Times
@@ -749,7 +761,13 @@ function raptorEngine(
                 [stops[previousStop]["lat"], stops[previousStop]["lon"]],
                 [stops[stopPointer]["lat"], stops[stopPointer]["lon"]],
               ]
-            : injectTransitShape(tripUsed, previousStop, stopPointer, stops),
+            : injectTransitShape(
+                tripUsed,
+                routes[routeUsed]["stop_ids"],
+                previousStopOrderInRoute,
+                disembarkingStopOrderInRoute,
+                stops,
+              ),
       };
 
       itineraryDetails.legs.push(currentLeg);

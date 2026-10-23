@@ -1,21 +1,44 @@
 import type { Geocoder } from '../types/place';
 import { env } from '../config/env';
+import { countriesForNetwork } from '../config/geocoding';
 import { createPhotonGeocoder } from './photon';
 import { createDigitransitGeocoder } from './digitransit';
 
 /**
- * Picks the geocoder for this deployment.
- *
- * Which one is right depends on the network, so it is configuration rather
- * than a decision baked into the form. Digitransit knows Helsinki's stops and
- * is preferred wherever its key is available; Photon works everywhere with no
- * key at all, which is what makes it the default rather than a last resort.
- *
- * Resolved once, at module load, because it cannot change while the app runs.
+ * Networks Digitransit's geocoder actually knows. It covers Finland only, so
+ * a key on any other network would quietly search Finland for Amman's
+ * streets — which is what choosing by the key alone used to do.
  */
-export const geocoder: Geocoder =
-  env.digitransitKey === null
-    ? createPhotonGeocoder()
-    : createDigitransitGeocoder(env.digitransitKey);
+const DIGITRANSIT_NETWORKS = new Set(['hsl']);
+
+const byNetwork = new Map<string | null, Geocoder>();
+
+/**
+ * Picks the geocoder for a network.
+ *
+ * Digitransit knows Helsinki's stops and is preferred there whenever its key
+ * is available; everywhere else — and in Helsinki without a key — Photon,
+ * which needs no key and covers the world, kept to the network's own
+ * countries.
+ *
+ * `null` is the network before `/api/network` has answered: Photon,
+ * unfiltered, because there is nothing yet to filter by.
+ *
+ * One instance per network, made on first use: the network cannot change
+ * while the app runs, and components ask on every render.
+ */
+export function geocoderFor(network: string | null): Geocoder {
+  let geocoder = byNetwork.get(network);
+  if (geocoder === undefined) {
+    geocoder =
+      env.digitransitKey !== null &&
+      network !== null &&
+      DIGITRANSIT_NETWORKS.has(network)
+        ? createDigitransitGeocoder(env.digitransitKey)
+        : createPhotonGeocoder({ countries: countriesForNetwork(network) });
+    byNetwork.set(network, geocoder);
+  }
+  return geocoder;
+}
 
 export type { Geocoder } from '../types/place';
