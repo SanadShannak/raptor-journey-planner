@@ -41,10 +41,13 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
  * this every Arabic street name is drawn as isolated letters in reverse order —
  * unreadable on Amman's map and on any map in the Arabic interface. Served
  * from this origin like the worker, never from a CDN, which would hand every
- * visitor's address to a third party. It embeds WebAssembly, which is why the
+ * visitor's address to a third party. It runs WebAssembly, which is why the
  * Content-Security-Policy in `Caddyfile` allows 'wasm-unsafe-eval'.
+ *
+ * `?worker&url` for the same reason as the worker itself: it bundles the
+ * module with what it imports and hands back one URL. See `rtlTextPlugin.ts`.
  */
-import rtlTextPluginUrl from '@mapbox/mapbox-gl-rtl-text/dist/mapbox-gl-rtl-text.js?url';
+import rtlTextPluginUrl from './rtlTextPlugin.ts?worker&url';
 import { useLocale } from '../i18n';
 import { useTheme } from '../theme';
 import {
@@ -122,11 +125,18 @@ glConfig.WORKER_URL = workerUrl;
 /*
  * Lazy: fetched the first time a label actually holds right-to-left text, so
  * a Helsinki map never downloads it. Registering twice throws — which a hot
- * reload re-running this module would do — hence the status check. A failure
- * to load leaves labels as they were rather than taking the map down.
+ * reload re-running this module would do — hence the status check.
+ *
+ * The `#.mjs` is how the worker is told to `import()` the plugin. It picks its
+ * loader by the URL's ending: `.mjs` is imported as a module, and anything
+ * else is fetched and run with `eval` (or, if it looks like a module, imported
+ * from a blob: URL). The Content-Security-Policy rightly allows neither, and a
+ * plugin that fails to load makes MapLibre drop Arabic labels altogether. A
+ * fragment is never sent to the server, so the file is the same one either
+ * way — it is only the worker's reading of the name that changes.
  */
 if (getRTLTextPluginStatus() === 'unavailable') {
-  setRTLTextPlugin(rtlTextPluginUrl, true).catch(() => {});
+  setRTLTextPlugin(`${rtlTextPluginUrl}#.mjs`, true).catch(() => {});
 }
 
 /*
