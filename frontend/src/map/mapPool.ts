@@ -1,4 +1,5 @@
 import { Map as GlMap, type MapOptions } from 'maplibre-gl';
+import { showMoreLabels } from './labelDensity';
 
 /**
  * The one map, kept alive between pages.
@@ -153,6 +154,9 @@ export function acquireMap(
     pooled.loaded = true;
   });
   map.on('style.load', () => {
+    // Before any borrower hears of it, so every style — the first, and each
+    // one a change of scheme swaps in — is the denser one. See labelDensity.
+    showMoreLabels(map);
     pooled.styleReady = true;
   });
   map.on('idle', () => {

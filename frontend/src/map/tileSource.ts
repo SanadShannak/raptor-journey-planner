@@ -1,4 +1,5 @@
 import { env } from '../config/env';
+import { DEFAULT_NETWORK } from '../config/network';
 
 /**
  * Where the basemap under a journey comes from.
@@ -78,6 +79,5 @@ const SOURCES: Record<string, TileSource> = {
 };
 
 export function tileSourceFor(network: string | null): TileSource {
-  if (network === null) return CARTO;
-  return SOURCES[network] ?? CARTO;
+  return SOURCES[network ?? DEFAULT_NETWORK] ?? CARTO;
 }

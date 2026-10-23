@@ -1,3 +1,5 @@
+import { DEFAULT_NETWORK } from './network';
+
 /**
  * Where each network's place search should look.
  *
@@ -30,8 +32,7 @@ const BOUNDS: Record<string, GeoBounds> = {
 };
 
 export function boundsForNetwork(network: string | null): GeoBounds | null {
-  if (network === null) return null;
-  return BOUNDS[network] ?? null;
+  return BOUNDS[network ?? DEFAULT_NETWORK] ?? null;
 }
 
 /**
@@ -53,6 +54,5 @@ const COUNTRIES: Record<string, readonly string[]> = {
 export function countriesForNetwork(
   network: string | null,
 ): readonly string[] | null {
-  if (network === null) return null;
-  return COUNTRIES[network] ?? null;
+  return COUNTRIES[network ?? DEFAULT_NETWORK] ?? null;
 }

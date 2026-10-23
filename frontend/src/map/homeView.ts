@@ -1,4 +1,5 @@
 import type { GeoBounds } from '../config/geocoding';
+import { DEFAULT_NETWORK } from '../config/network';
 
 /**
  * Where the map rests when there is no journey to show.
@@ -32,24 +33,32 @@ export interface HomeView {
  * nothing and meant the app opened somewhere slightly different depending on
  * which page you arrived at.
  *
- * It sits between Helsinki's central station and the market square: trains and
- * the metro under the station, trams and buses through the middle, the
+ * Amman's sits between Abdali and Downtown, on the stretch of Istiklal Street
+ * where more of the network's lines pass within 2.5 km than anywhere else (57
+ * of 162), with Raghadan — the BRT's downtown terminal — and Al-Mahatta inside
+ * the same opening frame. Chosen against the feed, by counting.
+ *
+ * Helsinki's sits between the central station and the market square: trains
+ * and the metro under the station, trams and buses through the middle, the
  * Suomenlinna ferry at the far end. Chosen against the feed rather than
  * guessed, and checked in a browser at real viewport sizes.
  */
 const HOME: Record<string, HomeView> = {
+  amman: { center: [31.958, 35.935], zoom: 13 },
   hsl: { center: [60.1697, 24.9468], zoom: 13 },
-  amman: { center: [31.955, 35.93], zoom: 13 },
 };
 
 /**
  * Falls back to the middle of whatever the network searches, which is at least
  * inside it. A network with no entry gets a usable map rather than the Atlantic.
+ *
+ * `null` — the network before `/api/network` has answered — is the default
+ * network's view, which is also where the very first paint lands.
  */
 export function homeViewFor(network: string | null, bounds: GeoBounds | null): HomeView {
-  const known = network === null ? undefined : HOME[network];
+  const known = HOME[network ?? DEFAULT_NETWORK];
   if (known !== undefined) return known;
-  if (bounds === null) return { center: [60.1697, 24.9468], zoom: 13 };
+  if (bounds === null) return HOME[DEFAULT_NETWORK] ?? { center: [31.958, 35.935], zoom: 13 };
 
   return {
     center: [(bounds.minLat + bounds.maxLat) / 2, (bounds.minLon + bounds.maxLon) / 2],
