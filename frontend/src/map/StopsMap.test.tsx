@@ -40,18 +40,17 @@ const NEXT_DOOR: StopIdentity = { ...LASIPALATSI, id: '1020445', lat: 60.17055 }
 /**
  * Where this page opens, read from the same function the page reads.
  *
- * Not the planner's resting place, and not a number copied here: the stops
- * page has a view of its own — central Helsinki, where all five modes are —
+ * Not a number copied here: every map rests on the network's own home view,
  * and a literal would quietly stop meaning "home" the next time it moved.
  */
-const CITY = homeViewFor('hsl', null).center;
+const CITY = homeViewFor('amman', null).center;
 
 function view(props: Partial<Parameters<typeof StopsMap>[0]> = {}) {
   return (
     <LocaleProvider>
       <ThemeProvider>
         <StopsMap
-          network="hsl"
+          network="amman"
           area={null}
           focused={null}
           pending={false}

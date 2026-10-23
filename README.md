@@ -1403,8 +1403,18 @@ poor:
 | Where the maps open | `HOME` in `frontend/src/map/homeView.ts` | The map opens on the centre of the search bounds at a wider zoom. **With no bounds either, it opens over Helsinki** |
 | Basemap | `SOURCES` in `frontend/src/map/tileSource.ts` | CARTO, which covers everywhere. Only add an entry if the city has better cartography of its own |
 
-One thing every city sees for a moment: the very first map paint happens
-before `/api/network` has answered, so it starts at Helsinki and then moves.
+The very first map paint happens before `/api/network` has answered, so it
+uses `DEFAULT_NETWORK` in `frontend/src/config/network.ts` — every table above
+answers a not-yet-known network with that one's entry. Set it to the network
+the build is deployed for (`amman` on this branch) and the first frame is
+already the right city; leave it on another and the map starts there, then
+moves.
+
+**Map labels.** `frontend/src/map/labelDensity.ts` brings the basemap's street,
+district and park names in about two zoom levels earlier than CARTO's styles
+do, and lifts place names above street names so districts win the space when
+they compete. It keys on CARTO's layer ids, so a different basemap is left as
+its own style draws it.
 
 #### Place search (the geocoder)
 
@@ -1467,6 +1477,7 @@ Neither the edge proxy nor DNS changes unless the domain does.
 - [ ] Timezone in `NETWORK_TIMEZONES` *(only if no `agency.txt`)*
 - [ ] Bounds and countries in `frontend/src/config/geocoding.ts`
 - [ ] Home view in `frontend/src/map/homeView.ts`
+- [ ] `DEFAULT_NETWORK` in `frontend/src/config/network.ts`, so the first paint is the right city
 - [ ] Basemap in `frontend/src/map/tileSource.ts` *(optional)*
 - [ ] A new geocoder added, if the city has one (Photon is used otherwise)
 - [ ] Images rebuilt and released, if any of the above changed code or keys

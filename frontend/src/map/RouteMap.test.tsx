@@ -78,14 +78,14 @@ const BUS_550: LineVariantDetail = {
  * Not a number copied here: every map in the app shares one resting place now,
  * and a literal would quietly stop meaning "home" the next time it moved.
  */
-const CITY = homeViewFor('hsl', null).center;
+const CITY = homeViewFor('amman', null).center;
 
 function view(props: Partial<Parameters<typeof RouteMap>[0]> = {}) {
   return (
     <LocaleProvider>
       <ThemeProvider>
         <RouteMap
-          network="hsl"
+          network="amman"
           area={null}
           variant={null}
           pending={false}
@@ -133,9 +133,8 @@ const fits = () =>
     });
 
 /*
- * Both coordinates, not just the latitude. The resting place sits in central
- * Helsinki now, and a fixture stop can share a latitude with it while being
- * most of a kilometre away.
+ * Both coordinates, not just the latitude: a fixture stop can share a latitude
+ * with the resting place while being nowhere near it.
  */
 const wentToTheCity = () =>
   liveMap().moves.some(

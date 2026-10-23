@@ -33,7 +33,7 @@ function show() {
       <ThemeProvider>
         <div>
           <h1>the page around it</h1>
-          <MapCanvas network="hsl">
+          <MapCanvas network="amman">
             <Drawn />
           </MapCanvas>
         </div>

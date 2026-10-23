@@ -217,6 +217,25 @@ export class StubMap {
     this.layers.delete(id);
   }
 
+  /** The layers in drawing order, as the real style document lists them. */
+  getStyle(): { layers: StubLayer[] } {
+    return { layers: [...this.layers.values()] };
+  }
+
+  /** To the top, as the real map does when no layer is named to go before. */
+  moveLayer(id: string): void {
+    const layer = this.layers.get(id);
+    if (layer === undefined) return;
+    this.layers.delete(id);
+    this.layers.set(id, layer);
+  }
+
+  /** Recorded on the layer; nothing here draws, so nothing reads it back. */
+  setLayerZoomRange(id: string, minzoom: number, maxzoom: number): void {
+    const layer = this.layers.get(id);
+    if (layer !== undefined) Object.assign(layer, { minzoom, maxzoom });
+  }
+
   /**
    * What a press finds under it.
    *

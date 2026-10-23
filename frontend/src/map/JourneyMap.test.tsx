@@ -136,7 +136,7 @@ function view(
       <ThemeProvider>
         <JourneyMap
           journey={journey}
-          network="hsl"
+          network="amman"
           area={null}
           onPick={() => {}}
           onRename={() => {}}
