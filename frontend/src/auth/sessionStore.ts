@@ -7,6 +7,7 @@ import {
 } from '../api/auth';
 import type { LogInInput, RegisterInput } from '../api/auth';
 import type { Account } from '../types/account';
+import { markRegisteredHere } from './registeredHere';
 
 /**
  * Who is signed in, for the whole app rather than one page of it.
@@ -139,10 +140,14 @@ export async function signIn(input: LogInInput): Promise<Account> {
 /**
  * Creates an account. It does **not** sign in: the account is pending until
  * its address is confirmed, so the session is untouched and the caller is
- * told only where the confirmation link went.
+ * told only where the confirmation link went. The address is remembered as
+ * registered here — see `registeredHere.ts`.
  */
 export async function signUp(input: RegisterInput): Promise<{ email: string }> {
-  return register(input);
+  const registered = await register(input);
+  // So its first sign-in here can be recognised as a new account's.
+  markRegisteredHere(registered.email);
+  return registered;
 }
 
 /**

@@ -57,6 +57,7 @@ beforeEach(() => {
   forgetSession();
   forgetFavourites();
   forgetAuthPrompt();
+  localStorage.clear();
 });
 
 afterEach(() => {
@@ -100,34 +101,45 @@ describe('the star', () => {
   });
 
   /*
-   * **The bug this test exists for.** While the session is still being checked
-   * nobody is signed in *yet* — and an earlier version folded that into the
-   * same flag as the cap, so the star went off and explained itself with "you
-   * can save 5 of each", which is a different and false statement.
+   * While the session is still being checked there is no telling which list a
+   * press would change — the account's or this browser's — so the star waits,
+   * and says that, not something else. An earlier version explained itself
+   * with "you can save 5 of each", which is a different and false statement.
    */
-  it('says nothing about the limit while the session is unknown', () => {
+  it('waits while the session is unknown, and says so rather than citing the limit', () => {
     stubApi();
     renderStar();
 
     const button = screen.getByRole('button');
-    expect(button.getAttribute('aria-disabled')).toBeNull();
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    expect(document.getElementById(button.getAttribute('aria-describedby') ?? '')?.textContent).toBe(
+      'Checking your account…',
+    );
     expect(screen.queryByText(/You can save/)).toBeNull();
   });
 
   /*
-   * Needing an account is not a refusal. A press is an intention to save, and
-   * the dialog is the next step towards it — so the control stays live.
+   * Signed out is no longer a reason to refuse, or to ask for an account: a
+   * guest's favourites are kept in this browser, through the same store.
    */
-  it('opens the sign-in dialog instead of refusing when signed out', async () => {
+  it('saves to this browser when nobody is signed in', async () => {
     stubApi({ signedIn: false });
     const button = await star();
 
     expect(button.getAttribute('aria-disabled')).toBeNull();
     fireEvent.click(button);
 
-    expect(getAuthPrompt()).toBe('logIn');
-    // And nothing was saved behind the dialog.
-    expect(button.getAttribute('aria-pressed')).toBe('false');
+    await vi.waitFor(() => expect(button.getAttribute('aria-busy')).toBeNull());
+    expect(button.getAttribute('aria-pressed')).toBe('true');
+    expect(getAuthPrompt()).toBeNull();
+    expect(localStorage.getItem('guest-favourites')).toContain('1040124');
+
+    // Nothing was sent to the account endpoints.
+    const sent = vi
+      .mocked(fetch)
+      .mock.calls.map(([url]) => new URL(String(url)).pathname)
+      .filter((path) => path.startsWith('/api/user'));
+    expect(sent).toEqual([]);
   });
 
   /*

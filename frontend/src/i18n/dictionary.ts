@@ -701,6 +701,21 @@ export interface Dictionary {
     rename: string;
     renameNamed: string;
     refreshBalance: string;
+    /** Under the add-card form as a guest sees it, disabled. */
+    addNeedsAccount: string;
+    /** Above the wallet as a guest sees it. */
+    guestNotice: string;
+    /** Where a guest's list of cards would be. */
+    guestNoCards: string;
+    balanceCheckTitle: string;
+    balanceCheckIntro: string;
+    /** The format, under the number field; `{example}` is a grouped number. */
+    balanceCheckHint: string;
+    balanceCheckAction: string;
+    balanceChecking: string;
+    /** `{number}` grouped, `{balance}` already formatted as money. */
+    balanceCheckResult: string;
+    balanceCheckIncomplete: string;
   };
 
   /**
@@ -722,6 +737,10 @@ export interface Dictionary {
     /* The page. */
     intro: string;
     savedToAccount: string;
+    /** Where a guest's favourites are kept, after the intro. */
+    savedInBrowser: string;
+    /** Above a guest's favourites: what an account adds. */
+    guestNotice: string;
     /** The list is on its way, so "nothing saved" is not yet a thing to claim. */
     loadingSaved: string;
     /**
@@ -969,6 +988,8 @@ export interface Dictionary {
       introBody: string;
       addTitle: string;
       addBody: string;
+      balanceTitle: string;
+      balanceBody: string;
     };
     favourites: {
       introTitle: string;

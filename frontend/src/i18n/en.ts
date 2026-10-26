@@ -442,6 +442,17 @@ export const en: Dictionary = {
     rename: 'Rename',
     renameNamed: 'Rename {name}',
     refreshBalance: 'Refresh balance',
+    addNeedsAccount: 'Log in to add a card.',
+    guestNotice:
+      'Travel cards belong to an account, so you need one to add, top up or manage them. You can check any card’s balance without one.',
+    guestNoCards: 'Log in to see your cards here.',
+    balanceCheckTitle: 'Check a balance',
+    balanceCheckIntro: 'Enter the number on any travel card to see what is left on it.',
+    balanceCheckHint: 'Eleven digits, as printed on the card: {example}',
+    balanceCheckAction: 'Check balance',
+    balanceChecking: 'Checking…',
+    balanceCheckResult: 'Card {number} has {balance}.',
+    balanceCheckIncomplete: 'Enter all eleven digits of the card number.',
   },
 
   favourites: {
@@ -452,6 +463,9 @@ export const en: Dictionary = {
 
     intro: 'Everything you have saved, and what leaves next.',
     savedToAccount: 'Favourites are saved to your account.',
+    savedInBrowser: 'Favourites are saved in this browser.',
+    guestNotice:
+      'You are not signed in, so these are kept in this browser only. Create an account and they move to it when you first log in, so you can reach them from any device.',
     loadingSaved: 'Loading what you have saved…',
     noStops: 'No saved stops. Press the star on a stop to keep it here.',
     noRoutes: 'No saved routes. Press the star on a route to keep it here.',
@@ -689,6 +703,8 @@ export const en: Dictionary = {
       addTitle: 'Add a card',
       addBody:
         'This is the form “Add a card” opens: give the card a name you will recognise and choose its type. The card number is issued for you.',
+      balanceTitle: 'Check any card',
+      balanceBody: 'Enter the number printed on any travel card to see its balance. No account needed.',
     },
     favourites: {
       introTitle: 'Everything you saved',

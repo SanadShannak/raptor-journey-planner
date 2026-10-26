@@ -1,6 +1,5 @@
 import { useId, useState } from 'react';
 import { messageForApiError, useLocale } from '../../i18n';
-import { requestAuth } from '../../auth/authPrompt';
 import { FAVOURITES_PER_KIND, type FavouriteDraft } from './favourite';
 import { toggleFavourite } from './favouritesStore';
 import { useFavouriteState, useLoadFavourites } from './useFavourites';
@@ -42,9 +41,12 @@ interface Props {
  * read as a press that missed, and was pressed again. It can be refused by the server for reasons this component
  * cannot predict — the kind is full as counted on *another* device, the stop is
  * no longer in the dataset — so a failure is shown in the same bubble the other
- * refusals use rather than swallowed. And when nobody is signed in it opens the
- * sign-in dialog instead of explaining into a tooltip nobody asked to read: the
- * press was an intention to save, and the dialog is how that intention is met.
+ * refusals use rather than swallowed.
+ *
+ * It works for somebody who is not signed in, too: their favourites are kept
+ * in this browser, through the same store. The only moment it holds back is
+ * while the session is still being checked, when a press could land in the
+ * wrong list.
  */
 export function FavouriteButton({ favourite, unavailableReason, size = 'md' }: Props) {
   const { strings, t } = useLocale();
@@ -57,7 +59,7 @@ export function FavouriteButton({ favourite, unavailableReason, size = 'md' }: P
    */
   useLoadFavourites();
 
-  const { saved, blocked, needsAccount } = useFavouriteState(favourite);
+  const { saved, blocked, waiting } = useFavouriteState(favourite);
 
   const [pending, setPending] = useState(false);
   /**
@@ -75,18 +77,13 @@ export function FavouriteButton({ favourite, unavailableReason, size = 'md' }: P
   const [failure, setFailure] = useState<string | null>(null);
 
   const nothingToSave = favourite === null;
-  /*
-   * `needsAccount` is deliberately *not* an off state. The control works — it
-   * opens the dialog — so dimming it and marking it `aria-disabled` would be
-   * describing a refusal that does not happen.
-   */
-  const off = nothingToSave || (blocked && !needsAccount);
+  const off = nothingToSave || blocked || waiting;
 
   const reason = nothingToSave
     ? (unavailableReason ?? t(strings.favourites.needsSearch))
     : (failure ??
-      (needsAccount
-        ? t(strings.account.saveNeedsAccount)
+      (waiting
+        ? t(strings.account.checking)
         : blocked
           ? t(strings.favourites.limitReached, { count: FAVOURITES_PER_KIND })
           : null));
@@ -98,17 +95,6 @@ export function FavouriteButton({ favourite, unavailableReason, size = 'md' }: P
   async function press() {
     if (favourite === null || pending) return;
     setFailure(null);
-
-    /*
-     * Not an error. Somebody pressing a star has said what they want; the
-     * dialog is the next step towards it rather than a complaint about the
-     * press. What they pressed is not saved for them afterwards — the star is
-     * still there, filled in by whatever the list says once it loads.
-     */
-    if (needsAccount) {
-      requestAuth('logIn');
-      return;
-    }
 
     if (off) return;
 

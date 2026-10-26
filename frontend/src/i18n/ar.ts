@@ -532,6 +532,17 @@ export const ar: Dictionary = {
     rename: 'إعادة التسمية',
     renameNamed: 'إعادة تسمية {name}',
     refreshBalance: 'تحديث الرصيد',
+    addNeedsAccount: 'سجّل الدخول لإضافة بطاقة.',
+    guestNotice:
+      'بطاقات السفر مرتبطة بحساب، لذا تحتاج إلى حساب لإضافتها أو شحنها أو إدارتها. ويمكنك الاستعلام عن رصيد أي بطاقة دون حساب.',
+    guestNoCards: 'سجّل الدخول لترى بطاقاتك هنا.',
+    balanceCheckTitle: 'الاستعلام عن رصيد',
+    balanceCheckIntro: 'أدخل رقم أي بطاقة سفر لترى الرصيد المتبقي عليها.',
+    balanceCheckHint: 'أحد عشر رقمًا كما هي مطبوعة على البطاقة: {example}',
+    balanceCheckAction: 'اعرض الرصيد',
+    balanceChecking: 'جارٍ الاستعلام…',
+    balanceCheckResult: 'رصيد البطاقة {number}: {balance}.',
+    balanceCheckIncomplete: 'أدخل أرقام البطاقة الأحد عشر كاملة.',
   },
 
   favourites: {
@@ -542,6 +553,9 @@ export const ar: Dictionary = {
 
     intro: 'كل ما حفظته، وما يغادر تاليًا.',
     savedToAccount: 'تُحفظ المفضّلة في حسابك.',
+    savedInBrowser: 'تُحفظ المفضّلة في هذا المتصفح.',
+    guestNotice:
+      'لم تسجّل الدخول، لذا تُحفظ هذه في هذا المتصفح فقط. أنشئ حسابًا وستنتقل إليه عند أول تسجيل دخول، لتصل إليها من أي جهاز.',
     loadingSaved: 'جارٍ تحميل ما حفظته…',
     noStops: 'لا محطات محفوظة. اضغط النجمة على محطة لحفظها هنا.',
     noRoutes: 'لا خطوط محفوظة. اضغط النجمة على خط لحفظه هنا.',
@@ -779,6 +793,8 @@ export const ar: Dictionary = {
       addTitle: 'أضف بطاقة',
       addBody:
         'هذا النموذج الذي يفتحه زر «إضافة بطاقة»: سمِّ البطاقة باسم تعرفه واختر نوعها، ويُصدر رقمها تلقائيًا.',
+      balanceTitle: 'استعلم عن أي بطاقة',
+      balanceBody: 'أدخل الرقم المطبوع على أي بطاقة سفر لترى رصيدها، دون الحاجة إلى حساب.',
     },
     favourites: {
       introTitle: 'كل ما حفظته',

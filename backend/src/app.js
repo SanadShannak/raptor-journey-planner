@@ -16,6 +16,7 @@ const serviceAreaApi = require("./routes/serviceAreaApi");
 const routesApi = require("./routes/routesApi");
 const authApi = require("./routes/authApi");
 const cardApi = require("./routes/cardApi");
+const cardBalanceApi = require("./routes/cardBalanceApi");
 const userApi = require("./routes/userApi");
 
 const app = express();
@@ -94,6 +95,9 @@ app.use("/api/network/area", serviceAreaApi);
 app.use("/api/network", networkApi);
 app.use("/api/routes", routesApi);
 app.use("/api/auth", authApi);
+// Ahead of the cards router: that one requires a session for every path, and
+// a balance check by number is for anybody.
+app.use("/api/cards/balance", cardBalanceApi);
 app.use("/api/cards", cardApi);
 app.use("/api/user", userApi);
 

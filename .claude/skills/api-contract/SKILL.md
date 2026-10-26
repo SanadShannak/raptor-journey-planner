@@ -25,6 +25,7 @@ The authoritative sources, in order: a live response, then `backend/src/utils/fo
 | GET | `/api/routes/:lineId/:patternId` | One variant, with stops and geometry |
 | GET | `/api/routes/:lineId/:patternId/timetable?date=` | One variant's trips for one service day |
 | GET | `/api/card/:number` | Travel-card balance |
+| GET | `/api/cards/balance/:number` | Any card's balance, for anybody — balance only |
 | GET | `/api/health` | `{ status, message }` liveness probe |
 
 ## Optional data is a manifest, not a guess
@@ -562,6 +563,29 @@ Verified at 200,000 random points on each of Amman and HSL: none inside the line
 was refused; about 0.5% of points just outside it (within ~150 m) are accepted.
 Rings follow RFC 7946: outer anticlockwise, holes clockwise, `[lon, lat]`.
 Amman: 17 areas. `geometry` is null for a feed with no served stops.
+
+## Card balance by number
+
+`GET /api/cards/balance/:number` → `{ data: { number, balance } }`
+
+**No session needed, and the balance is all it says.** The one card endpoint a
+guest can use. `number` comes back grouped `XXXXX-XXXXX-X`; the request may be
+grouped, spaced or bare digits. `balance` is major units, as everywhere.
+
+Deliberately nothing else — no owner, nickname, card type, last use or usage
+history. Card numbers are issued **in sequence** (`Counter`, starting at
+10000000001), so anybody can count through them, and what counting can reveal
+is kept to the one fact a balance check exists to answer. The full card stays
+behind `GET /api/cards/:number`, which answers only its own account.
+
+- **400 `BAD_CARD_NUMBER`** — not eleven digits.
+- **404 `CARD_NOT_FOUND`** — no card has that number.
+- **429 `RATE_LIMITED`** — more than **ten checks a minute** from one address,
+  on top of the global 300 (`balanceRateLimiter` in
+  `backend/src/routes/cardBalanceApi.js`).
+
+Mounted at `/api/cards/balance` **ahead of** the `/api/cards` router, whose
+`router.use(requireAuth)` would otherwise refuse it.
 
 ## Travel card
 

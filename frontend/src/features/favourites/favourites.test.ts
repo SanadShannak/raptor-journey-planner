@@ -25,13 +25,39 @@ import {
 import { journeyFavouriteParams } from './journeyFavouritePath';
 
 /*
+ * Which list the store talks to follows the session: an account's when
+ * somebody is signed in, this browser's otherwise. These tests are about the
+ * store, not about signing in, so the session is stood in for — signed in by
+ * default, which is every test written before guests had favourites, and
+ * signed out where a test says so.
+ */
+const session = vi.hoisted(() => ({ signedIn: true }));
+
+vi.mock('../../auth/sessionStore', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../auth/sessionStore')>();
+  return {
+    ...actual,
+    getSessionSnapshot: () =>
+      session.signedIn
+        ? {
+            status: 'signedIn' as const,
+            account: { id: 'u1', name: 'Test', email: 'test@example.com', emailVerified: true },
+            unreachable: false,
+          }
+        : { status: 'signedOut' as const, account: null, unreachable: false },
+  };
+});
+
+/*
  * The store is one module shared by every test in this file, so it is emptied
  * between them — the same rule `forgetPlanner` follows. The session store goes
  * with it, because a 401 reaches into it.
  */
 beforeEach(() => {
+  session.signedIn = true;
   forgetFavourites();
   forgetSession();
+  localStorage.clear();
 });
 
 afterEach(() => {
@@ -502,5 +528,61 @@ describe('opening a saved journey', () => {
     expect(restored?.pace).toBe('slow');
     expect(restored?.date).toBe('2026-09-10');
     expect(restored?.time).toBe('14:05');
+  });
+});
+
+/* ---------------------------------------------------------------- the guest */
+
+describe('a guest', () => {
+  beforeEach(() => {
+    session.signedIn = false;
+  });
+
+  it('saves to this browser and reads it back, with no request made', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await loadFavourites();
+    await saveFavourite(stopDraft('1040124'));
+
+    expect(getFavourites().map(identity)).toEqual(['stop:1040124']);
+    expect(localStorage.getItem('guest-favourites')).toContain('1040124');
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    // A fresh load, as after a reload, finds it again.
+    forgetFavourites();
+    await loadFavourites();
+    expect(getFavourites().map(identity)).toEqual(['stop:1040124']);
+  });
+
+  it('sees the account’s list, not the browser’s, once signed in', async () => {
+    await loadFavourites();
+    await saveFavourite(stopDraft('guest-stop'));
+
+    session.signedIn = true;
+    serveLists({ savedStops: [savedStop('account-stop')] });
+    await loadFavourites();
+
+    expect(getFavourites().map(identity)).toEqual(['stop:account-stop']);
+    // Not this account's to take: it was not registered in this browser.
+    expect(localStorage.getItem('guest-favourites')).toContain('guest-stop');
+  });
+
+  it('hands its favourites to the account registered here, at its first sign-in', async () => {
+    await loadFavourites();
+    await saveFavourite(stopDraft('1040124'));
+    localStorage.setItem('registered-here', 'test@example.com');
+
+    session.signedIn = true;
+    const fetchMock = serveLists({ savedStops: [savedStop('1040124')] });
+    await loadFavourites();
+
+    const posts = fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST');
+    expect(posts.map(([url]) => new URL(String(url)).pathname)).toEqual([
+      '/api/user/saved-stops/1040124',
+    ]);
+    expect(getFavourites().map(identity)).toEqual(['stop:1040124']);
+    expect(localStorage.getItem('guest-favourites')).toBeNull();
+    expect(localStorage.getItem('registered-here')).toBeNull();
   });
 });

@@ -12,8 +12,12 @@ export type TourId = 'plan' | 'itinerary' | 'routes' | 'stops' | 'card' | 'favou
  * replay watched while signed out does not count as having seen the tour
  * (`endTour`) — otherwise looking at the one-step signed-out version would
  * use up the real one for good.
+ *
+ * Empty since favourites and the card page both work for guests — the card
+ * tour simply skips its add-card step for one, whose form is disabled. Kept,
+ * with its two rules, for the next page that is an account's alone.
  */
-export const NEEDS_ACCOUNT: ReadonlySet<TourId> = new Set<TourId>(['card', 'favourites']);
+export const NEEDS_ACCOUNT: ReadonlySet<TourId> = new Set<TourId>([]);
 
 export interface TourStep {
   /**
@@ -95,6 +99,7 @@ export const TOURS: Record<TourId, readonly TourStep[]> = {
   ],
   card: [
     { target: 'card-intro', title: (s) => s.tour.card.introTitle, body: (s) => s.tour.card.introBody },
+    { target: 'card-balance', title: (s) => s.tour.card.balanceTitle, body: (s) => s.tour.card.balanceBody },
     { target: 'card-add', scene: 'open-add-card', title: (s) => s.tour.card.addTitle, body: (s) => s.tour.card.addBody },
   ],
   favourites: [
