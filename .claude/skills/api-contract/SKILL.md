@@ -227,8 +227,8 @@ Array of `[latitude, longitude]` pairs — latitude first, matching Leaflet's `L
 
 Applied by the backend presenter, so values arrive pre-rounded — do not round again.
 
-- Times: whole minutes, and **asymmetrically** — an arrival rounds *up*, a departure rounds *down*, so nobody is told they arrive earlier or may leave later than they really can (`backend/src/utils/roundSecondsToMinute.js`).
-- Durations: whole minutes, with a floor of 1 for any non-zero duration (`backend/src/utils/formatDuration.js`).
+- Times: whole minutes, and **asymmetrically** — an arrival rounds *up*, a departure rounds *down*, so nobody is told they arrive earlier or may leave later than they really can (`backend/src/utils/roundSecondsToMinute.js`). They are labelled *together* (`labelMoments` in `formatItinerary.js`), and every published time obeys four rules: (1) it is its own moment's minute, rounded down or up, never further; (2) the times never run backwards along the journey, and a moment shared by two legs — stepping off a bus and starting to walk — has one label; (3) a vehicle's departure is always rounded down; (4) an arrival is rounded up unless a fixed departure falls in the same minute, the only case rule 2 forces it down. A walk from the origin is rounded down ("leave by"). Verified against the engine's exact seconds on 3,690 Amman journeys (293 across midnight); on a feed whose times are all on the minute, such as HSL's, the output is identical to plain floor/ceil.
+- Durations: whole minutes, measured between published times — so a leg whose two moments share a minute is `0`, as a wait can be (`backend/src/utils/formatDuration.js`).
 - Distances: nearest 50 m, with a floor of 50 for any non-zero distance (`backend/src/utils/formatDistance.js`).
 
 ### Durations agree with the times beside them

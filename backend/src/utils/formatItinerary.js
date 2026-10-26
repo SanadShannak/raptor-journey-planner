@@ -28,13 +28,28 @@ const { lineIdFor } = require("./lineIdentity");
  * response came to say "wait 4 minutes" between 01:50 and 01:52, and "ride 9
  * minutes" between times ten minutes apart.
  *
- * Measuring between the published times settles it in the safe direction: a
- * leg reads no shorter, and a connection no longer, than it truly is. It also
- * makes the response add up — the legs and the waits between them now tile the
- * journey exactly, which separately rounded figures cannot promise.
+ * Measuring between the published times makes the response add up — the legs
+ * and the waits between them tile the journey exactly — but only if the times
+ * themselves are consistent, and rounding each one on its own does not make
+ * them so. Getting off a bus at 09:47:30 and starting to walk is *one* moment,
+ * yet as an arrival it rounded up to 09:48 and as a departure down to 09:47:
+ * the walk began before the bus arrived, and the legs added up to a minute more
+ * than the journey. A feed whose times all fall on the minute never shows it;
+ * Amman's, interpolated to the second, did on most journeys.
  *
- * `totalDurationMinutes` was always computed this way. The rule is simply
- * applied to every duration now rather than to one of them.
+ * So the times are labelled together, by {@link labelMoments}, and every label
+ * published satisfies four rules:
+ *
+ * 1. It is the moment's own minute, rounded down or up — never further.
+ * 2. The labels never run backwards along the journey, so no wait is negative
+ *    and no leg overlaps the next; and one moment gets one label.
+ * 3. A vehicle's departure is always rounded down: nobody is told they may
+ *    leave later than the vehicle does.
+ * 4. Everything else keeps its natural rounding — an arrival up — unless rule
+ *    2 cannot hold otherwise, which happens only when a fixed departure falls
+ *    in the same minute.
+ *
+ * Every duration is then a difference of published labels.
  * ---------------------------------------------------------------------------
  */
 
@@ -104,6 +119,42 @@ function resolveDestination(route, internalTripId, cache) {
   return { headsign: null, destination: lastStop?.name ?? null };
 }
 
+/**
+ * The published minute of every moment in the journey, in order: each leg's
+ * start, then its end, as seconds on the minute. See the rules at the top.
+ *
+ * Each moment first takes its natural rounding: a vehicle departure down, an
+ * arrival up, a walk that begins the moment a previous leg ends up with that
+ * arrival — it is the same moment — and a walk from the origin down, as
+ * "leave by". Then, walking back from the end, any label later than the one
+ * after it is brought down to it.
+ *
+ * That last step is what makes it correct rather than merely tidy. It can only
+ * lower a label as far as its own moment's floor: the moments run forwards in
+ * true time, so the next label is never below the next floor, and that is
+ * never below this one's. A vehicle departure is already at its floor and so
+ * is never moved, and a moment shared by two legs gets one label, because two
+ * equal times cannot be pulled apart by taking a minimum.
+ */
+function labelMoments(legs) {
+  const moments = [];
+  legs.forEach((leg, index) => {
+    const previous = legs[index - 1];
+    const continuesPrevious =
+      previous !== undefined && previous.endTime === leg.startTime;
+    const startRounding =
+      leg.mode !== "WALK" ? "floor" : continuesPrevious ? "ceil" : "floor";
+
+    moments.push(roundSecondsToMinute(leg.startTime, startRounding));
+    moments.push(roundSecondsToMinute(leg.endTime, "ceil"));
+  });
+
+  for (let i = moments.length - 2; i >= 0; i--) {
+    moments[i] = Math.min(moments[i], moments[i + 1]);
+  }
+  return moments;
+}
+
 function formatItinerary(rawItinerary) {
   const cache = getCache();
 
@@ -116,33 +167,31 @@ function formatItinerary(rawItinerary) {
     legs: [],
   };
 
-  const itineraryStartDate = rawItinerary.legs[0].startDate;
   /*
-   * Rounded once, then used for both the string and the arithmetic. The
+   * Labelled once, then used for both the strings and the arithmetic. The
    * engine's seconds already carry the day offset, so the difference between
-   * two rounded values is the number of minutes between them even when the
-   * journey crosses midnight — no date handling required.
+   * two labels is the number of minutes between them even when the journey
+   * crosses midnight — no date handling required.
+   *
+   * The journey starts and ends where its first and last legs do: measured
+   * from anything else, the legs could not tile it.
    */
-  const itineraryStartSeconds = roundSecondsToMinute(
-    rawItinerary.legs[0].startTime,
-    "floor",
+  const moments = labelMoments(rawItinerary.legs);
+  const firstLeg = rawItinerary.legs[0];
+  const lastLeg = rawItinerary.legs[rawItinerary.legs.length - 1];
+
+  const itineraryStartSeconds = moments[0];
+  const itineraryStartDate = shiftDate(
+    firstLeg.startDate,
+    daysCrossed(firstLeg.startTime, itineraryStartSeconds),
   );
-  const formattedStartTime = convertSecondsToTimeOfDay(
-    itineraryStartSeconds,
-    "floor",
-  );
-  const itineraryEndSeconds = roundSecondsToMinute(
-    rawItinerary.targetArrivalTime,
-    "ceil",
-  );
+  const formattedStartTime = convertSecondsToTimeOfDay(itineraryStartSeconds);
+  const itineraryEndSeconds = moments[moments.length - 1];
   const itineraryEndDate = shiftDate(
-    rawItinerary.legs[rawItinerary.legs.length - 1].endDate,
-    daysCrossed(rawItinerary.targetArrivalTime, itineraryEndSeconds),
+    lastLeg.endDate,
+    daysCrossed(lastLeg.endTime, itineraryEndSeconds),
   );
-  const formattedEndTime = convertSecondsToTimeOfDay(
-    itineraryEndSeconds,
-    "ceil",
-  );
+  const formattedEndTime = convertSecondsToTimeOfDay(itineraryEndSeconds);
   const totalItineraryDurationMinutes = formatDuration(
     itineraryEndSeconds - itineraryStartSeconds,
   );
@@ -156,22 +205,17 @@ function formatItinerary(rawItinerary) {
      from. Null before the first leg, which nobody waits for. */
   let previousLegEndSeconds = null;
 
-  rawItinerary.legs.forEach((leg) => {
+  rawItinerary.legs.forEach((leg, legIndex) => {
     const legMode = leg["mode"];
 
-    const legStartSeconds = roundSecondsToMinute(leg.startTime, "floor");
-    const legEndSeconds = roundSecondsToMinute(leg.endTime, "ceil");
+    const legStartSeconds = moments[2 * legIndex];
+    const legEndSeconds = moments[2 * legIndex + 1];
 
-    /*
-     * Never negative. The rounding can in principle push an arrival past the
-     * departure it connects to — a sub-minute transfer — and a response that
-     * says a traveller waits for less than no time would be worse than one
-     * that says the connection is immediate, which at this resolution it is.
-     */
+    // Never negative, because the labels never run backwards.
     const legWaitSeconds =
       previousLegEndSeconds === null
         ? 0
-        : Math.max(0, legStartSeconds - previousLegEndSeconds);
+        : legStartSeconds - previousLegEndSeconds;
     const formattedLegWaitDuration = formatDuration(legWaitSeconds);
 
     const legStartDate = shiftDate(
@@ -179,10 +223,7 @@ function formatItinerary(rawItinerary) {
       daysCrossed(leg.startTime, legStartSeconds),
     );
 
-    const formattedLegStartTime = convertSecondsToTimeOfDay(
-      legStartSeconds,
-      "floor",
-    );
+    const formattedLegStartTime = convertSecondsToTimeOfDay(legStartSeconds);
     const legFromStop = leg["fromStop"];
 
     const legRouteShortName = leg["routeShortName"];
@@ -192,9 +233,17 @@ function formatItinerary(rawItinerary) {
     const legIntermediateStops = leg["intermediateStops"];
     if (legIntermediateStops !== null) {
       legIntermediateStops.forEach((stop, stopIndex) => {
+        /*
+         * Rounded up as an arrival, but never past the leg's own published
+         * arrival: a stop passed in the same minute the leg ends in must not
+         * read later than the end of the ride. Never before its start either,
+         * which rounding up from a later moment cannot do.
+         */
         const intermediateStopFormattedArrivalTime = convertSecondsToTimeOfDay(
-          stop["stopArrivalTimeSeconds"],
-          "ceil",
+          Math.min(
+            roundSecondsToMinute(stop["stopArrivalTimeSeconds"], "ceil"),
+            legEndSeconds,
+          ),
         );
         legIntermediateStops[stopIndex]["stopArrivalTimeSeconds"] =
           intermediateStopFormattedArrivalTime;
@@ -210,7 +259,7 @@ function formatItinerary(rawItinerary) {
       daysCrossed(leg.endTime, legEndSeconds),
     );
 
-    const formattedLegEndTime = convertSecondsToTimeOfDay(legEndSeconds, "ceil");
+    const formattedLegEndTime = convertSecondsToTimeOfDay(legEndSeconds);
 
     const legTripId = leg["tripId"];
 
