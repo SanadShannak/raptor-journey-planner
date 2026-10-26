@@ -155,23 +155,21 @@ async function openWallet() {
 
 describe('the wallet', () => {
   /*
-   * A guest sees the page an account holder sees — the wallet laid out, empty,
-   * its add form there but disabled — rather than a panel in its place, with
-   * what an account would add said above it and both ways to get one.
+   * A guest sees where their cards would be — the heading — and a notice to
+   * log in to see them, with both ways in. Nothing else of the wallet: no
+   * empty list, no add form.
    */
-  it('shows a guest the same wallet, with nothing in it they can use', async () => {
+  it('shows a guest the heading and a notice to log in, and nothing else of the wallet', async () => {
     stubApi({ signedIn: false });
     await openWallet();
 
     expect(screen.getByRole('heading', { level: 1 })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'My cards' })).toBeTruthy();
-    expect(await screen.findByText('Log in to see your cards here.')).toBeTruthy();
-
-    // Disabled through the form's fieldset, which the `disabled` property
-    // does not report and `:disabled` does — as a browser treats it.
-    expect(screen.getByRole('textbox', { name: 'Name' }).matches(':disabled')).toBe(true);
-    expect(screen.getByRole('button', { name: 'Add card' }).matches(':disabled')).toBe(true);
-    expect(screen.getByText('Log in to add a card.')).toBeTruthy();
+    expect(
+      await screen.findByText('Log in to see your own travel cards, add new ones and top them up.'),
+    ).toBeTruthy();
+    expect(screen.queryByRole('textbox', { name: 'Name' })).toBeNull();
+    expect(screen.queryByText(/of 3/)).toBeNull();
 
     expect(screen.getByRole('button', { name: 'Log in' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Sign up' })).toBeTruthy();

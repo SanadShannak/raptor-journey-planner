@@ -32,10 +32,9 @@ import { useLoadCards, useWallet } from '../features/card/useCards';
  *
  * **Two things on one page.** A balance check by number, which anybody can
  * use and which answers with the balance alone; and the wallet, which is an
- * account's. A guest sees the wallet as it is laid out for an account — its
- * list, empty, and its add form, disabled — with what an account would add
- * said above it, rather than a panel in its place: the page is the same page,
- * and what is missing is shown as missing.
+ * account's. A guest sees where the wallet would be — its heading — and a
+ * notice to log in to see their own cards, rather than a panel in place of
+ * the whole page: the balance check above it still works for them.
  *
  * Selection is kept in component state rather than in the address. The planner
  * puts its open itinerary in the URL because an itinerary is somewhere to come
@@ -150,25 +149,12 @@ export default function CardPage() {
           </div>
         </div>
       ) : !signedIn ? (
-        <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-[26rem_1fr]">
-          <div className="flex flex-col gap-4">
-            <section className="flex flex-col gap-2">
-              <div className="flex items-baseline justify-between gap-3">
-                <h2 className="text-lg font-semibold tracking-tight">
-                  {t(strings.card.myCardsTitle)}
-                </h2>
-                <p className="text-content-muted text-xs tabular-nums">
-                  {t(strings.favourites.countOfLimit, { count: 0, limit: CARD_LIMIT })}
-                </p>
-              </div>
-              <p className="rounded-card border-border bg-surface-muted text-content-muted border px-3 py-2.5 text-sm">
-                {t(strings.card.guestNoCards)}
-              </p>
-            </section>
-            <GuestNotice message={strings.card.guestNotice} />
-            <AddCardForm locked full={false} hasCards={false} onAdded={() => {}} />
-          </div>
-        </div>
+        <section className="flex max-w-[26rem] flex-col gap-2">
+          <h2 className="text-lg font-semibold tracking-tight">
+            {t(strings.card.myCardsTitle)}
+          </h2>
+          <GuestNotice message={strings.card.guestNotice} />
+        </section>
       ) : (
         <>
         {status === 'failed' ? (

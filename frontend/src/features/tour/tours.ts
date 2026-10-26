@@ -14,7 +14,7 @@ export type TourId = 'plan' | 'itinerary' | 'routes' | 'stops' | 'card' | 'favou
  * use up the real one for good.
  *
  * Empty since favourites and the card page both work for guests — the card
- * tour simply skips its add-card step for one, whose form is disabled. Kept,
+ * tour simply skips its add-card step for one, who has no add-card form. Kept,
  * with its two rules, for the next page that is an account's alone.
  */
 export const NEEDS_ACCOUNT: ReadonlySet<TourId> = new Set<TourId>([]);

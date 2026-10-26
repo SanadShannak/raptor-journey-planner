@@ -417,7 +417,7 @@ export default function FavouritesPage() {
         </div>
       ) : (
         <>
-        <GuestNotice message={strings.favourites.guestNotice} />
+        <GuestNotice message={strings.favourites.guestNotice} actions={false} />
         {/*
           The list could not be fetched. Said once for the page rather than per
           row — three copies of one network failure is three times the words and

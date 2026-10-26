@@ -10,15 +10,24 @@ import { useSession } from './useSession';
  *
  * Not a gate. `AccountGate` stands in for content nobody but an account holder
  * can have; this sits beside content a guest is already using — favourites
- * kept in the browser, a wallet shown empty — and says what an account would
- * add, with both ways to get one. An `info` notice rather than a panel,
+ * kept in the browser, the place where a wallet would be — and says what an
+ * account would add, with both ways to get one unless `actions` is off (the
+ * favourites page, where the header's own buttons are enough). An `info`
+ * notice rather than a panel,
  * because nothing has gone wrong and nothing is being withheld.
  *
  * Says nothing while the session is still being checked, or when the account
  * service cannot be reached — offering a sign-in that would fail the same way
  * is worse than offering none — and nothing to somebody signed in.
  */
-export function GuestNotice({ message }: { message: Message }) {
+export function GuestNotice({
+  message,
+  actions = true,
+}: {
+  message: Message;
+  /** Whether to offer the sign-up and log-in buttons under the message. */
+  actions?: boolean | undefined;
+}) {
   const { strings, t } = useLocale();
   const { signedIn, checking, unreachable } = useSession();
 
@@ -27,6 +36,7 @@ export function GuestNotice({ message }: { message: Message }) {
   return (
     <Notice tone="info">
       <p className="text-content">{t(message)}</p>
+      {actions && (
       <div className="flex flex-wrap items-center gap-2 pt-1">
         <button
           type="button"
@@ -43,6 +53,7 @@ export function GuestNotice({ message }: { message: Message }) {
           {t(strings.auth.logIn)}
         </button>
       </div>
+      )}
     </Notice>
   );
 }

@@ -701,12 +701,8 @@ export interface Dictionary {
     rename: string;
     renameNamed: string;
     refreshBalance: string;
-    /** Under the add-card form as a guest sees it, disabled. */
-    addNeedsAccount: string;
-    /** Above the wallet as a guest sees it. */
+    /** Where a guest's own cards would be. */
     guestNotice: string;
-    /** Where a guest's list of cards would be. */
-    guestNoCards: string;
     balanceCheckTitle: string;
     balanceCheckIntro: string;
     /** The format, under the number field; `{example}` is a grouped number. */
