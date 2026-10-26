@@ -11,8 +11,8 @@ import { useSession } from './useSession';
  * Not a gate. `AccountGate` stands in for content nobody but an account holder
  * can have; this sits beside content a guest is already using — favourites
  * kept in the browser, the place where a wallet would be — and says what an
- * account would add, with both ways to get one unless `actions` is off (the
- * favourites page, where the header's own buttons are enough). An `info`
+ * account would add, with both ways to get one unless `actions` is off — as
+ * on both pages that use it, where the header's own buttons are enough. An `info`
  * notice rather than a panel,
  * because nothing has gone wrong and nothing is being withheld.
  *

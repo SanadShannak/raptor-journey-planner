@@ -153,7 +153,7 @@ export default function CardPage() {
           <h2 className="text-lg font-semibold tracking-tight">
             {t(strings.card.myCardsTitle)}
           </h2>
-          <GuestNotice message={strings.card.guestNotice} />
+          <GuestNotice message={strings.card.guestNotice} actions={false} />
         </section>
       ) : (
         <>

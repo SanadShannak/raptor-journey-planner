@@ -156,8 +156,8 @@ async function openWallet() {
 describe('the wallet', () => {
   /*
    * A guest sees where their cards would be — the heading — and a notice to
-   * log in to see them, with both ways in. Nothing else of the wallet: no
-   * empty list, no add form.
+   * log in to see them. Nothing else of the wallet: no empty list, no add
+   * form, and no buttons under the notice — the header has its own.
    */
   it('shows a guest the heading and a notice to log in, and nothing else of the wallet', async () => {
     stubApi({ signedIn: false });
@@ -171,8 +171,9 @@ describe('the wallet', () => {
     expect(screen.queryByRole('textbox', { name: 'Name' })).toBeNull();
     expect(screen.queryByText(/of 3/)).toBeNull();
 
-    expect(screen.getByRole('button', { name: 'Log in' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Sign up' })).toBeTruthy();
+    // The page renders no header, so any sign-in button here is the notice's.
+    expect(screen.queryByRole('button', { name: 'Log in' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Sign up' })).toBeNull();
     // And the one thing on the page a guest *can* do.
     expect(screen.getByRole('textbox', { name: 'Card number' })).toBeTruthy();
   });
@@ -192,29 +193,10 @@ describe('the wallet', () => {
     stubApi({ signedIn: false });
     await openWallet();
 
-    expect(await screen.findByRole('button', { name: 'Log in' })).toBeTruthy();
+    expect(
+      await screen.findByText('Log in to see your own travel cards, add new ones and top them up.'),
+    ).toBeTruthy();
     expect(getAuthPrompt()).toBeNull();
-  });
-
-  it('raises the sign-in dialog when the panel is pressed', async () => {
-    stubApi({ signedIn: false });
-    await openWallet();
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Log in' }));
-    await waitFor(() => expect(getAuthPrompt()).toBe('logIn'));
-  });
-
-  /*
-   * The second control asks for the other form, not the same one. Somebody
-   * who has never had an account should not have to find the switch inside a
-   * login form to discover they can make one.
-   */
-  it('raises the sign-up form from its own control', async () => {
-    stubApi({ signedIn: false });
-    await openWallet();
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Sign up' }));
-    await waitFor(() => expect(getAuthPrompt()).toBe('signUp'));
   });
 
   /*
