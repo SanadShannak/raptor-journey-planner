@@ -130,16 +130,21 @@ describe('the tour', () => {
   });
 });
 
-describe('tours of pages that need an account', () => {
+describe('tours of pages guests can use', () => {
   /*
-   * Signed out, the travel card page is a log-in prompt. Watching its tour
-   * then must not use up the real one, which should still run after signing
-   * in.
+   * The card and favourites pages used to be a log-in prompt for a guest, and
+   * watching their tour signed out did not count. Both now show a guest the
+   * real page — favourites kept in the browser, the wallet shown empty beside
+   * a balance check — so the tour a guest watches is the real one.
    */
-  it('do not count as seen when watched signed out', () => {
+  it('count as seen when watched signed out', () => {
     startTour('card');
     endTour();
-    expect(hasSeenTour('card')).toBe(false);
+    expect(hasSeenTour('card')).toBe(true);
+
+    startTour('favourites');
+    endTour();
+    expect(hasSeenTour('favourites')).toBe(true);
   });
 
   it('other tours still count as seen when skipped', () => {

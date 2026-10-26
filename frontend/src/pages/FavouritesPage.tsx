@@ -4,7 +4,8 @@ import { flushSync } from 'react-dom';
 import { Placeholder, PlaceholderGroup } from '../components/Pending';
 import { usePageTitle } from '../app/usePageTitle';
 import { getNetwork } from '../api/network';
-import { AccountGate } from '../auth';
+import { useSession } from '../auth';
+import { GuestNotice } from '../auth/GuestNotice';
 import { messageForApiError, nowInZone, useLocale } from '../i18n';
 import type { Message } from '../i18n/dictionary';
 import {
@@ -56,6 +57,7 @@ export default function FavouritesPage() {
    */
   useLoadFavourites();
   const { status, items: favourites, error, answered } = useSavedState();
+  const { signedIn, checking } = useSession();
 
   const [timezone, setTimezone] = useState<string | null>(null);
   const [networkToday, setNetworkToday] = useState<string | null>(null);
@@ -389,19 +391,21 @@ export default function FavouritesPage() {
           worth a row of cards' worth of height to say.
         */}
         <p className="text-content-muted max-w-prose">
-          {t(strings.favourites.intro)} {t(strings.favourites.savedToAccount)}
+          {t(strings.favourites.intro)}{' '}
+          {t(signedIn ? strings.favourites.savedToAccount : strings.favourites.savedInBrowser)}
         </p>
       </div>
 
       {/*
-        The list needs an account now, so the page says so where the rows would
-        be rather than redirecting: the heading and the explanation above are
-        still worth reading, and a visitor who signs in from here is still on
-        the page they asked for. See `AccountGate`.
+        Everybody has favourites — an account's, or this browser's — so there
+        is no gate here any more. Only while the session is being checked is
+        there nothing to show: which list is the right one is not known yet.
       */}
-      <AccountGate
-        reason={strings.account.favouritesNeedAccount}
-        placeholder={
+      {checking ? (
+        <div aria-busy="true">
+          <p role="status" className="sr-only">
+            {t(strings.account.checking)}
+          </p>
           <div className="flex flex-col gap-2">
             {rows.map(({ kind, heading }) => (
               <section key={kind} className="flex shrink-0 flex-col gap-2">
@@ -410,8 +414,10 @@ export default function FavouritesPage() {
               </section>
             ))}
           </div>
-        }
-      >
+        </div>
+      ) : (
+        <>
+        <GuestNotice message={strings.favourites.guestNotice} />
         {/*
           The list could not be fetched. Said once for the page rather than per
           row — three copies of one network failure is three times the words and
@@ -560,7 +566,8 @@ export default function FavouritesPage() {
           </div>
           </>
         )}
-      </AccountGate>
+        </>
+      )}
     </div>
   );
 }

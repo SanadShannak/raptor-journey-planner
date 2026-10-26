@@ -17,6 +17,7 @@ import type { CardType, CardUsage, TravelCard } from '../types/card';
 import { CARD_TYPES } from '../types/card';
 import { deleteJson, getJson, patchJson, postJson } from './client';
 import { ApiError, isApiError } from './errors';
+import { CARD_NUMBER_LENGTH, digitsOf, formatCardNumber } from '../features/card/cardNumber';
 
 interface CallOptions {
   signal?: AbortSignal | undefined;
@@ -319,4 +320,48 @@ export async function refreshCard(
   } catch (error: unknown) {
     mapError(error, { 400: CARD_NOT_FOUND, 404: CARD_NOT_FOUND });
   }
+}
+
+/** What a balance check by number answers: the number and the balance, no more. */
+export interface CardBalance {
+  /** Grouped `XXXXX-XXXXX-X`, however it was typed. */
+  number: string;
+  /** Major units; see `TravelCard.balance`. */
+  balance: number;
+}
+
+/**
+ * `GET /api/cards/balance/:number` — any card's balance, for anybody.
+ *
+ * Unlike {@link refreshCard}, which answers only an account's own cards, this
+ * needs no session and answers about any card — and so answers with the
+ * balance alone. The number may be grouped or not; it is sent as its digits.
+ *
+ * A short number is refused here rather than sent, as `BAD_CARD_NUMBER`, the
+ * code the server would answer with: the form already knows, and a round trip
+ * to be told again would only flash a loading state on the way. The server's
+ * own refusals — `CARD_NOT_FOUND`, `BAD_CARD_NUMBER`, and `RATE_LIMITED`
+ * after ten checks in a minute — arrive as `ApiError` codes unchanged.
+ */
+export async function checkCardBalance(
+  number: string,
+  options: CallOptions = {},
+): Promise<CardBalance> {
+  const digits = digitsOf(number);
+  if (digits.length !== CARD_NUMBER_LENGTH) {
+    throw new ApiError('malformed', 'A card number is eleven digits.', {
+      code: 'BAD_CARD_NUMBER',
+    });
+  }
+
+  const body = await getJson(`/api/cards/balance/${digits}`, {
+    ...(options.signal ? { signal: options.signal } : {}),
+  });
+  const data = dataOf(body);
+  const answer = isRecord(data) ? data : {};
+  const balance = answer['balance'];
+  if (typeof balance !== 'number' || !Number.isFinite(balance)) {
+    throw new ApiError('malformed', 'Balance response did not state a balance.');
+  }
+  return { number: text(answer['number']) ?? formatCardNumber(digits), balance };
 }

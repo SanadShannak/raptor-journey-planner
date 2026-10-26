@@ -155,24 +155,28 @@ async function openWallet() {
 
 describe('the wallet', () => {
   /*
-   * The page is **not** behind a redirect: its heading and its explanation
-   * still render, and only the part that genuinely cannot be shown is
-   * replaced. That is what keeps the back button honest for somebody who
-   * arrived here from a link.
+   * A guest sees the page an account holder sees — the wallet laid out, empty,
+   * its add form there but disabled — rather than a panel in its place, with
+   * what an account would add said above it and both ways to get one.
    */
-  it('keeps its own heading when nobody is signed in', async () => {
+  it('shows a guest the same wallet, with nothing in it they can use', async () => {
     stubApi({ signedIn: false });
     await openWallet();
 
-    expect(
-      await screen.findByText(/Log in to see your travel cards/),
-    ).toBeTruthy();
     expect(screen.getByRole('heading', { level: 1 })).toBeTruthy();
-    // And offers both ways in, rather than only explaining.
+    expect(screen.getByRole('heading', { name: 'My cards' })).toBeTruthy();
+    expect(await screen.findByText('Log in to see your cards here.')).toBeTruthy();
+
+    // Disabled through the form's fieldset, which the `disabled` property
+    // does not report and `:disabled` does — as a browser treats it.
+    expect(screen.getByRole('textbox', { name: 'Name' }).matches(':disabled')).toBe(true);
+    expect(screen.getByRole('button', { name: 'Add card' }).matches(':disabled')).toBe(true);
+    expect(screen.getByText('Log in to add a card.')).toBeTruthy();
+
     expect(screen.getByRole('button', { name: 'Log in' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Sign up' })).toBeTruthy();
-    // Including what does not need an account, so the gate is not a dead end.
-    expect(screen.getByText(/Everything else works without an account/)).toBeTruthy();
+    // And the one thing on the page a guest *can* do.
+    expect(screen.getByRole('textbox', { name: 'Card number' })).toBeTruthy();
   });
 
   /*

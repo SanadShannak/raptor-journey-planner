@@ -12,8 +12,8 @@ import {
 } from './favouritesStore';
 
 /**
- * Loads the list when there is an account to load it for, and drops it when
- * there is not.
+ * Loads the list from wherever it lives — the account when somebody is signed
+ * in, this browser when nobody is — and again whenever that changes.
  *
  * Mounted by whichever surface needs the list — the favourites page, and the
  * star's own hook — rather than once in the layout, because unlike the health
@@ -24,18 +24,22 @@ import {
  * back in as somebody else is one transition the boolean cannot see, and the
  * consequence of missing it is the previous account's favourites sitting under
  * the new one's name until something else happened to refetch.
+ *
+ * Nothing is loaded while the session is still being checked: until it
+ * answers, there is no telling which list is the right one, and showing the
+ * browser's for a moment before an account's would be showing the wrong one.
  */
 export function useLoadFavourites(): void {
-  const { account, signedIn } = useSession();
+  const { account, signedIn, checking } = useSession();
   const accountId = account?.id ?? null;
 
   useEffect(() => {
-    if (!signedIn || accountId === null) {
+    if (checking) {
       forgetFavourites();
       return;
     }
     void loadFavourites();
-  }, [accountId, signedIn]);
+  }, [accountId, signedIn, checking]);
 }
 
 /**
@@ -83,34 +87,25 @@ export function useFavouritesOfKind<K extends FavouriteKind>(
  * saved must stay pressable so it can be un-saved, even when its kind is at the
  * cap. Only an *unsaved* thing in a full kind is refused.
  *
- * `needsAccount` joins them, because the commonest reason a star cannot act is
- * now that nobody is signed in — and that is a different sentence from "you
- * have five already". It is false while the session is still being checked, so
- * a star does not spend the first moment of every visit claiming an account is
- * needed and then change its mind.
+ * Signed in or not makes no difference here — a guest's favourites are kept in
+ * the browser — except while the session is still being checked, when there is
+ * no telling yet which list a press would change, and the star waits.
  */
 export function useFavouriteState(draft: FavouriteDraft | null): {
   saved: boolean;
   /** The stored row, when there is one — a rename or a removal needs its id. */
   savedItem: Favourite | null;
   full: boolean;
-  needsAccount: boolean;
+  /** The session is still being checked; the star waits rather than guessing. */
+  waiting: boolean;
   blocked: boolean;
 } {
   const all = useFavourites();
-  const { signedIn, checking } = useSession();
+  const { checking } = useSession();
 
   return useMemo(() => {
-    const needsAccount = !signedIn && !checking;
-
     if (draft === null) {
-      return {
-        saved: false,
-        savedItem: null,
-        full: false,
-        needsAccount,
-        blocked: true,
-      };
+      return { saved: false, savedItem: null, full: false, waiting: checking, blocked: true };
     }
 
     const key = identity(draft);
@@ -122,24 +117,15 @@ export function useFavouriteState(draft: FavouriteDraft | null): {
       saved,
       savedItem,
       full,
-      needsAccount,
+      waiting: checking,
       /*
-       * **The cap only, and deliberately not the session.**
-       *
-       * Folding "nobody is signed in" in here was a bug worth naming: while
-       * the session is still being checked nobody *is* signed in yet, so the
-       * star went off and — having no other reason to give — explained itself
-       * with "you can save five of each", which is a different and false
-       * statement. Needing an account is `needsAccount`, which the star
-       * answers by opening the dialog rather than by refusing.
-       *
-       * Un-saving must also stay possible at the cap, so only a *new* one is
-       * refused.
+       * Refused outright — unlike waiting, which is only "not yet". A star on
+       * something already saved is never blocked: it can always be un-saved.
        */
       blocked: !saved && full,
     };
     // `all` is the snapshot; the helpers read the same module value.
-  }, [all, draft, signedIn, checking]);
+  }, [all, draft, checking]);
 }
 
 /** How many of a kind are saved. */

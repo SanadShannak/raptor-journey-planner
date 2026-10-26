@@ -8,7 +8,14 @@ import {
   type SavedItems,
 } from '../../api/savedItems';
 import { ApiError, isApiError, isUnauthorized } from '../../api/errors';
-import { sessionExpired } from '../../auth/sessionStore';
+import { getSessionSnapshot, sessionExpired } from '../../auth/sessionStore';
+import {
+  addGuestItem,
+  getGuestItems,
+  removeGuestItem,
+  renameGuestItem,
+} from './guestFavourites';
+import { transferGuestFavourites } from './guestTransfer';
 import {
   FAVOURITES_PER_KIND,
   identity,
@@ -33,6 +40,14 @@ import {
  * keeping a copy: a stale list would be wrong for anybody who signed in
  * elsewhere, and right only for the one case the server already answers
  * quickly.
+ *
+ * **Somebody not signed in has favourites too**, kept in this browser by
+ * `guestFavourites.ts`, which answers the same four calls in the same shape
+ * and refuses with the same codes. Which one is asked is decided per call by
+ * {@link source}, from the session — so everything below, and every surface
+ * reading it, works the same either way. A browser's favourites are carried
+ * into the account registered on it at that account's first sign-in; see
+ * `guestTransfer.ts`.
  */
 
 export type SavedStatus =
@@ -66,6 +81,41 @@ let state: SavedState = EMPTY;
 
 /** Distinguishes a load from a *later* one, so a stale answer cannot land. */
 let requestId = 0;
+
+/* ----------------------------------------------------------- the source */
+
+interface Source {
+  get: () => Promise<SavedItems>;
+  add: (draft: FavouriteDraft) => Promise<SavedItems>;
+  rename: (kind: FavouriteKind, itemId: string, nickname: string) => Promise<SavedItems>;
+  remove: (kind: FavouriteKind, itemId: string) => Promise<SavedItems>;
+}
+
+const ACCOUNT: Source = {
+  get: () => getSavedItems(),
+  add: (draft) => addSavedItem(draft),
+  rename: (kind, itemId, nickname) => renameSavedItem(kind, itemId, nickname),
+  remove: (kind, itemId) => removeSavedItem(kind, itemId),
+};
+
+const BROWSER: Source = {
+  get: getGuestItems,
+  add: addGuestItem,
+  rename: renameGuestItem,
+  remove: removeGuestItem,
+};
+
+/**
+ * Where the list lives right now: the account when somebody is signed in, this
+ * browser otherwise. While the session is still being checked it is neither,
+ * and nothing is read or written — see `useLoadFavourites`.
+ */
+function source(): Source {
+  return getSessionSnapshot().status === 'signedIn' ? ACCOUNT : BROWSER;
+}
+
+/** Which source the list on show came from, so a change of source starts afresh. */
+let shownFrom: Source | null = null;
 
 const listeners = new Set<() => void>();
 
@@ -187,11 +237,24 @@ function flatten(items: SavedItems): readonly Favourite[] {
  * there is nothing wrong — there is simply nobody to have favourites.
  */
 export async function loadFavourites(): Promise<void> {
+  const from = source();
+  if (from !== shownFrom) {
+    // Another person's list, or the same person's other one: neither the
+    // rows nor their arrangement carry over.
+    shownFrom = from;
+    preferredOrder = [];
+    state = EMPTY;
+  }
+
   const id = ++requestId;
   commit({ ...state, status: 'loading', error: null });
 
   try {
-    const items = await getSavedItems();
+    if (from === ACCOUNT) {
+      const account = getSessionSnapshot().account;
+      if (account !== null) await transferGuestFavourites(account.email);
+    }
+    const items = await from.get();
     if (id !== requestId) return;
     const ordered = flatten(items);
     rememberOrder(ordered);
@@ -224,6 +287,7 @@ export async function loadFavourites(): Promise<void> {
 export function forgetFavourites(): void {
   requestId += 1;
   preferredOrder = [];
+  shownFrom = null;
   commit(EMPTY);
 }
 
@@ -262,7 +326,12 @@ export function hasRoomFor(kind: FavouriteKind): boolean {
  * — a rename cannot leave the other two kinds showing what they showed before.
  * The local arrangement is re-applied on the way in; see {@link preferredOrder}.
  */
-function accept(items: SavedItems): void {
+function accept(items: SavedItems, from: Source): void {
+  // Answered by a list that is no longer the one on show — somebody signed in
+  // or out while it was in flight. Applying it would put one list's rows
+  // under the other's name.
+  if (from !== source() || (shownFrom !== null && from !== shownFrom)) return;
+  shownFrom = from;
   requestId += 1;
   const ordered = flatten(items);
   // Re-recorded, like a load does, so the two paths cannot drift: whatever
@@ -297,8 +366,9 @@ function rethrow(error: unknown): never {
  * so it could not be renamed or removed until a refresh.
  */
 export async function saveFavourite(draft: FavouriteDraft): Promise<void> {
+  const from = source();
   try {
-    accept(await addSavedItem(draft));
+    accept(await from.add(draft), from);
   } catch (error: unknown) {
     rethrow(error);
   }
@@ -308,8 +378,9 @@ export async function removeFavourite(
   kind: FavouriteKind,
   itemId: string,
 ): Promise<void> {
+  const from = source();
   try {
-    accept(await removeSavedItem(kind, itemId));
+    accept(await from.remove(kind, itemId), from);
   } catch (error: unknown) {
     rethrow(error);
   }
@@ -407,8 +478,9 @@ export async function renameFavourite(
   const previous = state.items.find((f) => f.kind === kind && f.id === itemId)?.nickname ?? null;
 
   withNickname(itemId, kind, name);
+  const from = source();
   try {
-    accept(await renameSavedItem(kind, itemId, name));
+    accept(await from.rename(kind, itemId, name), from);
   } catch (error: unknown) {
     const now = state.items.find((f) => f.kind === kind && f.id === itemId);
     if (now !== undefined && now.nickname === name && previous !== null) {
