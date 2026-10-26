@@ -442,10 +442,7 @@ export const en: Dictionary = {
     rename: 'Rename',
     renameNamed: 'Rename {name}',
     refreshBalance: 'Refresh balance',
-    addNeedsAccount: 'Log in to add a card.',
-    guestNotice:
-      'Travel cards belong to an account, so you need one to add, top up or manage them. You can check any card’s balance without one.',
-    guestNoCards: 'Log in to see your cards here.',
+    guestNotice: 'Log in to see your own travel cards, add new ones and top them up.',
     balanceCheckTitle: 'Check a balance',
     balanceCheckIntro: 'Enter the number on any travel card to see what is left on it.',
     balanceCheckHint: 'Eleven digits, as printed on the card: {example}',

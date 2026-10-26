@@ -8,12 +8,6 @@ import { CARD_TYPES, type CardType, type TravelCard } from '../../types/card';
 import { createCard } from './cardsStore';
 
 interface Props {
-  /**
-   * Shown but not usable — the wallet as a guest sees it. Open, every field
-   * disabled, with the reason under it, and left out of the tour, which would
-   * otherwise demonstrate a control the reader cannot use.
-   */
-  locked?: boolean | undefined;
   /** Whether there is room for another. The server decides; this explains first. */
   full: boolean;
   /**
@@ -48,7 +42,7 @@ const NICKNAME_LIMIT = 40;
  * this side and the better form — a wallet of five cards called "My Transit
  * Card" is not a wallet anybody can use.
  */
-export function AddCardForm({ locked = false, full, hasCards, onAdded }: Props) {
+export function AddCardForm({ full, hasCards, onAdded }: Props) {
   const { strings, t } = useLocale();
   const nameId = useId();
   const errorId = useId();
@@ -73,7 +67,7 @@ export function AddCardForm({ locked = false, full, hasCards, onAdded }: Props) 
    * again — a flash, and a rule about when not to steal focus.
    */
   const [chosen, setChosen] = useState<boolean | null>(null);
-  const open = locked || (chosen ?? !hasCards);
+  const open = chosen ?? !hasCards;
   const nameRef = useRef<HTMLInputElement>(null);
 
   /*
@@ -91,7 +85,7 @@ export function AddCardForm({ locked = false, full, hasCards, onAdded }: Props) 
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (pending || full || locked) return;
+    if (pending || full) return;
 
     const trimmed = nickname.trim();
     if (trimmed === '') {
@@ -123,17 +117,13 @@ export function AddCardForm({ locked = false, full, hasCards, onAdded }: Props) 
    * thing to do on this page, not an interruption of it.
    */
   return (
-    <div
-      data-tour={locked ? undefined : 'card-add'}
-      className="rounded-card border-border bg-surface-raised flex flex-col border"
-    >
+    <div data-tour="card-add" className="rounded-card border-border bg-surface-raised flex flex-col border">
       <button
         type="button"
         aria-expanded={open}
         aria-controls={panelId}
-        disabled={locked}
         onClick={() => setChosen(!open)}
-        className="rounded-card text-content enabled:hover:bg-surface-muted focus-visible:outline-brand-500 flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-start text-base font-semibold tracking-tight focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-default"
+        className="rounded-card text-content hover:bg-surface-muted focus-visible:outline-brand-500 flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-start text-base font-semibold tracking-tight focus-visible:outline-2 focus-visible:outline-offset-2"
       >
         {t(strings.card.addTitle)}
         {/* A plus that becomes a minus: the shape says which way the press
@@ -162,8 +152,6 @@ export function AddCardForm({ locked = false, full, hasCards, onAdded }: Props) 
         onSubmit={(event) => void submit(event)}
         className="border-border flex flex-col gap-3 border-t p-4"
       >
-      {/* One switch for every control in the form, the select included. */}
-      <fieldset disabled={locked} className="contents">
       <div className="flex flex-col gap-1.5">
         <label htmlFor={nameId} className="text-sm font-medium">
           {t(strings.card.nicknameLabel)}
@@ -188,7 +176,7 @@ export function AddCardForm({ locked = false, full, hasCards, onAdded }: Props) 
             box has to stay where the label is while the text runs whichever
             way it actually runs.
           */
-          className="rounded-control border-border-strong bg-surface text-content placeholder:text-content-muted focus-visible:outline-brand-500 border px-4 py-2.5 text-sm [unicode-bidi:plaintext] focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ltr:text-left rtl:text-right"
+          className="rounded-control border-border-strong bg-surface text-content placeholder:text-content-muted focus-visible:outline-brand-500 border px-4 py-2.5 text-sm [unicode-bidi:plaintext] focus-visible:outline-2 focus-visible:outline-offset-2 ltr:text-left rtl:text-right"
         />
       </div>
 
@@ -237,10 +225,6 @@ export function AddCardForm({ locked = false, full, hasCards, onAdded }: Props) 
         <p className="text-content-muted text-xs">
           {t(strings.card.limitReached, { count: CARD_LIMIT })}
         </p>
-      )}
-      </fieldset>
-      {locked && (
-        <p className="text-content-muted text-xs">{t(strings.card.addNeedsAccount)}</p>
       )}
       </form>
     </div>
