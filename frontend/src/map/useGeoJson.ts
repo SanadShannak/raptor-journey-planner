@@ -31,11 +31,17 @@ export type OverlayLayer = Omit<LayerSpecification, 'id' | 'source'> & {
  * Data changes take the cheap path: `setData` on the existing source rather
  * than a teardown, which is what keeps a vehicle ticking twice a second from
  * rebuilding the map's layer list at the same rate.
+ *
+ * `beneathLabels` is the one exception to "last added is on top": the layers
+ * go under the basemap's first label instead, and so under every overlay
+ * whenever either arrives. For something that is the ground everything else
+ * is drawn on, like the network's outline.
  */
 export function useGeoJson(
   id: string,
   data: GeoJSON | null,
   layers: readonly OverlayLayer[],
+  { beneathLabels = false }: { beneathLabels?: boolean } = {},
 ): void {
   const map = useMap();
   const isAlive = useMapAlive();
@@ -64,8 +70,14 @@ export function useGeoJson(
     if (!styleReady) return;
 
     map.addSource(id, { type: 'geojson', data });
+    const before = beneathLabels
+      ? map.getStyle().layers.find((layer) => layer.type === 'symbol')?.id
+      : undefined;
     for (const { id: layerId, ...rest } of specs) {
-      map.addLayer({ ...rest, id: `${id}-${layerId}`, source: id } as LayerSpecification);
+      map.addLayer(
+        { ...rest, id: `${id}-${layerId}`, source: id } as LayerSpecification,
+        before,
+      );
     }
 
     return () => {
@@ -85,7 +97,7 @@ export function useGeoJson(
     };
     // `data` is applied by the effect below rather than rebuilding the layers.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, id, shape, styleEpoch, styleReady, isAlive, data === null]);
+  }, [map, id, shape, styleEpoch, styleReady, isAlive, data === null, beneathLabels]);
 
   /* New data into the source that is already there. */
   useEffect(() => {

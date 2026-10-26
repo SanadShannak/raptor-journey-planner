@@ -16,6 +16,8 @@ The authoritative sources, in order: a live response, then `backend/src/utils/fo
 | GET | `/api/planner` | Plan a journey |
 | GET | `/api/valid-dates` | Dates the loaded timetable covers |
 | GET | `/api/network` | Network identity, clock, and capability manifest |
+| GET | `/api/network/area` | Where a journey can start or end, as GeoJSON |
+| GET | `/api/stops/search?q=&limit=` | Stops by name, in every language the feed carries |
 | GET | `/api/stop/:gtfsId?limit=` | Live departure board |
 | GET | `/api/stop/:gtfsId/timetable?date=` | Whole-day timetable |
 | GET | `/api/routes` | Line index — inspection, not planning |
@@ -474,6 +476,66 @@ an id is missing, `describeStop` falls back to `{ id, name: null, code: null,
 lat: null, lon: null }` and the remaining keys are **absent rather than null**.
 The `:gtfsId` routes 404 before they can reach it, but a parser should default
 the missing keys rather than assume the full shape.
+
+## Stop search
+
+`GET /api/stops/search?q=&limit=` → `{ stops[], total, truncated }`
+
+For place search, which offers these beside addresses. Each entry is
+`describeStop` plus `modes` (exactly as `/api/stops`) plus `translations`: the
+stop's name in each *other* language the feed carries, keyed by language code —
+`{ "ar": "المحطة" }` — and `{}` when there is none. `name` stays the feed's own.
+Translations come from the feed's optional `translations.txt` (stop names only),
+compiled by pipeline component 10 into `stop-translations.processed.json`; a
+network without one is searched by its feed names alone. Amman Bus names only
+405 of its 1,365 stops in Arabic, so most Amman stops have `{}`.
+
+`q` is required, 1–100 characters after trimming, or **400 `BAD_QUERY`**.
+`limit` is clamped to 1–20, default 10, read like the departure board's
+(`parseInt || DEFAULT`). `truncated` is true when more matched than returned.
+
+Matching: every typed word must begin some word of a name, in any order and in
+any of the stop's languages, so `jeish 3` finds `Al Jeish St.3`. Case, Latin
+accents, Arabic short vowels and tatweel are ignored, and the Arabic letters
+people type interchangeably are folded together (أ إ آ ٱ → ا, ى → ي, ة → ه,
+ؤ → و, ئ → ي). Ranked: names *starting* with the whole query, then names whose
+first word starts with the first typed word, then the rest; ties go to the stop
+more lines call at, then the shorter name.
+
+Only stops something calls at — the `/api/stops` rule. Stops sharing a name a
+few metres apart (two sides of one road) are returned separately; collapsing
+them is presentation, and the client does it.
+
+**Mounted ahead of the stops router**, because `/api/stops/:id` would otherwise
+take `search` for an id.
+
+## Service area
+
+`GET /api/network/area` → a GeoJSON `Feature`:
+
+```
+{ type: "Feature",
+  properties: { stopCount, walkingDistanceMeters },
+  geometry: { type: "MultiPolygon", coordinates } | null }
+```
+
+Everywhere within walking reach of a stop something calls at — the same test
+the engine applies before answering `ORIGIN_OUT_OF_BOUNDS` /
+`DESTINATION_OUT_OF_BOUNDS` (`getNearbyStops.js`: 2,500 m with a 1.2 detour
+factor, so about 2,087 m in a straight line). **A point inside is never refused
+as out of bounds**; it can still get `NO_ROUTE_FOUND` at an hour nothing runs.
+
+The outline is deliberately drawn up to ~150 m *inside* the true edge — the
+area is rasterised to 100 m cells, kept only where a cell lies wholly in reach,
+then smoothed by at most 50 m — so the promise holds at the edge. Verified on
+Amman against the engine at 400,000 random points: no point inside was out of
+bounds, and the outline covers 96% of the area that is in reach. Rings follow
+RFC 7946: outer anticlockwise, holes clockwise, `[lon, lat]`.
+
+Computed on the first request (~240 ms for Amman, 25 areas, ~75 kB) and kept,
+so it always matches the loaded feed. `geometry` is null for a feed with no
+served stops. The engine's two constants are copied into
+`backend/src/utils/serviceArea.js`; if either changes, change both.
 
 ## Travel card
 

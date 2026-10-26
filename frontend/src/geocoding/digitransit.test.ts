@@ -292,6 +292,34 @@ describe('Digitransit endpoint fallback', () => {
     ).toBe('test-key');
   });
 
+  /*
+   * Pelias's search endpoint answers text with no Latin letters or digits —
+   * every Arabic query — with a 400. That is "nothing found", and reporting it
+   * as an outage told Arabic speakers place search was down.
+   */
+  it('reads a refused query as no results, not as the service being down', async () => {
+    let call = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        call += 1;
+        return call === 1
+          ? new Response(JSON.stringify({ type: 'FeatureCollection', features: [] }))
+          : new Response(JSON.stringify({ error: 'text must have alphanumeric content' }), {
+              status: 400,
+            });
+      }),
+    );
+
+    expect(await geocoder.search('محطة')).toEqual([]);
+  });
+
+  it('still reports a real failure as one', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 503 })));
+
+    await expect(geocoder.search('Kamppi')).rejects.toThrow();
+  });
+
   // Both came back empty: two asks, and an honest nothing.
   it('reports no results rather than asking a third time', async () => {
     const fetchMock = respondInTurn([], []);

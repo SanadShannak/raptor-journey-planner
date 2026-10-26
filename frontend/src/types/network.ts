@@ -66,3 +66,17 @@ export interface NetworkCapabilities {
    */
   platforms: boolean;
 }
+
+/**
+ * Where a journey can start or end, from `/api/network/area`: everywhere
+ * within walking reach of a stop something calls at, as the rings of a
+ * GeoJSON MultiPolygon — `[lon, lat]` pairs, outer rings first in each
+ * polygon and holes after.
+ *
+ * Drawn a little inside the true edge, so a point inside it is never refused
+ * as out of the network. It says nothing about the hour: inside it, "nothing
+ * runs then" is still a real answer.
+ */
+export interface ServiceArea {
+  polygons: [number, number][][][];
+}

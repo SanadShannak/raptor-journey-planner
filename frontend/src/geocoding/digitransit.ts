@@ -238,6 +238,14 @@ export function createDigitransitGeocoder(subscriptionKey: string): Geocoder {
             'digitransit-subscription-key': subscriptionKey,
           },
         });
+        /*
+         * A 400 is the query, not the service: Pelias's search endpoint refuses
+         * text with no Latin letters or digits ("text must have alphanumeric
+         * content"), which is every Arabic query. Reported as an outage, that
+         * told an Arabic speaker place search was down when it had simply found
+         * nothing.
+         */
+        if (response.status === 400) return [];
         if (!response.ok) {
           throw new Error(`Digitransit responded with ${response.status}.`);
         }

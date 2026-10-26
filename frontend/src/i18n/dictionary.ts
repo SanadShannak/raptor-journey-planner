@@ -200,6 +200,8 @@ export interface Dictionary {
     searchingHint: string;
     suggestionsAvailable: PluralForms;
     searchUnavailable: string;
+    /** A search that worked and matched nothing; `{query}` is what was typed. */
+    noPlaceMatches: string;
     isStop: string;
     /**
      * The designation printed on a stop, e.g. "Platform 5".

@@ -64,7 +64,8 @@ export function PlaceInput({
   const [suggestions, setSuggestions] = useState<Place[]>([]);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
-  const [status, setStatus] = useState<'idle' | 'loading' | 'failed'>('idle');
+  /** `empty` is a search that worked and found nothing — not `failed`, which is the service. */
+  const [status, setStatus] = useState<'idle' | 'loading' | 'empty' | 'failed'>('idle');
 
   const inputId = useId();
   const listId = useId();
@@ -112,7 +113,7 @@ export function PlaceInput({
           if (controller.signal.aborted) return;
           setSuggestions(places);
           setActiveIndex(-1);
-          setStatus('idle');
+          setStatus(places.length === 0 ? 'empty' : 'idle');
           setOpen(true);
         })
         .catch(() => {
@@ -182,7 +183,9 @@ export function PlaceInput({
 
   const searching = status === 'loading' && !dormant;
   const showList =
-    open && !dormant && (suggestions.length > 0 || status === 'failed');
+    open &&
+    !dormant &&
+    (suggestions.length > 0 || status === 'failed' || status === 'empty');
 
   return (
     <div ref={containerRef} className="relative flex flex-col gap-1.5">
@@ -286,7 +289,9 @@ export function PlaceInput({
             ? t(strings.planner.suggestionsAvailable, {
                 count: suggestions.length,
               })
-            : ''}
+            : showList && status === 'empty'
+              ? t(strings.planner.noPlaceMatches, { query: trimmed })
+              : ''}
       </p>
 
       {showList && (
@@ -299,6 +304,10 @@ export function PlaceInput({
           {status === 'failed' ? (
             <li className="text-content-muted px-3 py-2 text-sm">
               {t(strings.planner.searchUnavailable)}
+            </li>
+          ) : status === 'empty' ? (
+            <li className="text-content-muted px-3 py-2 text-sm">
+              {t(strings.planner.noPlaceMatches, { query: trimmed })}
             </li>
           ) : (
             suggestions.map((place, index) => (

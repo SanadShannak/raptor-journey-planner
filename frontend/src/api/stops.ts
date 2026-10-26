@@ -17,6 +17,7 @@ import type {
   StopBoard,
   StopDeparture,
   StopIdentity,
+  StopMatch,
   StopTimetable,
 } from '../types/stop';
 
@@ -208,6 +209,40 @@ export async function getStopsInBounds(
     stops: raw.map(toNetworkStop).filter(isPresent),
     truncated: answer['truncated'] === true,
   };
+}
+
+function toStopMatch(raw: unknown): StopMatch | null {
+  const stop = toNetworkStop(raw);
+  if (stop === null) return null;
+
+  const translations: Partial<Record<string, string>> = {};
+  for (const [language, name] of Object.entries(
+    record((raw as Record<string, unknown>)['translations']) ?? {},
+  )) {
+    const value = text(name);
+    if (value !== null) translations[language] = value;
+  }
+  return { ...stop, translations };
+}
+
+/**
+ * `GET /api/stops/search` — the feed's stops whose name, in any language the
+ * feed carries, matches what was typed. Best match first.
+ *
+ * For place search, which offers these beside addresses. `limit` is clamped
+ * to 1–20 by the backend and defaults to 10.
+ */
+export async function searchStops(
+  query: string,
+  options: CallOptions & { limit?: number | undefined } = {},
+): Promise<StopMatch[]> {
+  const body = await getJson('/api/stops/search', {
+    params: { q: query, ...(options.limit === undefined ? {} : { limit: options.limit }) },
+    ...(options.signal ? { signal: options.signal } : {}),
+  });
+
+  const raw = record(body)?.['stops'];
+  return Array.isArray(raw) ? raw.map(toStopMatch).filter(isPresent) : [];
 }
 
 /**
