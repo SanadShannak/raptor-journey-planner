@@ -6,14 +6,14 @@ const { getServiceArea } = require("../utils/serviceArea");
 /*
  * Where on the ground a journey can start or end, for a map to outline.
  *
- * A GeoJSON Feature whose MultiPolygon covers everywhere within walking reach
- * of a stop something calls at — the same reach the planner tests before it
- * answers ORIGIN_OUT_OF_BOUNDS or DESTINATION_OUT_OF_BOUNDS. It is drawn a
- * little inside the true edge, so a point inside it is never refused for being
- * out of the network. `geometry` is null for a feed with no served stops.
+ * A GeoJSON Feature whose MultiPolygon is the shape of each town the network
+ * serves — see `serviceArea.js`. It is the planner's own rule: a point inside
+ * is planned from its nearest stops, and a point outside is answered
+ * ORIGIN_OUT_OF_BOUNDS or DESTINATION_OUT_OF_BOUNDS. `geometry` is null for a
+ * feed with no served stops.
  *
- * Computed once, on first request, from the stops already in memory; it
- * cannot drift from the loaded feed the way a file built beside it could.
+ * Computed at startup from the stops already in memory; it cannot drift from
+ * the loaded feed the way a file built beside it could.
  */
 router.get("/", (req, res) => {
   const startedAt = performance.now();

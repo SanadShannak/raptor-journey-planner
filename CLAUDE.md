@@ -101,6 +101,8 @@ The risk a 12-hour clock carries is that "12:40 AM" reads as the wrong end of th
 
 Endpoints are `GET /api/planner` (journey planning), `GET /api/stop/:id`, `GET /api/stops/search` (stops by name, for place search), `GET /api/routes`, `GET /api/network`, `GET /api/network/area` (where a journey can start or end — drawn on every map), `GET /api/valid-dates`, and `GET /api/health`.
 
+**What counts as in the network is the service area** (`backend/src/utils/serviceArea.js`): each served town's walking reach, closed and with its holes filled. A point inside is always planned — from its nearest stops, however far the walk — and a point outside is out of bounds. The outline every map draws is that same area, so the line and the planner cannot disagree.
+
 Every failure, whatever its status, carries `{ errorCode, error }`. **The status tells you who refused, not whether there is an answer:**
 
 - **400** — the request was malformed, from `backend/src/routes/plannerApi.js`.

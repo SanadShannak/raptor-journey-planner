@@ -486,7 +486,7 @@ For place search, which offers these beside addresses. Each entry is
 stop's name in each *other* language the feed carries, keyed by language code —
 `{ "ar": "المحطة" }` — and `{}` when there is none. `name` stays the feed's own.
 Translations come from the feed's optional `translations.txt` (stop names only),
-compiled by pipeline component 10 into `stop-translations.processed.json`; a
+compiled by pipeline component 10 into `processed-data/<network>-processed-data/stop-translations.processed.json`; a
 network without one is searched by its feed names alone. Amman Bus names only
 405 of its 1,365 stops in Arabic, so most Amman stops have `{}`.
 
@@ -519,23 +519,34 @@ take `search` for an id.
   geometry: { type: "MultiPolygon", coordinates } | null }
 ```
 
-Everywhere within walking reach of a stop something calls at — the same test
-the engine applies before answering `ORIGIN_OUT_OF_BOUNDS` /
-`DESTINATION_OUT_OF_BOUNDS` (`getNearbyStops.js`: 2,500 m with a 1.2 detour
-factor, so about 2,087 m in a straight line). **A point inside is never refused
-as out of bounds**; it can still get `NO_ROUTE_FOUND` at an hour nothing runs.
+**The shape of each town the network serves, and the planner's own rule for
+what is in the network**: a point inside is never answered
+`ORIGIN_OUT_OF_BOUNDS` / `DESTINATION_OUT_OF_BOUNDS`, and a point outside always
+is. Inside, it can still get `NO_ROUTE_FOUND` at an hour nothing runs.
 
-The outline is deliberately drawn up to ~150 m *inside* the true edge — the
-area is rasterised to 100 m cells, kept only where a cell lies wholly in reach,
-then smoothed by at most 50 m — so the promise holds at the edge. Verified on
-Amman against the engine at 400,000 random points: no point inside was out of
-bounds, and the outline covers 96% of the area that is in reach. Rings follow
-RFC 7946: outer anticlockwise, holes clockwise, `[lon, lat]`.
+Built in `backend/src/utils/serviceArea.js` at startup (~0.5 s Amman, ~1.2 s
+HSL; a few MB as one byte per 100 m cell):
 
-Computed on the first request (~240 ms for Amman, 25 areas, ~75 kB) and kept,
-so it always matches the loaded feed. `geometry` is null for a feed with no
-served stops. The engine's two constants are copied into
-`backend/src/utils/serviceArea.js`; if either changes, change both.
+1. Everywhere within walking reach of a served stop — the engine's own test in
+   `getNearbyStops.js`, 2,500 m with a 1.2 detour factor, about 2,087 m in a
+   straight line. Those two constants are copied; if either changes, change both.
+2. *Closed* with a 2.5 km disc: any bay narrower than 5 km is filled, towns
+   further apart than that stay separate.
+3. Every hole a town surrounds is filled.
+
+The engine uses it in `getNearbyStops.js`: when no stop is within walking reach
+and the point is inside the area (`isInServiceArea`, one lookup), it offers the
+nearest five stops within 500 m of the nearest one, however far — so a long
+first or last walk (up to ~5.7 km on Amman) is a real answer inside the area.
+Outside, it returns nothing and the engine answers out of bounds as before.
+Requests with a stop in reach never reach either check.
+
+The drawn edge is the cell staircase smoothed by at most 80 m; the lookup also
+accepts a cell's neighbours (100 m), so every point inside the line is planned.
+Verified at 200,000 random points on each of Amman and HSL: none inside the line
+was refused; about 0.5% of points just outside it (within ~150 m) are accepted.
+Rings follow RFC 7946: outer anticlockwise, holes clockwise, `[lon, lat]`.
+Amman: 20 areas, ~70 kB. `geometry` is null for a feed with no served stops.
 
 ## Travel card
 

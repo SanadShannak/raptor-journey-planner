@@ -10,9 +10,11 @@ import { useGeoJson, type OverlayLayer } from './useGeoJson';
  * The network's outline: everywhere a journey can start or end.
  *
  * Drawn on every map, beneath everything else on it, so that somebody choosing
- * a point can see before they press whether the planner will take it. Inside,
- * a stop is within walking distance; outside, the planner answers "out of the
- * network", and the message says to come back inside the line.
+ * a point can see before they press whether the planner will take it. It is
+ * the planner's own rule, not an approximation of it: inside, a journey is
+ * always planned — from the nearest few stops, walking further if it must —
+ * and outside, the planner answers "out of the network", and the message says
+ * to come back inside the line.
  *
  * An enhancement and nothing more. A map without it — the area failed to load,
  * or the backend is older than the endpoint — is the map as it always was, and
