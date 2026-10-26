@@ -144,6 +144,7 @@ vite.config.ts.timestamp-*
 
 # data used by parsers and algorithms
 raw-data/*-gtfs-data/
+raw-data/*-urban-areas/
 processed-data/*-processed-data/
 
 #  mac folder viewing purposes
@@ -164,3 +165,6 @@ backend/src/config/resetDb.js
 
 # Raw Kentkart API responses the Amman feed is built from (scripts/amman-gtfs).
 raw-data/*-api-snapshots/
+
+# Python bytecode
+__pycache__/

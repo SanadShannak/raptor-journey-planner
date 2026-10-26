@@ -18,7 +18,12 @@ python3 scripts/amman-gtfs/amman_gtfs.py fetch --out raw-data/amman-api-snapshot
 python3 scripts/amman-gtfs/amman_gtfs.py build \
   --raw raw-data/amman-api-snapshots/YYYY-MM-DD --dir raw-data/amman-gtfs-data [--days 28] [--overrides holidays.csv]
 
-# 3. Compile it, as for any network.
+# 3. Extract the towns the service area takes in: OpenStreetMap built-up land
+#    around the stops, from Geofabrik's Jordan extract (60 MB, kept and reused;
+#    add --refresh for a newer one). About fifteen seconds.
+python3 scripts/urban-areas/urban_areas.py --network amman
+
+# 4. Compile it, as for any network.
 cd offline-data-ingestion-pipeline && node runPipeline.js
 ```
 
