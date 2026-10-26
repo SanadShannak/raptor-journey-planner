@@ -53,6 +53,7 @@ because the pipeline requires the file.
 | agency, routes | `web/nearest/find` → `routeList` | verified |
 | stops, stop order | `web/pathInfo` → `busStopList` | verified |
 | trips, `trip_id` | `scheduleList[].timeList[].tripId`, unique network-wide | verified |
+| `trip_headsign` | the last place in `timeList[].tripHeadSign` (or the path's `headSign`) | derived: the API signs a trip with its whole route, origin first (`Al Mahatta Terminal - Al Manara`), so only what follows the last spaced hyphen is kept |
 | stop times | trip start + per-stop `arrival_offset` / `departure_offset` | identical to the API's own per-stop timetable |
 | calendar weekdays | `scheduleList[].description`, uppercase = runs (`MTWTfsS` = Sun–Thu) | verified |
 | calendar dates | snapshot date + `--days` | **assumed**; see above |

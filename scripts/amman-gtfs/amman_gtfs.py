@@ -25,6 +25,7 @@ import io
 import json
 import math
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -160,6 +161,17 @@ def weekday_mask(description):
     if not description or len(description) != 7 or not description.isalpha():
         raise ValueError(f"unexpected schedule description {description!r}")
     return [int(c.isupper()) for c in description]
+
+
+def trip_headsign(sign):
+    """'Al Mahatta Terminal - Marka - Qaryet Khaled' -> 'Qaryet Khaled'.
+
+    The API signs every trip with its whole route, origin first, so a rider would be told a bus
+    is going to where it started. GTFS's trip_headsign is where it is going: the last place.
+    Only a hyphen with a space on either side separates places; one without ('Al-Lajjun',
+    '3rd-6th') is part of a name, so 'K.H medical Center-Irbid' is kept whole.
+    """
+    return " ".join(re.split(r"\s+-\s*|\s*-\s+", sign)[-1].split())
 
 
 def shape_distances(points, stop_points):
@@ -343,7 +355,7 @@ def build(raw_dir, zip_path, days, overrides_path=None, out_dir=None):
                         start = hms_to_sec(t["departureTime"])
                         trips.append({
                             "route_id": route["route_id"], "service_id": service_id, "trip_id": trip_id,
-                            "trip_headsign": t.get("tripHeadSign") or path.get("headSign", ""),
+                            "trip_headsign": trip_headsign(t.get("tripHeadSign") or path.get("headSign", "")),
                             "direction_id": direction, "shape_id": shape_id if pts else "",
                         })
                         used_routes.add(code)
