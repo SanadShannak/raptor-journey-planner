@@ -1,6 +1,6 @@
 services:
   backend:
-    image: ghcr.io/sanadshannak/journey-planner-backend:1.4
+    image: ghcr.io/sanadshannak/journey-planner-backend:2.0
     build:
       context: .
       dockerfile: ./backend/Dockerfile
@@ -42,7 +42,7 @@ services:
       start_period: 60s
 
   frontend:
-    image: ghcr.io/sanadshannak/journey-planner-frontend:1.4
+    image: ghcr.io/sanadshannak/journey-planner-frontend:2.0
     build:
       context: .
       dockerfile: ./frontend/Dockerfile
