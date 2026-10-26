@@ -68,14 +68,13 @@ export interface NetworkCapabilities {
 }
 
 /**
- * Where a journey can start or end, from `/api/network/area`: everywhere
- * within walking reach of a stop something calls at, as the rings of a
- * GeoJSON MultiPolygon — `[lon, lat]` pairs, outer rings first in each
- * polygon and holes after.
+ * Where a journey can start or end, from `/api/network/area`: the shape of
+ * each town the network serves, as the rings of a GeoJSON MultiPolygon —
+ * `[lon, lat]` pairs, outer rings first in each polygon and holes after.
  *
- * Drawn a little inside the true edge, so a point inside it is never refused
- * as out of the network. It says nothing about the hour: inside it, "nothing
- * runs then" is still a real answer.
+ * It is the planner's rule: a point inside is never refused as out of the
+ * network, and a point outside always is. It says nothing about the hour:
+ * inside it, "nothing runs then" is still a real answer.
  */
 export interface ServiceArea {
   polygons: [number, number][][][];
