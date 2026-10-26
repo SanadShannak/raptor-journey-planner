@@ -1,5 +1,8 @@
+const fs = require("fs");
+const path = require("path");
 const calculateHaversine = require("../../raptor-engines/utils/calculateHaversine");
 const logger = require("./logger");
+const serverConfig = require("../serverConfig");
 const { getCache } = require("../../memoryCache");
 
 const cache = getCache();
@@ -16,13 +19,23 @@ const cache = getCache();
  * rather than imported because the engine keeps them private; if either
  * changes there, change it here too.
  *
- * That alone is not a shape anybody can read. It has holes in the middle of
- * the city wherever the nearest stop is a little over 2 km away, and deep bays
- * between bus corridors, so moving a pin a few hundred metres flipped a
- * journey from planned to refused for no reason a map could show. So the
- * reach is *closed*: every bay narrower than twice CLOSE_METERS is filled, and
- * every hole a town surrounds is filled, while towns further apart than that
- * stay separate. The result is the shape of each town the network serves.
+ * That alone is not a shape anybody can read, and it is not the town. It has
+ * holes in the middle of a city wherever the nearest stop is a little over
+ * 2 km away, deep bays between bus corridors, and in a town with one terminal
+ * — Ma'an, Tafila — it is a circle around the terminal with most of the town
+ * outside it. So two things are added:
+ *
+ * 1. **The towns a bus reaches.** OpenStreetMap's built-up land (fetched by
+ *    `scripts/urban-areas/urban_areas.py`, compiled by pipeline component 11)
+ *    is joined into towns, and every town the walking reach touches is taken
+ *    in whole — as far as URBAN_MAX_METERS beyond the reach, so a sprawl of
+ *    villages cannot carry the area across the country.
+ * 2. **Closing.** Every bay narrower than twice CLOSE_METERS is filled, and
+ *    every hole a town surrounds, while towns further apart than that stay
+ *    separate.
+ *
+ * The result is the shape of each town the network serves. Without the
+ * built-up land — a network that never fetched it — it is step 2 alone.
  *
  * The area is the rule, not a picture of one. `getNearbyStops.js` asks
  * {@link isInServiceArea} when it finds no stop in reach, and a point inside
@@ -34,6 +47,30 @@ const MAX_WALKING_DISTANCE_METERS = 2500;
 const DETOUR_FACTOR = 1.2;
 const REACH_METERS = (MAX_WALKING_DISTANCE_METERS + 5) / DETOUR_FACTOR;
 const CLOSE_METERS = 2500;
+// How far beyond the walking reach a town the reach touches is taken in
+const URBAN_MAX_METERS = 4000;
+// Gaps narrower than this between built-up patches are streets and parks:
+// the patches are one town
+const URBAN_JOIN_METERS = 500;
+
+const urbanAreasPath = path.join(
+  __dirname,
+  `../../../processed-data/${serverConfig.ACTIVE_NETWORK}-processed-data/urban-areas.processed.json`,
+);
+
+/** The built-up land's outer rings, or none — optional, like translations. */
+function loadUrbanAreas() {
+  if (!fs.existsSync(urbanAreasPath)) {
+    logger.info("serviceArea: urban-areas.processed.json not present for this network");
+    return [];
+  }
+  try {
+    return JSON.parse(fs.readFileSync(urbanAreasPath));
+  } catch (error) {
+    logger.warn(`serviceArea: urban-areas.processed.json unreadable — ${error.message}`);
+    return [];
+  }
+}
 
 /*
  * The area is a set of 100 m grid cells. Its drawn edge is that set's
@@ -190,54 +227,27 @@ function squaredDistanceTo(grid, rows, cols) {
   return dist;
 }
 
-/**
- * Morphological closing with a disc of `radius` cells, then every hole filled.
- *
- * Closing fills a bay or gap narrower than twice the radius and leaves the
- * outer edge where it was; it never joins two places further apart than that.
- * Filling holes then takes in anything the city surrounds completely.
- *
- * Answers as a byte per cell over the area's bounding box, which is a few
- * megabytes where a set of cell keys was several times that, and a lookup is
- * one array read.
- */
-function closeCells(covered, radius) {
-  let minRow = Infinity;
-  let maxRow = -Infinity;
-  let minCol = Infinity;
-  let maxCol = -Infinity;
-  const cells = [...covered].map((id) => id.split("_").map(Number));
-  for (const [row, col] of cells) {
-    minRow = Math.min(minRow, row);
-    maxRow = Math.max(maxRow, row);
-    minCol = Math.min(minCol, col);
-    maxCol = Math.max(maxCol, col);
-  }
-  const pad = radius + 2;
-  const rows = maxRow - minRow + 1 + 2 * pad;
-  const cols = maxCol - minCol + 1 + 2 * pad;
-  const at = (row, col) => (row - minRow + pad) * cols + (col - minCol + pad);
-
-  const grid = new Uint8Array(rows * cols);
-  for (const [row, col] of cells) grid[at(row, col)] = 1;
-
+/** Morphological closing with a disc of `radius` cells. */
+function closeGrid(grid, rows, cols, radius) {
   const r2 = radius * radius;
-  const toCovered = squaredDistanceTo(grid, rows, cols);
+  const toGrid = squaredDistanceTo(grid, rows, cols);
   const outside = new Uint8Array(rows * cols);
-  for (let i = 0; i < outside.length; i++) outside[i] = toCovered[i] > r2 ? 1 : 0;
+  for (let i = 0; i < outside.length; i++) outside[i] = toGrid[i] > r2 ? 1 : 0;
   const toOutside = squaredDistanceTo(outside, rows, cols);
   const closed = new Uint8Array(rows * cols);
   for (let i = 0; i < closed.length; i++) closed[i] = toOutside[i] > r2 ? 1 : 0;
+  return closed;
+}
 
-  // Flood the open ground in from the border; whatever it cannot reach is a hole.
-  const reached = new Uint8Array(rows * cols);
+/** Marks every cell of `grid` connected to a `seed` cell, through `grid`. */
+function connectedTo(grid, seed, rows, cols) {
+  const kept = new Uint8Array(rows * cols);
   const stack = [];
-  for (let r = 0; r < rows; r++) stack.push(r * cols, r * cols + cols - 1);
-  for (let c = 0; c < cols; c++) stack.push(c, (rows - 1) * cols + c);
+  for (let i = 0; i < grid.length; i++) if (grid[i] && seed[i]) stack.push(i);
   while (stack.length > 0) {
     const i = stack.pop();
-    if (reached[i] || closed[i]) continue;
-    reached[i] = 1;
+    if (kept[i] || !grid[i]) continue;
+    kept[i] = 1;
     const r = Math.floor(i / cols);
     const c = i % cols;
     if (r > 0) stack.push(i - cols);
@@ -245,23 +255,132 @@ function closeCells(covered, radius) {
     if (c > 0) stack.push(i - 1);
     if (c < cols - 1) stack.push(i + 1);
   }
+  return kept;
+}
 
-  for (let i = 0; i < closed.length; i++) {
-    if (!reached[i]) closed[i] = 1;
+/** Sets every cell the border cannot reach through open ground: the holes. */
+function fillHoles(grid, rows, cols) {
+  const open = new Uint8Array(rows * cols);
+  const stack = [];
+  for (let r = 0; r < rows; r++) stack.push(r * cols, r * cols + cols - 1);
+  for (let c = 0; c < cols; c++) stack.push(c, (rows - 1) * cols + c);
+  while (stack.length > 0) {
+    const i = stack.pop();
+    if (open[i] || grid[i]) continue;
+    open[i] = 1;
+    const r = Math.floor(i / cols);
+    const c = i % cols;
+    if (r > 0) stack.push(i - cols);
+    if (r < rows - 1) stack.push(i + cols);
+    if (c > 0) stack.push(i - 1);
+    if (c < cols - 1) stack.push(i + 1);
   }
+  for (let i = 0; i < grid.length; i++) if (!open[i]) grid[i] = 1;
+}
+
+/**
+ * The area, from the cells in walking reach and the cells of built-up land.
+ *
+ * Built-up land is first joined into towns (closing by URBAN_JOIN_METERS);
+ * a town is kept when the walking reach touches it, and only as far as
+ * URBAN_MAX_METERS beyond the reach. Then the whole is closed by
+ * CLOSE_METERS and its holes filled — see the top of this file.
+ *
+ * Answers as a byte per cell over the area's bounding box, which is a few
+ * megabytes where a set of cell keys was several times that, and a lookup is
+ * one array read.
+ */
+function buildArea(reached, urban) {
+  const closeRadius = Math.round(CLOSE_METERS / CELL_METERS);
+  const urbanRadius = Math.round(URBAN_MAX_METERS / CELL_METERS);
+  const joinRadius = Math.round(URBAN_JOIN_METERS / CELL_METERS);
+
+  let minRow = Infinity;
+  let maxRow = -Infinity;
+  let minCol = Infinity;
+  let maxCol = -Infinity;
+  const cells = [...reached].map((id) => id.split("_").map(Number));
+  for (const [row, col] of cells) {
+    minRow = Math.min(minRow, row);
+    maxRow = Math.max(maxRow, row);
+    minCol = Math.min(minCol, col);
+    maxCol = Math.max(maxCol, col);
+  }
+  // Room for a town beyond the reach, and for closing around it.
+  const pad = urbanRadius + closeRadius + joinRadius + 2;
+  const rows = maxRow - minRow + 1 + 2 * pad;
+  const cols = maxCol - minCol + 1 + 2 * pad;
   const firstRow = minRow - pad;
   const firstCol = minCol - pad;
+  const at = (row, col) => {
+    const r = row - firstRow;
+    const c = col - firstCol;
+    return r >= 0 && r < rows && c >= 0 && c < cols ? r * cols + c : -1;
+  };
+
+  const area = new Uint8Array(rows * cols);
+  for (const [row, col] of cells) area[at(row, col)] = 1;
+
+  if (urban.size > 0) {
+    const built = new Uint8Array(rows * cols);
+    for (const id of urban) {
+      const [row, col] = id.split("_").map(Number);
+      const i = at(row, col);
+      if (i !== -1) built[i] = 1;
+    }
+    const towns = closeGrid(built, rows, cols, joinRadius);
+    const served = connectedTo(towns, area, rows, cols);
+    const fromReach = squaredDistanceTo(area, rows, cols);
+    const limit = urbanRadius * urbanRadius;
+    for (let i = 0; i < area.length; i++) {
+      if (served[i] && fromReach[i] <= limit) area[i] = 1;
+    }
+  }
+
+  const closed = closeGrid(area, rows, cols, closeRadius);
+  fillHoles(closed, rows, cols);
+
   return {
     rows,
     cols,
     firstRow,
     firstCol,
     has(row, col) {
-      const r = row - firstRow;
-      const c = col - firstCol;
-      return r >= 0 && r < rows && c >= 0 && c < cols && closed[r * cols + c] === 1;
+      const i = at(row, col);
+      return i !== -1 && closed[i] === 1;
     },
   };
+}
+
+/** The cells whose centres lie inside any ring, plus each ring's own corners. */
+function rasteriseRings(rings, cellLat, cellLon) {
+  const cells = new Set();
+  for (const ring of rings) {
+    let minLat = Infinity;
+    let maxLat = -Infinity;
+    for (const [lon, lat] of ring) {
+      minLat = Math.min(minLat, lat);
+      maxLat = Math.max(maxLat, lat);
+      // A patch smaller than a cell still marks the cell it is in
+      cells.add(`${Math.floor(lat / cellLat)}_${Math.floor(lon / cellLon)}`);
+    }
+    for (let row = Math.floor(minLat / cellLat); row <= Math.floor(maxLat / cellLat); row++) {
+      const y = (row + 0.5) * cellLat;
+      const crossings = [];
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i];
+        const [xj, yj] = ring[j];
+        if (yi > y !== yj > y) crossings.push(xi + ((y - yi) * (xj - xi)) / (yj - yi));
+      }
+      crossings.sort((a, b) => a - b);
+      for (let k = 0; k + 1 < crossings.length; k += 2) {
+        const first = Math.ceil(crossings[k] / cellLon - 0.5);
+        const last = Math.floor(crossings[k + 1] / cellLon - 0.5);
+        for (let col = first; col <= last; col++) cells.add(`${row}_${col}`);
+      }
+    }
+  }
+  return cells;
 }
 
 /**
@@ -309,7 +428,8 @@ function computeServiceArea() {
     }
   }
 
-  const covered = closeCells(reached, Math.round(CLOSE_METERS / CELL_METERS));
+  const urban = rasteriseRings(loadUrbanAreas(), cellLat, cellLon);
+  const covered = buildArea(reached, urban);
 
   /*
    * The edge of the union: every cell side with an uncovered neighbour,

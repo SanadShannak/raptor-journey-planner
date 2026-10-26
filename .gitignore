@@ -144,6 +144,7 @@ vite.config.ts.timestamp-*
 
 # data used by parsers and algorithms
 raw-data/*-gtfs-data/
+raw-data/*-urban-areas/
 processed-data/*-processed-data/
 
 #  mac folder viewing purposes
@@ -162,3 +163,6 @@ backend/src/config/resetDb.js
 # pushed here, never built into these images.
 /admin/
 
+
+# Python bytecode
+__pycache__/

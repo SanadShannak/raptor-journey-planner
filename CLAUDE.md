@@ -61,7 +61,7 @@ The backend asks its environment first: `resolveActiveNetwork()` in `backend/src
 
 ### Offline pipeline → processed JSON → in-memory server
 
-`runPipeline.js` runs ten components **in order** as synchronous child processes; later components consume earlier ones' output (spatial grid feeds the footpath generator, stops feed the grid, and so on). Reordering them breaks the build.
+`runPipeline.js` runs eleven components **in order** as synchronous child processes; later components consume earlier ones' output (spatial grid feeds the footpath generator, stops feed the grid, and so on). Reordering them breaks the build.
 
 The parsers compact relational GTFS text into zero-indexed contiguous arrays: a stop's *array index* is its internal integer ID, and `*-mapping.json` files translate original GTFS string IDs back to those integers. Times are stored as seconds-from-midnight integers, not strings.
 
@@ -101,7 +101,7 @@ The risk a 12-hour clock carries is that "12:40 AM" reads as the wrong end of th
 
 Endpoints are `GET /api/planner` (journey planning), `GET /api/stop/:id`, `GET /api/stops/search` (stops by name, for place search), `GET /api/routes`, `GET /api/network`, `GET /api/network/area` (where a journey can start or end — drawn on every map), `GET /api/valid-dates`, and `GET /api/health`.
 
-**What counts as in the network is the service area** (`backend/src/utils/serviceArea.js`): each served town's walking reach, closed and with its holes filled. A point inside is always planned — from its nearest stops, however far the walk — and a point outside is out of bounds. The outline every map draws is that same area, so the line and the planner cannot disagree.
+**What counts as in the network is the service area** (`backend/src/utils/serviceArea.js`): the walking reach of the stops, plus every town (OpenStreetMap's built-up land, fetched by `scripts/urban-areas/urban_areas.py`) that reach touches, closed and with its holes filled. A point inside is always planned — from its nearest stops, however far the walk — and a point outside is out of bounds. The outline every map draws is that same area, so the line and the planner cannot disagree.
 
 Every failure, whatever its status, carries `{ errorCode, error }`. **The status tells you who refused, not whether there is an answer:**
 
