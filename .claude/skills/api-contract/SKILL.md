@@ -524,7 +524,7 @@ what is in the network**: a point inside is never answered
 `ORIGIN_OUT_OF_BOUNDS` / `DESTINATION_OUT_OF_BOUNDS`, and a point outside always
 is. Inside, it can still get `NO_ROUTE_FOUND` at an hour nothing runs.
 
-Built in `backend/src/utils/serviceArea.js` at startup (~1 s Amman, ~1.2 s
+Built in `backend/src/utils/serviceArea.js` at startup (~1.5 s Amman, ~1.2 s
 HSL; a few MB as one byte per 100 m cell):
 
 1. Everywhere within walking reach of a served stop — the engine's own test in
@@ -541,12 +541,18 @@ HSL; a few MB as one byte per 100 m cell):
 3. *Closed* with a 2.5 km disc: any bay narrower than 5 km is filled, towns
    further apart than that stay separate.
 4. Every hole a town surrounds is filled.
+5. A *local* line (every stop within 25 km of every other) that still runs
+   between two separate pieces joins them: walking reach along its road shape
+   is added and steps 3–4 repeat. On Amman this is AQ301, which makes Aqaba's
+   centre and South Beach one city; intercity lines (KR01, MA01…) never join
+   towns. Along such a road the bus calls only at its stops, so a point there
+   can be a long walk (up to ~10.5 km on Aqaba's coast) — a real answer.
 
 The engine uses it in `getNearbyStops.js`: when no stop is within walking reach
 and the point is inside the area (`isInServiceArea`, one lookup), it offers the
 nearest five stops within 500 m of the nearest one, however far — so a long
-first or last walk (up to ~8.8 km on Amman, at the far side of a large town) is
-a real answer inside the area.
+first or last walk (up to ~10.5 km on Amman, along Aqaba's coast between
+AQ301's two stops) is a real answer inside the area.
 Outside, it returns nothing and the engine answers out of bounds as before.
 Requests with a stop in reach never reach either check.
 
@@ -555,7 +561,7 @@ accepts a cell's neighbours (100 m), so every point inside the line is planned.
 Verified at 200,000 random points on each of Amman and HSL: none inside the line
 was refused; about 0.5% of points just outside it (within ~150 m) are accepted.
 Rings follow RFC 7946: outer anticlockwise, holes clockwise, `[lon, lat]`.
-Amman: 18 areas. `geometry` is null for a feed with no served stops.
+Amman: 17 areas. `geometry` is null for a feed with no served stops.
 
 ## Travel card
 

@@ -33,6 +33,12 @@ const cache = getCache();
  * 2. **Closing.** Every bay narrower than twice CLOSE_METERS is filled, and
  *    every hole a town surrounds, while towns further apart than that stay
  *    separate.
+ * 3. **One town, one area.** Where a local line — all its stops within
+ *    LOCAL_LINE_METERS of each other — still runs between two separate
+ *    pieces, walking reach along its road joins them, and step 2 is done
+ *    again. Aqaba's centre and South Beach, 15 km apart down the coast on
+ *    line AQ301, are one city with buses between them; Karak and Qatrana,
+ *    86 km apart on KR01, are two towns and stay two.
  *
  * The result is the shape of each town the network serves. Without the
  * built-up land — a network that never fetched it — it is step 2 alone.
@@ -52,6 +58,9 @@ const URBAN_MAX_METERS = 4000;
 // Gaps narrower than this between built-up patches are streets and parks:
 // the patches are one town
 const URBAN_JOIN_METERS = 500;
+// A line whose stops all lie within this of each other runs inside one town
+// and its outskirts — Aqaba's centre to South Beach — not between towns
+const LOCAL_LINE_METERS = 25000;
 
 const urbanAreasPath = path.join(
   __dirname,
@@ -82,6 +91,29 @@ function loadUrbanAreas() {
 const CELL_METERS = 100;
 const SIMPLIFY_TOLERANCE_METERS = 80;
 const METERS_PER_DEGREE_LAT = 111320;
+
+/**
+ * Lines that run within one town and its outskirts, with the stops they call
+ * at and the road they take — the route's representative shape, or straight
+ * between its stops when the feed has none.
+ */
+function localLines() {
+  const lines = [];
+  for (const route of cache.routes) {
+    const stops = route.stop_ids
+      .map((id) => cache.stops[id])
+      .filter(Boolean)
+      .map((stop) => [stop.lat, stop.lon]);
+    let span = 0;
+    for (const a of stops) {
+      for (const b of stops) span = Math.max(span, calculateHaversine(a[0], a[1], b[0], b[1]));
+    }
+    if (stops.length < 2 || span > LOCAL_LINE_METERS) continue;
+    const shape = cache.shapes?.[route.shape_id];
+    lines.push({ stops, path: Array.isArray(shape) && shape.length >= 2 ? shape : stops });
+  }
+  return lines;
+}
 
 /** Stops something calls at; the same rule `/api/stops` applies. */
 function servedStops() {
@@ -290,7 +322,30 @@ function fillHoles(grid, rows, cols) {
  * megabytes where a set of cell keys was several times that, and a lookup is
  * one array read.
  */
-function buildArea(reached, urban) {
+/** Labels each 4-connected piece of `grid` 1, 2, 3, …; 0 is open ground. */
+function labelPieces(grid, rows, cols) {
+  const labels = new Int32Array(rows * cols);
+  let next = 0;
+  for (let start = 0; start < grid.length; start++) {
+    if (!grid[start] || labels[start]) continue;
+    next++;
+    const stack = [start];
+    while (stack.length > 0) {
+      const i = stack.pop();
+      if (!grid[i] || labels[i]) continue;
+      labels[i] = next;
+      const r = Math.floor(i / cols);
+      const c = i % cols;
+      if (r > 0) stack.push(i - cols);
+      if (r < rows - 1) stack.push(i + cols);
+      if (c > 0) stack.push(i - 1);
+      if (c < cols - 1) stack.push(i + 1);
+    }
+  }
+  return labels;
+}
+
+function buildArea(reached, urban, localLines, cellLat, cellLon) {
   const closeRadius = Math.round(CLOSE_METERS / CELL_METERS);
   const urbanRadius = Math.round(URBAN_MAX_METERS / CELL_METERS);
   const joinRadius = Math.round(URBAN_JOIN_METERS / CELL_METERS);
@@ -337,8 +392,43 @@ function buildArea(reached, urban) {
     }
   }
 
-  const closed = closeGrid(area, rows, cols, closeRadius);
+  let closed = closeGrid(area, rows, cols, closeRadius);
   fillHoles(closed, rows, cols);
+
+  // Step 3: local lines that still run between separate pieces.
+  const cellOf = ([lat, lon]) => at(Math.floor(lat / cellLat), Math.floor(lon / cellLon));
+  const labels = labelPieces(closed, rows, cols);
+  const road = new Uint8Array(rows * cols);
+  let joined = 0;
+  for (const { stops, path } of localLines) {
+    const pieces = new Set(stops.map((stop) => labels[cellOf(stop)] ?? 0));
+    pieces.delete(0);
+    if (pieces.size < 2) continue;
+    joined++;
+    // Every cell the road passes through, sampled at half a cell.
+    for (let k = 1; k < path.length; k++) {
+      const [lat1, lon1] = path[k - 1];
+      const [lat2, lon2] = path[k];
+      const steps = Math.ceil(
+        2 * Math.max(Math.abs(lat2 - lat1) / cellLat, Math.abs(lon2 - lon1) / cellLon),
+      );
+      for (let t = 0; t <= steps; t++) {
+        const f = steps === 0 ? 0 : t / steps;
+        const i = cellOf([lat1 + f * (lat2 - lat1), lon1 + f * (lon2 - lon1)]);
+        if (i !== -1) road[i] = 1;
+      }
+    }
+  }
+  if (joined > 0) {
+    const reachCells = REACH_METERS / CELL_METERS;
+    const fromRoad = squaredDistanceTo(road, rows, cols);
+    for (let i = 0; i < area.length; i++) {
+      if (fromRoad[i] <= reachCells * reachCells) area[i] = 1;
+    }
+    closed = closeGrid(area, rows, cols, closeRadius);
+    fillHoles(closed, rows, cols);
+    logger.info(`serviceArea: ${joined} local lines joined pieces of one town`);
+  }
 
   return {
     rows,
@@ -429,7 +519,7 @@ function computeServiceArea() {
   }
 
   const urban = rasteriseRings(loadUrbanAreas(), cellLat, cellLon);
-  const covered = buildArea(reached, urban);
+  const covered = buildArea(reached, urban, localLines(), cellLat, cellLon);
 
   /*
    * The edge of the union: every cell side with an uncovered neighbour,
