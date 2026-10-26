@@ -116,4 +116,30 @@ describe('PlaceInput', () => {
     expect(field().value).toBe('');
     expect(screen.getByTestId('chosen').textContent).toBe('—');
   });
+
+  /*
+   * "Nothing matches" and "search is down" are different facts and need
+   * different words. Saying the second for the first told people searching in
+   * Arabic that the service was broken when it had simply found nothing.
+   */
+  it('says when a search found nothing, naming what was typed', async () => {
+    render(<Field initial={null} />);
+
+    fireEvent.change(field(), { target: { value: 'qqxzzv' } });
+
+    const list = await screen.findByRole('listbox', {}, { timeout: 2000 });
+    expect(list.textContent).toMatch(/Nothing matches “qqxzzv”/);
+    expect(screen.queryByText(/unavailable/)).toBeNull();
+  });
+
+  it('says search is unavailable only when it could not be asked', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 503 })));
+    render(<Field initial={null} />);
+
+    fireEvent.change(field(), { target: { value: 'Kamppi' } });
+
+    expect(
+      await screen.findByText(/Place search is unavailable/, {}, { timeout: 2000 }),
+    ).toBeTruthy();
+  });
 });

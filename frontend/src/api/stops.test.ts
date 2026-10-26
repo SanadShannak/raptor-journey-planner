@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getStopBoard, getStopsInBounds, getStopTimetable } from './stops';
+import { getStopBoard, getStopsInBounds, getStopTimetable, searchStops } from './stops';
 import { isApiError } from './errors';
 
 /*
@@ -20,6 +20,56 @@ function respondWith(body: unknown, status = 200) {
 const area = { minLat: 60.1, minLon: 24.9, maxLat: 60.2, maxLon: 25.0 };
 
 afterEach(() => vi.unstubAllGlobals());
+
+describe('searchStops', () => {
+  it('sends what was typed, and the limit', async () => {
+    const fetchMock = respondWith({ stops: [], total: 0, truncated: false });
+
+    await searchStops('المحطة', { limit: 10 });
+
+    const url = new URL(String(fetchMock.mock.calls[0]![0]));
+    expect(url.pathname).toBe('/api/stops/search');
+    expect(url.searchParams.get('q')).toBe('المحطة');
+    expect(url.searchParams.get('limit')).toBe('10');
+  });
+
+  it('reads a stop with its modes and its names in other languages', async () => {
+    respondWith({
+      stops: [
+        {
+          id: '11920',
+          name: 'Al Mahatta',
+          code: null,
+          lat: 31.9616829,
+          lon: 35.9600643,
+          description: null,
+          fareZone: null,
+          platform: null,
+          wheelchairAccessible: null,
+          modes: [3],
+          translations: { ar: 'المحطة', fr: '' },
+        },
+        // No position: cannot be planned from, so not a suggestion.
+        { id: '1', name: 'Nowhere', modes: [3], translations: {} },
+      ],
+    });
+
+    const [stop, ...rest] = await searchStops('mahatta');
+
+    expect(rest).toEqual([]);
+    expect(stop).toMatchObject({ id: '11920', name: 'Al Mahatta', modes: [3] });
+    // An empty name is no name.
+    expect(stop?.translations).toEqual({ ar: 'المحطة' });
+  });
+
+  it('has no names in other languages when the feed carries none', async () => {
+    respondWith({ stops: [{ id: '1', name: 'A', lat: 1, lon: 2, modes: [3] }] });
+
+    const [stop] = await searchStops('a');
+
+    expect(stop?.translations).toEqual({});
+  });
+});
 
 describe('getStopsInBounds', () => {
   it('sends the box as four numbers', async () => {

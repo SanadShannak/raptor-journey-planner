@@ -5,7 +5,8 @@ import { ThemeProvider } from '../theme';
 import { MapCanvas } from './MapCanvas';
 import { useMap } from './mapContext';
 import { forgetWebGlSupport } from './webgl';
-import { created, forgetMaps } from '../test/mapStub';
+import { created, forgetMaps, liveMap } from '../test/mapStub';
+import { forgetServiceArea } from './serviceAreaCache';
 
 /*
  * What happens when the browser cannot draw a map.
@@ -56,10 +57,12 @@ function withoutWebGl() {
 beforeEach(() => {
   forgetMaps();
   forgetWebGlSupport();
+  forgetServiceArea();
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   forgetWebGlSupport();
 });
 
@@ -125,5 +128,70 @@ describe('a browser that can', () => {
 
     expect(screen.queryByText('The map cannot be shown here')).toBeNull();
     expect(screen.getByText('drawn on the map')).toBeTruthy();
+  });
+
+  /*
+   * One fling on a phone used to lose the city altogether, into a neighbouring
+   * country where nothing on the map could help.
+   */
+  it('keeps the view inside the network’s country, with a margin to see the border', async () => {
+    show();
+    await act(async () => {});
+
+    const [[west, south], [east, north]] = liveMap().maxBounds!;
+    // Amman's bounds are all of Jordan, 29.18–33.38 N and 34.95–39.31 E.
+    expect(west).toBeCloseTo(34.7);
+    expect(south).toBeCloseTo(28.93);
+    expect(east).toBeCloseTo(39.56);
+    expect(north).toBeCloseTo(33.63);
+  });
+
+  it('outlines where journeys can start, beneath the basemap’s labels', async () => {
+    const ring = [
+      [35.9, 31.9],
+      [36.0, 31.9],
+      [36.0, 32.0],
+      [35.9, 31.9],
+    ];
+    let answer: (response: Response) => void = () => {};
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: RequestInfo | URL) =>
+        String(url).includes('/api/network/area')
+          ? new Promise<Response>((resolve) => {
+              answer = resolve;
+            })
+          : Promise.resolve(new Response('{}')),
+      ),
+    );
+
+    show();
+    await act(async () => {});
+    // A label the basemap's style carries, and an overlay a page drew on top.
+    liveMap().addLayer({ id: 'place-label', type: 'symbol' } as never);
+    liveMap().addLayer({ id: 'journey-line', type: 'line' } as never);
+
+    // The area arrives last, as it does over a real network.
+    await act(async () => {
+      answer(
+        new Response(
+          JSON.stringify({
+            type: 'Feature',
+            properties: {},
+            geometry: { type: 'MultiPolygon', coordinates: [[ring]] },
+          }),
+        ),
+      );
+    });
+
+    const order = liveMap()
+      .getStyle()
+      .layers.map((layer) => layer.id);
+    expect(order).toEqual([
+      'service-area-fill',
+      'service-area-edge',
+      'place-label',
+      'journey-line',
+    ]);
   });
 });

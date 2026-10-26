@@ -54,6 +54,18 @@ export interface NetworkStop extends StopIdentity {
 }
 
 /**
+ * A stop found by name, from `/api/stops/search`.
+ *
+ * `translations` is the stop's name in each other language the feed carries,
+ * keyed by language code — `{ ar: "المحطة" }` — and empty when it has none,
+ * which for Amman is most stops: the operator itself names only some of them
+ * in Arabic. `name` stays the feed's own.
+ */
+export interface StopMatch extends NetworkStop {
+  translations: Partial<Record<string, string>>;
+}
+
+/**
  * A line calling at a stop, and where it goes from there.
  *
  * One entry per `lineId`, which encodes mode and designation but **not**

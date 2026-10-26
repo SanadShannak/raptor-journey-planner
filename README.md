@@ -363,7 +363,7 @@ An isolation layer that shields the core routing engine from heavy map geometry 
 
 ## Pipeline Orchestration (`runPipeline.js`)
 
-Automates the ingestion chain using `child_process.execSync`, ensuring relational dependencies are strictly preserved by freezing parent execution until each sub-parser yields a successful exit code. The nine components run in the order above, and the order is load-bearing: later components read what earlier ones wrote, and the metadata compiler runs last because it describes the compiled output.
+Automates the ingestion chain using `child_process.execSync`, ensuring relational dependencies are strictly preserved by freezing parent execution until each sub-parser yields a successful exit code. The ten components run in the order above, and the order is load-bearing: later components read what earlier ones wrote, and the metadata compiler runs last because it describes the compiled output.
 
 ---
 

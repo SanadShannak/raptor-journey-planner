@@ -46,6 +46,10 @@ const parsingComponents = [
     name: "Component 9: Compile Network Metadata",
     scriptPath: path.join(allParsersFolderPath, "parseNetworkMeta.js"),
   },
+  {
+    name: "Component 10: Parse Stop Name Translations",
+    scriptPath: path.join(allParsersFolderPath, "parseTranslations.js"),
+  },
 ];
 
 console.log("\x1b[32m%s\x1b[0m", "Offline Pipeline Execution Starting...\n");

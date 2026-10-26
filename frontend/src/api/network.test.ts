@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getNetwork } from './network';
+import { getNetwork, getServiceArea } from './network';
 import { isApiError } from './errors';
 
 function respondWith(body: unknown, status = 200) {
@@ -79,5 +79,53 @@ describe('getNetwork', () => {
     const error = await getNetwork().catch((thrown: unknown) => thrown);
 
     expect(isApiError(error) && error.kind).toBe('malformed');
+  });
+});
+
+describe('getServiceArea', () => {
+  const ring = [
+    [35.9, 31.9],
+    [36.0, 31.9],
+    [36.0, 32.0],
+    [35.9, 31.9],
+  ];
+  const area = (coordinates: unknown) => ({
+    type: 'Feature',
+    properties: { stopCount: 1365 },
+    geometry: { type: 'MultiPolygon', coordinates },
+  });
+
+  it('reads each area with its holes', async () => {
+    respondWith(area([[ring, ring], [ring]]));
+
+    const answer = await getServiceArea();
+
+    expect(answer?.polygons).toHaveLength(2);
+    expect(answer?.polygons[0]).toHaveLength(2);
+  });
+
+  it('has no area for a network with no served stops', async () => {
+    respondWith({ type: 'Feature', properties: {}, geometry: null });
+
+    expect(await getServiceArea()).toBeNull();
+  });
+
+  /*
+   * A broken hole is dropped and its area kept; a broken outer ring takes its
+   * area with it, because its holes would otherwise be drawn as the area.
+   */
+  it('drops a malformed ring rather than drawing it with a gap', async () => {
+    const broken = [[35.9, 31.9], [36.0, null], [36.0, 32.0], [35.9, 31.9]];
+    respondWith(area([[ring, broken], [broken, ring]]));
+
+    const answer = await getServiceArea();
+
+    expect(answer?.polygons).toEqual([[ring]]);
+  });
+
+  it('refuses something that is not a MultiPolygon', async () => {
+    respondWith({ type: 'Feature', geometry: { type: 'Point', coordinates: [35.9, 31.9] } });
+
+    await expect(getServiceArea()).rejects.toSatisfy(isApiError);
   });
 });

@@ -8,8 +8,11 @@ Irbid, Zarqa, Karak, Tafila, Ma'an and Aqaba. Python 3.9+, standard library only
 
 ```sh
 # From the repository root.
-# 1. Snapshot the API: ~382 requests at 1/s, about eight minutes, resumable.
+# 1. Snapshot the API: ~382 requests at 1/s, then the same again for the
+#    Arabic stop names — about fifteen minutes in all, resumable.
 python3 scripts/amman-gtfs/amman_gtfs.py fetch --out raw-data/amman-api-snapshots/$(date +%F)
+#    (A snapshot taken before the names pass existed can gain them on its own:
+#    python3 scripts/amman-gtfs/amman_gtfs.py fetch-names --out raw-data/amman-api-snapshots/YYYY-MM-DD)
 
 # 2. Write the feed. Old .txt files in the folder are removed first.
 python3 scripts/amman-gtfs/amman_gtfs.py build \
@@ -52,6 +55,7 @@ because the pipeline requires the file.
 | `shape_dist_traveled` | each stop projected onto its shape, in **kilometres** | derived |
 | `agency_timezone` | `Asia/Amman` | the API server's clock |
 | `agency_url` | `https://www.ammanbus.jo/` | assumed |
+| `translations.txt` | `web/pathInfo` with `lang=ar` → `busStopList[].stopName`, by `stopId` | verified; the API names only 405 of 1,365 stops in Arabic and repeats the English for the rest, which are left out |
 
 `shape_dist_traveled` is what lets the pipeline cut a ridden leg out of its
 route's shape; without it every leg is drawn as a straight line. Kilometres

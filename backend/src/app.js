@@ -11,6 +11,8 @@ const validDatesApi = require("./routes/validDatesApi");
 const plannerApi = require("./routes/plannerApi");
 const stopsApi = require("./routes/stopsApi");
 const networkApi = require("./routes/networkApi");
+const stopSearchApi = require("./routes/stopSearchApi");
+const serviceAreaApi = require("./routes/serviceAreaApi");
 const routesApi = require("./routes/routesApi");
 const authApi = require("./routes/authApi");
 const cardApi = require("./routes/cardApi");
@@ -84,7 +86,11 @@ app.get("/api/health", (req, res) => {
 app.use("/api/valid-dates", validDatesApi);
 app.use("/api/planner", plannerApi);
 app.use("/api/stop", stopsApi);
+// Ahead of the routers they sit under: `/api/stops/:id` would otherwise take
+// "search" for a stop id.
+app.use("/api/stops/search", stopSearchApi);
 app.use("/api/stops", stopsApi);
+app.use("/api/network/area", serviceAreaApi);
 app.use("/api/network", networkApi);
 app.use("/api/routes", routesApi);
 app.use("/api/auth", authApi);

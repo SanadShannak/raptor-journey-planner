@@ -204,8 +204,25 @@ export class StubMap {
     this.sources.delete(id);
   }
 
-  addLayer(layer: StubLayer): void {
-    this.layers.set(layer.id, layer);
+  /** Before the named layer when one is given, as the real map does; on top otherwise. */
+  addLayer(layer: StubLayer, beforeId?: string): void {
+    if (beforeId === undefined || !this.layers.has(beforeId)) {
+      this.layers.set(layer.id, layer);
+      return;
+    }
+    const ordered = [...this.layers.entries()];
+    this.layers.clear();
+    for (const [id, existing] of ordered) {
+      if (id === beforeId) this.layers.set(layer.id, layer);
+      this.layers.set(id, existing);
+    }
+  }
+
+  /** The bounds the view is kept inside, or null for none. */
+  maxBounds: [[number, number], [number, number]] | null = null;
+
+  setMaxBounds(bounds: [[number, number], [number, number]] | null): void {
+    this.maxBounds = bounds;
   }
 
   getLayer(id: string): StubLayer | undefined {

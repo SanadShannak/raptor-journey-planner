@@ -3,6 +3,7 @@
 Two stages, so the network is only hit once per snapshot. From the repository root:
 
     python3 scripts/amman-gtfs/amman_gtfs.py fetch --out raw-data/amman-api-snapshots/$(date +%F)
+    python3 scripts/amman-gtfs/amman_gtfs.py fetch-names --out raw-data/amman-api-snapshots/YYYY-MM-DD   # (included in fetch)
     python3 scripts/amman-gtfs/amman_gtfs.py build --raw raw-data/amman-api-snapshots/YYYY-MM-DD \
         --dir raw-data/amman-gtfs-data [--days 28] [--overrides holidays.csv]
 
@@ -10,6 +11,8 @@ Data source (verified 2026-10-23, no auth required):
     https://mobile.ammanbus.jo/rl1/web/nearest/find?region=116&lang=en              -> routeList
     https://mobile.ammanbus.jo/rl1/web/pathInfo?region=116&lang=en&displayRouteCode=X&direction=D&resultType=101010
         -> pathList[].pointList (shape), busStopList (ordered stops + offsets), scheduleList (weekday patterns + trips)
+    The same pathInfo with lang=ar&resultType=001000 -> busStopList with Arabic stop names, same stopIds
+        -> translations.txt
 
 The API exposes recurring weekday patterns only; it has no validity dates or exceptions.
 See README.md for how calendar dates are handled.
@@ -35,6 +38,10 @@ TIMEZONE = "Asia/Amman"
 USER_AGENT = "amman-gtfs/0.1 (personal journey planner; contact via github)"
 # pointList | busStopList | scheduleList ; skips live busList and today-only timeTableList
 PATH_RESULT_TYPE = "101010"
+# busStopList alone: all that the Arabic pass needs is each stop's name.
+NAMES_RESULT_TYPE = "001000"
+# Languages fetched besides the feed's own (English), each into paths-<lang>/ and out as translations.txt.
+NAME_LANGUAGES = ("ar",)
 # Written even when empty: some consumers (and the RAPTOR pipeline) require the file to exist.
 HEADER_ONLY = {"calendar_dates.txt": ["service_id", "date", "exception_type"]}
 WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
@@ -99,6 +106,37 @@ def fetch(out_dir, delay):
 
     with open(os.path.join(out_dir, "snapshot.json"), "w") as f:
         json.dump({"fetched_at": nearest["result"]["dateTime"], "base_url": BASE_URL, "region": REGION}, f)
+
+    fetch_names(out_dir, delay, client)
+
+
+def fetch_names(out_dir, delay, client=None):
+    """Stop names in each of NAME_LANGUAGES, for the routes an existing snapshot already holds.
+
+    A separate pass, and runnable on its own, so a snapshot taken before it existed can gain names without being
+    fetched again: it reads nearest.json rather than asking for a new route list, which would no longer match the
+    paths/ beside it. Resumable like fetch.
+    """
+    client = client or Client(delay=delay)
+    with open(os.path.join(out_dir, "nearest.json"), encoding="utf-8") as f:
+        nearest = json.load(f)
+    codes = sorted({r["displayRouteCode"] for r in nearest["routeList"]})
+    for lang in NAME_LANGUAGES:
+        lang_dir = os.path.join(out_dir, f"paths-{lang}")
+        os.makedirs(lang_dir, exist_ok=True)
+        print(f"{len(codes)} routes; fetching {lang} stop names for 2 directions each at {delay}s/request")
+        for i, code in enumerate(codes, 1):
+            for direction in (0, 1):
+                dest = os.path.join(lang_dir, f"{urllib.parse.quote(code, safe='')}_{direction}.json")
+                if os.path.exists(dest):
+                    continue
+                data = client.get(
+                    "/web/pathInfo", allow_codes=(0, 3), lang=lang,
+                    displayRouteCode=code, direction=direction, resultType=NAMES_RESULT_TYPE,
+                )
+                with open(dest, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False)
+            print(f"  [{i}/{len(codes)}] {code}")
 
 
 # --------------------------------------------------------------------------- build
@@ -179,6 +217,35 @@ def shape_distances(points, stop_points):
     for i in range(1, len(stop_d)):  # two stops on one segment can come out reversed by a hair
         stop_d[i] = max(stop_d[i], stop_d[i - 1])
     return cum, stop_d, max(snap)
+
+
+def stop_translations(raw_dir, stops):
+    """translations.txt rows for stop names in each of NAME_LANGUAGES that was fetched.
+
+    GTFS's own form for a name in another language (table_name=stops, field_name=stop_name, record_id=stop_id).
+    A name identical to the English one is left out, as is a stop the names pass never saw: absent means "use the
+    feed's name", which is the truth for both.
+    """
+    rows = []
+    for lang in NAME_LANGUAGES:
+        lang_dir = os.path.join(raw_dir, f"paths-{lang}")
+        if not os.path.isdir(lang_dir):
+            continue
+        names = {}
+        for fname in sorted(os.listdir(lang_dir)):
+            with open(os.path.join(lang_dir, fname), encoding="utf-8") as f:
+                data = json.load(f)
+            for path in data.get("pathList", []):
+                for b in path.get("busStopList", []):
+                    name = (b.get("stopName") or "").strip()
+                    if name:
+                        names.setdefault(b["stopId"], name)
+        for stop_id, stop in stops.items():
+            name = names.get(stop_id)
+            if name and name != stop["stop_name"]:
+                rows.append({"table_name": "stops", "field_name": "stop_name", "language": lang,
+                             "translation": name, "record_id": stop_id})
+    return rows
 
 
 def build(raw_dir, zip_path, days, overrides_path=None, out_dir=None):
@@ -300,16 +367,18 @@ def build(raw_dir, zip_path, days, overrides_path=None, out_dir=None):
     if dropped:
         warnings.append(f"{len(dropped)} routes without trips omitted: {', '.join(sorted(dropped))}")
     used_stop_ids = {st["stop_id"] for st in stop_times}
+    used_stops = {sid: s for sid, s in stops.items() if sid in used_stop_ids}
 
     files = {
         "agency.txt": list(agencies.values()),
         "routes.txt": [r for c, r in routes.items() if c in used_routes],
-        "stops.txt": [s for s in stops.values() if s["stop_id"] in used_stop_ids],
+        "stops.txt": list(used_stops.values()),
         "trips.txt": trips,
         "stop_times.txt": stop_times,
         "calendar.txt": calendar,
         "calendar_dates.txt": calendar_dates,
         "shapes.txt": shapes,
+        "translations.txt": stop_translations(raw_dir, used_stops),
         "feed_info.txt": [{
             "feed_publisher_name": "Unofficial snapshot of Amman Bus / Kentkart API",
             "feed_publisher_url": "https://www.ammanbus.jo/", "feed_lang": "en",
@@ -375,6 +444,9 @@ def main():
     f = sub.add_parser("fetch")
     f.add_argument("--out", required=True)
     f.add_argument("--delay", type=float, default=1.0, help="seconds between requests (default 1.0)")
+    n = sub.add_parser("fetch-names", help="add stop names in other languages to an existing snapshot")
+    n.add_argument("--out", required=True)
+    n.add_argument("--delay", type=float, default=1.0, help="seconds between requests (default 1.0)")
     b = sub.add_parser("build")
     b.add_argument("--raw", required=True)
     out = b.add_mutually_exclusive_group(required=True)
@@ -385,6 +457,8 @@ def main():
     args = ap.parse_args()
     if args.cmd == "fetch":
         fetch(args.out, args.delay)
+    elif args.cmd == "fetch-names":
+        fetch_names(args.out, args.delay)
     else:
         build(args.raw, args.zip, args.days, args.overrides, args.dir)
 

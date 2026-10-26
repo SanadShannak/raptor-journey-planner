@@ -66,6 +66,8 @@ import {
   releaseMap,
 } from './mapPool';
 import { homeViewFor, type HomeView } from './homeView';
+import { ServiceAreaLayer } from './ServiceAreaLayer';
+import { boundsForNetwork } from '../config/geocoding';
 import { tileSourceFor } from './tileSource';
 import { useReducedMotion } from './useReducedMotion';
 import { hasWebGl } from './webgl';
@@ -147,6 +149,15 @@ if (getRTLTextPluginStatus() === 'unavailable') {
  */
 const FIRST_VIEW = homeViewFor(null, null);
 
+/**
+ * How far past the network's bounds the map may be moved, in degrees.
+ *
+ * Enough to see the border the bounds stop at, so the edge of the country does
+ * not sit flush against the edge of the screen, and not so much that the map
+ * can be dragged off into the next one.
+ */
+const LOCK_MARGIN_DEGREES = 0.25;
+
 export function MapCanvas({ network, initialView, children }: Props) {
   const { direction, strings, t } = useLocale();
   const { resolved } = useTheme();
@@ -224,6 +235,7 @@ export function MapCanvas({ network, initialView, children }: Props) {
   }, []);
 
   const tiles = tileSourceFor(network);
+  const lockTo = boundsForNetwork(network);
   const style = resolved === 'dark' ? tiles.dark : tiles.light;
   const rtl = direction === 'rtl';
 
@@ -443,6 +455,27 @@ export function MapCanvas({ network, initialView, children }: Props) {
   }, [map, style]);
 
   /*
+   * Kept to the network's own country.
+   *
+   * Every journey, stop and line is inside these bounds, so a map scrolled
+   * past them shows nothing this app can help with — and it is easy to lose
+   * the city entirely with one fling on a phone. MapLibre also stops zooming
+   * out once the bounds fill the screen, which is the same rule seen from the
+   * other side.
+   */
+  useEffect(() => {
+    if (map === null) return;
+    map.setMaxBounds(
+      lockTo === null
+        ? null
+        : [
+            [lockTo.minLon - LOCK_MARGIN_DEGREES, lockTo.minLat - LOCK_MARGIN_DEGREES],
+            [lockTo.maxLon + LOCK_MARGIN_DEGREES, lockTo.maxLat + LOCK_MARGIN_DEGREES],
+          ],
+    );
+  }, [map, lockTo]);
+
+  /*
    * The controls, and the side they sit on.
    *
    * Re-added when the reading direction or the wording changes, because both
@@ -528,7 +561,11 @@ export function MapCanvas({ network, initialView, children }: Props) {
       className="absolute inset-0 h-full w-full"
     >
       {handle !== null && (
-        <MapContext.Provider value={handle}>{children}</MapContext.Provider>
+        <MapContext.Provider value={handle}>
+          {/* First, so it is the ground the page's own overlays sit on. */}
+          <ServiceAreaLayer />
+          {children}
+        </MapContext.Provider>
       )}
     </div>
   );
