@@ -544,8 +544,9 @@ public by design (see [External dependencies](#external-dependencies-and-keys)).
 unofficial. It covers the whole window, can be switched between English and
 Arabic, and cannot be dismissed for four seconds; the **ⓘ** button in the header
 reopens it without the wait (`src/features/notice/`). The **privacy policy**
-(`/privacy`) and **terms** (`/terms`) are written in the dictionaries, with the
-contact address and last-updated date in `src/config/legal.ts`. Change that date
+(`/privacy`) and **terms** (`/terms`) are written in the dictionaries. Their contact address is
+**admin@journeyplanner.city**, set with the last-updated date in
+`src/config/legal.ts`. Change that date
 whenever the wording changes. The travel card page is marked as a demo.
 
 **A first visit shows a short guided tour** of each page that has one (the

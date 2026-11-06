@@ -49,8 +49,8 @@ export const en: Dictionary = {
         {
           heading: 'Server logs',
           paragraphs: [
-            'Our server logs each request so that we can run the site and understand how it is used. The logs are stripped first: they leave out search details and coordinates, cookies, and the last part of your IP address. Older logs are overwritten as new ones are written.',
-            'To limit abuse, your full IP address is held briefly in memory to count requests. It is not written to these logs.',
+            'Our server logs each request so that we can run the site and understand how it is used.',
+            'To limit abuse, your IP address is held briefly in memory to count requests.',
           ],
         },
         {
@@ -597,7 +597,7 @@ export const en: Dictionary = {
     refreshBalance: 'Refresh balance',
     guestNotice: 'Log in to see your own travel cards, add new ones and top them up.',
     balanceCheckTitle: 'Check a balance',
-    balanceCheckIntro: 'Enter the number on any travel card to see what is left on it.',
+    balanceCheckIntro: 'Enter the number of any card created through this journey planner to see what is left on it.',
     balanceCheckHint: 'Eleven digits, as printed on the card: {example}',
     balanceCheckAction: 'Check balance',
     balanceChecking: 'Checking…',
@@ -854,7 +854,7 @@ export const en: Dictionary = {
       addBody:
         'This is the form “Add a card” opens: give the card a name you will recognise and choose its type. The card number is issued for you.',
       balanceTitle: 'Check any card',
-      balanceBody: 'Enter the number printed on any travel card to see its balance. No account needed.',
+      balanceBody: 'Enter the number of any card created through this journey planner to see its balance. No account needed.',
     },
     favourites: {
       introTitle: 'Everything you saved',
