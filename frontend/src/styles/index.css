@@ -38,16 +38,15 @@
    */
 
   /*
-   * Brand: graphite and gold. `brand-500` is the main colour, graphite #334155
-   * here and gold #FBBF24 in the dark scheme, because graphite cannot be read on
-   * a dark page. Both sit apart from every mode colour a rider reads on a line,
+   * Brand: navy and gold. `brand-500` is the main colour, navy #1E3A5F here and
+   * gold #FBBF24 in the dark scheme, because navy cannot be read on a dark page. Both sit apart from every mode colour a rider reads on a line,
    * bus blue above all, and from the red and green that mean failure and success.
    */
-  --color-brand-50: oklch(0.9750 0.0070 257.29);
-  --color-brand-100: oklch(0.9350 0.0200 257.29);
-  --color-brand-500: oklch(0.3717 0.0392 257.29);
-  --color-brand-600: oklch(0.3117 0.0352 257.29);
-  --color-brand-700: oklch(0.2467 0.0313 257.29);
+  --color-brand-50: oklch(0.9750 0.0070 256.04);
+  --color-brand-100: oklch(0.9350 0.0200 256.04);
+  --color-brand-500: oklch(0.3462 0.0736 256.04);
+  --color-brand-600: oklch(0.2862 0.0662 256.04);
+  --color-brand-700: oklch(0.2212 0.0589 256.04);
 
   /*
    * A filled brand control and the text on it. Separate from `brand-500`
@@ -55,7 +54,7 @@
    * colour, but the dark scheme's is too light to carry white text, so
    * `on-brand` turns dark there.
    */
-  --color-brand-fill: oklch(0.3717 0.0392 257.29);
+  --color-brand-fill: oklch(0.3462 0.0736 256.04);
   --color-on-brand: oklch(1 0 0);
 
   /*
@@ -68,21 +67,21 @@
    * moves in whichever direction the scheme has room for — darker on light,
    * lighter on dark.
    */
-  --color-action: oklch(0.3717 0.0392 257.29);
+  --color-action: oklch(0.3462 0.0736 256.04);
   --color-on-action: oklch(1 0 0);
-  --color-action-hover: oklch(0.3117 0.0352 257.29);
+  --color-action-hover: oklch(0.2862 0.0662 256.04);
   --color-on-action-hover: oklch(1 0 0);
 
   /*
-   * App chrome — the header, nav, and any persistent bar. Graphite in both
-   * schemes, a darker #1E293B in the dark one, so the bar and the start screen
+   * App chrome — the header, nav, and any persistent bar. Navy in both
+   * schemes, a darker #172A45 in the dark one, so the bar and the start screen
    * stay quiet while itineraries and the map carry the colour, and a full-width
    * sheet of gold does not glare at night. Both schemes write near-white on it.
    *
    * Chrome is a *surface*, not the brand ramp: use `brand-500` for brand
    * coloured text on a normal page, and `chrome` only for a bar.
    */
-  --color-chrome: oklch(0.3717 0.0392 257.29);
+  --color-chrome: oklch(0.3462 0.0736 256.04);
   --color-on-chrome: oklch(1 0 0);
 
   /*
@@ -102,7 +101,7 @@
 
   /*
    * Semantic surfaces and text. The neutrals carry a trace of the brand hue
-   * rather than the usual blue-grey, so greys sit under the graphite instead of
+   * rather than the usual blue-grey, so greys sit under the navy instead of
    * fighting it. Remapped for dark below.
    */
   --color-surface: oklch(1 0 0);
@@ -144,7 +143,7 @@
    * schemes for the same reason `on-brand` does — a fill light enough to read
    * against a dark page cannot also carry white text.
    */
-  --color-mode-bus: oklch(0.56 0.16 250);
+  --color-mode-bus: oklch(0.5 0.17 258);
   --color-mode-tram: oklch(0.545 0.151 150);
   --color-mode-metro: oklch(0.57 0.142 55);
   --color-mode-train: oklch(0.585 0.2 310);
@@ -187,7 +186,7 @@
  */
 :root {
   /*
-   * Graphite cannot be read against a dark page, so the dark scheme turns the
+   * Navy cannot be read against a dark page, so the dark scheme turns the
    * whole brand ramp to gold rather than reusing it.
    */
   --dark-brand-50: oklch(0.2550 0.0200 84.43);
@@ -203,15 +202,15 @@
   --dark-on-action-hover: oklch(0.1900 0.0120 257.29);
 
   /* Lifted, and the text on them darkens to match — see `on-mode`. */
-  --dark-mode-bus: oklch(0.68 0.176 250);
+  --dark-mode-bus: oklch(0.71 0.15 255);
   --dark-mode-tram: oklch(0.68 0.18 150);
   --dark-mode-metro: oklch(0.68 0.169 55);
   --dark-mode-train: oklch(0.68 0.18 310);
   --dark-mode-ferry: oklch(0.68 0.117 205);
   --dark-on-mode: oklch(0.1900 0.0120 257.29);
 
-  /* Graphite again rather than the gold, so a whole bar does not glare at night. */
-  --dark-chrome: oklch(0.2795 0.0368 260.03);
+  /* Navy again rather than the gold, so a whole bar does not glare at night. */
+  --dark-chrome: oklch(0.2835 0.0559 257.30);
   --dark-on-chrome: oklch(0.9800 0.0080 257.29);
   --dark-on-brand: oklch(0.1900 0.0120 257.29);
 
@@ -343,22 +342,22 @@
   :root {
     --color-brand-50: #f4f7fc;
     --color-brand-100: #e1eaf7;
-    --color-brand-500: #334155;
-    --color-brand-600: #253143;
-    --color-brand-700: #172130;
-    --color-brand-fill: #334155;
-    --color-action: #334155;
+    --color-brand-500: #1e3a5f;
+    --color-brand-600: #122b4a;
+    --color-brand-700: #061b35;
+    --color-brand-fill: #1e3a5f;
+    --color-action: #1e3a5f;
     --color-on-action: #ffffff;
-    --color-action-hover: #253143;
+    --color-action-hover: #122b4a;
     --color-on-action-hover: #ffffff;
     --color-on-brand: #ffffff;
-    --color-mode-bus: #0077cd;
+    --color-mode-bus: #145ec1;
     --color-mode-tram: #00873c;
     --color-mode-metro: #b55c00;
     --color-mode-train: #a04fd2;
     --color-mode-ferry: #00818c;
     --color-on-mode: #ffffff;
-    --color-chrome: #334155;
+    --color-chrome: #1e3a5f;
     --color-on-chrome: #ffffff;
     --color-chrome-border: #b6ccec;
     --color-accent-strong: #886108;
@@ -387,13 +386,13 @@
     --dark-on-action: #ffdb7d;
     --dark-action-hover: #fbbf24;
     --dark-on-action-hover: #101419;
-    --dark-mode-bus: #299cff;
+    --dark-mode-bus: #5ca3fd;
     --dark-mode-tram: #1cb657;
     --dark-mode-metro: #e57600;
     --dark-mode-train: #ba73ea;
     --dark-mode-ferry: #00acba;
     --dark-on-mode: #101419;
-    --dark-chrome: #1e293b;
+    --dark-chrome: #172a45;
     --dark-on-chrome: #f5f9fe;
     --dark-on-brand: #101419;
     --dark-accent-strong: #ebbd57;

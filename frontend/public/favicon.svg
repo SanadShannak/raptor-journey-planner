@@ -11,7 +11,7 @@
     16px against whatever its own tab strip is, light or dark, and a mark that
     tries to follow the page's scheme has no page to follow.
   -->
-  <rect width="48" height="48" rx="11" fill="#334155"/>
+  <rect width="48" height="48" rx="11" fill="#1E3A5F"/>
   <g fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round">
     <path d="M15 17.5v6.2a4 4 0 0 0 4 4h10a4 4 0 0 1 4 4v2.8" stroke-dasharray="0.1 6.4"/>
     <circle cx="15" cy="13" r="4.4"/>

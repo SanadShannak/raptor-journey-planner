@@ -1,7 +1,8 @@
 # RAPTOR Journey Planner Engine
 
-Live at **[journeyplanner.city](https://journeyplanner.city)**, serving Helsinki's
-HSL network.
+Live at **[journeyplanner.city](https://journeyplanner.city)**, serving Amman's
+bus network. It is an independent personal project, not affiliated with Amman
+Vision Bus, the Greater Amman Municipality or the Ministry of Transport.
 
 ## Core System Architecture Overview
 
@@ -526,6 +527,9 @@ configuration, and Vite reads both in every mode — the dev server,
 | `frontend/.env` | committed | `VITE_API_BASE_URL=/` and `VITE_DEV_API_PROXY`, the address the dev server forwards `/api` to |
 | `frontend/.env.local` | ignored | Your optional browser keys — copy `frontend/.env.example` |
 
+**Keys go in `frontend/.env.local`, never `frontend/.env`.** They are public
+once in a bundle, but a key in a repository is scraped within minutes of a push.
+
 **Leave `VITE_API_BASE_URL` as `/`.** The session is an HTTP-only cookie, and
 the API's `Access-Control-Allow-Origin: *` cannot be combined with credentials,
 so an absolute, cross-origin address breaks every call under `/api/auth`,
@@ -535,6 +539,14 @@ proxy forwarding `/api`, is the shape both development and production use.
 Everything named `VITE_*` is compiled into the JavaScript every visitor
 downloads, so neither file may ever hold a real secret. The two keys are
 public by design (see [External dependencies](#external-dependencies-and-keys)).
+
+**Every page load opens on a start screen** saying the site is independent and
+unofficial. It covers the whole window, can be switched between English and
+Arabic, and cannot be dismissed for four seconds; the **ⓘ** button in the header
+reopens it without the wait (`src/features/notice/`). The **privacy policy**
+(`/privacy`) and **terms** (`/terms`) are written in the dictionaries, with the
+contact address and last-updated date in `src/config/legal.ts`. Change that date
+whenever the wording changes. The travel card page is marked as a demo.
 
 **A first visit shows a short guided tour** of each page that has one (the
 planner, an opened journey, routes, stops, travel card and favourites), and
@@ -990,8 +1002,8 @@ file out, and lets precisely those two through. Vite freezes their values into
 the JavaScript during the build, so they can't be changed on a running
 container: **the keys an image has are the keys in `frontend/.env.local` on
 the machine that built it.** Build without that file and you get a working
-image on the fallbacks — Photon for search, CARTO's anonymous tier for the
-map.
+image on the fallbacks — Photon for search, CARTO's keyless tier for the map,
+which CARTO has warned may stop working.
 
 The image's Caddyfile has three `handle` blocks, first match winning:
 
@@ -1111,7 +1123,7 @@ serving a page that cannot answer.
 
 ### Releasing a new version
 
-1. Bump the image tag in **both** compose files (`1.1` → `1.2`).
+1. Bump the image tag in **both** compose files (`2.0` → `2.1`).
 2. Make sure `frontend/.env.local` holds the keys the live site should have —
    they are compiled into the image from this machine.
 3. Build and push, logged in to `ghcr.io` with a token that has
@@ -1148,20 +1160,21 @@ cp backend/.env.example backend/.env       # set MONGO_URI (Atlas) and JWT_SECRE
 chmod 600 backend/.env
 ```
 
-**The compiled feed.** It is not in git, so it travels separately — about
-475 MB, compressing to roughly 43 MB. On the machine that compiled it:
+**The compiled feed.** It is not in git, so it travels separately. Amman's is
+about 16 MB, compressing to roughly 2 MB; HSL's is about 475 MB, compressing to
+roughly 43 MB. On the machine that compiled it:
 
 ```bash
-tar -czf hsl-data.tar.gz -C processed-data hsl-processed-data
-scp hsl-data.tar.gz <user>@<server>:/tmp/
+tar -czf amman-data.tar.gz -C processed-data amman-processed-data
+scp amman-data.tar.gz <user>@<server>:/tmp/
 ```
 
 and on the server, from the repository directory:
 
 ```bash
 mkdir -p processed-data
-tar -xzf /tmp/hsl-data.tar.gz -C processed-data && rm /tmp/hsl-data.tar.gz
-ls -l processed-data/hsl-processed-data    # world-readable: the container is not root
+tar -xzf /tmp/amman-data.tar.gz -C processed-data && rm /tmp/amman-data.tar.gz
+ls -l processed-data/amman-processed-data    # world-readable: the container is not root
 ```
 
 The two `-C` flags cancel out: the first stores the paths without the
@@ -1294,8 +1307,8 @@ too, so the limits can be tried out without sending anything.
 * **Refreshing the timetable.** Feeds expire. `feedEndDate` in
   `network-meta.processed.json` is the last day covered (the last date
   `/api/valid-dates` returns says the same); after it, the planner has no
-  service days to offer. To refresh: download the new GTFS, run the pipeline
-  wherever it was compiled, ship the folder as above, and
+  service days to offer. To refresh: get the new GTFS, run the pipeline wherever
+  it was compiled, ship the folder as above, and
   `docker compose restart backend`. No image rebuild — the data is mounted.
 * **Resetting accounts:** `npm run resetdb` in `backend/` drops the whole
   database `MONGO_URI` names. It prints the host first; read it.
@@ -1507,7 +1520,7 @@ enough — and two browser keys are optional and improve the client.
 | --- | --- | --- | --- |
 | **Photon** | Place search | none | — the default, and works everywhere |
 | **Digitransit** | Place search that knows HSL's own stops | `VITE_DIGITRANSIT_SUBSCRIPTION_KEY` | Falls back to Photon: you lose stop suggestions, not search |
-| **CARTO** | Vector basemap tiles | `VITE_CARTO_API_KEY` | Tiles still load, on an anonymous tier that has grown unreliable |
+| **CARTO** | Vector basemap tiles | `VITE_CARTO_API_KEY` | Vector tiles still load for now, but CARTO no longer serves raster tiles without a key and says vector may follow. Set one for production; it is free |
 | **MongoDB** | Accounts, saved stops/lines/journeys, travel cards | `MONGO_URI` | **Required** — the server exits at startup without a connection |
 
 Each of the outside hosts above is named in the Content-Security-Policy in
