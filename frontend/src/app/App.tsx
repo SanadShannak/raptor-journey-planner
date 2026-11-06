@@ -7,6 +7,7 @@ import AccountPage from '../pages/AccountPage';
 import VerifyEmailPage from '../pages/VerifyEmailPage';
 import ResetPasswordPage from '../pages/ResetPasswordPage';
 import NotFoundPage from '../pages/NotFoundPage';
+import { PrivacyPage, TermsPage } from '../pages/LegalPage';
 import { paths } from './routes';
 
 /*
@@ -66,6 +67,8 @@ export function App() {
           <Route path={paths.account} element={<AccountPage />} />
           <Route path={paths.verifyEmail} element={<VerifyEmailPage />} />
           <Route path={paths.resetPassword} element={<ResetPasswordPage />} />
+          <Route path={paths.privacy} element={<PrivacyPage />} />
+          <Route path={paths.terms} element={<TermsPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>

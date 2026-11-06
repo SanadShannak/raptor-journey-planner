@@ -1,3 +1,4 @@
+import { LegalLinks } from '../components/LegalLinks';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { PendingLabel } from '../components/Pending';
 import { pendingButtonClass } from '../components/pendingButtonClass';
@@ -383,6 +384,17 @@ export function AuthDialog({ mode, onChangeMode, onClose }: Props) {
             <div className="mt-3">{resendControl}</div>
           )}
         </div>
+
+        {isSignUp && sentTo === null && awaiting?.justSignedUp !== true && (
+          <div className="text-content-muted flex flex-col gap-1 text-sm">
+            <p>{t(strings.legal.signUpConsent)}</p>
+            {/* In a new tab, so reading them does not lose what is typed here. */}
+            <LegalLinks
+              newTab
+              className="rounded-control text-brand-500 focus-visible:outline-brand-500 underline focus-visible:outline-2 focus-visible:outline-offset-2"
+            />
+          </div>
+        )}
 
         {sentTo === null && awaiting?.justSignedUp !== true && (
         <button

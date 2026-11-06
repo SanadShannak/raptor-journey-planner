@@ -8,6 +8,143 @@ export const en: Dictionary = {
   app: {
     title: 'Journey Planner',
   },
+  legal: {
+    updated: 'Last updated {date}',
+    contactHeading: 'Contact',
+    contactBody: 'For a question about these pages, or to access, correct or delete your data, write to:',
+    signUpConsent: 'By creating an account, you agree to these:',
+    privacy: {
+      title: 'Privacy policy',
+      intro:
+        'Journey Planner is a personal project run by one individual. It is not affiliated with any transport operator or government body. This page explains what it collects, why, and who else handles it.',
+      sections: [
+        {
+          heading: 'If you do not have an account',
+          paragraphs: [
+            'You can plan journeys, browse routes and stops, and keep favourites without an account. Your favourites, language, colour theme and which tours you have seen are stored in your own browser. They stay there until you clear them, and are not sent to us.',
+            'If you later register in that browser, your favourites are copied into your new account the first time you log in, and your email address is kept in the browser until then so that it can recognise the account.',
+          ],
+        },
+        {
+          heading: 'If you create an account',
+          paragraphs: [
+            'We store your name, your email address and whether you have confirmed it, your password in a form that cannot be read back, and the stops, routes and journeys you save. A saved journey includes the two places you chose, with their coordinates.',
+            'We also store the demonstration travel cards you add: their number, name, type, balance and history.',
+            'We use this data only to provide your account. We rely on your consent, which you give by creating the account and can withdraw by asking us to delete it.',
+          ],
+        },
+        {
+          heading: 'Your location',
+          paragraphs: [
+            'Your location is read only when you press a "my location" button, and your browser asks your permission first. The site works fully without it.',
+            'It is sent to our server to plan that journey. It is not stored unless you save the journey yourself.',
+          ],
+        },
+        {
+          heading: 'Cookies',
+          paragraphs: [
+            'We use one cookie, which keeps you logged in for up to 30 days. It is required for accounts to work and is not used for tracking. There are no advertising or analytics cookies, no tracking scripts, and we do not sell your data.',
+          ],
+        },
+        {
+          heading: 'Server logs',
+          paragraphs: [
+            'Our server logs each request so that we can run the site and understand how it is used. The logs are stripped first: they leave out search details and coordinates, cookies, and the last part of your IP address. Older logs are overwritten as new ones are written.',
+            'To limit abuse, your full IP address is held briefly in memory to count requests. It is not written to these logs.',
+          ],
+        },
+        {
+          heading: 'Who else handles data',
+          paragraphs: [
+            'Photon (by komoot) receives what you type into a place search, to suggest places. CARTO provides the map images and receives requests for the areas you view. Both also see your IP address, as any website you connect to does. We never send your location to Photon as part of a search.',
+            'MongoDB Atlas stores account data. Resend delivers the emails that confirm an address or reset a password, so it receives your email address. Arcjet checks logins and sign-ups to stop automated abuse, so it receives your IP address. The site runs on a server rented from Hetzner.',
+            'Some of these companies process data outside Jordan. Each handles data under its own privacy policy.',
+          ],
+        },
+        {
+          heading: 'How long we keep data',
+          paragraphs: [
+            'Account data is kept until you ask us to delete your account. Links for confirming an email address or resetting a password stop working and are removed when they expire. A scrambled record of emails sent, used to limit how many go to one address, is removed after 32 days.',
+          ],
+        },
+        {
+          heading: 'Your choices',
+          paragraphs: [
+            'You can ask to see, correct or delete your data, or withdraw your consent, by writing to the address below. There is no delete button in your account yet, so an email is how to ask, and deletion removes your account, saved items and demonstration cards.',
+          ],
+        },
+        {
+          heading: 'Changes',
+          paragraphs: [
+            'If this policy changes, the new version will be published here with a new date.',
+          ],
+        },
+      ],
+    },
+    terms: {
+      title: 'Terms of use',
+      intro:
+        'These terms apply when you use Journey Planner. By using the site, you agree to them. If you do not agree, please do not use it.',
+      sections: [
+        {
+          heading: 'An independent project',
+          paragraphs: [
+            'Journey Planner is a personal project and a third-party app. It is not affiliated with, associated with or endorsed by Amman Vision Bus, the Greater Amman Municipality, the Ministry of Transport, or any other transport operator or government body. Their names are used only to say so and to describe the services they run.',
+          ],
+        },
+        {
+          heading: 'Information may be wrong',
+          paragraphs: [
+            'Routes, stops, times and vehicle positions are estimates compiled from publicly accessible timetable information. They are not live, and may be incomplete, out of date or wrong. Services can change or be cancelled without this site knowing.',
+            'Check with the operator for anything important, and allow extra time. You are responsible for your own travel decisions.',
+          ],
+        },
+        {
+          heading: 'Demonstration travel cards',
+          paragraphs: [
+            'The travel cards on this site are a demonstration. They are not real cards and are not connected to any operator or payment system. Topping one up involves no real money, a balance has no value, and they cannot pay for real travel. Real transport cards do not work here.',
+            'Do not enter payment details anywhere on this site, as it never asks for them.',
+          ],
+        },
+        {
+          heading: 'Your account',
+          paragraphs: [
+            'Keep your password private, and give an email address that is yours. You are responsible for what is done through your account.',
+          ],
+        },
+        {
+          heading: 'Acceptable use',
+          paragraphs: [
+            "Do not try to disrupt the site, get around its limits, access other people's accounts, collect its data automatically in bulk, or use it to break the law. An account that does may be suspended or removed.",
+          ],
+        },
+        {
+          heading: 'Availability',
+          paragraphs: [
+            'The site is free and is offered as it is. It may change, pause or stop at any time, without notice, and accounts and saved items could be lost.',
+          ],
+        },
+        {
+          heading: 'Map and other content',
+          paragraphs: [
+            'Map data is © OpenStreetMap contributors, and map images are © CARTO. Other names and marks belong to their owners.',
+          ],
+        },
+        {
+          heading: 'Liability',
+          paragraphs: [
+            'As far as the law allows, the person running this site is not liable for any loss caused by using it or relying on it, such as a missed trip, a delay or a cost you had to pay. Nothing here removes rights that the law says cannot be removed.',
+          ],
+        },
+        {
+          heading: 'Changes and governing law',
+          paragraphs: [
+            'These terms may change, and the new version will be published here with a new date. Using the site after that means you accept them. These terms are governed by the laws of Jordan.',
+          ],
+        },
+      ],
+    },
+  },
   notice: {
     short:
       'Unofficial personal project. Not affiliated with Amman Vision Bus, the Greater Amman Municipality or the Ministry of Transport.',
@@ -399,6 +536,9 @@ export const en: Dictionary = {
   },
 
   card: {
+    demoTitle: 'Demo only',
+    demoBody:
+      'These travel cards are a demonstration. They are not connected to Amman Vision Bus or any real card: no real money is involved, and they cannot pay for real travel.',
     walletTitle: 'Your travel cards',
     walletIntro: 'Add a card, top it up, and see what has been spent on it. Cards belong to your account, so they are the same on every device you sign in on.',
     numberLabel: 'Card number',

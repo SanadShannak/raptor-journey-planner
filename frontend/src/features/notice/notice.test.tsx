@@ -13,10 +13,12 @@ const CLOSE_MS = 450;
 
 const renderHost = () =>
   render(
-    <LocaleProvider>
-      <NoticeButton />
-      <NoticeHost />
-    </LocaleProvider>,
+    <MemoryRouter>
+      <LocaleProvider>
+        <NoticeButton />
+        <NoticeHost />
+      </LocaleProvider>
+    </MemoryRouter>,
   );
 
 const acknowledge = () => screen.getByRole('button', { name: 'I understand' });
@@ -136,6 +138,14 @@ describe('the independence notice', () => {
     fireEvent.click(acknowledge());
     pass(CLOSE_MS);
 
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('gets out of the way of a legal page, once the hold is over', () => {
+    renderHost();
+    pass(HOLD_MS);
+    fireEvent.click(screen.getByRole('link', { name: 'Privacy policy' }));
+    pass(CLOSE_MS);
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 

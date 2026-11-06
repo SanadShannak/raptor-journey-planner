@@ -69,6 +69,18 @@ export interface PluralForms {
 /** Either a fixed string or a set of plural forms selected by a `count`. */
 export type Message = string | PluralForms;
 
+/** One heading of a legal page and what is written under it. */
+export interface LegalSection {
+  heading: string;
+  paragraphs: string[];
+}
+
+export interface LegalDocument {
+  title: string;
+  intro: string;
+  sections: LegalSection[];
+}
+
 export interface Dictionary {
   /** Cross-cutting text that belongs to no one page — shown wherever it applies. */
   common: {
@@ -85,6 +97,17 @@ export interface Dictionary {
   };
   app: {
     title: string;
+  };
+  /** The privacy policy and the terms. */
+  legal: {
+    /** "Last updated {date}". */
+    updated: string;
+    contactHeading: string;
+    contactBody: string;
+    /** Above the links in the sign-up form. */
+    signUpConsent: string;
+    privacy: LegalDocument;
+    terms: LegalDocument;
   };
   /** That this site has no connection to the bodies whose services it covers. */
   notice: {
@@ -626,6 +649,8 @@ export interface Dictionary {
    * make one is asking the wrong question.
    */
   card: {
+    demoTitle: string;
+    demoBody: string;
     /* The page itself. */
     walletTitle: string;
     walletIntro: string;

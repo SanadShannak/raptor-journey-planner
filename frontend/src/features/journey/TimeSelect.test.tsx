@@ -32,15 +32,91 @@ const wire = () => screen.getByTestId('value').textContent;
 beforeEach(() => localStorage.clear());
 afterEach(() => localStorage.clear());
 
+/* A phone's number pad has no colon and no letters. */
+describe('typing from a number pad', () => {
+  const type = (text: string) => {
+    fireEvent.focus(input());
+    fireEvent.change(input(), { target: { value: text } });
+  };
+  const press = (name: string) => fireEvent.click(screen.getByRole('radio', { name }));
+  const leave = () => fireEvent.blur(input(), { target: { value: input().value } });
+
+  it('puts the colon in by itself', () => {
+    render(<Field />);
+    type('930');
+    expect(input().value).toBe('9:30');
+    type('1430');
+    expect(input().value).toBe('14:30');
+    leave();
+    expect(wire()).toBe('14:30');
+  });
+
+  it('applies PM when it is pressed beside the digits', () => {
+    render(<Field />);
+    type('930');
+    press('PM');
+    leave();
+    expect(wire()).toBe('21:30');
+  });
+
+  it('reads the digits as they are when no half is pressed', () => {
+    render(<Field />);
+    type('930');
+    leave();
+    expect(wire()).toBe('09:30');
+  });
+
+  it('moves the same time to the other half with nothing typed', () => {
+    render(<Field />);
+    fireEvent.focus(input());
+    press('AM');
+    leave();
+    expect(wire()).toBe('04:54');
+  });
+
+  it('ignores a pressed half on an hour past twelve', () => {
+    render(<Field />);
+    type('1430');
+    press('AM');
+    leave();
+    expect(wire()).toBe('14:30');
+  });
+
+  it('reads the Arabic digits an Arabic number pad sends', () => {
+    render(<Field />);
+    type('٩٣٠');
+    expect(input().value).toBe('9:30');
+    leave();
+    expect(wire()).toBe('09:30');
+  });
+
+  it('shows the buttons only while typing', () => {
+    render(<Field />);
+    expect(screen.queryByRole('radio', { name: 'PM' })).toBeNull();
+    fireEvent.focus(input());
+    expect(screen.getByRole('radio', { name: 'PM' })).toBeTruthy();
+    leave();
+    expect(screen.queryByRole('radio', { name: 'PM' })).toBeNull();
+  });
+
+  it('keeps focus in the field when a half is pressed', () => {
+    render(<Field />);
+    fireEvent.focus(input());
+    // `fireEvent` returns false when the default was prevented.
+    expect(fireEvent.mouseDown(screen.getByRole('radio', { name: 'PM' }))).toBe(false);
+  });
+});
+
 describe('the typed time', () => {
   it('shows the time the way it is displayed, not the way it is sent', () => {
     render(<Field />);
     expect(input().value).toBe('4:54 PM');
 
-    // Clicking in used to hand over the 24-hour value behind it, which looked
-    // like the field had changed the time on its own.
+    // Clicking in empties it, so a phone's first digit starts afresh, and keeps
+    // the displayed time as the hint rather than the 24-hour value behind it.
     fireEvent.focus(input());
-    expect(input().value).toBe('4:54 PM');
+    expect(input().value).toBe('');
+    expect(input().placeholder).toBe('4:54 PM');
   });
 
   it('leaves the value alone when nothing was typed', () => {

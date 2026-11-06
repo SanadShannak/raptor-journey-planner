@@ -1,3 +1,27 @@
+/** Arabic number pads can send their own digits; the rest of the app reads Latin ones. */
+function latinDigits(input: string): string {
+  return input
+    .replace(/[\u0660-\u0669]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/[\u06F0-\u06F9]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0));
+}
+
+/**
+ * Puts the colon in as somebody types, because a phone's number pad has none.
+ *
+ * `930` becomes `9:30` and `1430` becomes `14:30`. Up to two digits are left as
+ * they are, since the first of `12` could be either end of the time. Anything
+ * with a letter in it is somebody typing `9pm` on a real keyboard, and is left
+ * alone apart from its digits.
+ */
+export function maskTypedTime(input: string): string {
+  const text = latinDigits(input);
+  if (/\p{L}/u.test(text)) return text;
+
+  const digits = text.replace(/\D/g, '').slice(0, 4);
+  if (digits.length <= 2) return /[:.]/.test(text) ? text : digits;
+  return `${digits.slice(0, -2)}:${digits.slice(-2)}`;
+}
+
 /**
  * Reads what someone types into the field.
  *
@@ -18,7 +42,7 @@ export function parseTypedTime(
   input: string,
   meridiems?: { am: string; pm: string },
 ): string | null {
-  let cleaned = input.trim().toLowerCase();
+  let cleaned = latinDigits(input).trim().toLowerCase();
   if (cleaned === '') return null;
 
   if (meridiems !== undefined) {

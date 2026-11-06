@@ -8,6 +8,7 @@ import { CARD_LIMIT } from '../api/cards';
 import { useSession } from '../auth';
 import { GuestNotice } from '../auth/GuestNotice';
 import { BalanceCheck } from '../features/card/BalanceCheck';
+import { Notice } from '../components/StatusPanel';
 import { formatMoney, messageForApiError, useLocale } from '../i18n';
 import { AddCardForm } from '../features/card/AddCardForm';
 import { CardDetail } from '../features/card/CardDetail';
@@ -126,6 +127,17 @@ export default function CardPage() {
         <p className="text-content-muted max-w-prose">
           {t(strings.card.walletIntro)}
         </p>
+      </div>
+
+      {/*
+        Above everything a card can do, for guests and accounts alike: "top up"
+        and "pay fare" read as real, and nothing behind them is.
+      */}
+      <div className="max-w-xl">
+        <Notice tone="info">
+          <p className="font-semibold">{t(strings.card.demoTitle)}</p>
+          <p>{t(strings.card.demoBody)}</p>
+        </Notice>
       </div>
 
       <div className="max-w-xl">

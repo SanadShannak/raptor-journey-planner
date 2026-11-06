@@ -2,7 +2,7 @@ import { useId, useLayoutEffect, useRef, useState } from 'react';
 import { clockMeridiems, formatClockTime, formatNumber, useLocale } from '../../i18n';
 import { Popover } from '../../components/Popover';
 import { Chevron } from '../../components/DateSelect';
-import { parseTypedTime } from './parseTypedTime';
+import { maskTypedTime, parseTypedTime } from './parseTypedTime';
 import { centerOnOption } from '../../components/centerOnOption';
 
 interface Props {
@@ -71,6 +71,14 @@ function fromParts({ hour12, minute, pm }: ClockParts): string {
  * list. The field is a real text input, so typing needs no mouse first, and it
  * accepts far more than it displays — `9`, `930`, `9.30`, `9:30 pm`.
  *
+ * **It has to work from a phone's number pad, which has no colon and no letters.**
+ * So it empties on focus, with the current time left as a hint, and the first
+ * digit starts afresh rather than landing inside "8:33 PM". The colon goes in by
+ * itself, and AM and PM are buttons beside the digits for as long as it is being
+ * typed in. They keep focus in the field, so pressing one leaves the keyboard up,
+ * and they stay out of the tab order: a keyboard can type "pm", and the dial
+ * below offers the same choice to anyone who cannot use either.
+ *
  * The list is a twelve-hour dial rather than a flat run of every quarter hour:
  * an hour column, a minute column, and a meridiem that does not scroll because
  * it has two entries and scrolling two entries is absurd. A flat list of
@@ -96,6 +104,8 @@ export function TimeSelect({ label, value, onChange, disabled }: Props) {
   const { locale, strings, t } = useLocale();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<string | null>(null);
+  /** AM or PM as pressed beside the digits; null until one is. */
+  const [draftPm, setDraftPm] = useState<boolean | null>(null);
   /** What the columns have chosen so far, before it is handed over. */
   const [pending, setPending] = useState<ClockParts | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -131,6 +141,19 @@ export function TimeSelect({ label, value, onChange, disabled }: Props) {
     centerOnOption(minuteListRef.current, minuteIndex);
   }, [open, hourIndex, minuteIndex]);
 
+  /** What was typed, with AM or PM applied if one was pressed. */
+  function readTyped(raw: string): string | null {
+    const meridiems = clockMeridiems(locale);
+    // Nothing typed: pressing AM or PM means this same time, in that half.
+    if (raw.trim() === '') {
+      return draftPm === null ? null : fromParts({ ...parts, pm: draftPm });
+    }
+    // A hour past twelve has no half to apply, and the digits are read as they are.
+    const withHalf =
+      draftPm === null ? null : parseTypedTime(`${raw} ${draftPm ? 'pm' : 'am'}`, meridiems);
+    return withHalf ?? parseTypedTime(raw, meridiems);
+  }
+
   function commit(raw: string) {
     /*
      * Unchanged text must never change the value. It matters because the field
@@ -140,12 +163,13 @@ export function TimeSelect({ label, value, onChange, disabled }: Props) {
      * hours for the crime of being clicked on.
      */
     if (raw !== display) {
-      const parsed = parseTypedTime(raw, clockMeridiems(locale));
-      if (parsed !== null) onChange(parsed);
+      const parsed = readTyped(raw);
+      if (parsed !== null && parsed !== value) onChange(parsed);
     }
     // Typing wins over a half-made choice in the columns.
     setPending(null);
     setDraft(null);
+    setDraftPm(null);
   }
 
   /** Applies one column's choice, leaving the other two as they are. */
@@ -154,6 +178,7 @@ export function TimeSelect({ label, value, onChange, disabled }: Props) {
     // The typed draft is stale the moment the list is used; dropping it here
     // is what lets the field show the new value instead of the old one.
     setDraft(null);
+    setDraftPm(null);
   }
 
   /** Hands over whatever the columns settled on, if it is anything new. */
@@ -192,14 +217,9 @@ export function TimeSelect({ label, value, onChange, disabled }: Props) {
           autoComplete="off"
           disabled={disabled ?? false}
           value={draft ?? display}
-          onChange={(event) => setDraft(event.target.value)}
-          /*
-           * Seeded with what the field was *showing*, not the 24-hour value
-           * behind it. Clicking into "4:54 PM" and being handed "16:54" is the
-           * one moment the wire format is allowed to surface, and it made the
-           * field look like it had changed on its own.
-           */
-          onFocus={() => setDraft(display)}
+          placeholder={display}
+          onChange={(event) => setDraft(maskTypedTime(event.target.value))}
+          onFocus={() => setDraft('')}
           onBlur={(event) => commit(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter') {
@@ -212,8 +232,27 @@ export function TimeSelect({ label, value, onChange, disabled }: Props) {
               setOpen(true);
             }
           }}
-          className="min-w-0 flex-1 bg-transparent px-2 py-2.5 text-sm font-medium focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+          className="placeholder:text-content-muted min-w-0 flex-1 bg-transparent px-2 py-2.5 text-sm font-medium focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
         />
+        {draft !== null && (
+          <div role="radiogroup" aria-label={t(strings.planner.meridiem)} className="flex flex-none items-center gap-1 py-1">
+            {[false, true].map((pm) => (
+              <button
+                key={pm ? 'pm' : 'am'}
+                type="button"
+                role="radio"
+                tabIndex={-1}
+                aria-checked={draftPm === pm || (draftPm === null && draft === '' && parts.pm === pm)}
+                // Focus stays in the field, so the keyboard stays up and typing carries on.
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => setDraftPm(pm)}
+                className="rounded-control border-border-strong aria-checked:bg-brand-fill aria-checked:text-on-brand aria-checked:border-brand-fill h-full cursor-pointer border px-2 text-xs font-semibold"
+              >
+                {t(pm ? strings.planner.pm : strings.planner.am)}
+              </button>
+            ))}
+          </div>
+        )}
         <button
           ref={triggerRef}
           type="button"

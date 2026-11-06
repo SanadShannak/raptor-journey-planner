@@ -104,13 +104,13 @@ export function AppHeader() {
         <div className="flex min-w-0 items-center gap-3">
         <Link
           to={paths.home}
-          className="rounded-control focus-visible:outline-on-chrome flex items-center gap-2 text-base font-semibold tracking-tight whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2"
+          className="rounded-control focus-visible:outline-on-chrome flex items-center gap-3 text-base font-semibold tracking-tight whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2"
         >
           {/*
             The same mark the favicon carries, so the tab and the bar are
             recognisably one thing.
           */}
-          <AppMark size={26} />
+          <AppMark size={22} />
           {t(strings.app.title)}
         </Link>
 

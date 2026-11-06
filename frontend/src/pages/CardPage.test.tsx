@@ -165,6 +165,8 @@ describe('the wallet', () => {
 
     expect(screen.getByRole('heading', { level: 1 })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'My cards' })).toBeTruthy();
+    // "Top up" and "pay fare" read as real, so the page says they are not.
+    expect(screen.getByText('Demo only')).toBeTruthy();
     expect(
       await screen.findByText('Log in to see your own travel cards, add new ones and top them up.'),
     ).toBeTruthy();

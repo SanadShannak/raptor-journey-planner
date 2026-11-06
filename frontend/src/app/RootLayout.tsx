@@ -1,5 +1,6 @@
 import { NoticeHost } from '../features/notice';
 import { TourHost } from '../features/tour';
+import { LegalLinks } from '../components/LegalLinks';
 import { Suspense, useRef } from 'react';
 import { Outlet, matchPath, useLocation } from 'react-router';
 import { useStartSessionCheck } from '../auth';
@@ -176,8 +177,9 @@ export function RootLayout() {
 
       {showFooter && (
         <footer className="border-border text-content-muted border-t">
-          <div className="mx-auto max-w-6xl px-4 py-6 text-sm">
-            {t(strings.notice.short)}
+          <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-6 text-sm">
+            <p>{t(strings.notice.short)}</p>
+            <LegalLinks className="rounded-control hover:text-content focus-visible:outline-brand-500 underline focus-visible:outline-2 focus-visible:outline-offset-2" />
           </div>
         </footer>
       )}

@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { AppMark } from '../../components/AppMark';
+import { LegalLinks } from '../../components/LegalLinks';
 import { LanguageToggle, useLocale } from '../../i18n';
 import { useReducedMotion } from '../../map/useReducedMotion';
 import { closeNotice, getNoticeState, subscribeToNotice } from './noticeStore';
@@ -135,6 +136,17 @@ function NoticeDialog({ hold }: { hold: boolean }) {
             t(strings.notice.acknowledge)
           )}
         </button>
+
+        {/*
+          Held back with the button, so they are not a way past the hold. Always
+          taking up their space, so the screen does not jump when they appear.
+        */}
+        <div className={`text-sm ${holding ? 'invisible' : ''} ${rise('[animation-delay:300ms]')}`}>
+          <LegalLinks
+            onNavigate={leave}
+            className="rounded-control focus-visible:outline-on-chrome underline focus-visible:outline-2 focus-visible:outline-offset-2"
+          />
+        </div>
       </div>
 
       {/*
