@@ -233,6 +233,24 @@ describe('inspecting a stop from inside the planner', () => {
     // to an empty form — and so the control there can name it.
     expect(String(landed?.back).startsWith('/')).toBe(true);
   });
+
+  /* On a phone the map is above the sidebar, and opening a journey goes to it. */
+  it('scrolls to the top when an itinerary opens', async () => {
+    const scrollTo = vi.spyOn(window, 'scrollTo');
+    show();
+    await screen.findByLabelText('From');
+    await fill('From');
+    await fill('To');
+    fireEvent.click(screen.getByRole('button', { name: 'Find a journey' }));
+
+    const card = await screen.findByRole('button', { name: /18:00|6:00/ }, { timeout: 3000 });
+    scrollTo.mockClear();
+    fireEvent.click(card);
+
+    await screen.findByRole('button', { name: 'Back to results' });
+    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ top: 0 }));
+    scrollTo.mockRestore();
+  });
 });
 
 

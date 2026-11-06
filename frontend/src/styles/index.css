@@ -38,80 +38,75 @@
    */
 
   /*
-   * Brand: Vision City Bus. The wine `brand-500` is the operator's own colour,
-   * lifted from their app icon (#851C45) and reproduced exactly here; the
-   * orange accent is the swoosh in their logo (#F78F3B). Their website uses a
-   * lighter brick red (#AC3631) for buttons, but the wine is the identity that
-   * carries across the app, the icon, and the vehicles, so that is what the
-   * ramp is built on.
+   * Brand: graphite and gold. `brand-500` is the main colour, graphite #334155
+   * here and gold #FBBF24 in the dark scheme, because graphite cannot be read on
+   * a dark page. Both sit apart from every mode colour a rider reads on a line,
+   * bus blue above all, and from the red and green that mean failure and success.
    */
-  --color-brand-50: oklch(0.972 0.014 2.5);
-  --color-brand-100: oklch(0.93 0.038 2.5);
-  --color-brand-500: oklch(0.415 0.143 2.5);
-  --color-brand-600: oklch(0.36 0.135 2.5);
-  --color-brand-700: oklch(0.3 0.12 2.5);
+  --color-brand-50: oklch(0.9750 0.0070 257.29);
+  --color-brand-100: oklch(0.9350 0.0200 257.29);
+  --color-brand-500: oklch(0.3717 0.0392 257.29);
+  --color-brand-600: oklch(0.3117 0.0352 257.29);
+  --color-brand-700: oklch(0.2467 0.0313 257.29);
 
   /*
    * A filled brand control and the text on it. Separate from `brand-500`
-   * because the two schemes solve it differently: light mode fills with the
-   * true wine, dark mode has to lighten the fill to stay visible against the
-   * page while still carrying white text.
+   * because the two schemes solve it differently: both fill with the main
+   * colour, but the dark scheme's is too light to carry white text, so
+   * `on-brand` turns dark there.
    */
-  --color-brand-fill: oklch(0.415 0.143 2.5);
+  --color-brand-fill: oklch(0.3717 0.0392 257.29);
   --color-on-brand: oklch(1 0 0);
 
   /*
    * The form's own pressable controls — "my location", "leave now", the chosen
    * walking pace. They need their own tokens because the two schemes want
    * opposite things from them: on a white page a tint reads as a panel, so the
-   * control is filled with the wine outright, while on a dark page that same
-   * wine is heavier than the surface it sits on and a soft tint is the one
-   * that reads as a control. `-hover` is the state under the pointer, and it
+   * control is filled with the main colour outright, while on a dark page a
+   * fill that bright would outshout everything around it and a soft tint is
+   * the one that reads as a control. `-hover` is the state under the pointer, and it
    * moves in whichever direction the scheme has room for — darker on light,
    * lighter on dark.
    */
-  --color-action: oklch(0.415 0.143 2.5);
+  --color-action: oklch(0.3717 0.0392 257.29);
   --color-on-action: oklch(1 0 0);
-  --color-action-hover: oklch(0.36 0.135 2.5);
+  --color-action-hover: oklch(0.3117 0.0352 257.29);
   --color-on-action-hover: oklch(1 0 0);
 
   /*
-   * App chrome — the header, nav, and any persistent bar. Deep wine in both
-   * schemes, so the brand is where the eye lands first while itineraries and
-   * the map stay on a calm neutral ground. Light mode sits one step darker
-   * than `brand-500` because the orange accent has to stay legible on it.
+   * App chrome — the header, nav, and any persistent bar. Graphite in both
+   * schemes, a darker #1E293B in the dark one, so the bar and the start screen
+   * stay quiet while itineraries and the map carry the colour, and a full-width
+   * sheet of gold does not glare at night. Both schemes write near-white on it.
    *
    * Chrome is a *surface*, not the brand ramp: use `brand-500` for brand
    * coloured text on a normal page, and `chrome` only for a bar.
    */
-  --color-chrome: oklch(0.36 0.135 2.5);
+  --color-chrome: oklch(0.3717 0.0392 257.29);
   --color-on-chrome: oklch(1 0 0);
 
   /*
    * Outlines for controls sitting *on* the bar. `border-strong` is verified
    * against `surface` and is invisible here; this is the same job one layer
-   * up. One value serves both schemes — it clears 3:1 on the light chrome and
-   * on the deeper dark one — so it needs no dark override.
+   * up. One value serves both schemes, clearing 3:1 on the light bar and on the
+   * deeper dark one, so it needs no dark override.
    */
-  --color-chrome-border: oklch(0.64 0.06 2.5);
+  --color-chrome-border: oklch(0.8400 0.0500 257.29);
 
   /*
-   * The logo orange. `accent` is a *fill* — it is too light to be text on a
-   * surface, so anything written on it uses `on-accent`. `accent-strong` is
-   * the same hue darkened until it can be text or an icon on a surface. Using
-   * `accent` where `accent-strong` belongs is the easy mistake here.
+   * A warm gold, for what should stand out without being a control: the
+   * times in an itinerary, the icons in the date and time fields, a saved star.
+   * Text or an icon on a surface, verified at 4.5:1.
    */
-  --color-accent: oklch(0.748 0.157 55.6);
-  --color-accent-strong: oklch(0.57 0.141 55.6);
-  --color-on-accent: oklch(0.24 0.014 350);
+  --color-accent-strong: oklch(0.5200 0.1050 80.00);
 
   /*
    * Semantic surfaces and text. The neutrals carry a trace of the brand hue
-   * rather than the usual blue-grey, so greys sit under the wine instead of
+   * rather than the usual blue-grey, so greys sit under the graphite instead of
    * fighting it. Remapped for dark below.
    */
   --color-surface: oklch(1 0 0);
-  --color-surface-muted: oklch(0.972 0.006 350);
+  --color-surface-muted: oklch(0.9720 0.0060 257.29);
   --color-surface-raised: oklch(1 0 0);
   /*
    * One step deeper than `surface-muted`, for the second of two neutral chips
@@ -120,9 +115,9 @@
    * pair of neutrals can differ without either of them picking up a hue that
    * would read as a mode colour.
    */
-  --color-surface-sunken: oklch(0.925 0.008 350);
-  --color-content: oklch(0.24 0.014 350);
-  --color-content-muted: oklch(0.505 0.014 350);
+  --color-surface-sunken: oklch(0.9250 0.0080 257.29);
+  --color-content: oklch(0.2400 0.0140 257.29);
+  --color-content-muted: oklch(0.5050 0.0140 257.29);
 
   /*
    * Two border tokens on purpose. `border` is decorative (card edges,
@@ -130,15 +125,15 @@
    * `border-strong` is for boundaries that identify an interactive control,
    * such as a text input, where 3:1 *is* required.
    */
-  --color-border: oklch(0.9 0.008 350);
-  --color-border-strong: oklch(0.655 0.01 350);
+  --color-border: oklch(0.9000 0.0080 257.29);
+  --color-border-strong: oklch(0.6550 0.0100 257.29);
 
   /*
    * Transit modes.
    *
    * Data colours, not brand ones: every network colour-codes its modes, and a
    * rider reads the colour before the label. They are deliberately unrelated
-   * to the wine, which identifies the product rather than the vehicle.
+   * to the brand ramp, which identifies the product rather than the vehicle.
    *
    * Hues follow the convention HSL and most networks share — bus blue, tram
    * green, metro orange, train purple, ferry teal — so someone who knows the
@@ -192,21 +187,20 @@
  */
 :root {
   /*
-   * The wine is too dark to read against a dark page, so the dark scheme
-   * lifts the whole brand ramp rather than reusing it. `brand-fill` stays
-   * darker than `brand-500` because it still has to carry white text.
+   * Graphite cannot be read against a dark page, so the dark scheme turns the
+   * whole brand ramp to gold rather than reusing it.
    */
-  --dark-brand-50: oklch(0.255 0.045 2.5);
-  --dark-brand-100: oklch(0.31 0.06 2.5);
-  --dark-brand-500: oklch(0.66 0.143 2.5);
-  --dark-brand-600: oklch(0.71 0.14 2.5);
-  --dark-brand-700: oklch(0.76 0.13 2.5);
-  --dark-brand-fill: oklch(0.56 0.143 2.5);
+  --dark-brand-50: oklch(0.2550 0.0200 84.43);
+  --dark-brand-100: oklch(0.3100 0.0260 84.43);
+  --dark-brand-500: oklch(0.8369 0.1644 84.43);
+  --dark-brand-600: oklch(0.8719 0.1480 84.43);
+  --dark-brand-700: oklch(0.9119 0.1233 84.43);
+  --dark-brand-fill: oklch(0.8369 0.1644 84.43);
   /* The soft tint at rest, the fill on hover — the reverse of light. */
-  --dark-action: oklch(0.31 0.06 2.5);
-  --dark-on-action: oklch(0.76 0.13 2.5);
-  --dark-action-hover: oklch(0.56 0.143 2.5);
-  --dark-on-action-hover: oklch(1 0 0);
+  --dark-action: oklch(0.3100 0.0260 84.43);
+  --dark-on-action: oklch(0.9119 0.1233 84.43);
+  --dark-action-hover: oklch(0.8369 0.1644 84.43);
+  --dark-on-action-hover: oklch(0.1900 0.0120 257.29);
 
   /* Lifted, and the text on them darkens to match — see `on-mode`. */
   --dark-mode-bus: oklch(0.68 0.176 250);
@@ -214,30 +208,26 @@
   --dark-mode-metro: oklch(0.68 0.169 55);
   --dark-mode-train: oklch(0.68 0.18 310);
   --dark-mode-ferry: oklch(0.68 0.117 205);
-  --dark-on-mode: oklch(0.19 0.012 350);
+  --dark-on-mode: oklch(0.1900 0.0120 257.29);
 
-  /* Deepened so a wine bar does not glare against a dark page at night. */
-  --dark-chrome: oklch(0.3 0.12 2.5);
-  --dark-on-chrome: oklch(0.97 0.014 2.5);
+  /* Graphite again rather than the gold, so a whole bar does not glare at night. */
+  --dark-chrome: oklch(0.2795 0.0368 260.03);
+  --dark-on-chrome: oklch(0.9800 0.0080 257.29);
+  --dark-on-brand: oklch(0.1900 0.0120 257.29);
 
-  /*
-   * `accent` and `on-accent` are absent on purpose: the orange is already
-   * light enough to read on a dark page, and the dark text written on it
-   * stays dark in both schemes.
-   */
-  --dark-accent-strong: oklch(0.7 0.157 55.6);
+  --dark-accent-strong: oklch(0.8200 0.1300 85.00);
 
-  --dark-surface: oklch(0.19 0.012 350);
-  --dark-surface-muted: oklch(0.235 0.014 350);
-  --dark-surface-raised: oklch(0.26 0.014 350);
+  --dark-surface: oklch(0.1900 0.0120 257.29);
+  --dark-surface-muted: oklch(0.2350 0.0140 257.29);
+  --dark-surface-raised: oklch(0.2600 0.0140 257.29);
   /* Deeper reads as *lighter* here: the chip has to separate from a raised
      card rather than from a white page. */
-  --dark-surface-sunken: oklch(0.34 0.014 350);
-  --dark-content: oklch(0.96 0.008 350);
-  --dark-content-muted: oklch(0.72 0.014 350);
+  --dark-surface-sunken: oklch(0.3400 0.0140 257.29);
+  --dark-content: oklch(0.9600 0.0080 257.29);
+  --dark-content-muted: oklch(0.7200 0.0140 257.29);
 
-  --dark-border: oklch(0.34 0.014 350);
-  --dark-border-strong: oklch(0.54 0.014 350);
+  --dark-border: oklch(0.3400 0.0140 257.29);
+  --dark-border-strong: oklch(0.5400 0.0140 257.29);
 
   /* Lightened so they still clear 4.5:1 against the dark surface. */
   --dark-danger: oklch(0.68 0.18 25);
@@ -281,6 +271,7 @@
     --color-on-mode: var(--dark-on-mode);
     --color-chrome: var(--dark-chrome);
     --color-on-chrome: var(--dark-on-chrome);
+    --color-on-brand: var(--dark-on-brand);
     --color-accent-strong: var(--dark-accent-strong);
     --color-surface: var(--dark-surface);
     --color-surface-muted: var(--dark-surface-muted);
@@ -318,6 +309,7 @@
   --color-on-mode: var(--dark-on-mode);
   --color-chrome: var(--dark-chrome);
   --color-on-chrome: var(--dark-on-chrome);
+  --color-on-brand: var(--dark-on-brand);
   --color-accent-strong: var(--dark-accent-strong);
   --color-surface: var(--dark-surface);
   --color-surface-muted: var(--dark-surface-muted);
@@ -349,15 +341,15 @@
  */
 @supports not (color: oklch(0 0 0)) {
   :root {
-    --color-brand-50: #fff2f5;
-    --color-brand-100: #ffdee5;
-    --color-brand-500: #851c45;
-    --color-brand-600: #710c37;
-    --color-brand-700: #590129;
-    --color-brand-fill: #851c45;
-    --color-action: #851c45;
+    --color-brand-50: #f4f7fc;
+    --color-brand-100: #e1eaf7;
+    --color-brand-500: #334155;
+    --color-brand-600: #253143;
+    --color-brand-700: #172130;
+    --color-brand-fill: #334155;
+    --color-action: #334155;
     --color-on-action: #ffffff;
-    --color-action-hover: #710c37;
+    --color-action-hover: #253143;
     --color-on-action-hover: #ffffff;
     --color-on-brand: #ffffff;
     --color-mode-bus: #0077cd;
@@ -366,20 +358,18 @@
     --color-mode-train: #a04fd2;
     --color-mode-ferry: #00818c;
     --color-on-mode: #ffffff;
-    --color-chrome: #710c37;
+    --color-chrome: #334155;
     --color-on-chrome: #ffffff;
-    --color-chrome-border: #ac7d89;
-    --color-accent: #f78f3c;
-    --color-accent-strong: #b45c00;
-    --color-on-accent: #251d20;
+    --color-chrome-border: #b6ccec;
+    --color-accent-strong: #886108;
     --color-surface: #ffffff;
-    --color-surface-muted: #f9f4f6;
-    --color-surface-sunken: #ebe4e7;
+    --color-surface-muted: #f3f6fa;
+    --color-surface-sunken: #e3e6ec;
     --color-surface-raised: #ffffff;
-    --color-content: #251d20;
-    --color-content-muted: #6b6266;
-    --color-border: #e2dcdf;
-    --color-border-strong: #968e91;
+    --color-content: #1b2026;
+    --color-content-muted: #60656d;
+    --color-border: #dbdee3;
+    --color-border-strong: #8d9197;
     --color-danger: #d73337;
     --color-success: #05893e;
     --shadow-card:
@@ -387,33 +377,34 @@
     --shadow-lifted:
       0 2px 6px rgba(0, 0, 0, 0.12), 0 16px 32px rgba(0, 0, 0, 0.22);
 
-    --dark-brand-50: #341921;
-    --dark-brand-100: #49222e;
-    --dark-brand-500: #d8698a;
-    --dark-brand-600: #e8799a;
-    --dark-brand-700: #f58caa;
-    --dark-brand-fill: #b54a6d;
-    --dark-action: #49222e;
-    --dark-on-action: #f58caa;
-    --dark-action-hover: #b54a6d;
-    --dark-on-action-hover: #ffffff;
+    --dark-brand-50: #272218;
+    --dark-brand-100: #362f21;
+    --dark-brand-500: #fbbf24;
+    --dark-brand-600: #ffcc53;
+    --dark-brand-700: #ffdb7d;
+    --dark-brand-fill: #fbbf24;
+    --dark-action: #362f21;
+    --dark-on-action: #ffdb7d;
+    --dark-action-hover: #fbbf24;
+    --dark-on-action-hover: #101419;
     --dark-mode-bus: #299cff;
     --dark-mode-tram: #1cb657;
     --dark-mode-metro: #e57600;
     --dark-mode-train: #ba73ea;
     --dark-mode-ferry: #00acba;
-    --dark-on-mode: #181215;
-    --dark-chrome: #590129;
-    --dark-on-chrome: #fef1f4;
-    --dark-accent-strong: #e68028;
-    --dark-surface: #181215;
-    --dark-surface-muted: #231b1f;
-    --dark-surface-sunken: #3e3539;
-    --dark-surface-raised: #2a2125;
-    --dark-content: #f6f0f2;
-    --dark-content-muted: #aca1a6;
-    --dark-border: #3e3539;
-    --dark-border-strong: #756b70;
+    --dark-on-mode: #101419;
+    --dark-chrome: #1e293b;
+    --dark-on-chrome: #f5f9fe;
+    --dark-on-brand: #101419;
+    --dark-accent-strong: #ebbd57;
+    --dark-surface: #101419;
+    --dark-surface-muted: #1a1e25;
+    --dark-surface-sunken: #33383f;
+    --dark-surface-raised: #20242b;
+    --dark-content: #eef2f7;
+    --dark-content-muted: #9fa5ae;
+    --dark-border: #33383f;
+    --dark-border-strong: #6a6f77;
     --dark-danger: #f3625d;
     --dark-success: #53be70;
   }
@@ -505,6 +496,38 @@
  * for it there, because a reader who wants less movement gets no outgoing
  * layer at all.
  */
+/*
+ * The start screen. The ground fades as one; what is on it rises into place a
+ * beat later and lifts away first on the way out, so the two read as depth
+ * rather than as one flat sheet changing opacity. The long, soft easing is what
+ * makes it feel settled; `CLOSE_MS` in `NoticeHost.tsx` must match the way out.
+ */
+@keyframes splash-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes splash-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+@keyframes splash-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes splash-lift {
+  to {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+}
+
 @keyframes tour-in {
   from {
     opacity: 0;
@@ -518,6 +541,10 @@
 }
 
 @theme {
+  --animate-splash-in: splash-in 450ms ease-out both;
+  --animate-splash-rise: splash-rise 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-splash-out: splash-out 450ms cubic-bezier(0.4, 0, 0.2, 1) both;
+  --animate-splash-lift: splash-lift 300ms cubic-bezier(0.4, 0, 1, 1) both;
   --animate-tour-in: tour-in 220ms ease-out both;
   --animate-tour-out: tour-out 220ms ease-in both;
   --animate-star-pop: star-pop 220ms ease-out;

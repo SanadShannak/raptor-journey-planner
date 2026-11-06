@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLocale } from '../../i18n';
 import type { Place } from '../../types/place';
+import { MY_LOCATION_KEY } from './journeySearch';
 
 interface Props {
   onLocated: (place: Place) => void;
@@ -14,12 +15,16 @@ interface Props {
    */
   onMessage: (message: string | null) => void;
   disabled?: boolean | undefined;
+  /** The other end of the journey already is the location; says so and is off. */
+  taken?: boolean | undefined;
+  /** Tells the form a request is in flight, so the other end's button can wait. */
+  onBusy?: ((busy: boolean) => void) | undefined;
 }
 
 type State = 'idle' | 'locating' | 'denied' | 'failed';
 
 /**
- * Fills the origin from the device's location.
+ * Fills one end of the journey from the device's location.
  *
  * Asked for **only** when this button is pressed — never on page load, which
  * would put a permission prompt in front of someone who has not asked for one
@@ -37,13 +42,14 @@ type State = 'idle' | 'locating' | 'denied' | 'failed';
  * they are never handed to the geocoder as a search bias, which would send a
  * visitor's position to a third party as a side effect of typing.
  */
-export function UseMyLocationButton({ onLocated, onMessage, disabled }: Props) {
+export function UseMyLocationButton({ onLocated, onMessage, disabled, taken, onBusy }: Props) {
   const { strings, t } = useLocale();
   const [state, setState] = useState<State>('idle');
 
   /** Moves to a state and publishes the message that goes with it. */
   function settle(next: State) {
     setState(next);
+    onBusy?.(next === 'locating');
     onMessage(
       next === 'denied'
         ? t(strings.planner.locationDenied)
@@ -59,7 +65,7 @@ export function UseMyLocationButton({ onLocated, onMessage, disabled }: Props) {
       (position) => {
         settle('idle');
         onLocated({
-          key: 'my-location',
+          key: MY_LOCATION_KEY,
           lat: position.coords.latitude,
           lon: position.coords.longitude,
           label: t(strings.planner.myLocation),
@@ -121,11 +127,14 @@ export function UseMyLocationButton({ onLocated, onMessage, disabled }: Props) {
     <button
       type="button"
       onClick={() => void locate()}
-      disabled={state === 'locating' || (disabled ?? false)}
+      disabled={state === 'locating' || (disabled ?? false) || (taken ?? false)}
+      title={taken === true ? t(strings.planner.myLocationTaken) : undefined}
       aria-label={
         state === 'locating'
           ? t(strings.planner.locating)
-          : t(strings.planner.useMyLocation)
+          : taken === true
+            ? t(strings.planner.myLocationTaken)
+            : t(strings.planner.useMyLocation)
       }
       className="bg-action text-on-action hover:bg-action-hover hover:text-on-action-hover focus-visible:outline-brand-500 flex w-11 flex-none cursor-pointer items-center justify-center self-stretch transition-colors focus-visible:-outline-offset-2 focus-visible:outline-2 disabled:cursor-not-allowed disabled:opacity-60"
     >

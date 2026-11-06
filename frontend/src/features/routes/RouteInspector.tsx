@@ -568,9 +568,8 @@ export function RouteInspector({
                 press to get back.
 
                 Outlined in the route's own mode colour rather than the brand
-                wine, which on this card read as a warning rather than a
-                state somebody chose — wine is reserved for pressable controls
-                and this is neither pressed nor wrong. The body text stays
+                colour, which is reserved for pressable controls, and this is
+                neither pressed nor wrong. The body text stays
                 `text-content`: a mode's own colour is verified at 3:1 for a
                 border or an icon, not at the 4.5:1 a paragraph needs, so the
                 colour carries the accent and the words carry the reading.

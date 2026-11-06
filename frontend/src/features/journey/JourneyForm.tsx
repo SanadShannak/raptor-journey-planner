@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { formatNumber, useLocale } from '../../i18n';
 import {
   WALKING_PACES,
@@ -6,7 +6,7 @@ import {
   type WalkingPace,
 } from '../../config/journey';
 import type { GeoBounds } from '../../config/geocoding';
-import { isReady, type JourneyFormValues } from './journeySearch';
+import { MY_LOCATION_KEY, isReady, type JourneyFormValues } from './journeySearch';
 import { PlaceInput } from './PlaceInput';
 import { UseMyLocationButton } from './UseMyLocationButton';
 import { DateSelect } from '../../components/DateSelect';
@@ -67,7 +67,18 @@ export function JourneyForm({
   const locale = useLocale();
   const { strings, t } = locale;
 
-  const [locationMessage, setLocationMessage] = useState<string | null>(null);
+  const [originMessage, setOriginMessage] = useState<string | null>(null);
+  const [destinationMessage, setDestinationMessage] = useState<string | null>(null);
+  const [locating, setLocating] = useState<'origin' | 'destination' | null>(null);
+
+  /*
+   * A location arrives seconds after it was asked for. Merged into the form as
+   * it was at the press, it would undo anything changed since.
+   */
+  const latestValues = useRef(values);
+  useEffect(() => {
+    latestValues.current = values;
+  });
 
   const paceLabels: Record<WalkingPace, string> = {
     slow: t(strings.planner.speedSlow),
@@ -84,6 +95,32 @@ export function JourneyForm({
   }
 
   const off = disabled ?? false;
+
+  /*
+   * One location, one end: a journey from here to here is not a question. The
+   * other end's button also waits while a request is in flight, or two presses
+   * could fill both ends with it.
+   */
+  const locationButton = (
+    end: 'origin' | 'destination',
+    other: 'origin' | 'destination',
+    onMessage: (message: string | null) => void,
+  ) => (
+    <UseMyLocationButton
+      disabled={off || locating === other}
+      taken={values[other]?.key === MY_LOCATION_KEY}
+      onBusy={(busy) => setLocating(busy ? end : null)}
+      onLocated={(place) => onChange({ ...latestValues.current, [end]: place })}
+      onMessage={onMessage}
+    />
+  );
+
+  const locationNote = (message: string | null) =>
+    message !== null && (
+      <p role="status" className="text-danger text-sm">
+        {message}
+      </p>
+    );
 
   return (
     /*
@@ -112,20 +149,8 @@ export function JourneyForm({
             value={values.origin}
             disabled={off}
             onChange={(place) => set('origin', place)}
-            action={
-              <UseMyLocationButton
-                disabled={off}
-                onLocated={(place) => set('origin', place)}
-                onMessage={setLocationMessage}
-              />
-            }
-            note={
-              locationMessage !== null && (
-                <p role="status" className="text-danger text-sm">
-                  {locationMessage}
-                </p>
-              )
-            }
+            action={locationButton('origin', 'destination', setOriginMessage)}
+            note={locationNote(originMessage)}
           />
           <PlaceInput
             label={t(strings.planner.destination)}
@@ -135,6 +160,8 @@ export function JourneyForm({
             value={values.destination}
             disabled={off}
             onChange={(place) => set('destination', place)}
+            action={locationButton('destination', 'origin', setDestinationMessage)}
+            note={locationNote(destinationMessage)}
           />
         </div>
 

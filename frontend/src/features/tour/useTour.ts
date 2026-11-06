@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { useSession } from '../../auth/useSession';
+import { getNoticeState, subscribeToNotice } from '../notice/noticeStore';
 import { hasSeenTour, getTourState, setTourPage, startTour } from './tourStore';
 import { NEEDS_ACCOUNT, TOURS, findTarget, type TourId } from './tours';
 
@@ -32,10 +33,15 @@ const ATTEMPTS = 6;
  * first-visit start holds until somebody is signed in, and then runs as if
  * they had just arrived. The page is not registered either, so the header's
  * replay button is not offered there until then: there is nothing to tour.
+ *
+ * **The first-visit start also waits for the independence notice.** That dialog
+ * stays open for as long as somebody reads it, which outlasts the looks above,
+ * and giving up behind it would cost a new visitor the tour of their first page.
  */
 export function useTour(id: TourId): void {
   const { signedIn } = useSession();
   const waiting = NEEDS_ACCOUNT.has(id) && !signedIn;
+  const noticeOpen = useSyncExternalStore(subscribeToNotice, () => getNoticeState().open);
 
   useEffect(() => {
     if (waiting) return;
@@ -44,7 +50,7 @@ export function useTour(id: TourId): void {
   }, [id, waiting]);
 
   useEffect(() => {
-    if (waiting || hasSeenTour(id)) return;
+    if (waiting || noticeOpen || hasSeenTour(id)) return;
 
     let attempts = 0;
     let timer = 0;
@@ -67,5 +73,5 @@ export function useTour(id: TourId): void {
 
     timer = window.setTimeout(tryStart, SETTLE_MS);
     return () => window.clearTimeout(timer);
-  }, [id, waiting]);
+  }, [id, waiting, noticeOpen]);
 }

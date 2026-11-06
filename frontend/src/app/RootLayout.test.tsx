@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { forgetSession } from '../auth';
 import { forgetAuthPrompt } from '../auth/authPrompt';
+import { closeNotice } from '../features/notice/noticeStore';
 import { LocaleProvider } from '../i18n';
 import { ThemeProvider } from '../theme';
 import { RootLayout } from './RootLayout';
@@ -29,6 +30,7 @@ beforeEach(() => {
    */
   forgetSession();
   forgetAuthPrompt();
+  closeNotice();
 });
 
 afterEach(() => {

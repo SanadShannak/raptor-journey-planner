@@ -312,6 +312,7 @@ export default function PlanPage() {
   const requestId = useRef(0);
   const mapRef = useRef<HTMLElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
+  const paneRef = useRef<HTMLDivElement>(null);
   const revealPending = useRef(false);
   useEffect(() => {
     if (!revealPending.current || journeys.length === 0) return;
@@ -319,7 +320,7 @@ export default function PlanPage() {
     bringIntoView(resultsRef.current);
     // `bringIntoView` reads only refs and the window.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [journeys]);
+  }, [journeys, openIndex]);
   /** Bumped to re-run the startup effect when the service comes back. */
   const [attempt, setAttempt] = useState(0);
 
@@ -677,13 +678,27 @@ export default function PlanPage() {
   }
 
   /**
+   * Opening a journey starts at the top: on a phone that is the map above the
+   * stop-by-stop account, and side by side it is the start of the account rather
+   * than wherever the list had been scrolled to.
+   */
+  function openItinerary(index: number) {
+    setOpenIndex(index);
+    if (paneRef.current !== null) paneRef.current.scrollTop = 0;
+    if (typeof window.matchMedia !== 'function') return;
+    if (window.matchMedia(SIDE_BY_SIDE).matches) return;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' });
+  }
+
+  /**
    * Choosing a journey from the list. On a phone, where the map is above the
    * form and out of sight, it comes into view to show the journey chosen;
    * pressing the chosen one again opens it, as everywhere.
    */
   function selectJourney(index: number) {
     if (index === active) {
-      setOpenIndex(index);
+      openItinerary(index);
       return;
     }
     setSelectedIndex(index);
@@ -776,6 +791,7 @@ export default function PlanPage() {
         layout applies. On a phone the panes stack and the page scrolls.
       */}
       <div
+        ref={paneRef}
         data-pane
         className="border-border flex w-full flex-none flex-col border-e lg:min-h-0 lg:w-[30rem] lg:overflow-y-auto xl:w-[34rem]"
       >
@@ -797,7 +813,11 @@ export default function PlanPage() {
               origin={endOf(values.origin)}
               destination={endOf(values.destination)}
               searchedDate={values.date}
-              onBack={() => setOpenIndex(null)}
+              onBack={() => {
+                setOpenIndex(null);
+                // Opening went to the top; coming back lands on the list again.
+                revealResults();
+              }}
               /*
                 Pressing a stop while reading a journey is a question about
                 that stop, not a decision to abandon the journey — so it swaps

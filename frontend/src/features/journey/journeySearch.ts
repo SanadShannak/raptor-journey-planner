@@ -17,6 +17,9 @@ export interface JourneyFormValues {
   pace: WalkingPace;
 }
 
+/** The `key` of a place that came from the device's location. */
+export const MY_LOCATION_KEY = 'my-location';
+
 /** Complete enough to ask the engine about. */
 export function isReady(values: JourneyFormValues): boolean {
   return (

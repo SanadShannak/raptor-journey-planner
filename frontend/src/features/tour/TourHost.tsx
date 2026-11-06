@@ -33,6 +33,8 @@ const FADE_MS = 220;
 const GAP = 12;
 /** Below this width the card sits along the bottom of the screen instead. */
 const NARROW = '(max-width: 39.99rem)';
+/** Below this width the page itself scrolls, rather than panes inside it. */
+const STACKED = '(max-width: 63.99rem)';
 
 interface Box {
   top: number;
@@ -204,6 +206,27 @@ function TourDialog({ id, step }: { id: TourId; step: number }) {
   useEffect(() => {
     const dialog = dialogRef.current;
     if (dialog !== null && !dialog.open) dialog.showModal();
+  }, []);
+
+  /*
+   * A modal makes the page inert to presses, but a finger dragging across it
+   * still scrolls the document, which moves what the tour is pointing at. So
+   * where the document is what scrolls, it is held still: `overflow: hidden`
+   * stops the reader and leaves `reveal()` free to scroll from script, and
+   * cancelling the drag covers Safari, which does not always honour it on a page.
+   */
+  useEffect(() => {
+    if (!window.matchMedia(STACKED).matches) return;
+    const root = document.documentElement;
+    const dialog = dialogRef.current;
+    const previous = root.style.overflow;
+    const hold = (event: TouchEvent) => event.preventDefault();
+    root.style.overflow = 'hidden';
+    dialog?.addEventListener('touchmove', hold, { passive: false });
+    return () => {
+      root.style.overflow = previous;
+      dialog?.removeEventListener('touchmove', hold);
+    };
   }, []);
 
   /* Brings the element into view, and the step's heading into focus. */

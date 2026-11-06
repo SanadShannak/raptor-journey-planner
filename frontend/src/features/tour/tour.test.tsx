@@ -77,6 +77,38 @@ describe('the tour', () => {
     expect(screen.getByText('Step 2 of 2')).toBeTruthy();
   }, 10_000);
 
+  /* A drag on a phone would otherwise scroll the page under the tour. */
+  it('holds a stacked page still while it runs, and lets go afterwards', () => {
+    vi.spyOn(window, 'matchMedia').mockImplementation(
+      (query) =>
+        ({
+          matches: query.includes('max-width'),
+          media: query,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+        }) as unknown as MediaQueryList,
+    );
+    placeTargets('routes-search');
+    renderHost();
+    act(() => startTour('routes'));
+
+    expect(document.documentElement.style.overflow).toBe('hidden');
+    const drag = new Event('touchmove', { cancelable: true, bubbles: true });
+    screen.getByRole('dialog').dispatchEvent(drag);
+    expect(drag.defaultPrevented).toBe(true);
+
+    act(() => endTour());
+    expect(document.documentElement.style.overflow).toBe('');
+  });
+
+  it('leaves a side-by-side page alone', () => {
+    placeTargets('routes-search');
+    renderHost();
+    act(() => startTour('routes'));
+
+    expect(document.documentElement.style.overflow).toBe('');
+  });
+
   it('goes back a step, and finishes with Done on the last one', () => {
     placeTargets('routes-search', 'routes-list', 'route-detail', 'routes-map');
     renderHost();

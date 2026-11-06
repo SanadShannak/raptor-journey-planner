@@ -1,3 +1,4 @@
+import { NoticeHost } from '../features/notice';
 import { TourHost } from '../features/tour';
 import { Suspense, useRef } from 'react';
 import { Outlet, matchPath, useLocation } from 'react-router';
@@ -123,6 +124,7 @@ export function RootLayout() {
 
       <AppHeader />
       <TourHost />
+      <NoticeHost />
 
       {/*
         `tabIndex={-1}` is load-bearing twice over: without it the skip link
@@ -175,7 +177,7 @@ export function RootLayout() {
       {showFooter && (
         <footer className="border-border text-content-muted border-t">
           <div className="mx-auto max-w-6xl px-4 py-6 text-sm">
-            {t(strings.pages.home.title)}
+            {t(strings.notice.short)}
           </div>
         </footer>
       )}

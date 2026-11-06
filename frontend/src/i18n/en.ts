@@ -8,6 +8,18 @@ export const en: Dictionary = {
   app: {
     title: 'Journey Planner',
   },
+  notice: {
+    short:
+      'Unofficial personal project. Not affiliated with Amman Vision Bus, the Greater Amman Municipality or the Ministry of Transport.',
+    title: 'An independent, unofficial app',
+    independence:
+      'Journey Planner is a personal project and a third-party app. It is not affiliated with, associated with or endorsed by Amman Vision Bus, the Greater Amman Municipality, the Ministry of Transport, or any other transport operator or government body.',
+    accuracy:
+      'Routes and times may be out of date or inaccurate, so check with the operator for anything important.',
+    acknowledge: 'I understand',
+    acknowledgeIn: 'I understand ({seconds})',
+    open: 'About this site',
+  },
   language: {
     switcherLabel: 'Language',
   },
@@ -141,6 +153,7 @@ export const en: Dictionary = {
     destinationPlaceholder: 'Address, place, or stop',
     swap: 'Swap start and destination',
     useMyLocation: 'Use my location',
+    myLocationTaken: 'Your location is already the other end of this journey',
     locating: 'Finding your location…',
     locationDenied: 'Location permission was declined. Search for a place instead.',
     locationUnavailable: 'Your location could not be found. Search for a place instead.',

@@ -86,6 +86,19 @@ export interface Dictionary {
   app: {
     title: string;
   };
+  /** That this site has no connection to the bodies whose services it covers. */
+  notice: {
+    /** The whole statement in one line, for the page footer. */
+    short: string;
+    title: string;
+    independence: string;
+    accuracy: string;
+    acknowledge: string;
+    /** The same button during the hold, with the seconds left. */
+    acknowledgeIn: string;
+    /** The header control that reopens it. */
+    open: string;
+  };
   language: {
     /** Accessible label for the language switcher. */
     switcherLabel: string;
@@ -169,6 +182,8 @@ export interface Dictionary {
     destinationPlaceholder: string;
     swap: string;
     useMyLocation: string;
+    /** The same button when the other end of the journey already is the location. */
+    myLocationTaken: string;
     locating: string;
     locationDenied: string;
     locationUnavailable: string;

@@ -54,15 +54,12 @@ const PAIRS = [
   // against a hardcoded white.
   ['brand-fill', 'surface', AA_UI],
   ['on-brand', 'brand-fill', AA_TEXT],
-  // The orange is a fill, never text: `accent` is only ever checked with
-  // `on-accent` written on it, and `accent-strong` is the one allowed on a
-  // surface.
-  ['on-accent', 'accent', AA_TEXT],
+  // Times and field icons in the gold, on the surfaces they sit on.
   ['accent-strong', 'surface', AA_TEXT],
+  ['accent-strong', 'surface-raised', AA_TEXT],
   // App chrome is its own surface, so anything placed on a bar is checked
   // against the bar rather than against the page.
   ['on-chrome', 'chrome', AA_TEXT],
-  ['accent', 'chrome', AA_TEXT],
   ['chrome-border', 'chrome', AA_UI],
   // Mode colours are read as filled bullets carrying a label, and as a line
   // drawn against the page. Both are checked.

@@ -1,3 +1,4 @@
+import { NoticeButton } from '../features/notice';
 import { TourButton } from '../features/tour';
 import { useEffect, useId, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router';
@@ -152,6 +153,7 @@ export function PrimaryNav() {
           <ThemeToggle />
           <LanguageToggle />
           <TourButton onStart={() => setOpen(false)} />
+          <NoticeButton onOpen={() => setOpen(false)} />
         </div>
 
         <span aria-hidden="true" className="bg-chrome-border my-1 h-px w-full" />
@@ -170,7 +172,7 @@ export function PrimaryNav() {
         */}
         {checking ? null : signedIn && account !== null ? (
           <>
-            <p className="text-on-chrome/80 px-3 py-1 text-xs">
+            <p className="text-on-chrome px-3 py-1 text-xs">
               {t(strings.account.signedInAs)}
             </p>
             {/* The email identifies the account; pinned left-to-right because

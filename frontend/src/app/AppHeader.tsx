@@ -1,3 +1,4 @@
+import { NoticeButton } from '../features/notice';
 import { TourButton } from '../features/tour';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
@@ -5,6 +6,7 @@ import { getNetwork } from '../api/network';
 import { dismissAuth, requestAuth, useAuthPrompt, useSession } from '../auth';
 import { formatClockTime, useLocale, LanguageToggle } from '../i18n';
 import { useNetworkNow } from '../features/stops/useNetworkNow';
+import { AppMark } from '../components/AppMark';
 import { ThemeToggle } from '../theme';
 import { AuthDialog } from './AuthDialog';
 import { AccountMenu } from './AccountMenu';
@@ -13,7 +15,7 @@ import { paths } from './routes';
 import { useBackendHealth } from './useBackendHealth';
 
 /**
- * The wine app bar.
+ * The app bar.
  *
  * `bg-chrome text-on-chrome` — brand where the eye lands first, while
  * itineraries and the map keep a calm neutral ground behind them. Everything
@@ -105,26 +107,10 @@ export function AppHeader() {
           className="rounded-control focus-visible:outline-on-chrome flex items-center gap-2 text-base font-semibold tracking-tight whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2"
         >
           {/*
-            The same mark the favicon carries — a journey, two stops and the
-            route between them — so the tab and the bar are recognisably one
-            thing. Orange on the wine bar is the operator's own pairing, and is
-            contrast-checked as `accent` on `chrome` rather than against the
-            page behind it.
+            The same mark the favicon carries, so the tab and the bar are
+            recognisably one thing.
           */}
-          <svg
-            viewBox="0 0 48 48"
-            width="22"
-            height="22"
-            fill="none"
-            aria-hidden="true"
-            className="text-accent flex-none"
-          >
-            <g stroke="currentColor" strokeWidth="3.4" strokeLinecap="round">
-              <path d="M15 17.5v6.2a4 4 0 0 0 4 4h10a4 4 0 0 1 4 4v2.8" strokeDasharray="0.1 6.8" />
-              <circle cx="15" cy="13" r="4.6" />
-              <circle cx="33" cy="35" r="4.6" />
-            </g>
-          </svg>
+          <AppMark size={26} />
           {t(strings.app.title)}
         </Link>
 
@@ -180,6 +166,7 @@ export function AppHeader() {
             component the same either way — only their address changes.
           */}
           <div className="hidden items-center gap-2 xl:flex">
+            <NoticeButton />
             <TourButton />
             <ThemeToggle />
             <LanguageToggle />
